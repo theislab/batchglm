@@ -1,0 +1,7 @@
+.idea
+.Rhistory
+playground/*
+venv/*
+
+!**/.gitignore
+
