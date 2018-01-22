@@ -6,7 +6,7 @@ import tensorflow.contrib as tfcontrib
 import pandas as pd
 import numpy as np
 
-from .models import NegativeBinomial
+from .models import negative_binomial
 
 # import matplotlib.pyplot as plt
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # Alternative: closed-form solution for p:
     # p_estim = N * r_estim / (N * r_estim + tf.reduce_sum(sample_data, axis=0))
     
-    r, p = NegativeBinomial.fit(sample_data)
+    r, p = negative_binomial.fit(sample_data)
     
     distribution = tfcontrib.distributions.NegativeBinomial(total_count=r,
                                                             probs=p,

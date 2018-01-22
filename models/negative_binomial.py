@@ -1,24 +1,25 @@
 import tensorflow as tf
-import tensorflow.contrib as tfcontrib
+from tensorflow.contrib.distributions import NegativeBinomial
 
 import math
 
 """
 Additional methods related to negative binomial distributions. 
-See also :class:`tf.contrib.distributions.NegativeBinomial`
+See also :class:`NegativeBinomial`
 """
 
 
 def fit(sample_data, optimizable=True, name=None):
     """
-    Fits negative binomial distributions NB(r, p) to given sample data along axis 0
+    Fits negative binomial distributions NB(r, p) to given sample data along axis 0.
 
+    Usage example:
+    \`distribution = fit(sample_data);
     :param sample_data: matrix containing samples for each distribution on axis 0\n
         E.g. `(N, M)` matrix with `M` distributions containing `N` observed values each
-    :param optimizable: if true, the returned parameters will be optimizable
+    :param optimizable: if true, the returned distribution's parameters will be optimizable
     :param name: A name for the operation (optional).
-    :return: shape `r`, probability for success `p` and observed mean `mu` for sample data.\n
-        `r` and `p` will be initialized with the Maximum-of-Momentum estimator
+    :return: negative binomial distribution
     """
     with tf.name_scope(name, "fit"):
         (r, p) = fit_mme(sample_data)
@@ -33,7 +34,11 @@ def fit(sample_data, optimizable=True, name=None):
         p = mu / (r + mu)
         p = tf.identity(p, "p")
 
-        return r, p, mu
+        distribution = NegativeBinomial(total_count=r,
+                                        probs=p,
+                                        name="nb-dist")
+
+        return distribution.total_count
 
 
 def fit_mme(sample_data, replace_values=None, name=None):
