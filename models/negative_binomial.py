@@ -25,7 +25,10 @@ def fit(sample_data, optimizable=True, name=None):
         (r, p) = fit_mme(sample_data)
 
         if optimizable:
-            r = tf.Variable(r, dtype=tf.float32, name="r")
+            r = tf.Variable(r, dtype=tf.float32, validate_shape=False, name="r")
+            # r_var = tf.Variable(tf.zeros(tf.shape(r)), dtype=tf.float32, validate_shape=False, name="r_var")
+            #
+            # r_assign_op = tf.assign(r_var, r)
 
         # keep mu constant
         mu = tf.reduce_mean(sample_data, axis=0, name="mu")
@@ -38,7 +41,7 @@ def fit(sample_data, optimizable=True, name=None):
                                         probs=p,
                                         name="nb-dist")
 
-        return distribution.total_count
+        return distribution
 
 
 def fit_mme(sample_data, replace_values=None, name=None):
@@ -57,7 +60,7 @@ def fit_mme(sample_data, replace_values=None, name=None):
                                   axis=0,
                                   name="variance")
         if replace_values is None:
-            replace_values = tf.fill(tf.shape(variance), math.nan, name="NaN_constant")
+            replace_values = tf.fill(tf.shape(variance), math.inf, name="inf_constant")
 
         r_by_mean = tf.where(tf.less(mean, variance),
                              mean / (variance - mean),

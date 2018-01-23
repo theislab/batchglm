@@ -7,6 +7,7 @@ from tensorflow.contrib.distributions.python.ops import negative_binomial
 
 from models import negative_binomial
 
+
 # import matplotlib.pyplot as plt
 
 ################################
@@ -26,8 +27,8 @@ if __name__ == '__main__':
     sample_data = tf.placeholder(tf.float32)
 
     # sample_data.shape: (N,M)
-    N = tf.shape(sample_data)[0]
-    N = tf.to_float(N)
+    # N = tf.shape(sample_data)[0]
+    # N = tf.to_float(N)
 
     distribution = negative_binomial.fit(sample_data)
     probs = distribution.log_prob(sample_data)
@@ -40,14 +41,15 @@ if __name__ == '__main__':
 
     errors = []
     with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
+        sess.run(tf.global_variables_initializer(), feed_dict={sample_data: x})
+        # initialize_all_variables(feed_dict={sample_data: x})
 
         for i in range(10000):
-            (probs_res, loss_res, _) = \
-                sess.run((probs, loss, train_op), feed_dict={sample_data: x})
+            (probs_res, r_estim, p_estim, loss_res, _) = \
+                sess.run((probs, distribution.total_count, distribution.probs, loss, train_op),
+                         feed_dict={sample_data: x})
             errors.append(loss_res)
             print(i)
-
-        r_estim = probs_res.total_count
+    tf.reset_default_graph()
 
     print(np.nanmean(np.abs(r_estim - df.r) / np.fmax(r_estim, df.r)))
