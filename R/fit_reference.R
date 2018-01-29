@@ -2,7 +2,7 @@ library(data.table)
 library(fitdistrplus)
 
 mu = function(r, p) {p * r / (1 - p)}
-p = function(r, mu) {mu / r + mu}
+p = function(r, mu) {mu / (r + mu)}
 
 data = as.matrix(fread("sample_data.tsv", header = F))
 data = t(data)

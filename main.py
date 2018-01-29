@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from tensorflow.contrib.distributions.python.ops import negative_binomial
 
-from models import negative_binomial
+import RSAgraph
 
 
 # import matplotlib.pyplot as plt
@@ -24,21 +24,10 @@ if __name__ == '__main__':
     df = df.iloc[smpls]
 
     # previously sampled data
-    sample_data = tf.placeholder(tf.float32)
 
-    # sample_data.shape: (N,M)
-    # N = tf.shape(sample_data)[0]
-    # N = tf.to_float(N)
 
-    distribution = negative_binomial.fit(sample_data)
-    probs = distribution.log_prob(sample_data)
-
-    # minimize negative log probability (log(1) = 0)
-    loss = -tf.reduce_sum(probs, name="loss")
-
-    train_op = tf.train.AdamOptimizer(learning_rate=0.05)
-    train_op = train_op.minimize(loss, global_step=tf.train.get_global_step())
-
+    RSAgraph.buildGraph()
+    
     errors = []
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer(), feed_dict={sample_data: x})
