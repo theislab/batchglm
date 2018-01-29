@@ -2,6 +2,7 @@
 .Rhistory
 playground/*
 venv/*
+resources/*
 
 !**/.gitignore
 
