@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
-import pandas as pd
+# import pandas as pd
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial as NBdist
 
 import os
-
-from abc import abstractclassmethod
 
 
 class MatrixSimulator:
@@ -30,18 +28,31 @@ class MatrixSimulator:
         self.params = {}
 
     def generate(self):
+        """
+        First generates the parameter set, then samples random data using these parameters
+        """
         self.generate_params()
         self.generate_data()
 
-    @abstractclassmethod
+    @classmethod
     def generate_data(self, *args):
+        """
+        Should sample random data using the pre-defined / sampled parameters
+        """
         pass
 
-    @abstractclassmethod
+    @classmethod
     def generate_params(self, *args):
+        """
+        Should generate all necessary parameters
+        """
         pass
 
     def load(self, folder):
+        """
+        Loads pre-sampled data and parameters from specified folder
+        :param folder: the source folder
+        """
         self.data = np.loadtxt(
             os.path.join(folder, self.cfg["data"]), delimiter="\t")
 
@@ -57,12 +68,17 @@ class MatrixSimulator:
                         os.path.join(folder, self.cfg["data"]), delimiter="\t")
 
     def save(self, folder):
+        """
+        Saves parameters and sampled data to specified folder
+        :param folder: the target folder where the data will be saved
+        """
         np.savetxt(os.path.join(folder, self.cfg["data"]), self.data, delimiter="\t")
 
         param_folder = os.path.join(folder, self.cfg['param_folder'])
         os.makedirs(param_folder, exist_ok=True)
 
         for (param, val) in self.params.items():
+            # print("saving param '%s' to %s" % param, os.path.join(param_folder, param))
             np.savetxt(os.path.join(param_folder, param), val, delimiter="\t")
 
 
@@ -127,6 +143,7 @@ class NegativeBinomialWithLinearBias(NegativeBinomial):
     def __init__(self):
         super().__init__()
 
+
     def generate_params(self, num_classes=4, min_bias=0.8, max_bias=1.2, *args):
         super().generate_params(*args)
 
@@ -136,6 +153,8 @@ class NegativeBinomialWithLinearBias(NegativeBinomial):
 
         self.params['bias_r'] = np.random.uniform(min_bias, max_bias, num_classes)
         self.params['bias_mu'] = np.random.uniform(min_bias, max_bias, num_classes)
+
+    @property
 
     @property
     def r(self):
@@ -164,3 +183,8 @@ class NegativeBinomialWithLinearBias(NegativeBinomial):
     #
     #     self.params.to_csv(
     #         os.path.join(folder, self.cfg["params"]), sep="\t", index=False)
+
+if __name__ == '__main__':
+    sim = NegativeBinomialWithLinearBias()
+    sim.generate()
+    sim.save("resources/")

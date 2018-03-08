@@ -1,12 +1,8 @@
-import tensorflow as tf
-import tensorflow.contrib as tfcontrib
-
 import pandas as pd
 import numpy as np
-from tensorflow.contrib.distributions.python.ops import negative_binomial
 
-import RSAgraph
-
+from models.negative_binomial import RSA_negative_binomial
+from impl.tf.base import BasicSession
 
 # import matplotlib.pyplot as plt
 
@@ -14,31 +10,32 @@ import RSAgraph
 # Estimate NB distribution parameters by parameter optimization
 ################################
 
+def validateData(sample_data):
+    smpls = np.mean(sample_data, 0) < np.var(sample_data, 0)
+    print("removing samples due to too small variance: \n%s" % np.where(smpls == False))
+    
+    return np.where(smpls)
+
+
 if __name__ == '__main__':
     # load sample data
-    x = np.loadtxt("resources/sample_data.tsv", delimiter="\t")
+    sample_data = np.loadtxt("resources/sample_data.tsv", delimiter="\t")
     df = pd.read_csv("resources/sample_params.tsv", sep="\t")
-
-    smpls = np.array(range(10))
-    x = x[:, smpls]
-    df = df.iloc[smpls]
-
-    # previously sampled data
-
-
-    RSAgraph.buildGraph()
     
-    errors = []
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer(), feed_dict={sample_data: x})
-        # initialize_all_variables(feed_dict={sample_data: x})
-
-        for i in range(10000):
-            (probs_res, r_estim, p_estim, loss_res, _) = \
-                sess.run((probs, distribution.total_count, distribution.probs, loss, train_op),
-                         feed_dict={sample_data: x})
-            errors.append(loss_res)
-            print(i)
-    tf.reset_default_graph()
-
-    print(np.nanmean(np.abs(r_estim - df.r) / np.fmax(r_estim, df.r)))
+    # smpls = np.array(range(10))
+    # smpls = range(np.shape(sample_data)[1])
+    smpls = validateData(sample_data)
+    
+    sample_data = sample_data[:, smpls]
+    df = df.iloc[smpls]
+    
+    # previously sampled data
+    
+    model = RSA_negative_binomial()
+    
+    session = BasicSession(model, sample_data)
+    session.initialize()
+    session.train(1)
+    session.evaluate(df)
+    
+    
