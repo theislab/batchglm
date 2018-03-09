@@ -2,9 +2,9 @@
 
 import numpy as np
 
-from models.negative_binomial import NegativeBinomialSimulator
+from . import NegativeBinomialWithLinearBiasModel, NegativeBinomialWithLinearBiasInputData, NegativeBinomialSimulator
 
-from . import NegativeBinomialWithLinearBiasModel, NegativeBinomialWithLinearBiasInputData
+__all__ = ['NegativeBinomialWithLinearBiasSimulator']
 
 
 class NegativeBinomialWithLinearBiasSimulator(NegativeBinomialSimulator, NegativeBinomialWithLinearBiasModel):

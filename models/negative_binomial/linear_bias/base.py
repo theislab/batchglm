@@ -1,4 +1,7 @@
-from models.negative_binomial import NegativeBinomialModel, NegativeBinomialInputData
+from . import NegativeBinomialModel, NegativeBinomialInputData
+
+
+__all__ = ['NegativeBinomialWithLinearBiasInputData', 'NegativeBinomialWithLinearBiasModel']
 
 
 class NegativeBinomialWithLinearBiasInputData(NegativeBinomialInputData):

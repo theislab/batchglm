@@ -8,6 +8,8 @@ from models import BasicSimulator
 
 from . import NegativeBinomialModel, NegativeBinomialInputData
 
+__all__ = ['NegativeBinomialSimulator']
+
 
 class NegativeBinomialSimulator(BasicSimulator, NegativeBinomialModel):
     # static variables

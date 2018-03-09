@@ -1,5 +1,7 @@
 from models import BasicInputData
 
+__all__ = ['NegativeBinomialInputData', 'NegativeBinomialModel']
+
 
 class NegativeBinomialInputData(BasicInputData):
     # same as BasicInputData
