@@ -10,7 +10,11 @@ from . import NegativeBinomialModel, NegativeBinomialInputData
 
 
 class NegativeBinomialSimulator(BasicSimulator, NegativeBinomialModel):
+    # static variables
     cfg = BasicSimulator.cfg.copy()
+    
+    # type hinting
+    data: NegativeBinomialInputData
     
     def __init__(self, num_samples=2000, num_distributions=10000, *args):
         BasicSimulator.__init__(self, *args)

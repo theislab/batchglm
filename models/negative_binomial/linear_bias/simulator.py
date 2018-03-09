@@ -8,7 +8,11 @@ from . import NegativeBinomialWithLinearBiasModel, NegativeBinomialWithLinearBia
 
 
 class NegativeBinomialWithLinearBiasSimulator(NegativeBinomialSimulator, NegativeBinomialWithLinearBiasModel):
+    # static variables
     cfg = NegativeBinomialSimulator.cfg.copy()
+    
+    # type hinting
+    data: NegativeBinomialWithLinearBiasInputData
     
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)

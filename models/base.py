@@ -1,3 +1,4 @@
+import numbers
 import numpy as np
 import os
 
@@ -18,17 +19,11 @@ class BasicInputData(dict):
 
 
 class BasicEstimator:
+    input_data: dict
+    loss: any
     
-    def __init__(self, input_data):
+    def __init__(self, input_data: dict):
         self.input_data = input_data
-    
-    @property
-    def loss(self):
-        return self._loss
-    
-    @loss.setter
-    def loss(self, value):
-        self._loss = value
     
     @classmethod
     def initialize(self, **kwargs):
@@ -40,6 +35,9 @@ class BasicEstimator:
 
 
 class BasicSimulator:
+    data: BasicInputData
+    params: dict
+    
     """
     Classes implementing `MatrixSimulator` should be able to generate a
     2D-matrix of sample data, as well as a dict of corresponding parameters.
@@ -57,22 +55,6 @@ class BasicSimulator:
         
         self.data = {}
         self.params = {}
-    
-    @property
-    def data(self):
-        return self._data  # type: dict
-    
-    @data.setter
-    def data(self, value):
-        self._data = value
-    
-    @property
-    def params(self):
-        return self._params  # type: dict
-    
-    @params.setter
-    def params(self, value):
-        self._params = value
     
     def generate(self):
         """
