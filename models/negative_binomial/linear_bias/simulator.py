@@ -14,10 +14,6 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     # type hinting
     data: InputData
     
-    def __new__(self):
-        NegativeBinomialSimulator.__new__(self)
-        Model.__new__(self)
-    
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         
