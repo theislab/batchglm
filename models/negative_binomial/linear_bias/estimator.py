@@ -8,7 +8,7 @@ from .base import InputData
 __all__ = ['AbstractEstimator']
 
 
-class AbstractEstimator(Model, BasicEstimator, ):
+class AbstractEstimator(Model, BasicEstimator):
     input_data: InputData
     
     def validateData(self) -> np.ndarray:

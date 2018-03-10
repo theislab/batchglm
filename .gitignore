@@ -3,6 +3,7 @@
 playground/*
 venv/*
 resources/*
+**/__pycache__
 
 !**/.gitignore
 

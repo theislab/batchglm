@@ -6,17 +6,17 @@ from tensorflow.contrib.distributions import NegativeBinomial as NBdist
 
 from models import BasicSimulator
 
-from . import NegativeBinomialModel, NegativeBinomialInputData
+from .base import Model, InputData
 
-__all__ = ['NegativeBinomialSimulator']
+__all__ = ['Simulator']
 
 
-class NegativeBinomialSimulator(BasicSimulator, NegativeBinomialModel):
+class Simulator(BasicSimulator, Model):
     # static variables
     cfg = BasicSimulator.cfg.copy()
     
     # type hinting
-    data: NegativeBinomialInputData
+    data: InputData
     
     def __init__(self, num_samples=2000, num_distributions=10000, *args):
         BasicSimulator.__init__(self, *args)
@@ -24,7 +24,7 @@ class NegativeBinomialSimulator(BasicSimulator, NegativeBinomialModel):
         self.num_samples = num_samples
         self.num_distributions = num_distributions
         
-        self.data = NegativeBinomialInputData(None)
+        self.data = InputData(None)
     
     def negative_binomial(self):
         # ugly hack using tensorflow, since parametrisation with `p`
@@ -78,6 +78,6 @@ class NegativeBinomialSimulator(BasicSimulator, NegativeBinomialModel):
 
 
 def main():
-    sim = NegativeBinomialSimulator()
+    sim = Simulator()
     sim.generate()
     sim.save("resources/")

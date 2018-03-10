@@ -1,3 +1,4 @@
+import abc
 from typing import Dict, Any, Union
 
 import tensorflow as tf
@@ -8,18 +9,18 @@ from . import BasicEstimator
 __all__ = ['TFEstimatorGraph', 'TFEstimator']
 
 
-class TFEstimatorGraph:
+class TFEstimatorGraph(metaclass=abc.ABCMeta):
     graph: tf.Graph
     loss: tf.Tensor
     
     def __init__(self, graph=tf.Graph()):
         self.graph = graph
     
-    @classmethod
+    @abc.abstractmethod
     def initialize(self, session: tf.Session, feed_dict: dict, *args, **kwargs):
         raise NotImplementedError
     
-    @classmethod
+    @abc.abstractmethod
     def train(self, session: tf.Session, feed_dict: dict, *args, **kwargs):
         raise NotImplementedError
     

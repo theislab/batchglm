@@ -2,21 +2,22 @@
 
 import numpy as np
 
-from . import NegativeBinomialWithLinearBiasModel, NegativeBinomialWithLinearBiasInputData, NegativeBinomialSimulator
+from . import NegativeBinomialSimulator
+from .base import Model, InputData
 
-__all__ = ['NegativeBinomialWithLinearBiasSimulator']
+__all__ = ['Simulator']
 
 
-class NegativeBinomialWithLinearBiasSimulator(NegativeBinomialSimulator, NegativeBinomialWithLinearBiasModel):
+class Simulator(NegativeBinomialSimulator, Model):
     # static variables
     cfg = NegativeBinomialSimulator.cfg.copy()
     
     # type hinting
-    data: NegativeBinomialWithLinearBiasInputData
+    data: InputData
     
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
-        self.data = NegativeBinomialWithLinearBiasInputData(None, None)
+        self.data = InputData(None, None)
     
     def generate_params(self, num_classes=4, min_bias=0.8, max_bias=1.2, *args):
         super().generate_params(*args)
@@ -47,7 +48,7 @@ class NegativeBinomialWithLinearBiasSimulator(NegativeBinomialSimulator, Negativ
 
 
 def main():
-    sim = NegativeBinomialWithLinearBiasSimulator()
+    sim = Simulator()
     sim.generate()
     sim.save("resources/")
     return sim

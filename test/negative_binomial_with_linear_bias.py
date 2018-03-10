@@ -1,4 +1,4 @@
-from models.negative_binomial import Simulator, Estimator
+from models.negative_binomial.linear_bias import Simulator, Estimator
 
 
 def simulate(data_folder=None, generate_new_data=False):

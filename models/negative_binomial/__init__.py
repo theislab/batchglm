@@ -1,10 +1,19 @@
-# absolute imports
-# ...
+# absolute imports for modules
+# nothing
 
 # relative imports
 from .base import *
-from .simulator import *
-from .estimator import *
+from .base import Model as NegativeBinomialModel  # Alias for Model
+from .base import InputData as NegativeBinomialInputData  # Alias for InputData
 
-# use TF as default estimator implementation # TODO: cyclic import; search better way
-from impl.tf.negative_binomial import TF_NegativeBinomialEstimator as NegativeBinomialEstimator
+from .simulator import *
+from .simulator import Simulator as NegativeBinomialSimulator  # Alias for Simulator
+
+# use TF as default estimator implementation
+from impl.tf.negative_binomial.estimator import Estimator
+from impl.tf.negative_binomial.estimator import Estimator as NegativeBinomialEstimator  # Alias for Estimator
+
+__all__ = ['NegativeBinomialSimulator',
+           'NegativeBinomialInputData',
+           'NegativeBinomialModel',
+           'NegativeBinomialEstimator']

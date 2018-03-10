@@ -1,3 +1,5 @@
+import abc
+
 import numpy as np
 import os
 
@@ -19,27 +21,27 @@ class BasicInputData(dict):
         self['sample_data'] = value
 
 
-class BasicEstimator:
+class BasicEstimator(metaclass=abc.ABCMeta):
     input_data: dict
     loss: any
     
     def __init__(self, input_data: dict):
         self.input_data = input_data
-        
-    @classmethod
-    def validate(self, **kwargs):
-        raise NotImplementedError
     
-    @classmethod
+    @abc.abstractmethod
+    def validateData(self, **kwargs):
+        pass
+    
+    @abc.abstractmethod
     def initialize(self, **kwargs):
-        raise NotImplementedError
+        pass
     
-    @classmethod
+    @abc.abstractmethod
     def train(self, **kwargs):
-        raise NotImplementedError
+        pass
 
 
-class BasicSimulator:
+class BasicSimulator(metaclass=abc.ABCMeta):
     data: BasicInputData
     params: dict
     
@@ -68,19 +70,19 @@ class BasicSimulator:
         self.generate_params()
         self.generate_data()
     
-    @classmethod
+    @abc.abstractmethod
     def generate_data(self, *args):
         """
         Should sample random data using the pre-defined / sampled parameters
         """
-        raise NotImplementedError
+        pass
     
-    @classmethod
+    @abc.abstractmethod
     def generate_params(self, *args):
         """
         Should generate all necessary parameters
         """
-        raise NotImplementedError
+        pass
     
     def load(self, folder):
         """

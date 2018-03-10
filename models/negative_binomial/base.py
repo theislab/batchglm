@@ -1,34 +1,27 @@
+import abc
+
 from models import BasicInputData
 
-__all__ = ['NegativeBinomialInputData', 'NegativeBinomialModel']
+__all__ = ['InputData', 'Model']
 
 
-class NegativeBinomialInputData(BasicInputData):
+class InputData(BasicInputData):
     # same as BasicInputData
     pass
 
 
-class NegativeBinomialModel:
+class Model(metaclass=abc.ABCMeta):
     @property
+    @abc.abstractmethod
     def r(self):
-        return self._r
+        pass
     
     @property
+    @abc.abstractmethod
     def p(self):
-        return self._p
+        pass
     
     @property
+    @abc.abstractmethod
     def mu(self):
-        return self._mu
-    
-    @mu.setter
-    def mu(self, value):
-        self._mu = value
-    
-    @r.setter
-    def r(self, value):
-        self._r = value
-    
-    @p.setter
-    def p(self, value):
-        self._p = value
+        pass
