@@ -94,17 +94,17 @@ class BasicSimulator(metaclass=abc.ABCMeta):
         if os.path.isdir(data_folder):
             for data_name in os.listdir(data_folder):
                 file = os.path.join(data_folder, data_name)
+                # print(file)
                 if os.path.isfile(file):
-                    self.data[data_name] = np.loadtxt(
-                        os.path.join(folder, self.cfg["data"]), delimiter="\t")
+                    self.data[data_name] = np.loadtxt(file, delimiter="\t")
         
         param_folder = os.path.join(folder, self.cfg['param_folder'])
         if os.path.isdir(param_folder):
             for param_name in os.listdir(param_folder):
                 file = os.path.join(param_folder, param_name)
+                # print(file)
                 if os.path.isfile(file):
-                    self.params[param_name] = np.loadtxt(
-                        os.path.join(folder, self.cfg["data"]), delimiter="\t")
+                    self.params[param_name] = np.loadtxt(file, delimiter="\t")
     
     def save(self, folder):
         """
