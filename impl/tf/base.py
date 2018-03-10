@@ -1,51 +1,67 @@
+from typing import Dict, Any, Union
+
 import tensorflow as tf
-import numpy as np
+from tensorflow import Tensor, Operation
+
+from . import BasicEstimator
+
+__all__ = ['TFEstimatorGraph', 'TFEstimator']
 
 
-class BasicEstimatorGraph:
-
-class BasicSession:
+class TFEstimatorGraph:
+    graph: tf.Graph
+    loss: tf.Tensor
     
-    def __init__(self, tf_model):
-        self.model = tf_model # type: RSA_negative_binomial
-        self.create_new_session(sample_data)
+    def __init__(self, graph=tf.Graph()):
+        self.graph = graph
     
-    def create_new_session(self, sample_data):
+    @classmethod
+    def initialize(self, session: tf.Session, feed_dict: dict, *args, **kwargs):
+        raise NotImplementedError
+    
+    @classmethod
+    def train(self, session: tf.Session, feed_dict: dict, *args, **kwargs):
+        raise NotImplementedError
+    
+    def input_to_feed_dict(self, input_data: dict, *args, **kwargs) -> Dict[Union[Union[Tensor, Operation], Any], Any]:
+        retval = {}
+        with self.graph.as_default():
+            for (key, value) in input_data.items():
+                retval[self.graph.get_tensor_by_name(key + ":0")] = value
+        
+        return retval
+
+
+class TFEstimator(BasicEstimator):
+    model: TFEstimatorGraph
+    session: tf.Session
+    feed_dict: Dict[Union[Union[Tensor, Operation], Any], Any]
+    
+    def __init__(self, input_data: dict, tf_estimator_graph: TFEstimatorGraph):
+        super().__init__(input_data)
+        self.model = tf_estimator_graph
+        self.create_new_session()
+    
+    def create_new_session(self) -> None:
         with self.model.graph.as_default():
             self.session = tf.Session()
-            self.feed_dict = {
-                self.model.sample_data: sample_data
-            }
-            return self.session
+            self.feed_dict = self.model.input_to_feed_dict(self.input_data)
     
-    def initialize(self):
+    def initialize(self) -> None:
         self.model.initialize(self.session, self.feed_dict)
     
-    def train(self, steps):
-        self.model.train(steps, self.session, self.feed_dict)
+    def train(self, steps: int, *args, **kwargs) -> None:
+        self.model.train(self.session, self.feed_dict, steps, *args, **kwargs)
     
-    # TODO: hässlich; dämliches Maß; nur für einen Param
-    def compare(self, session, feed_dict, real_values):
-        print(np.nanmean(
-            np.abs(self.r - np.array(real_values.r)) /
-            np.fmax(self.r, np.array(real_values.r))
-        ))
+    def run(self, tensor):
+        return self.session.run(tensor, feed_dict=self.feed_dict)
+    
+    # # TODO: hässlich; dämliches Maß; nur für einen Param
+    # def compare(self, real_values):
+    #     print(np.nanmean(
+    #         np.abs(self.r - np.array(real_values.r)) /
+    #         np.fmax(self.r, np.array(real_values.r))
+    #     ))
     
     def evaluate(self, s):
         pass
-    
-    @property
-    def loss(self):
-        return self.session.run(self.model.loss, feed_dict=self.feed_dict)
-    
-    @property
-    def r(self):
-        return self.session.run(self.model.r, feed_dict=self.feed_dict)
-    
-    @property
-    def p(self):
-        return self.session.run(self.model.p, feed_dict=self.feed_dict)
-    
-    @property
-    def mu(self):
-        return self.session.run(self.model.mu, feed_dict=self.feed_dict)

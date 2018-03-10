@@ -25,6 +25,10 @@ class BasicEstimator:
     
     def __init__(self, input_data: dict):
         self.input_data = input_data
+        
+    @classmethod
+    def validate(self, **kwargs):
+        raise NotImplementedError
     
     @classmethod
     def initialize(self, **kwargs):
