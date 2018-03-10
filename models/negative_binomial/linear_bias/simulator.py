@@ -39,12 +39,14 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     @property
     def bias_r(self):
         bias = self.params['bias_r'][self.data.design]
-        return np.transpose(np.tile(bias, (self.num_distributions, 1)))
+        bias = np.expand_dims(bias, axis=1)
+        return np.tile(bias, (1, self.num_distributions))
     
     @property
     def bias_mu(self):
-        bias = self.params['bias_mu'][self.data.design]
-        return np.transpose(np.tile(bias, (self.num_distributions, 1)))
+        bias = self.params['bias_r'][self.data.design]
+        bias = np.expand_dims(bias, axis=1)
+        return np.tile(bias, (1, self.num_distributions))
 
 
 def main():
