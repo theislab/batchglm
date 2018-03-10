@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+import abc
 import numpy as np
 
 from . import NegativeBinomialSimulator
@@ -8,22 +7,27 @@ from .base import Model, InputData
 __all__ = ['Simulator']
 
 
-class Simulator(NegativeBinomialSimulator, Model):
+class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     # static variables
     cfg = NegativeBinomialSimulator.cfg.copy()
     
     # type hinting
     data: InputData
     
+    def __new__(self):
+        NegativeBinomialSimulator.__new__(self)
+        Model.__new__(self)
+    
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
+        
         self.data = InputData(None, None)
     
     def generate_params(self, num_classes=4, min_bias=0.8, max_bias=1.2, *args):
         super().generate_params(*args)
         
-        self.data.design = np.repeat(range(num_classes), self.num_distributions / num_classes)
-        self.data.design = self.data.design[range(self.num_distributions)]
+        self.data.design = np.repeat(range(num_classes), self.num_samples / num_classes)
+        self.data.design = self.data.design[range(self.num_samples)]
         
         self.params['bias_r'] = np.random.uniform(min_bias, max_bias, num_classes)
         self.params['bias_mu'] = np.random.uniform(min_bias, max_bias, num_classes)
@@ -39,12 +43,12 @@ class Simulator(NegativeBinomialSimulator, Model):
     @property
     def bias_r(self):
         bias = self.params['bias_r'][self.data.design]
-        return np.tile(bias, (self.num_samples, 1))
+        return np.transpose(np.tile(bias, (self.num_distributions, 1)))
     
     @property
     def bias_mu(self):
         bias = self.params['bias_mu'][self.data.design]
-        return np.tile(bias, (self.num_samples, 1))
+        return np.transpose(np.tile(bias, (self.num_distributions, 1)))
 
 
 def main():

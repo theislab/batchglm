@@ -29,5 +29,5 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
     
     @property
     @abc.abstractmethod
-    def bias_p(self):
+    def bias_mu(self):
         pass

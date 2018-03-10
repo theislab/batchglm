@@ -1,3 +1,5 @@
+import abc
+
 import tensorflow as tf
 
 from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit
@@ -51,7 +53,7 @@ class EstimatorGraph(TFEstimatorGraph):
         return errors
 
 
-class Estimator(AbstractEstimator, TFEstimator):
+class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
     
     def __init__(self, input_data: dict, tf_estimator_graph=None):

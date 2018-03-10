@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+import abc
 
 import numpy as np
 import tensorflow as tf
@@ -11,7 +11,7 @@ from .base import Model, InputData
 __all__ = ['Simulator']
 
 
-class Simulator(BasicSimulator, Model):
+class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     # static variables
     cfg = BasicSimulator.cfg.copy()
     

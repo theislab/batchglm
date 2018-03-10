@@ -1,3 +1,5 @@
+import abc
+
 import numpy as np
 
 from models import BasicEstimator
@@ -8,7 +10,7 @@ from .base import InputData
 __all__ = ['AbstractEstimator']
 
 
-class AbstractEstimator(Model, BasicEstimator, ):
+class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
     input_data: InputData
     
     def validateData(self) -> np.ndarray:

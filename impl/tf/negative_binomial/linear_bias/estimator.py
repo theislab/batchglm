@@ -1,6 +1,8 @@
+import abc
+
 import tensorflow as tf
 
-from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, NegativeBinomialEstimatorGraph
+from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit_nb
 
 __all__ = ['EstimatorGraph', 'Estimator']
 
@@ -17,9 +19,9 @@ class EstimatorGraph(TFEstimatorGraph):
         
         # initial graph elements
         with self.graph.as_default():
-            # self.sample_data = tf.placeholder(tf.float32, name="sample_data")
+            self.sample_data = tf.placeholder(tf.float32, name="sample_data")
             #
-            # self.distribution = fit(sample_data=self.sample_data, optimizable=True)
+            self.distribution = fit_nb(sample_data=self.sample_data, optimizable=True)
             #
             # # define loss function
             # self.probs = self.distribution.log_prob(self.sample_data)
@@ -52,7 +54,7 @@ class EstimatorGraph(TFEstimatorGraph):
         return errors
 
 
-class Estimator(AbstractEstimator, TFEstimator):
+class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
     
     def __init__(self, input_data: dict, tf_estimator_graph=None):
