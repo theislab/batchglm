@@ -6,7 +6,7 @@ from tensorflow import Tensor, Operation
 
 from . import BasicEstimator
 
-__all__ = ['TFEstimatorGraph', 'TFEstimator']
+__all__ = ['TFEstimatorGraph', 'TFEstimator', 'TFSession']
 
 
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
@@ -33,10 +33,16 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
         return retval
 
 
-class TFEstimator(BasicEstimator):
-    model: TFEstimatorGraph
+class TFSession:
     session: tf.Session
     feed_dict: Dict[Union[Union[Tensor, Operation], Any], Any]
+    
+    def run(self, tensor):
+        return self.session.run(tensor, feed_dict=self.feed_dict)
+
+
+class TFEstimator(BasicEstimator, TFSession):
+    model: TFEstimatorGraph
     
     def __init__(self, input_data: dict, tf_estimator_graph: TFEstimatorGraph):
         super().__init__(input_data)
@@ -53,9 +59,6 @@ class TFEstimator(BasicEstimator):
     
     def train(self, steps: int, *args, **kwargs) -> None:
         self.model.train(self.session, self.feed_dict, steps, *args, **kwargs)
-    
-    def run(self, tensor):
-        return self.session.run(tensor, feed_dict=self.feed_dict)
     
     # # TODO: hässlich; dämliches Maß; nur für einen Param
     # def compare(self, real_values):
