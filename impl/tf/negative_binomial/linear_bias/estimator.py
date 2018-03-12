@@ -2,21 +2,21 @@ import abc
 
 import tensorflow as tf
 
-from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit_nb
+from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit_partitioned_nb
 
 __all__ = ['EstimatorGraph', 'Estimator']
 
 
 class EstimatorGraph(TFEstimatorGraph):
     sample_data: tf.Tensor
-    
+
     r: tf.Tensor
     p: tf.Tensor
     mu: tf.Tensor
-    
+
     def __init__(self, graph=tf.Graph()):
         super().__init__(graph)
-        
+
         # initial graph elements
         with self.graph.as_default():
             self.sample_data = tf.placeholder(tf.float32, name="sample_data")
@@ -39,10 +39,10 @@ class EstimatorGraph(TFEstimatorGraph):
             # self.r = self.distribution.total_count
             # self.p = self.distribution.prob
             pass
-    
+
     def initialize(self, session, feed_dict, **kwargs):
         session.run(self.initializer_op, feed_dict=feed_dict)
-    
+
     def train(self, session, feed_dict, *args, steps=1000, **kwargs):
         errors = []
         for i in range(steps):
@@ -50,31 +50,31 @@ class EstimatorGraph(TFEstimatorGraph):
                                         feed_dict=feed_dict)
             errors.append(loss_res)
             print(i)
-        
+
         return errors
 
 
 class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
-    
+
     def __init__(self, input_data: dict, tf_estimator_graph=None):
         if tf_estimator_graph is None:
             tf_estimator_graph = EstimatorGraph()
-        
+
         TFEstimator.__init__(self, input_data, tf_estimator_graph)
-    
+
     @property
     def loss(self):
         return self.run(self.model.loss)
-    
+
     @property
     def r(self):
         return self.run(self.model.r)
-    
+
     @property
     def p(self):
         return self.run(self.model.p)
-    
+
     @property
     def mu(self):
         return self.run(self.model.mu)
