@@ -32,6 +32,9 @@ def fit_partitioned(sample_data, design, optimizable=False) -> (tf.Tensor, tf.Te
     stacked_r = tf.stack(params_r, name="stack_r")
     stacked_p = tf.stack(params_p, name="stack_p")
 
+    stacked_r = tf.gather(stacked_r, design)
+    stacked_p = tf.gather(stacked_p, design)
+
     return stacked_p, stacked_r
 
 
