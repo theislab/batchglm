@@ -71,14 +71,14 @@ class BasicSimulator(metaclass=abc.ABCMeta):
         self.generate_data()
     
     @abc.abstractmethod
-    def generate_data(self, *args):
+    def generate_data(self, *args, **kwargs):
         """
         Should sample random data using the pre-defined / sampled parameters
         """
         pass
     
     @abc.abstractmethod
-    def generate_params(self, *args):
+    def generate_params(self, *args, **kwargs):
         """
         Should generate all necessary parameters
         """

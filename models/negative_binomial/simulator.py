@@ -69,7 +69,7 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     def mu(self):
         return np.tile(self.params['mu'], (self.num_samples, 1))
     
-    def generate_params(self, min_mean=20, max_mean=10000, min_r=10, max_r=100):
+    def generate_params(self, *args, min_mean=20, max_mean=10000, min_r=10, max_r=100, **kwargs):
         self.params["mu"] = np.random.uniform(min_mean, max_mean, [self.num_distributions]),
         self.params["r"] = np.round(np.random.uniform(min_r, max_r, [self.num_distributions]))
     
