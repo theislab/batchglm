@@ -27,35 +27,15 @@ sess = tf.InteractiveSession()
 (real_r, real_p) = sess.run((r, p))
 
 
-def as_design_matrix(design, num_bits=8):
-    def uint2bits(int_ar_in, num_bits):
-        """ convert (numpyarray of uint => array of Nbits bits) for many bits in parallel"""
-        in_size__t = int_ar_in.shape
-        in_flat = int_ar_in.flatten()
-        out_num_bit = np.zeros((len(in_flat), num_bits))
-        for i_bits in range(num_bits):
-            out_num_bit[:, i_bits] = (in_flat >> i_bits) & 1
-        out_num_bit = out_num_bit.reshape(in_size__t + (num_bits,))
-        return out_num_bit
-
-    # design_bin = np.unpackbits(np.expand_dims(design, 1).astype(np.uint8), axis=1)
-    design_bin = uint2bits(design.astype(np.uint32), 8)
-    mask = np.all(design_bin == 0, axis=0)
-    design_bin = design_bin[:, ~mask]
-    # design_bin = np.unique(design_bin, axis=0)
-    # design_bin = np.unique(design_bin, axis=1)
-
-    # add bias column
-    n, m = design_bin.shape  # for generality
-    ones = np.ones((n, 1))
-    design_bin = np.hstack((ones, design_bin))
-
-    return design_bin
+x = tf.constant(design, name="X")
+y = r[:,0]
 
 
-design_bin = as_design_matrix(design)
-np.unique(design_bin, axis=0)
+solve = tf.matrix_solve_ls(design, tf.log(tf.expand_dims(r[:,0], 1)))
 
-tf.matrix_solve_ls
+a = sess.run(solve)
 
-from patsy import dmatrix
+xt= tf.transpose(x, name="Xt")
+xtx = tf.matmul(xt, x, name="XtX")
+xtx_inv = tf.matrix_inverse(xtx, name="xtx_inv")
+xty = tf.matmul(xt, tf.expand_dims(y, 1))
