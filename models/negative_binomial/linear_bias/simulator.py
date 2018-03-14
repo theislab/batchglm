@@ -24,8 +24,9 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         
         self.data = InputData(None, None)
+        self.sample_description = None
     
-    def generate_design_matrix(self, num_batches=4, num_confounder=2):
+    def generate_sample_description(self, num_batches=4, num_confounder=2):
         reps_batches = math.ceil(self.num_samples / num_batches)
         reps_confounder = math.ceil(self.num_samples / num_confounder)
         
@@ -42,23 +43,19 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
             "batch": batches,
             "confounder": confounders,
         }
-        sample_description = pd.DataFrame(data=sample_description, dtype="category")
-        self.data["sample_description"] = sample_description
+        self.sample_description = pd.DataFrame(data=sample_description, dtype="category")
     
-    def generate_params(self, *args, sample_description: pd.DataFrame = None,
-                        min_bias=0.5, max_bias=2, **kwargs):
+    def generate_params(self, *args, min_bias=0.5, max_bias=2, **kwargs):
         super().generate_params(*args, **kwargs)
         
-        if sample_description is None:
-            if self.data.get("sample_description", None) is None:
-                self.generate_design_matrix()
-            sample_description = self.data["sample_description"]
+        if self.sample_description is None:
+            self.generate_sample_description()
         
-        formula = "~ 1 "
-        for col in sample_description.columns:
-            formula += " + %s" % col
+        self.formula = "~ 1 "
+        for col in self.sample_description.columns:
+            self.formula += " + %s" % col
         
-        self.data.design = patsy.dmatrix(formula, sample_description)
+        self.data.design = patsy.dmatrix(self.formula, self.sample_description)
         
         # num_classes = np.unique(self.data.design, axis=0).shape[0]
         
@@ -102,10 +99,14 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         
         file = os.path.join(folder, "sample_description.tsv")
         if os.path.isfile(file):
-            self.sample_description = pd.read_csv("resources/params.tsv", sep="\t", dtype="categorial")
+            self.sample_description = pd.read_csv(file, sep="\t", dtype="category")
+            
+            self.formula = "~ 1 "
+            for col in self.sample_description.columns:
+                self.formula += " + %s" % col
     
     def save(self, folder):
-        super().save()
+        super().save(folder)
         
         file = os.path.join(folder, "sample_description.tsv")
         self.sample_description.to_csv(file, sep="\t", index=False)
