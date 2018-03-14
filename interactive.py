@@ -25,17 +25,18 @@ data = sim.data.sample_data
 sess = tf.InteractiveSession()
 
 (real_r, real_p) = sess.run((r, p))
+print(sim.r[:, 0])
+print(real_r[:, 0])
 
+solve = tf.matrix_solve_ls(design, tf.log(tf.expand_dims(r[:, 0], 1)))
+estim_params = sess.run(solve)
+print(estim_params)
+print(sim.params["bias_r"])
 
-x = tf.constant(design, name="X")
-y = r[:,0]
-
-
-solve = tf.matrix_solve_ls(design, tf.log(tf.expand_dims(r[:,0], 1)))
-
-a = sess.run(solve)
-
-xt= tf.transpose(x, name="Xt")
-xtx = tf.matmul(xt, x, name="XtX")
-xtx_inv = tf.matrix_inverse(xtx, name="xtx_inv")
-xty = tf.matmul(xt, tf.expand_dims(y, 1))
+# x = tf.constant(design, name="X")
+# y = r[:, 0]
+#
+# xt= tf.transpose(x, name="Xt")
+# xtx = tf.matmul(xt, x, name="XtX")
+# xtx_inv = tf.matrix_inverse(xtx, name="XtX_inv")
+# xty = tf.matmul(xt, tf.expand_dims(y, 1), name="XtY")
