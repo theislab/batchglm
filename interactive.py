@@ -28,7 +28,7 @@ sess = tf.InteractiveSession()
 print(sim.r[:, 0])
 print(real_r[:, 0])
 
-solve = tf.matrix_solve_ls(design, tf.log(tf.expand_dims(r[:, 0], 1)))
+solve = tf.matrix_solve_ls(design, tf.log(r))
 estim_params = sess.run(solve)
 print(estim_params)
 print(sim.params["bias_r"])
