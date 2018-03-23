@@ -4,10 +4,10 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial
 
-__all__ = ['fit_mme', 'fit', 'fit_partitioned']
+__all__ = ['fit_mme', 'fit', 'fit_partitioned', 'negative_binomial']
 
 
-def fit_partitioned(sample_data, design, optimizable=False) -> (tf.Tensor, tf.Tensor):
+def fit_partitioned(sample_data, design, optimizable=False, name="fit_nb_partitioned") -> (tf.Tensor, tf.Tensor):
     """
     Fits negative binomial distributions NB(r, p) to given sample data partitioned by 'design'.
 
@@ -18,36 +18,37 @@ def fit_partitioned(sample_data, design, optimizable=False) -> (tf.Tensor, tf.Te
     :param sample_data: matrix containing samples for each distribution on axis 0\n
         E.g. `(N, M)` matrix with `M` distributions containing `N` observed values each
     :param optimizable: if true, the returned parameters will be optimizable
+    :param name: name of the operation
     :return: tuple of shape and probabilities for each negative binomial distribution
     """
-    
-    design_df = pd.DataFrame(design)
-    design_df["row_nr"] = design_df.index
-    
-    # create DataFrame containing all unique rows and assign a unique index to them
-    unique_rows = np.unique(design, axis=0)
-    unique_rows = pd.DataFrame(unique_rows)
-    unique_rows["idx"] = unique_rows.index
-    # merge the unique row indexes to the design matrix
-    indexed_design = design_df.merge(unique_rows)
-    indexed_design = indexed_design.sort_values(by=['row_nr'])
-    
-    partition_index = list(indexed_design["idx"])
-    
-    dyn_parts = tf.dynamic_partition(sample_data, partition_index, unique_rows.shape[0], name="dynamic_parts")
-    params_r = list()
-    params_p = list()
-    for idx, part in enumerate(dyn_parts):
-        dist = fit(part, optimizable=optimizable, name="negbin_%i" % idx)
-        params_r.append(dist.total_count)
-        params_p.append(dist.probs)
-    
-    stacked_r = tf.stack(params_r, name="stack_r")
-    stacked_p = tf.stack(params_p, name="stack_p")
-    
-    stacked_r = tf.gather(stacked_r, partition_index)
-    stacked_p = tf.gather(stacked_p, partition_index)
-    
+    with tf.name_scope(name):
+        design_df = pd.DataFrame(design)
+        design_df["row_nr"] = design_df.index
+
+        # create DataFrame containing all unique rows and assign a unique index to them
+        unique_rows = np.unique(design, axis=0)
+        unique_rows = pd.DataFrame(unique_rows)
+        unique_rows["idx"] = unique_rows.index
+        # merge the unique row indexes to the design matrix
+        indexed_design = design_df.merge(unique_rows)
+        indexed_design = indexed_design.sort_values(by=['row_nr'])
+
+        partition_index = list(indexed_design["idx"])
+
+        dyn_parts = tf.dynamic_partition(sample_data, partition_index, unique_rows.shape[0], name="dynamic_parts")
+        params_r = list()
+        params_p = list()
+        for idx, part in enumerate(dyn_parts):
+            dist = fit(part, optimizable=optimizable, name="negbin_%i" % idx)
+            params_r.append(dist.total_count)
+            params_p.append(dist.probs)
+
+        stacked_r = tf.stack(params_r, name="stack_r")
+        stacked_p = tf.stack(params_p, name="stack_p")
+
+        stacked_r = tf.gather(stacked_r, partition_index)
+        stacked_p = tf.gather(stacked_p, partition_index)
+
     return stacked_r, stacked_p
 
 
@@ -63,24 +64,18 @@ def fit(sample_data, optimizable=False, name="nb-dist") -> NegativeBinomial:
     """
     with tf.name_scope("fit"):
         (r, p) = fit_mme(sample_data)
-        
+
         if optimizable:
             r = tf.Variable(name="r", initial_value=r, dtype=tf.float32, validate_shape=False)
             # r_var = tf.Variable(tf.zeros(tf.shape(r)), dtype=tf.float32, validate_shape=False, name="r_var")
             #
             # r_assign_op = tf.assign(r_var, r)
-        
+
         # keep mu constant
         mu = tf.reduce_mean(sample_data, axis=0, name="mu")
-        
-        # p is directly dependent from mu and r
-        p = mu / (r + mu)
-        p = tf.identity(p, "p")
-    
-    distribution = NegativeBinomial(total_count=r,
-                                    probs=p,
-                                    name=name)
-    
+
+    distribution = negative_binomial(r=r, mu=mu, name=name)
+
     return distribution
 
 
@@ -96,7 +91,7 @@ def fit_mme(sample_data, replace_values=None, dtype=None, name="MME") -> (tf.Ten
         """
     if dtype is None:
         dtype = sample_data.dtype
-    
+
     with tf.name_scope(name):
         mean = tf.reduce_mean(sample_data, axis=0, name="mean")
         variance = tf.reduce_mean(tf.square(sample_data - mean),
@@ -104,14 +99,30 @@ def fit_mme(sample_data, replace_values=None, dtype=None, name="MME") -> (tf.Ten
                                   name="variance")
         if replace_values is None:
             replace_values = tf.fill(tf.shape(variance), tf.constant(math.inf, dtype=dtype), name="inf_constant")
-        
+
         r_by_mean = tf.where(tf.less(mean, variance),
                              mean / (variance - mean),
                              replace_values)
         r = r_by_mean * mean
         r = tf.identity(r, "r")
-        
+
         p = 1 / (r_by_mean + 1)
         p = tf.identity(p, "p")
-        
+
         return r, p
+
+
+def negative_binomial(r, p=None, mu=None, name="NegativeBinomial") -> NegativeBinomial:
+    if p is not None:
+        if mu is not None:
+            raise ValueError("Must pass either probs or means, but not both")
+        return NegativeBinomial(r, probs=p, name=name)
+    elif mu is not None:
+        if p is not None:
+            raise ValueError("Must pass either probs or means, but not both")
+        # p is directly dependent from mu and r
+        p = mu / (r + mu)
+        p = tf.identity(p, "p")
+        return NegativeBinomial(r, probs=p, name=name)
+    else:
+        raise ValueError("Must pass probs or means")
