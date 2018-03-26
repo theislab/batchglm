@@ -74,7 +74,7 @@ def fit(sample_data, optimizable=False, name="nb-dist") -> NegativeBinomial:
         # keep mu constant
         mu = tf.reduce_mean(sample_data, axis=0, name="mu")
 
-    distribution = negative_binomial(r=r, mu=mu, name=name)
+        distribution = negative_binomial(r=r, mu=mu, name=name)
 
     return distribution
 
@@ -121,8 +121,9 @@ def negative_binomial(r, p=None, mu=None, name="NegativeBinomial") -> NegativeBi
         if p is not None:
             raise ValueError("Must pass either probs or means, but not both")
         # p is directly dependent from mu and r
-        p = mu / (r + mu)
-        p = tf.identity(p, "p")
+        with tf.name_scope("reparametrize"):
+            p = mu / (r + mu)
+            p = tf.identity(p, "p")
         return NegativeBinomial(r, probs=p, name=name)
     else:
         raise ValueError("Must pass probs or means")
