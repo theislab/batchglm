@@ -37,7 +37,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     self.train_op = tf.train.AdamOptimizer(learning_rate=0.05)
                     self.train_op = self.train_op.minimize(self.loss, global_step=tf.train.get_global_step())
 
-            self.initializer_op = tf. global_variables_initializer()
+            self.initializer_op = tf.global_variables_initializer()
 
             # parameters
             self.mu = tf.reduce_mean(self.sample_data, axis=0, name="mu")
@@ -45,7 +45,6 @@ class EstimatorGraph(TFEstimatorGraph):
             self.r = tf.identity(self.r, name="r")
             self.p = self.distribution.probs
             self.p = tf.identity(self.p, name="p")
-        tf.reset_default_graph()
 
     def initialize(self, session, feed_dict, **kwargs):
         session.run(self.initializer_op, feed_dict=feed_dict)
