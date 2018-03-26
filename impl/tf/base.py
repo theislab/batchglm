@@ -51,14 +51,14 @@ class TFEstimator(BasicEstimator, TFSession):
     
     def create_new_session(self) -> None:
         with self.model.graph.as_default():
-            self.session = tf.Session()
+            self.session = tf.Session(graph=self.model.graph)
             self.feed_dict = self.model.input_to_feed_dict(self.input_data)
     
     def initialize(self) -> None:
         self.model.initialize(self.session, self.feed_dict)
     
     def train(self, steps: int, *args, **kwargs) -> None:
-        self.model.train(self.session, self.feed_dict, steps, *args, **kwargs)
+        self.model.train(self.session, self.feed_dict, steps=steps, *args, **kwargs)
     
     # # TODO: hässlich; dämliches Maß; nur für einen Param
     # def compare(self, real_values):

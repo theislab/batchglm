@@ -29,5 +29,8 @@ if __name__ == '__main__':
     parser.add_argument('--generate', nargs="?", default=False, const=True,
                         help="generate new sample data; if not specified, existing data is assumed in the data folder")
     args, unknown = parser.parse_known_args()
-    
-    simulate(args.data, args.generate)
+
+    data_folder = args.data
+    generate_new_data = args.generate
+
+    simulate(data_folder, generate_new_data)
