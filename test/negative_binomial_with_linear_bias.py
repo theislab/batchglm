@@ -3,7 +3,7 @@ from models.negative_binomial.linear_bias import Simulator, Estimator
 
 def simulate(data_folder=None, generate_new_data=False):
     sim = Simulator()
-    
+
     if generate_new_data:
         sim.generate()
         if data_folder is not None:
