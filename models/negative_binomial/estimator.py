@@ -7,8 +7,6 @@ from models import BasicEstimator
 from .base import Model
 from .base import InputData
 
-__all__ = ['AbstractEstimator']
-
 
 class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
     input_data: InputData

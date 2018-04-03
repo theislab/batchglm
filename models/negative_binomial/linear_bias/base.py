@@ -2,8 +2,6 @@ import abc
 
 from . import NegativeBinomialModel, NegativeBinomialInputData
 
-__all__ = ['InputData', 'Model']
-
 
 class InputData(NegativeBinomialInputData):
     
@@ -21,6 +19,16 @@ class InputData(NegativeBinomialInputData):
 
 
 class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
+    
+    @property
+    @abc.abstractmethod
+    def a(self):
+        pass
+    
+    @property
+    @abc.abstractmethod
+    def b(self):
+        pass
     
     @property
     @abc.abstractmethod

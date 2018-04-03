@@ -7,5 +7,5 @@ from impl.tf.negative_binomial import fit_partitioned as fit_partitioned_nb, Neg
 from impl.tf.LinearRegression import linear_regression
 
 # relative imports
-from .util import *
-from .estimator import *
+# from .util import *
+from .estimator import EstimatorGraph, Estimator

@@ -2,4 +2,5 @@
 from models import BasicEstimator
 
 # relative imports
-from .base import *
+# from .util import *
+from .base import TFEstimatorGraph, TFEstimator, TFSession

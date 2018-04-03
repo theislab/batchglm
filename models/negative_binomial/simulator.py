@@ -8,8 +8,6 @@ from models import BasicSimulator
 
 from .base import Model, InputData
 
-__all__ = ['Simulator']
-
 
 class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     # static variables

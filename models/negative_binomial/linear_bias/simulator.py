@@ -9,8 +9,6 @@ import patsy
 from . import NegativeBinomialSimulator
 from .base import Model, InputData
 
-__all__ = ['Simulator']
-
 
 class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     # static variables
@@ -59,8 +57,18 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         
         # num_classes = np.unique(self.data.design, axis=0).shape[0]
         
-        self.params['bias_r'] = np.log(np.random.uniform(min_bias, max_bias, self.data.design.shape[1] - 1))
-        self.params['bias_mu'] = np.log(np.random.uniform(min_bias, max_bias, self.data.design.shape[1] - 1))
+        self.params['a'] = np.log(
+            np.concatenate([
+                np.expand_dims(super().r, 0),
+                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_distributions))
+            ])
+        )
+        self.params['b'] = np.log(
+            np.concatenate([
+                np.expand_dims(super().mu, 0),
+                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_distributions))
+            ])
+        )
     
     @property
     def r(self):
@@ -71,28 +79,35 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         return super().mu * self.bias_mu
     
     @property
-    def bias_r(self, expanded=True):
-        # bias = exp(log_bias) = exp(
-        #   design[samples, num_params] %*% t(params[num_params])
-        # )
-        bias = np.exp(np.matmul(self.data.design[:, 1:], self.params['bias_r']))
-        if expanded:
-            bias = np.expand_dims(bias, axis=1)
-            return np.tile(bias, (1, self.num_distributions))
-        else:
-            return bias
+    def a(self):
+        return self.params['a']
     
     @property
-    def bias_mu(self, expanded=True):
-        # bias = exp(log_bias) = exp(
-        #   design[samples, num_params] %*% t(params[num_params])
-        # )
-        bias = np.exp(np.matmul(self.data.design[:, 1:], self.params['bias_mu']))
-        if expanded:
-            bias = np.expand_dims(bias, axis=1)
-            return np.tile(bias, (1, self.num_distributions))
-        else:
-            return bias
+    def b(self):
+        return self.params['b']
+    
+    @property
+    def bias_r(self):
+        """
+        Calculates per-gene bias of shape param:
+            bias = exp(log_bias) = exp(
+               design[samples, num_params] %*% t(params[num_params])
+            )
+        :return: array of shape (num_samples)
+        """
+        
+        return np.exp(np.matmul(self.data.design[:, 1:], self.params['a']))
+    
+    @property
+    def bias_mu(self):
+        """
+        Calculates per-gene bias of mean:
+            bias = exp(log_bias) = exp(
+               design[samples, num_params] %*% t(params[num_params])
+            )
+        :return: array of shape (num_samples)
+        """
+        return np.exp(np.matmul(self.data.design[:, 1:], self.params['b']))
     
     def load(self, folder):
         super().load(folder)

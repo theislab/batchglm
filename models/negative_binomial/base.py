@@ -2,8 +2,6 @@ import abc
 
 from models import BasicInputData
 
-__all__ = ['InputData', 'Model']
-
 
 class InputData(BasicInputData):
     # same as BasicInputData
