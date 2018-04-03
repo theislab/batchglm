@@ -72,11 +72,11 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     
     @property
     def r(self):
-        return super().r * self.bias_r
+        return np.exp(np.matmul(self.data.design[:, 1:], self.params['a']))
     
     @property
     def mu(self):
-        return super().mu * self.bias_mu
+        return np.exp(np.matmul(self.data.design[:, 1:], self.params['b']))
     
     @property
     def a(self):
@@ -85,29 +85,6 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     @property
     def b(self):
         return self.params['b']
-    
-    @property
-    def bias_r(self):
-        """
-        Calculates per-gene bias of shape param:
-            bias = exp(log_bias) = exp(
-               design[samples, num_params] %*% t(params[num_params])
-            )
-        :return: array of shape (num_samples)
-        """
-        
-        return np.exp(np.matmul(self.data.design[:, 1:], self.params['a']))
-    
-    @property
-    def bias_mu(self):
-        """
-        Calculates per-gene bias of mean:
-            bias = exp(log_bias) = exp(
-               design[samples, num_params] %*% t(params[num_params])
-            )
-        :return: array of shape (num_samples)
-        """
-        return np.exp(np.matmul(self.data.design[:, 1:], self.params['b']))
     
     def load(self, folder):
         super().load(folder)
