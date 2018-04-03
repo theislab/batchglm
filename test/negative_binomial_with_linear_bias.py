@@ -16,7 +16,7 @@ def simulate(data_folder=None, generate_new_data=False):
     estimator = Estimator(sim.data)
     estimator.validateData()
     estimator.initialize()
-    estimator.train(steps=10)
+    # estimator.train(steps=10)
     
     print(estimator.loss)
 
@@ -34,3 +34,9 @@ if __name__ == '__main__':
     generate_new_data = args.generate
 
     simulate(data_folder, generate_new_data)
+    
+    
+    x = ("a", "b", "c")
+    
+    for (i, item) in enumerate(x):
+        print("index %s\titem %s" % (i, item))

@@ -39,11 +39,8 @@ class EstimatorGraph(TFEstimatorGraph):
                                         fast=not optimizable_lm)
             tf.identity(b, "b")
             
-            bias_r = tf.exp(a, name="bias_r")
-            bias_mu = tf.exp(b, name="bias_mu")
-            
-            r_true = tf.gather(a, 0, name="true_r")
-            mu_true = tf.gather(b, 0, name="true_mu")
+            r_true = tf.exp(tf.gather(a, 0), name="true_r")
+            mu_true = tf.exp(tf.gather(b, 0), name="true_mu")
             
             distribution = NegativeBinomial(r=r_true, mu=mu_true, name="true_NB-dist")
             log_probs = tf.identity(distribution.log_prob(sample_data), name="log_probs")
@@ -74,8 +71,6 @@ class EstimatorGraph(TFEstimatorGraph):
             self.b = b
             self.r_true = r_true
             self.mu_true = mu_true
-            self.log_r_true = bias_r
-            self.log_mu_true = bias_mu
             
             self.distribution = distribution
             self.log_probs = log_probs
@@ -129,9 +124,9 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
         return self.run(self.model.mu)
     
     @property
-    def bias_mu(self):
-        return self.run(self.model.log_mu_true)
+    def a(self):
+        return self.run(self.model.a)
     
     @property
-    def bias_r(self):
-        return self.run(self.model.log_r_true)
+    def b(self):
+        return self.run(self.model.b)
