@@ -1,5 +1,4 @@
 # absolute imports for modules
-from models.negative_binomial import NegativeBinomialModel, NegativeBinomialInputData, NegativeBinomialSimulator
 
 # relative imports
 from .base import Model, InputData
@@ -10,8 +9,7 @@ from .simulator import Simulator
 from .simulator import Simulator as NegativeBinomialWithLinearBiasSimulator  # Alias for Simulator
 
 # use TF as default estimator implementation
-from impl.tf.negative_binomial.linear_bias.estimator import Estimator
-from impl.tf.negative_binomial.linear_bias.estimator import Estimator as NegativeBinomialWithLinearBiasEstimator
+from impl.tf.negative_binomial_linear_biased import Estimator as NegativeBinomialWithLinearBiasEstimator
 
 __all__ = ['NegativeBinomialWithLinearBiasSimulator',
            'NegativeBinomialWithLinearBiasInputData',
