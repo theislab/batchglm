@@ -2,7 +2,7 @@ import abc
 
 import tensorflow as tf
 
-from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit_partitioned_nb, linear_regression, NegativeBinomial
+from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit_partitioned_nb, LinearRegression, NegativeBinomial
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -32,12 +32,14 @@ class EstimatorGraph(TFEstimatorGraph):
             log_mu = tf.log(mu, name="log_mu")
             
             design_tensor_asfloat = tf.cast(design_tensor, dtype=r.dtype, name="design_casted")
-            a, loss = linear_regression(design_tensor_asfloat, log_r, name="lin_reg_a",
-                                        fast=not optimizable_lm)
-            tf.identity(a, "a")
-            b, loss = linear_regression(design_tensor_asfloat, log_mu, name="lin_reg_b",
-                                        fast=not optimizable_lm)
-            tf.identity(b, "b")
+            
+            linreg_a = LinearRegression(design_tensor_asfloat, log_r, name="lin_reg_a", fast=not optimizable_lm)
+            a = linreg_a.estimated_params
+            a = tf.identity(a, "a")
+            
+            linreg_b = LinearRegression(design_tensor_asfloat, log_mu, name="lin_reg_b", fast=not optimizable_lm)
+            b = linreg_b.estimated_params
+            b = tf.identity(b, "b")
             
             r_true = tf.exp(tf.gather(a, 0), name="true_r")
             mu_true = tf.exp(tf.gather(b, 0), name="true_mu")

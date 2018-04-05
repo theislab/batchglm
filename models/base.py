@@ -27,7 +27,7 @@ class BasicEstimator(metaclass=abc.ABCMeta):
         self.input_data = input_data
     
     @abc.abstractmethod
-    def validateData(self, **kwargs):
+    def validate_data(self, **kwargs):
         pass
     
     @abc.abstractmethod

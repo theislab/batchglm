@@ -11,7 +11,7 @@ from .base import InputData
 class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
     input_data: InputData
     
-    def validateData(self) -> np.ndarray:
+    def validate_data(self) -> np.ndarray:
         smpls = np.mean(self.input_data.sample_data, 0) < np.var(self.input_data.sample_data, 0)
         
         removed_smpls = np.where(smpls == False)

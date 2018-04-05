@@ -3,22 +3,30 @@ from models.negative_binomial.linear_bias import Simulator, Estimator
 
 def simulate(data_folder=None, generate_new_data=False):
     sim = Simulator()
-
+    
     if generate_new_data:
+        print("Generating new data...")
         sim.generate()
         if data_folder is not None:
+            print("Saving data...")
             sim.save(data_folder)
     elif data_folder is not None:
+        print("Loading data...")
         sim.load(data_folder)
     else:  # no arguments specified
+        print("Generating new data...")
         sim.generate()
     
+    return sim
+
+
+def estimate(sim: Simulator):
     estimator = Estimator(sim.data)
-    estimator.validateData()
+    estimator.validate_data()
     estimator.initialize()
     # estimator.train(steps=10)
     
-    print(estimator.loss)
+    return estimator
 
 
 if __name__ == '__main__':
@@ -29,14 +37,11 @@ if __name__ == '__main__':
     parser.add_argument('--generate', nargs="?", default=False, const=True,
                         help="generate new sample data; if not specified, existing data is assumed in the data folder")
     args, unknown = parser.parse_known_args()
-
+    
     data_folder = args.data
     generate_new_data = args.generate
-
-    simulate(data_folder, generate_new_data)
     
+    sim = simulate(data_folder, generate_new_data)
+    estimator = estimate(sim)
     
-    x = ("a", "b", "c")
-    
-    for (i, item) in enumerate(x):
-        print("index %s\titem %s" % (i, item))
+    print(estimator.loss)
