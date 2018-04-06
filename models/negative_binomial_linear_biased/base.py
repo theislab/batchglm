@@ -1,6 +1,6 @@
 import abc
 
-from . import NegativeBinomialModel, NegativeBinomialInputData
+from models.negative_binomial import NegativeBinomialModel, NegativeBinomialInputData
 
 
 class InputData(NegativeBinomialInputData):

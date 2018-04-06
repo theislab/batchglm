@@ -2,7 +2,8 @@ import abc
 
 import tensorflow as tf
 
-from . import AbstractEstimator, TFEstimator, TFEstimatorGraph, fit_partitioned_nb, LinearRegression, NegativeBinomial
+from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph
+from .external import nb_utils, LinearRegression
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -22,7 +23,7 @@ class EstimatorGraph(TFEstimatorGraph):
             sample_data = tf.placeholder(tf.float32, name="sample_data")
             design_tensor = tf.constant(design, dtype=tf.int32, name="design")
             
-            dist = fit_partitioned_nb(sample_data, design, optimizable=optimizable_nb,
+            dist = nb_utils.fit_partitioned_nb(sample_data, design, optimizable=optimizable_nb,
                                       name="background_NB-dist")
             r = dist.r
             p = dist.p
@@ -44,7 +45,7 @@ class EstimatorGraph(TFEstimatorGraph):
             r_true = tf.exp(tf.gather(a, 0), name="true_r")
             mu_true = tf.exp(tf.gather(b, 0), name="true_mu")
             
-            distribution = NegativeBinomial(r=r_true, mu=mu_true, name="true_NB-dist")
+            distribution = nb_utils.NegativeBinomial(r=r_true, mu=mu_true, name="true_NB-dist")
             log_probs = tf.identity(distribution.log_prob(sample_data), name="log_probs")
             
             with tf.name_scope("training"):

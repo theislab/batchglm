@@ -1,6 +1,2 @@
-# absolute imports
-from models import BasicEstimator
-
-# relative imports
-# from .util import *
+from .util import reduce_weighted_mean
 from .base import TFEstimatorGraph, TFEstimator, TFSession

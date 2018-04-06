@@ -4,7 +4,7 @@ from typing import Dict, Any, Union
 import tensorflow as tf
 from tensorflow import Tensor, Operation
 
-from . import BasicEstimator
+from models import BasicEstimator
 
 
 class TFEstimatorGraph(metaclass=abc.ABCMeta):

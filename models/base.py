@@ -94,7 +94,7 @@ class BasicSimulator(metaclass=abc.ABCMeta):
                 file = os.path.join(data_folder, data_name)
                 # print(file)
                 if os.path.isfile(file):
-                    self.data[data_name] = np.loadtxt(file, delimiter="\t")
+                    self.data[data_name.replace(".npy", "")] = np.load(file)
         
         param_folder = os.path.join(folder, self.cfg['param_folder'])
         if os.path.isdir(param_folder):
@@ -102,7 +102,7 @@ class BasicSimulator(metaclass=abc.ABCMeta):
                 file = os.path.join(param_folder, param_name)
                 # print(file)
                 if os.path.isfile(file):
-                    self.params[param_name] = np.loadtxt(file, delimiter="\t")
+                    self.params[param_name.replace(".npy", "")] = np.load(file)
     
     def save(self, folder):
         """
@@ -114,11 +114,11 @@ class BasicSimulator(metaclass=abc.ABCMeta):
         
         for (data, val) in self.data.items():
             # print("saving param '%s' to %s" % param, os.path.join(param_folder, param))
-            np.savetxt(os.path.join(data_folder, data), val, delimiter="\t")
+            np.save(os.path.join(data_folder, data), val)
         
         param_folder = os.path.join(folder, self.cfg['param_folder'])
         os.makedirs(param_folder, exist_ok=True)
         
         for (param, val) in self.params.items():
             # print("saving param '%s' to %s" % param, os.path.join(param_folder, param))
-            np.savetxt(os.path.join(param_folder, param), val, delimiter="\t")
+            np.save(os.path.join(param_folder, param), val)

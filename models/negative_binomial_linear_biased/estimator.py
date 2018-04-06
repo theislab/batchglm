@@ -20,3 +20,7 @@ class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
         self.input_data.sample_data = self.input_data.sample_data[:, np.where(smpls)]
         
         return removed_smpls
+
+
+# use TF as default estimator implementation
+from impl.tf.negative_binomial_linear_biased.estimator import Estimator

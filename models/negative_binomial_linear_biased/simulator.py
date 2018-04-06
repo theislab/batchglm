@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import patsy
 
-from . import NegativeBinomialSimulator
+from .external import NegativeBinomialSimulator
 from .base import Model, InputData
 
 
@@ -20,6 +20,7 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
+        Model.__init__(self)
         
         self.data = InputData(None, None)
         self.sample_description = None

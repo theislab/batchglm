@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial as NBdist
 
+from utils.random import negative_binomial
+
 from models import BasicSimulator
 
 from .base import Model, InputData
@@ -23,30 +25,6 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
         self.num_distributions = num_distributions
         
         self.data = InputData(None)
-    
-    def negative_binomial(self):
-        # ugly hack using tensorflow, since parametrisation with `p`
-        # does not work with np.random.negative_binomial
-        
-        with tf.Graph().as_default() as g:
-            r = tf.constant(self.r)
-            mu = tf.constant(self.mu)
-            
-            p = mu / (r + mu)
-            
-            dist = NBdist(total_count=r, probs=p)
-            
-            # run sampling session
-            with tf.Session() as sess:
-                return sess.run(tf.squeeze(
-                    dist.sample(1)
-                ))
-        
-        # random_data = np.random.negative_binomial(
-        #     self.r,
-        #     self.p,
-        # )
-        # return random_data
     
     def load(self, folder):
         super().load(folder)
@@ -72,7 +50,7 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
         self.params["r"] = np.round(np.random.uniform(min_r, max_r, [self.num_distributions]))
     
     def generate_data(self):
-        self.data.sample_data = self.negative_binomial()
+        self.data.sample_data = negative_binomial(self.r, self.mu)
 
 
 def main():

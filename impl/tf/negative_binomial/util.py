@@ -4,6 +4,8 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial as TFNegativeBinomial
 
+from impl.tf.util import reduce_weighted_mean
+
 
 class NegativeBinomial(TFNegativeBinomial):
     mu: tf.Tensor
@@ -84,12 +86,13 @@ def fit_partitioned(sample_data, design, optimizable=False, name="fit_nb_partiti
         return NegativeBinomial(r=stacked_r, p=stacked_p)
 
 
-def fit(sample_data, optimizable=False, name="nb-dist") -> NegativeBinomial:
+def fit(sample_data, weights=None, optimizable=False, name="nb-dist") -> NegativeBinomial:
     """
     Fits negative binomial distributions NB(r, p) to given sample data along axis 0.
 
     :param sample_data: matrix containing samples for each distribution on axis 0\n
         E.g. `(N, M)` matrix with `M` distributions containing `N` observed values each
+    :param weights: if specified, the closed-form fit will be weighted
     :param optimizable: if true, the returned distribution's parameters will be optimizable
     :param name: A name for the returned distribution (optional).
     :return: negative binomial distribution
@@ -104,19 +107,20 @@ def fit(sample_data, optimizable=False, name="nb-dist") -> NegativeBinomial:
             # r_assign_op = tf.assign(r_var, r)
         
         # keep mu constant
-        mu = tf.reduce_mean(sample_data, axis=0, name="mu")
+        mu = reduce_weighted_mean(sample_data, weight=weights, axis=0, name="mu")
         
         distribution = NegativeBinomial(r=r, mu=mu, name=name)
     
     return distribution
 
 
-def fit_mme(sample_data, replace_values=None, dtype=None, name="MME") -> (tf.Tensor, tf.Tensor):
+def fit_mme(sample_data, weights=None, replace_values=None, dtype=None, name="MME") -> (tf.Tensor, tf.Tensor):
     """
         Calculates the Maximum-of-Momentum Estimator of `NB(r, p)` for given sample data along axis 0.
 
         :param sample_data: matrix containing samples for each distribution on axis 0\n
             E.g. `(N, M)` matrix with `M` distributions containing `N` observed values each
+        :param weights: if specified, the fit will be weighted
         :param replace_values: Matrix of size `shape(sample_data)[1:]`
         :param dtype: data type of replacement values, if `replace_values` is not set;
             If None, the replacement values will be of the same data type like `sample_data`
@@ -127,10 +131,11 @@ def fit_mme(sample_data, replace_values=None, dtype=None, name="MME") -> (tf.Ten
         dtype = sample_data.dtype
     
     with tf.name_scope(name):
-        mean = tf.reduce_mean(sample_data, axis=0, name="mean")
-        variance = tf.reduce_mean(tf.square(sample_data - mean),
-                                  axis=0,
-                                  name="variance")
+        mean = reduce_weighted_mean(sample_data, weight=weights, axis=0, name="mean")
+        variance = reduce_weighted_mean(tf.square(sample_data - mean),
+                                        weight=weights,
+                                        axis=0,
+                                        name="variance")
         if replace_values is None:
             replace_values = tf.fill(tf.shape(variance), tf.constant(math.inf, dtype=dtype), name="inf_constant")
         

@@ -23,4 +23,4 @@ class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
 
 
 # use TF as default estimator implementation
-from impl.tf.negative_binomial.estimator import Estimator
+from impl.tf.negative_binomial_mixture.estimator import Estimator

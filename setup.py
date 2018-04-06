@@ -8,6 +8,6 @@ setup(
         'numpy',
         'pandas',
         'plotnine',
-        "matplotlib"
+        "matplotlib", 'patsy'
     ]
 )

@@ -1,6 +1,19 @@
 import tensorflow as tf
 
 
+def normalize(self, measure: tf.Tensor, true_b: tf.Tensor) -> tf.Tensor:
+    """
+    Normalize measure (e.g. `RMSD` or `MAE`) with the range of `true_b`
+
+    :param measure: the measure which should be normalized
+    :param true_b: Tensor representing the true weights `b`
+    :return: \frac{RMSD}{max(b_{true}) - min(b_{true})}
+    """
+    norm = measure / (tf.maximum(true_b) - tf.minimum(true_b))
+    norm = tf.identity(norm, name="normalize")
+    return norm
+
+
 class LinearRegression:
     X: tf.Tensor
     y: tf.Tensor
@@ -18,11 +31,12 @@ class LinearRegression:
             :param y: Tensor of shape ([...], M, K)
             :param weight_matrix:   | if specified, the least-squares solution will be weighted by this matrix:
                                     | t(y - Xb) * weight_matrix * (y - Xb)
-            :param l2_reg: \lambda regularization
+            :param l2_reg: \lambda - regularization
             :param fast: use closed-form solution to calculate 'b'
             :return:    | tuple(b, least_squares)
                         | b is a Tensor of shape ([...], N, K)
             """
+        l2_reg = tf.convert_to_tensor(l2_reg, name="l2_reg")
         # lambda_I = tf.tile(l2_reg, (tf.shape(X)[-2], tf.shape(X)[-2]))
         
         with tf.name_scope(name):
@@ -53,7 +67,7 @@ class LinearRegression:
         self.fast = fast
     
     @property
-    def estimated_params(self):
+    def estimated_params(self) -> tf.Tensor:
         """
         alias for `b`
         
@@ -61,7 +75,7 @@ class LinearRegression:
         """
         return self.b
     
-    def rmsd(self, true_b: tf.Tensor):
+    def rmsd(self, true_b: tf.Tensor) -> tf.Tensor:
         """
         Calculate the root of the mean squared deviation between the estimated weights `b` and the true `b`
         
@@ -73,7 +87,7 @@ class LinearRegression:
             rmsd = tf.identity(rmsd, name="RMSD")
             return rmsd
     
-    def mae(self, true_b: tf.Tensor):
+    def mae(self, true_b: tf.Tensor) -> tf.Tensor:
         """
         Calculate the mean absolute error between the estimated weights `b` and the true `b`
         
@@ -85,18 +99,7 @@ class LinearRegression:
             mae = tf.identity(mae, name="MAE")
             return mae
     
-    def normalize(self, measure: tf.Tensor, true_b: tf.Tensor):
-        """
-        Normalize measure (e.g. `RMSD` or `MAE`) with the range of `true_b`
-        
-        :param true_b: Tensor representing the true weights `b`
-        :return: \frac{RMSD}{max(b_{true}) - min(b_{true})}
-        """
-        norm = measure / (tf.maximum(true_b) - tf.minimum(true_b))
-        norm = tf.identity(norm, name="normalize")
-        return norm
-    
-    def normalized_rmsd(self, true_b: tf.Tensor):
+    def normalized_rmsd(self, true_b: tf.Tensor) -> tf.Tensor:
         """
         Calculate the normalized RMSD between the estimated weights `b` and the true `b`
         
@@ -105,7 +108,7 @@ class LinearRegression:
         """
         return tf.identity(self.normalize(self.rmsd(true_b)), name="NRMSD")
     
-    def normalized_mae(self, true_b: tf.Tensor):
+    def normalized_mae(self, true_b: tf.Tensor) -> tf.Tensor:
         """
         Calculate the normalized MAE between the estimated weights `b` and the true `b`
         

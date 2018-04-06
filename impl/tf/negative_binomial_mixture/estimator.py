@@ -2,8 +2,7 @@ import abc
 
 import tensorflow as tf
 
-from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph
-from .util import fit
+from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph, nb_utils
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -12,15 +11,18 @@ class EstimatorGraph(TFEstimatorGraph):
     r: tf.Tensor
     p: tf.Tensor
     mu: tf.Tensor
+    mixture_assignment: tf.Tensor
     
-    def __init__(self, graph=tf.Graph(), optimizable_nb=True):
+    def __init__(self, graph=tf.Graph(), optimizable_nb=False):
         super().__init__(graph)
         
         # initial graph elements
         with self.graph.as_default():
             sample_data = tf.placeholder(tf.float32, name="sample_data")
+            initial_mixture_assignment = tf.placeholder(tf.float32, name="initial_mixture_assignment")
+            mixture_assignment = tf.placeholder(tf.float32, name="mixture_assignment")
             
-            distribution = fit(sample_data=sample_data, optimizable=optimizable_nb, name="fit_nb-dist")
+            distribution = nb_utils.fit(sample_data=sample_data, optimizable=optimizable_nb, name="fit_nb-dist")
             log_probs = tf.identity(distribution.log_prob(sample_data), name="log_probs")
             
             with tf.name_scope("training"):
@@ -106,3 +108,8 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     @property
     def mu(self):
         return self.run(self.model.mu)
+    
+    @property
+    @abc.abstractmethod
+    def mixture_assignment(self):
+        return self.run(self.model.mixture_assignment)
