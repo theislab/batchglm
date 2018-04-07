@@ -86,7 +86,7 @@ def fit_partitioned(sample_data, design, optimizable=False, name="fit_nb_partiti
         return NegativeBinomial(r=stacked_r, p=stacked_p)
 
 
-def fit(sample_data, weights=None, optimizable=False, name="nb-dist") -> NegativeBinomial:
+def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False, name="nb-dist") -> NegativeBinomial:
     """
     Fits negative binomial distributions NB(r, p) to given sample data along axis 0.
 
@@ -98,7 +98,7 @@ def fit(sample_data, weights=None, optimizable=False, name="nb-dist") -> Negativ
     :return: negative binomial distribution
     """
     with tf.name_scope("fit"):
-        (r, p) = fit_mme(sample_data)
+        (r, p) = fit_mme(sample_data, axis=axis, weights=weights)
         
         if optimizable:
             r = tf.Variable(name="r", initial_value=r, dtype=tf.float32, validate_shape=False)
@@ -107,14 +107,15 @@ def fit(sample_data, weights=None, optimizable=False, name="nb-dist") -> Negativ
             # r_assign_op = tf.assign(r_var, r)
         
         # keep mu constant
-        mu = reduce_weighted_mean(sample_data, weight=weights, axis=0, name="mu")
+        mu = reduce_weighted_mean(sample_data, weight=weights, axis=axis, keepdims=True, name="mu")
         
         distribution = NegativeBinomial(r=r, mu=mu, name=name)
     
     return distribution
 
 
-def fit_mme(sample_data, weights=None, replace_values=None, dtype=None, name="MME") -> (tf.Tensor, tf.Tensor):
+def fit_mme(sample_data: tf.Tensor, axis=0, weights=None, replace_values=None, dtype=None, name="MME") -> (
+        tf.Tensor, tf.Tensor):
     """
         Calculates the Maximum-of-Momentum Estimator of `NB(r, p)` for given sample data along axis 0.
 
@@ -131,10 +132,11 @@ def fit_mme(sample_data, weights=None, replace_values=None, dtype=None, name="MM
         dtype = sample_data.dtype
     
     with tf.name_scope(name):
-        mean = reduce_weighted_mean(sample_data, weight=weights, axis=0, name="mean")
+        mean = reduce_weighted_mean(sample_data, weight=weights, axis=axis, keepdims=True, name="mean")
         variance = reduce_weighted_mean(tf.square(sample_data - mean),
                                         weight=weights,
-                                        axis=0,
+                                        axis=axis,
+                                        keepdims=True,
                                         name="variance")
         if replace_values is None:
             replace_values = tf.fill(tf.shape(variance), tf.constant(math.inf, dtype=dtype), name="inf_constant")

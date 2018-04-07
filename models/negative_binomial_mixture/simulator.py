@@ -28,8 +28,8 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     def load(self, folder):
         super().load(folder)
         
-        if len(self.data.sample_data.shape) < 3:
-            self.data.sample_data = np.expand_dims(self.data.sample_data, axis=0)
+        # if len(self.data.sample_data.shape) < 3:
+        #     self.data.sample_data = np.expand_dims(self.data.sample_data, axis=0)
         
         self.num_distributions = self.data.sample_data.shape[-1]
         self.num_samples = self.data.sample_data.shape[-2]
@@ -38,12 +38,14 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     @property
     def r(self):
         retVal = np.tile(self.params['r'], (self.num_samples, 1))
-        return retVal[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
+        retVal = retVal[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
+        return np.squeeze(retVal)
     
     @property
     def mu(self):
         retVal = np.tile(self.params['mu'], (self.num_samples, 1))
-        return retVal[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
+        retVal = retVal[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
+        return np.squeeze(retVal)
     
     @property
     def p(self):
@@ -65,12 +67,15 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
         mixtures = np.random.uniform(0, 1, [self.num_samples])
         mixtures = np.where(mixtures < prob_transition, 1, 0)
         mixtures *= initial_mixture_assignment
-
-        self.data["initial_mixture_assignment"] = initial_mixture_assignment
+        
+        mixture_prob = np.zeros([self.num_mixtures, self.num_samples])
+        mixture_prob[initial_mixture_assignment, range(self.num_samples)] = 1
+        
+        self.data["initial_mixture_probs"] = mixture_prob
         self.params["mixture_assignment"] = mixtures
     
     def generate_data(self):
-        self.data.sample_data = negative_binomial(self.r, self.mu)
+        self.data.sample_data = np.squeeze(negative_binomial(self.r, self.mu))
 
 
 def main():

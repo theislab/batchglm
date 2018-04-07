@@ -13,16 +13,27 @@ class EstimatorGraph(TFEstimatorGraph):
     mu: tf.Tensor
     mixture_assignment: tf.Tensor
     
-    def __init__(self, graph=tf.Graph(), optimizable_nb=False):
+    def __init__(self, num_mixtures, num_samples, num_distributions, graph=tf.Graph(), optimizable_nb=False):
         super().__init__(graph)
         
         # initial graph elements
         with self.graph.as_default():
-            sample_data = tf.placeholder(tf.float32, name="sample_data")
-            initial_mixture_assignment = tf.placeholder(tf.float32, name="initial_mixture_assignment")
-            mixture_assignment = tf.placeholder(tf.float32, name="mixture_assignment")
+            sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_distributions), name="sample_data")
+            initial_mixture_probs = tf.placeholder(tf.float32,
+                                                   shape=(num_mixtures, num_samples),
+                                                   name="initial_mixture_probs")
+            sample_data = tf.expand_dims(sample_data, axis=0)
+            sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
             
-            distribution = nb_utils.fit(sample_data=sample_data, optimizable=optimizable_nb, name="fit_nb-dist")
+            mixture_prob = tf.Variable(initial_mixture_probs,
+                                       name="mixture_prob",
+                                       validate_shape=False)
+            
+            distribution = nb_utils.fit(sample_data=sample_data,
+                                        axis=-2,
+                                        weights=tf.expand_dims(mixture_prob, axis=-1),
+                                        name="fit_nb-dist")
+            
             log_probs = tf.identity(distribution.log_prob(sample_data), name="log_probs")
             
             with tf.name_scope("training"):
@@ -89,7 +100,9 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     
     def __init__(self, input_data: dict, tf_estimator_graph=None):
         if tf_estimator_graph is None:
-            tf_estimator_graph = EstimatorGraph()
+            num_mixtures = input_data["initial_mixture_probs"].shape[0]
+            (num_samples, num_distributions) = input_data["sample_data"].shape
+            tf_estimator_graph = EstimatorGraph(num_mixtures, num_samples, num_distributions)
         
         TFEstimator.__init__(self, input_data, tf_estimator_graph)
     

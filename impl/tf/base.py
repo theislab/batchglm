@@ -6,6 +6,8 @@ from tensorflow import Tensor, Operation
 
 from models import BasicEstimator
 
+from .util import input_to_feed_dict
+
 
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
     graph: tf.Graph
@@ -23,12 +25,7 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
         raise NotImplementedError
     
     def input_to_feed_dict(self, input_data: dict, *args, **kwargs) -> Dict[Union[Union[Tensor, Operation], Any], Any]:
-        retval = {}
-        with self.graph.as_default():
-            for (key, value) in input_data.items():
-                retval[self.graph.get_tensor_by_name(key + ":0")] = value
-        
-        return retval
+        return input_to_feed_dict(self.graph, input_data)
 
 
 class TFSession:
@@ -57,13 +54,6 @@ class TFEstimator(BasicEstimator, TFSession):
     
     def train(self, steps: int, *args, **kwargs) -> None:
         self.model.train(self.session, self.feed_dict, steps=steps, *args, **kwargs)
-    
-    # # TODO: hässlich; dämliches Maß; nur für einen Param
-    # def compare(self, real_values):
-    #     print(np.nanmean(
-    #         np.abs(self.r - np.array(real_values.r)) /
-    #         np.fmax(self.r, np.array(real_values.r))
-    #     ))
     
     def evaluate(self, s):
         pass

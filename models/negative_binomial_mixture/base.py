@@ -6,8 +6,8 @@ from models import BasicInputData
 class InputData(BasicInputData):
     # same as BasicInputData
     @property
-    def initial_mixture_assignment(self):
-        return self['initial_mixture_assignment']
+    def initial_mixture_probs(self):
+        return self['initial_mixture_probs']
 
 
 class Model(metaclass=abc.ABCMeta):
