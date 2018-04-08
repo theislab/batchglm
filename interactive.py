@@ -21,32 +21,47 @@ input_data = sim.data
 num_mixtures = input_data["initial_mixture_probs"].shape[0]
 (num_samples, num_distributions) = input_data["sample_data"].shape
 
+###########################
+
 sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_distributions), name="sample_data")
 initial_mixture_probs = tf.placeholder(tf.float32,
                                        shape=(num_mixtures, num_samples),
                                        name="initial_mixture_probs")
-sample_data = tf.expand_dims(sample_data, axis=0)
-sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
 
-initial_mixture_probs = tf.random_uniform(initial_mixture_probs.shape, 0, 1, dtype=tf.float32) + initial_mixture_probs
-initial_mixture_probs = initial_mixture_probs / tf.reduce_sum(initial_mixture_probs, axis=0, keep_dims=True)
+with tf.name_scope("prepare_data"):
+    # apply a random intercept to avoid zero gradients and infinite values
+    with tf.name_scope("randomize"):
+        initial_mixture_probs += tf.random_uniform(initial_mixture_probs.shape, 0, 0.1,
+                                                   dtype=tf.float32)
+        initial_mixture_probs = initial_mixture_probs / tf.reduce_sum(initial_mixture_probs, axis=0, keepdims=True)
+        initial_mixture_probs = tf.identity(initial_mixture_probs, name="adjusted_initial_mixture_probs")
+    
+    with tf.name_scope("broadcast"):
+        sample_data = tf.expand_dims(sample_data, axis=0)
+        sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
 
-logit_mixture_prob = tf.Variable(tf.log(initial_mixture_probs / (1 - initial_mixture_probs)),
-                                 name="logit_mixture_prob",
-                                 validate_shape=False)
-
-mixture_prob = tf.sigmoid(logit_mixture_prob, name="mixture_probs")
-mixture_prob = mixture_prob / tf.reduce_sum(mixture_prob, axis=0, keepdims=True)
-mixture_prob = tf.expand_dims(mixture_prob, axis=-1)
+with tf.name_scope("mixture_prob"):
+    # optimize logits to keep `mixture_prob` between the interval [0, 1]
+    logit_mixture_prob = tf.Variable(base_utils.logit(initial_mixture_probs),
+                                     name="logit_prob",
+                                     validate_shape=False)
+    mixture_prob = tf.sigmoid(logit_mixture_prob, name="prob")
+    # normalize: `sum(mixture_prob of one sample) = 1` since the assignment probabilities should sum up to 1
+    mixture_prob = tf.identity(mixture_prob / tf.reduce_sum(mixture_prob, axis=0, keepdims=True), name="normalize")
+    mixture_prob = tf.expand_dims(mixture_prob, axis=-1)
 
 distribution = nb_utils.fit(sample_data=sample_data,
                             axis=-2,
                             weights=mixture_prob,
                             name="fit_nb-dist")
 
-probs = tf.identity(distribution.prob(sample_data), name="log_probs")
-probs = base_utils.reduce_weighted_mean(probs, weight=mixture_prob, axis=-3)
-log_probs = tf.log(probs)
+with tf.name_scope("count_probs"):
+    with tf.name_scope("probs"):
+        probs = distribution.prob(sample_data)
+        # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
+        probs = base_utils.reduce_weighted_mean(probs, weight=mixture_prob, axis=-3)
+    
+    log_probs = tf.log(probs, name="log_probs")
 
 with tf.name_scope("training"):
     # minimize negative log probability (log(1) = 0)
@@ -65,7 +80,7 @@ sess.run(tf.global_variables_initializer(), feed_dict=feed_dict)
 sess.run(optimizer.compute_gradients(loss), feed_dict=feed_dict)
 
 errors = []
-for i in range(100):
+for i in range(5):
     (loss_res, train_res) = sess.run((loss, train_op), feed_dict=feed_dict)
     errors.append(loss_res)
     print(i)

@@ -45,3 +45,7 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
         retVal = tf.squeeze(retVal, axis=axis)
     
     return retVal
+
+
+def logit(input_tensor, name="logit"):
+    return tf.log(input_tensor / (1 - input_tensor))

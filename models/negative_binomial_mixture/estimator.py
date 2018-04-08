@@ -9,6 +9,9 @@ from .base import InputData
 
 
 class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
+    """
+    $\forall j: \sum_{k}{p_{j,k} * L_{NB}(\mu_{j,k}, \phi_{j,k})}$
+    """
     input_data: InputData
     
     def validate_data(self) -> np.ndarray:
