@@ -43,7 +43,8 @@ class EstimatorGraph(TFEstimatorGraph):
                                                  name="logit_prob",
                                                  validate_shape=False)
                 mixture_prob = tf.sigmoid(logit_mixture_prob, name="prob")
-                # normalize: `sum(mixture_prob of one sample) = 1` since the assignment probabilities should sum up to 1
+                # normalize: the assignment probabilities should sum up to 1
+                # => `sum(mixture_prob of one sample) = 1`
                 mixture_prob = tf.identity(mixture_prob / tf.reduce_sum(mixture_prob, axis=0, keepdims=True),
                                            name="normalize")
                 mixture_prob = tf.expand_dims(mixture_prob, axis=-1)
@@ -116,7 +117,7 @@ class EstimatorGraph(TFEstimatorGraph):
         return errors
 
 
-# g = EstimatorGraph(optimizable_nb=False)
+# g = EstimatorGraph(2, 2000, 10000, optimizable_nb=False)
 # writer = tf.summary.FileWriter("/tmp/log/...", g.graph)
 
 

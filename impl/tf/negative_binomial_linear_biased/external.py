@@ -1,4 +1,4 @@
-from models.negative_binomial_linear_biased.estimator import AbstractEstimator
+from models.negative_binomial_linear_biased.base import AbstractEstimator
 
 from impl.tf import TFEstimatorGraph, TFEstimator
 
