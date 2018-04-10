@@ -8,8 +8,12 @@ from .simulator import Simulator as NegativeBinomialMixtureSimulator  # Alias fo
 # from .estimator import Estimator
 # from .estimator import Estimator as NegativeBinomialMixtureEstimator  # Alias for Estimator
 
-__all__ = ['NegativeBinomialMixtureSimulator',
-           'NegativeBinomialMixtureInputData',
-           'NegativeBinomialMixtureModel',
-           # 'NegativeBinomialMixtureEstimator'
-           ]
+__all__ = [
+    'Simulator',
+    'NegativeBinomialMixtureSimulator',
+    'NegativeBinomialMixtureInputData',
+    'NegativeBinomialMixtureModel',
+    'AbstractEstimator'
+    # 'Estimator'
+    # 'NegativeBinomialMixtureEstimator'
+]

@@ -8,8 +8,12 @@ from .simulator import Simulator as NegativeBinomialWithLinearBiasSimulator  # A
 # from .estimator import Estimator
 # from .estimator import Estimator as NegativeBinomialWithLinearBiasEstimator
 
-__all__ = ['NegativeBinomialWithLinearBiasSimulator',
-           'NegativeBinomialWithLinearBiasInputData',
-           'NegativeBinomialWithLinearBiasModel',
-           # 'NegativeBinomialWithLinearBiasEstimator'
-           ]
+__all__ = [
+    'Simulator',
+    'NegativeBinomialWithLinearBiasSimulator',
+    'NegativeBinomialWithLinearBiasInputData',
+    'NegativeBinomialWithLinearBiasModel',
+    'AbstractEstimator'
+    # 'Estimator'
+    # 'NegativeBinomialWithLinearBiasEstimator'
+]
