@@ -9,10 +9,9 @@ import impl.tf.negative_binomial.util as nb_utils
 from models.negative_binomial_mixture import Simulator
 
 sim = Simulator()
-# sim.generate()
+sim.generate()
 # sim.save("resources/")
-
-sim.load("resources/")
+# sim.load("resources/")
 
 sample_data = sim.data.sample_data
 initial_mixture_probs = sim.data.initial_mixture_probs
