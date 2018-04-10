@@ -47,16 +47,16 @@ class BasicSimulator(metaclass=abc.ABCMeta):
     Classes implementing `MatrixSimulator` should be able to generate a
     2D-matrix of sample data, as well as a dict of corresponding parameters.
 
-    convention: N distributions with M samples each => (M, N) matrix
+    convention: N genes with M samples each => (M, N) matrix
     """
     cfg = {
         "data_folder": "data",
         "param_folder": "params",
     }
     
-    def __init__(self, num_samples=2000, num_distributions=10000):
+    def __init__(self, num_samples=2000, num_genes=10000):
         self.num_samples = num_samples
-        self.num_distributions = num_distributions
+        self.num_genes = num_genes
         
         self.data = {}
         self.params = {}

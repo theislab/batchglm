@@ -25,7 +25,7 @@ def estimate(sim: Simulator):
     estimator = Estimator(sim.data)
     estimator.validate_data()
     estimator.initialize()
-    # estimator.train(steps=10)
+    estimator.train(steps=10)
 
     return estimator
 

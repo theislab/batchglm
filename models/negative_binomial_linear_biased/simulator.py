@@ -61,13 +61,13 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         self.params['a'] = np.log(
             np.concatenate([
                 np.expand_dims(self.params["r"], 0),
-                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_distributions))
+                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_genes))
             ])
         )
         self.params['b'] = np.log(
             np.concatenate([
                 np.expand_dims(self.params["mu"], 0),
-                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_distributions))
+                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_genes))
             ])
         )
     

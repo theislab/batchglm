@@ -30,8 +30,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 train_op = None
                 # define train function
                 if optimizable_nb:
-                    train_op = tf.train.AdamOptimizer(learning_rate=0.05)
-                    train_op = train_op.minimize(loss, global_step=tf.train.get_global_step())
+                    optimizer = tf.train.AdamOptimizer(learning_rate=0.05)
+                    train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
 
             initializer_op = tf.global_variables_initializer()
 

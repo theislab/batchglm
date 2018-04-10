@@ -17,7 +17,7 @@ sample_data = sim.data.sample_data
 initial_mixture_probs = sim.data.initial_mixture_probs
 
 sample_data = tf.tile(sample_data, (initial_mixture_probs.shape[0], 1, 1))
-(num_mixtures, num_samples, num_distributions) = tf.shape(sample_data)
+(num_mixtures, num_samples, num_genes) = tf.shape(sample_data)
 
 mixture_prob = initial_mixture_probs
 
