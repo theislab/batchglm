@@ -91,22 +91,18 @@ with tf.name_scope("training"):
     if use_em:
         with tf.name_scope("expectation_maximization"):
             r"""
-            E(p_{j,k}) = \frac{p_{x_{j,k}}}{\sum_{a}{p_{x_{j,a}}}}
-            p_{x_{j,k}} = \prod_{i}{L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})}
-
-            Numeric stability:
-            E(p_{j,k}) = \frac{p_{x_{j,k}}}{\sum_{a}{p_{x_{j,a}}}} \\
-            = \frac{n^2 * p_{x_{j,k}}}{n^2 * \sum_{a}{p_{x_{j,a}}}} \\
-            = \frac{n^2 *p_{x_{j,k}}}{ \sum_{a}{n * p_{x_{j,a}}}} \\
-            = \frac{n^2 *\prod_{i}{L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})}}{ 
-                \sum_{a}{n *\prod_{i}{L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})}}} \\
-            = \frac{exp(2*log(n) + \sum_{i}{ log(L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})) }) }{ \sum_{a}{ 
-                exp(log(n) + \sum_{i}{ log(L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})) }) }}
-
+            E(p_{j,k}) = \frac{P_{x}(j,k)}{\sum_{a}{P_{x}(j,a)}} \\
+            P_{x}(j,k) = \prod_{i}{L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})} \\
+            log_{P_x}(j, k) = \sum_{i}{log(L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k}))} \\
+            E(p_{j,k}) = exp(\frac{log_{P_{x}(j,k)}}{log(\sum_{a}{exp(log_{P_{x}}(j,a)}))})
+            
+            Here, the log(sum(exp(a))) trick can be used for the denominator to avoid numeric instabilities.
             """
-            new_weight = tf.reduce_sum(log_count_probs, axis=-1, keepdims=True) + tf.log(num_genes)
-            new_weight = tf.identity(new_weight / tf.reduce_sum(new_weight, axis=0, keepdims=True),
-                                     name="normalize")
+            sum_of_logs = tf.reduce_sum(log_count_probs, axis=-1, keepdims=True)
+            new_weight = sum_of_logs - tf.reduce_logsumexp(sum_of_logs, axis=0, keepdims=True)
+            new_weight = tf.exp(new_weight)
+            new_weight = tf.identity(new_weight, name="normalize")
+
             em_op = tf.assign(mixture_prob, new_weight)
     train_op = None
     if optimizable_nb or not use_em:

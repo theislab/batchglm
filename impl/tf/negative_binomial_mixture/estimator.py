@@ -65,6 +65,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # with tf.name_scope("count_probs"):
             count_probs = distribution.prob(sample_data, name="count_probs")
+            log_count_probs = tf.log(count_probs, name="log_count_probs")
             # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
             joint_probs = tf_utils.reduce_weighted_mean(count_probs, weight=mixture_prob, axis=-3,
                                                         name="joint_probs")
@@ -79,9 +80,19 @@ class EstimatorGraph(TFEstimatorGraph):
                 em_op = None
                 if use_em:
                     with tf.name_scope("expectation_maximization"):
-                        new_weight = tf.reduce_logsumexp(count_probs, axis=-1, keepdims=True)
-                        new_weight = tf.identity(mixture_prob / tf.reduce_sum(new_weight, axis=0, keepdims=True),
-                                                 name="normalize")
+                        r"""
+                        E(p_{j,k}) = \frac{P_{x}(j,k)}{\sum_{a}{P_{x}(j,a)}} \\
+                        P_{x}(j,k) = \prod_{i}{L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})} \\
+                        log_{P_x}(j, k) = \sum_{i}{log(L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k}))} \\
+                        E(p_{j,k}) = exp(\frac{log_{P_{x}(j,k)}}{log(\sum_{a}{exp(log_{P_{x}}(j,a)}))})
+
+                        Here, the log(sum(exp(a))) trick can be used for the denominator to avoid numeric instabilities.
+                        """
+                        sum_of_logs = tf.reduce_sum(log_count_probs, axis=-1, keepdims=True)
+                        new_weight = sum_of_logs - tf.reduce_logsumexp(sum_of_logs, axis=0, keepdims=True)
+                        new_weight = tf.exp(new_weight)
+                        new_weight = tf.identity(new_weight, name="normalize")
+
                         em_op = tf.assign(mixture_prob, new_weight)
                 train_op = None
                 if optimizable_nb or not use_em:
@@ -89,8 +100,10 @@ class EstimatorGraph(TFEstimatorGraph):
                     train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
                     if use_em:
                         train_op = tf.group(train_op, em_op)
+                else:
+                    train_op = em_op
 
-            # parameters
+                # parameters
             with tf.name_scope("mu"):
                 mu = tf.reduce_sum(distribution.mu * mixture_prob, axis=-3)
             with tf.name_scope("r"):
@@ -112,6 +125,8 @@ class EstimatorGraph(TFEstimatorGraph):
             self.log_r = log_r
             self.log_p = log_p
             self.log_mu = log_mu
+
+            self.mixture_assignment = tf.argmax(mixture_prob, axis=0)
 
             self.distribution = distribution
             self.log_probs = log_probs

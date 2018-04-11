@@ -25,7 +25,7 @@ def estimate(sim: Simulator):
     estimator = Estimator(sim.data, use_em=True)
     estimator.validate_data()
     estimator.initialize()
-    estimator.train(steps=10)
+    estimator.train(steps=5)
 
     return estimator
 
@@ -44,5 +44,7 @@ if __name__ == '__main__':
 
     sim = simulate(data_folder, generate_new_data)
     estimator = estimate(sim)
+
+    estimator.mixture_assignment
 
     print(estimator.loss)
