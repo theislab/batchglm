@@ -1,17 +1,6 @@
 import tensorflow as tf
 
-
-def normalize(self, measure: tf.Tensor, true_b: tf.Tensor) -> tf.Tensor:
-    """
-    Normalize measure (e.g. `RMSD` or `MAE`) with the range of `true_b`
-
-    :param measure: the measure which should be normalized
-    :param true_b: Tensor representing the true weights `b`
-    :return: \frac{RMSD}{max(b_{true}) - min(b_{true})}
-    """
-    norm = measure / (tf.maximum(true_b) - tf.minimum(true_b))
-    norm = tf.identity(norm, name="normalize")
-    return norm
+import impl.tf.stats as stats
 
 
 class LinearRegression:
@@ -75,44 +64,38 @@ class LinearRegression:
         """
         return self.b
     
-    def rmsd(self, true_b: tf.Tensor) -> tf.Tensor:
+    def rmsd(self, b_obs: tf.Tensor, name="RMSD") -> tf.Tensor:
         """
-        Calculate the root of the mean squared deviation between the estimated weights `b` and the true `b`
+        Calculate the root of the mean squared deviation between the estimated weights `b` and the observed `b`
         
-        :param true_b: Tensor representing the true weights `b`
-        :return: \sqrt{mean{(b_{estim} - b_{true})^2}}
+        :param b_obs: Tensor representing the observed weights `b`
+        :return: \sqrt{mean{(b_{estim} - b_{obs})^2}}
         """
-        with tf.name_scope("RMSD"):
-            rmsd = tf.sqrt(tf.reduce_mean(tf.squared_difference(self.b, true_b)))
-            rmsd = tf.identity(rmsd, name="RMSD")
-            return rmsd
+        return stats.rmsd(self.b, b_obs, name=name)
     
-    def mae(self, true_b: tf.Tensor) -> tf.Tensor:
+    def mae(self, b_obs: tf.Tensor, name="MAE") -> tf.Tensor:
         """
-        Calculate the mean absolute error between the estimated weights `b` and the true `b`
+        Calculate the mean absolute error between the estimated weights `b` and the observed `b`
         
-        :param true_b: Tensor representing the true weights `b`
-        :return: mean{(b_{estim} - b_{true})}
+        :param b_obs: Tensor representing the observed weights `b`
+        :return: mean{(b_{estim} - b_{obs})}
         """
-        with tf.name_scope("RMSD"):
-            mae = tf.reduce_mean(self.b - true_b)
-            mae = tf.identity(mae, name="MAE")
-            return mae
+        return stats.mae(self.b, b_obs, name=name)
     
-    def normalized_rmsd(self, true_b: tf.Tensor) -> tf.Tensor:
+    def normalized_rmsd(self, b_obs: tf.Tensor, name="NRMSD") -> tf.Tensor:
         """
-        Calculate the normalized RMSD between the estimated weights `b` and the true `b`
+        Calculate the normalized RMSD between the estimated weights `b` and the observed `b`
         
-        :param true_b: Tensor representing the true weights `b`
-        :return: \frac{RMSD}{max(b_{true}) - min(b_{true})}
+        :param b_obs: Tensor representing the observed weights `b`
+        :return: \frac{RMSD}{max(b_{obs}) - min(b_{obs})}
         """
-        return tf.identity(self.normalize(self.rmsd(true_b)), name="NRMSD")
+        return stats.normalized_rmsd(self.b, b_obs, name=name)
     
-    def normalized_mae(self, true_b: tf.Tensor) -> tf.Tensor:
+    def normalized_mae(self, b_obs: tf.Tensor, name="NMAE") -> tf.Tensor:
         """
-        Calculate the normalized MAE between the estimated weights `b` and the true `b`
+        Calculate the normalized MAE between the estimated weights `b` and the observed `b`
         
-        :param true_b: Tensor representing the true weights `b`
-        :return: \frac{MAE}{max(b_{true}) - min(b_{true})}
+        :param b_obs: Tensor representing the observed weights `b`
+        :return: \frac{MAE}{max(b_{obs}) - min(b_{obs})}
         """
-        return tf.identity(self.normalize(self.mae(true_b)), name="NMAE")
+        return stats.normalized_mae(self.b, b_obs, name=name)

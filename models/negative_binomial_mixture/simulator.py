@@ -56,6 +56,10 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     def mixture_assignment(self):
         return self.params["mixture_assignment"]
     
+    @property
+    def mixture_prob(self):
+        return self.params["mixture_probs"]
+    
     def generate_params(self, *args, min_mean=20, max_mean=10000, min_r=10, max_r=100, prob_transition=0.9, **kwargs):
         self.params["mu"] = np.random.uniform(min_mean, max_mean, [self.num_mixtures, 1, self.num_genes])
         self.params["r"] = np.round(np.random.uniform(min_r, max_r, [self.num_mixtures, 1, self.num_genes]))
@@ -64,15 +68,19 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
             range(self.num_mixtures), np.ceil(self.num_samples / self.num_mixtures)
         )[:self.num_samples]
         
-        mixtures = np.random.uniform(0, 1, [self.num_samples])
-        mixtures = np.where(mixtures < prob_transition, 1, 0)
-        mixtures *= initial_mixture_assignment
+        real_mixture_assignment = np.random.uniform(0, 1, [self.num_samples])
+        real_mixture_assignment = np.where(real_mixture_assignment < prob_transition, 1, 0)
+        # idea: [ 0 0 0 | 1 0 1 | 1 1 0] * [ 0 0 0 | 1 1 1 | 2 2 2] = [ 0 0 0 | 1 0 1 | 2 2 0 ]
+        real_mixture_assignment *= initial_mixture_assignment
         
-        mixture_prob = np.zeros([self.num_mixtures, self.num_samples])
-        mixture_prob[initial_mixture_assignment, range(self.num_samples)] = 1
+        initial_mixture_probs = np.zeros([self.num_mixtures, self.num_samples])
+        initial_mixture_probs[initial_mixture_assignment, range(self.num_samples)] = 1
+        real_mixture_probs = np.zeros([self.num_mixtures, self.num_samples])
+        real_mixture_probs[real_mixture_assignment, range(self.num_samples)] = 1
         
-        self.data["initial_mixture_probs"] = mixture_prob
-        self.params["mixture_assignment"] = mixtures
+        self.data["initial_mixture_probs"] = initial_mixture_probs
+        self.params["mixture_assignment"] = real_mixture_assignment
+        self.params["mixture_probs"] = real_mixture_probs
     
     def generate_data(self):
         self.data.sample_data = np.squeeze(negative_binomial(self.r, self.mu))

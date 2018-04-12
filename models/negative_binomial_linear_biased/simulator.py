@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import patsy
 
-from .external import NegativeBinomialSimulator
+from models.negative_binomial import NegativeBinomialSimulator
 from .base import Model, InputData
 
 

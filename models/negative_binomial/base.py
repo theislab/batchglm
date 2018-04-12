@@ -37,6 +37,6 @@ class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
         removed_smpls = np.where(smpls is False)
         print("removing samples due to too small variance: \n%s" % removed_smpls)
 
-        self.input_data.sample_data = self.input_data.sample_data[:, np.where(smpls)]
+        self.input_data.sample_data = np.squeeze(self.input_data.sample_data[:, np.where(smpls)])
 
         return removed_smpls
