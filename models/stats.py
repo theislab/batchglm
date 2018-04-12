@@ -33,7 +33,7 @@ def mae(estim: np.ndarray, true_b: np.ndarray) -> np.ndarray:
     :param obs: ndarray representing the observed data
     :return: mean{(estim - obs)}
     """
-    mae = np.mean(estim - true_b)
+    mae = np.mean(np.abs(estim - true_b))
     return mae
 
 

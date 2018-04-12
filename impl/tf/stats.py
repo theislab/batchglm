@@ -36,7 +36,7 @@ def mae(estim: tf.Tensor, true_b: tf.Tensor, name="MAE") -> tf.Tensor:
     :return: mean{(estim - obs)}
     """
     with tf.name_scope(name):
-        mae = tf.reduce_mean(estim - true_b)
+        mae = tf.reduce_mean(tf.abs(estim - true_b))
     return mae
 
 
