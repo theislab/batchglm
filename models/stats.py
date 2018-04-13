@@ -31,7 +31,7 @@ def mae(estim: np.ndarray, true_b: np.ndarray) -> np.ndarray:
 
     :param estim: ndarray representing the estimated data
     :param obs: ndarray representing the observed data
-    :return: mean{(estim - obs)}
+    :return: mean{|estim - obs|}
     """
     mae = np.mean(np.abs(estim - true_b))
     return mae
@@ -59,3 +59,15 @@ def normalized_mae(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
     """
     retval = normalize(mae(estim, obs), obs)
     return retval
+
+
+def mapd(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
+    """
+        Calculate the mean absolute percentage deviation between the estimated and the observed data
+
+        :param estim: ndarray representing the estimated data
+        :param obs: ndarray representing the observed data
+        :return: mean{|estim - obs| / obs}
+        """
+    mapd = np.mean(np.abs(estim - obs) / obs)
+    return mapd

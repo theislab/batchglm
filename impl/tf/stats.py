@@ -33,7 +33,7 @@ def mae(estim: tf.Tensor, true_b: tf.Tensor, name="MAE") -> tf.Tensor:
 
     :param estim: Tensor representing the estimated data
     :param obs: Tensor representing the observed data
-    :return: mean{(estim - obs)}
+    :return: mean{|estim - obs|}
     """
     with tf.name_scope(name):
         mae = tf.reduce_mean(tf.abs(estim - true_b))
@@ -64,3 +64,15 @@ def normalized_mae(estim: tf.Tensor, obs: tf.Tensor, name="NMAE") -> tf.Tensor:
     with tf.name_scope(name):
         retval = normalize(mae(estim, obs), obs)
     return retval
+
+
+def mapd(estim: tf.Tensor, obs: tf.Tensor) -> tf.Tensor:
+    """
+        Calculate the mean absolute percentage deviation between the estimated and the observed data
+
+        :param estim: ndarray representing the estimated data
+        :param obs: ndarray representing the observed data
+        :return: mean{|estim - obs| / obs}
+        """
+    mapd = tf.reduce_mean(tf.abs(estim - obs) / obs)
+    return mapd
