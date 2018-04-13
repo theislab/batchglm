@@ -6,10 +6,6 @@ import os
 
 class BasicInputData(dict):
     
-    def __init__(self, sample_data):
-        super().__init__()
-        self.sample_data = sample_data
-    
     @property
     def sample_data(self):
         return self['sample_data']

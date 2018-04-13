@@ -10,6 +10,28 @@ from models.negative_binomial import NegativeBinomialSimulator
 from .base import Model, InputData
 
 
+def generate_sample_description(num_samples, num_batches=4, num_confounder=2):
+    reps_batches = math.ceil(num_samples / num_batches)
+    reps_confounder = math.ceil(num_samples / num_confounder)
+    
+    # batch column
+    batches = np.repeat(range(num_batches), reps_batches)
+    batches = batches[range(num_samples)]
+    
+    # confounder column
+    confounders = np.squeeze(np.tile([np.arange(num_confounder)], reps_confounder))
+    confounders = confounders[range(num_samples)]
+    
+    # build sample description
+    sample_description = {
+        "batch": batches,
+        "confounder": confounders,
+    }
+    sample_description = pd.DataFrame(data=sample_description, dtype="category")
+    
+    return sample_description
+
+
 class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
     # static variables
     cfg = NegativeBinomialSimulator.cfg.copy()
@@ -22,27 +44,11 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         Model.__init__(self)
         
-        self.data = InputData(None, None)
+        self.data = InputData()
         self.sample_description = None
     
     def generate_sample_description(self, num_batches=4, num_confounder=2):
-        reps_batches = math.ceil(self.num_samples / num_batches)
-        reps_confounder = math.ceil(self.num_samples / num_confounder)
-        
-        # batch column
-        batches = np.repeat(range(num_batches), reps_batches)
-        batches = batches[range(self.num_samples)]
-        
-        # confounder column
-        confounders = np.squeeze(np.tile([np.arange(num_confounder)], reps_confounder))
-        confounders = confounders[range(self.num_samples)]
-        
-        # build sample description
-        sample_description = {
-            "batch": batches,
-            "confounder": confounders,
-        }
-        self.sample_description = pd.DataFrame(data=sample_description, dtype="category")
+        self.sample_description = generate_sample_description(self.num_samples, num_batches, num_confounder)
     
     def generate_params(self, *args, min_bias=0.5, max_bias=2, **kwargs):
         super().generate_params(*args, **kwargs)

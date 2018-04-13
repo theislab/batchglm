@@ -23,7 +23,7 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
         self.num_samples = num_samples
         self.num_mixtures = num_mixtures
         
-        self.data = InputData(None)
+        self.data = InputData()
     
     def load(self, folder):
         super().load(folder)
@@ -37,15 +37,15 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     
     @property
     def r(self):
-        retVal = np.tile(self.params['r'], (self.num_samples, 1))
-        retVal = retVal[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
-        return np.squeeze(retVal)
+        retval = np.tile(self.params['r'], (self.num_samples, 1))
+        retval = retval[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
+        return np.squeeze(retval)
     
     @property
     def mu(self):
-        retVal = np.tile(self.params['mu'], (self.num_samples, 1))
-        retVal = retVal[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
-        return np.squeeze(retVal)
+        retval = np.tile(self.params['mu'], (self.num_samples, 1))
+        retval = retval[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
+        return np.squeeze(retval)
     
     @property
     def p(self):

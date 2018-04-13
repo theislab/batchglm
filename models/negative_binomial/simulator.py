@@ -24,7 +24,7 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
         self.num_samples = num_samples
         self.num_genes = num_genes
         
-        self.data = InputData(None)
+        self.data = InputData()
     
     def load(self, folder):
         super().load(folder)
