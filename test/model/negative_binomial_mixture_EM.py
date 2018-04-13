@@ -1,10 +1,12 @@
 from models.negative_binomial_mixture import Simulator
 from models.negative_binomial_mixture.estimator import Estimator
 
+from test.util import stat_frame
+
 
 def simulate(data_folder=None, generate_new_data=False):
     sim = Simulator()
-
+    
     if generate_new_data:
         print("Generating new data...")
         sim.generate()
@@ -17,7 +19,7 @@ def simulate(data_folder=None, generate_new_data=False):
     else:  # no arguments specified
         print("Generating new data...")
         sim.generate()
-
+    
     return sim
 
 
@@ -26,25 +28,25 @@ def estimate(sim: Simulator):
     estimator.validate_data()
     estimator.initialize()
     estimator.train(steps=5)
-
+    
     return estimator
 
 
 if __name__ == '__main__':
     import argparse
-
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', nargs=1, help='folder for sample data')
     parser.add_argument('--generate', nargs="?", default=False, const=True,
                         help="generate new sample data; if not specified, existing data is assumed in the data folder")
     args, unknown = parser.parse_known_args()
-
+    
     data_folder = args.data
     generate_new_data = args.generate
-
+    
     sim = simulate(data_folder, generate_new_data)
     estimator = estimate(sim)
-
-    estimator.mixture_assignment
-
-    print(estimator.loss)
+    
+    print("loss: %d" % estimator.loss)
+    stats = stat_frame(estimator, sim, ["r", "mu", "mixture_prob"])
+    print(stats)

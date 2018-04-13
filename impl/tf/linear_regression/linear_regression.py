@@ -25,7 +25,7 @@ class LinearRegression:
             :return:    | tuple(b, least_squares)
                         | b is a Tensor of shape ([...], N, K)
             """
-        l2_reg = tf.convert_to_tensor(l2_reg, name="l2_reg")
+        l2_reg = tf.convert_to_tensor(l2_reg, dtype=X.dtype, name="l2_reg")
         # lambda_I = tf.tile(l2_reg, (tf.shape(X)[-2], tf.shape(X)[-2]))
         
         with tf.name_scope(name):

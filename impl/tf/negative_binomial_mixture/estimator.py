@@ -14,56 +14,69 @@ class EstimatorGraph(TFEstimatorGraph):
     mu: tf.Tensor
     mixture_assignment: tf.Tensor
     
-    def __init__(self, num_mixtures, num_samples, num_genes, graph=None, optimizable_nb=False, use_em=False):
+    def __init__(
+            self,
+            num_mixtures,
+            num_samples,
+            num_genes,
+            graph=None,
+            optimizable_nb=False,
+            use_em=False,
+            random_effect=0.1,
+            learning_rate=0.05
+    ):
         super().__init__(graph)
         
-        # initial graph elements
         with self.graph.as_default():
+            # placeholders
             sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
             initial_mixture_probs = tf.placeholder(tf.float32,
                                                    shape=(num_mixtures, num_samples),
                                                    name="initial_mixture_probs")
             
+            # data preparation
             with tf.name_scope("prepare_data"):
                 # apply a random intercept to avoid zero gradients and infinite values
                 with tf.name_scope("randomize"):
-                    initial_mixture_probs += tf.random_uniform(initial_mixture_probs.shape, 0, 0.1,
+                    initial_mixture_probs += tf.random_uniform(initial_mixture_probs.shape, 0, random_effect,
                                                                dtype=tf.float32)
                     initial_mixture_probs = initial_mixture_probs / tf.reduce_sum(initial_mixture_probs, axis=0,
                                                                                   keepdims=True)
                     initial_mixture_probs = tf.expand_dims(initial_mixture_probs, -1)
                     initial_mixture_probs = tf.identity(initial_mixture_probs, name="adjusted_initial_mixture_probs")
+                assert (initial_mixture_probs.shape == (num_mixtures, num_samples, 1))
                 
+                # broadcast sample data to shape (num_mixtures, num_samples, num_genes)
                 with tf.name_scope("broadcast"):
                     sample_data = tf.expand_dims(sample_data, axis=0)
                     sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
+                assert (sample_data.shape == (num_mixtures, num_samples, num_genes))
             
+            # define mixture_prob tensor depending on optimization method
             mixture_prob = None
             with tf.name_scope("mixture_prob"):
                 if use_em:
                     mixture_prob = tf.Variable(initial_mixture_probs,
                                                name="mixture_prob",
-                                               validate_shape=False,
                                                trainable=False
                                                )
                 else:
                     # optimize logits to keep `mixture_prob` between the interval [0, 1]
-                    logit_mixture_prob = tf.Variable(tf_utils.logit(initial_mixture_probs),
-                                                     name="logit_prob",
-                                                     validate_shape=False)
+                    logit_mixture_prob = tf.Variable(tf_utils.logit(initial_mixture_probs), name="logit_prob")
                     mixture_prob = tf.sigmoid(logit_mixture_prob, name="prob")
                     
                     # normalize: the assignment probabilities should sum up to 1
                     # => `sum(mixture_prob of one sample) = 1`
                     mixture_prob = mixture_prob / tf.reduce_sum(mixture_prob, axis=0, keepdims=True)
                     mixture_prob = tf.identity(mixture_prob, name="normalize")
+            assert (mixture_prob.shape == (num_mixtures, num_samples, 1))
             
+            # calculate whole model probability:
             distribution = nb_utils.fit(sample_data=sample_data,
                                         axis=-2,
                                         weights=mixture_prob,
                                         name="fit_nb-dist")
             
-            # with tf.name_scope("count_probs"):
             count_probs = distribution.prob(sample_data, name="count_probs")
             log_count_probs = tf.log(count_probs, name="log_count_probs")
             # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
@@ -72,6 +85,7 @@ class EstimatorGraph(TFEstimatorGraph):
             
             log_probs = tf.log(joint_probs, name="log_probs")
             
+            # define training operations
             with tf.name_scope("training"):
                 # minimize negative log probability (log(1) = 0)
                 loss = -tf.reduce_sum(log_probs, name="loss")
@@ -89,21 +103,21 @@ class EstimatorGraph(TFEstimatorGraph):
                         Here, the log(sum(exp(a))) trick can be used for the denominator to avoid numeric instabilities.
                         """
                         sum_of_logs = tf.reduce_sum(log_count_probs, axis=-1, keepdims=True)
-                        new_weight = sum_of_logs - tf.reduce_logsumexp(sum_of_logs, axis=0, keepdims=True)
-                        new_weight = tf.exp(new_weight)
-                        new_weight = tf.identity(new_weight, name="normalize")
+                        expected_weight = sum_of_logs - tf.reduce_logsumexp(sum_of_logs, axis=0, keepdims=True)
+                        expected_weight = tf.exp(expected_weight)
+                        expected_weight = tf.identity(expected_weight, name="normalize")
                         
-                        em_op = tf.assign(mixture_prob, new_weight)
+                        em_op = tf.assign(mixture_prob, expected_weight)
                 train_op = None
                 if optimizable_nb or not use_em:
-                    optimizer = tf.train.AdamOptimizer(learning_rate=0.05)
+                    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
                     train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
                     if use_em:
                         train_op = tf.group(train_op, em_op)
                 else:
                     train_op = em_op
-                
-                # parameters
+            
+            # parameters
             with tf.name_scope("mu"):
                 mu = tf.reduce_sum(distribution.mu * mixture_prob, axis=-3)
             with tf.name_scope("r"):
@@ -125,10 +139,15 @@ class EstimatorGraph(TFEstimatorGraph):
             self.log_r = log_r
             self.log_p = log_p
             self.log_mu = log_mu
+            assert (self.r.shape == (num_samples, num_genes))
+            assert (self.p.shape == (num_samples, num_genes))
+            assert (self.mu.shape == (num_samples, num_genes))
             
-            self.mixture_prob = mixture_prob
+            self.mixture_prob = tf.squeeze(mixture_prob)
             with tf.name_scope("mixture_assignment"):
                 self.mixture_assignment = tf.squeeze(tf.argmax(mixture_prob, axis=0))
+            assert (self.mixture_prob.shape == (num_mixtures, num_samples))
+            assert (self.mixture_assignment.shape == (num_samples))
             
             self.distribution = distribution
             self.log_probs = log_probs
