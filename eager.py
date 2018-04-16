@@ -4,10 +4,11 @@ import numpy as np
 from tensorflow.contrib import eager as tfe
 from tensorflow.python import debug as tf_debug
 
-# tfe.enable_eager_execution()
+tfe.enable_eager_execution()
 
 import impl.tf.negative_binomial.util as nb_utils
 import impl.tf.util as tf_utils
+from models.negative_binomial_mixture_linear_biased.base import validate_data
 from models.negative_binomial_mixture_linear_biased import Simulator
 
 sim = Simulator()
@@ -16,22 +17,23 @@ sim = Simulator()
 
 sim.load("resources/")
 
-input_data = sim.data
+input_data = validate_data(sim.data)
 
 num_mixtures = input_data["initial_mixture_probs"].shape[0]
 (num_samples, num_genes) = input_data["sample_data"].shape
 
+sample_data = tf.convert_to_tensor(sim.data.sample_data, tf.float32)
+design = tf.convert_to_tensor(sim.data.design, tf.float32)
+
 ###########################
 optimizable_nb = False
 use_em = True
-random_effect=0.1
-learning_rate=0.05
+random_effect = 0.1
+learning_rate = 0.05
 
-sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
-design = tf.placeholder(tf.float32, shape=(num_samples, None), name="design")
-initial_mixture_probs = tf.placeholder(tf.float32,
-                                       shape=(num_mixtures, num_samples),
-                                       name="initial_mixture_probs")
+sample_data = tf.convert_to_tensor(input_data.sample_data, dtype=tf.float32)
+design = tf.convert_to_tensor(input_data.design, dtype=tf.float32)
+initial_mixture_probs = tf.convert_to_tensor(input_data.initial_mixture_probs, dtype=tf.float32)
 
 # data preparation
 with tf.name_scope("prepare_data"):
@@ -53,23 +55,7 @@ with tf.name_scope("prepare_data"):
     assert (sample_data.shape == (num_mixtures, num_samples, num_genes))
 
 # define mixture_prob tensor depending on optimization method
-mixture_prob = None
-with tf.name_scope("mixture_prob"):
-    if use_em:
-        mixture_prob = tf.Variable(initial_mixture_probs,
-                                   name="mixture_prob",
-                                   trainable=False
-                                   )
-    else:
-        # optimize logits to keep `mixture_prob` between the interval [0, 1]
-        logit_mixture_prob = tf.Variable(tf_utils.logit(initial_mixture_probs), name="logit_prob")
-        mixture_prob = tf.sigmoid(logit_mixture_prob, name="prob")
-        
-        # normalize: the assignment probabilities should sum up to 1
-        # => `sum(mixture_prob of one sample) = 1`
-        mixture_prob = mixture_prob / tf.reduce_sum(mixture_prob, axis=0, keepdims=True)
-        mixture_prob = tf.identity(mixture_prob, name="normalize")
-assert (mixture_prob.shape == (num_mixtures, num_samples, 1))
+mixture_prob = initial_mixture_probs
 
 with tf.name_scope("partitions"):
     _, partitions = tf.py_func(
@@ -115,7 +101,7 @@ with tf.name_scope("training"):
             expected_weight = tf.exp(expected_weight)
             expected_weight = tf.identity(expected_weight, name="normalize")
             
-            em_op = tf.assign(mixture_prob, expected_weight)
+            # mixture_prob = expected_weight
     train_op = None
     if optimizable_nb or not use_em:
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -160,4 +146,3 @@ sess.run(mixture_prob, feed_dict=feed_dict)
 
 print(sim.r[:, 0])
 print(real_r[:, 0])
-

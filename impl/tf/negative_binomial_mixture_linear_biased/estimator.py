@@ -1,9 +1,11 @@
 import abc
 
 import tensorflow as tf
+import numpy as np
 
 import impl.tf.util as tf_utils
-from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph, nb_utils
+from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph
+from .external import nb_utils, LinearRegression
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -12,7 +14,8 @@ class EstimatorGraph(TFEstimatorGraph):
     r: tf.Tensor
     p: tf.Tensor
     mu: tf.Tensor
-    mixture_assignment: tf.Tensor
+    a: tf.Tensor
+    b: tf.Tensor
     
     def __init__(
             self,
@@ -21,15 +24,18 @@ class EstimatorGraph(TFEstimatorGraph):
             num_genes,
             graph=None,
             optimizable_nb=False,
+            optimizable_lm=False,
             use_em=False,
             random_effect=0.1,
             learning_rate=0.05
     ):
         super().__init__(graph)
         
+        # initial graph elements
         with self.graph.as_default():
             # placeholders
             sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
+            design = tf.placeholder(tf.float32, shape=(num_samples, None), name="design")
             initial_mixture_probs = tf.placeholder(tf.float32,
                                                    shape=(num_mixtures, num_samples),
                                                    name="initial_mixture_probs")
@@ -72,11 +78,20 @@ class EstimatorGraph(TFEstimatorGraph):
                     mixture_prob = tf.identity(mixture_prob, name="normalize")
             assert (mixture_prob.shape == (num_mixtures, num_samples, 1))
             
-            # calculate whole model probability:
-            distribution = nb_utils.fit(sample_data=sample_data,
-                                        axis=-2,
-                                        weights=mixture_prob,
-                                        name="fit_nb-dist")
+            with tf.name_scope("partitions"):
+                _, partitions = tf.py_func(
+                    lambda x: np.unique(x, axis=0, return_inverse=True),
+                    [design],
+                    [design.dtype, tf.int64]
+                )
+                partitions = tf.cast(partitions, tf.int32)
+            assert (partitions.shape == (num_samples))
+            
+            # calculate mixture model probability:
+            distribution = nb_utils.fit_partitioned(sample_data=sample_data, partitions=partitions,
+                                                    axis=-2,
+                                                    weights=mixture_prob,
+                                                    name="fit_mixture_nb-dist")
             
             count_probs = distribution.prob(sample_data, name="count_probs")
             log_count_probs = tf.log(count_probs, name="log_count_probs")
@@ -160,6 +175,8 @@ class EstimatorGraph(TFEstimatorGraph):
         session.run(self.initializer_op, feed_dict=feed_dict)
     
     def train(self, session, feed_dict, *args, steps=1000, **kwargs):
+        if self.train_op is None:
+            raise RuntimeWarning("this graph is not trainable")
         errors = []
         for i in range(steps):
             (loss_res, _) = session.run((self.loss, self.train_op),
@@ -170,9 +187,8 @@ class EstimatorGraph(TFEstimatorGraph):
         return errors
 
 
-# g = EstimatorGraph(2, 2000, 10000, optimizable_nb=False)
+# g = EstimatorGraph(sim.data.design, optimizable_nb=False)
 # writer = tf.summary.FileWriter("/tmp/log/...", g.graph)
-# writer.close()
 
 
 class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
@@ -203,9 +219,9 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
         return self.run(self.model.mu)
     
     @property
-    def mixture_assignment(self):
-        return self.run(self.model.mixture_assignment)
+    def a(self):
+        return self.run(self.model.a)
     
     @property
-    def mixture_prob(self):
-        return self.run(self.model.mixture_prob)
+    def b(self):
+        return self.run(self.model.b)
