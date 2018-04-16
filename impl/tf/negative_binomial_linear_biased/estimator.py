@@ -1,6 +1,7 @@
 import abc
 
 import tensorflow as tf
+import numpy as np
 
 from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph
 from .external import nb_utils, LinearRegression
@@ -30,7 +31,18 @@ class EstimatorGraph(TFEstimatorGraph):
             sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
             design = tf.placeholder(tf.float32, shape=(num_samples, None), name="design")
             
-            dist = nb_utils.fit_partitioned(sample_data, design, optimizable=optimizable_nb,
+            ### waiting for tf.unique_with_counts_v2 to be released:
+            # _, partition_index = tf.unique(design, axis=0, name="unique")
+            ### alternatively use python:
+            with tf.name_scope("partitions"):
+                _, partitions = tf.py_func(
+                    lambda x: np.unique(x, axis=0, return_inverse=True),
+                    [design],
+                    [design.dtype, tf.int64]
+                )
+                partitions = tf.cast(partitions, tf.int32)
+            
+            dist = nb_utils.fit_partitioned(sample_data, partitions, optimizable=optimizable_nb,
                                             name="background_NB-dist")
             r = dist.r
             p = dist.p

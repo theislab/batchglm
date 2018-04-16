@@ -38,7 +38,9 @@ class NegativeBinomial(TFNegativeBinomial):
         self.r = r
 
 
-def fit_partitioned(sample_data: tf.Tensor, design: tf.Tensor,
+def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
+                    axis=-2,
+                    weights=None,
                     optimizable=False,
                     validate_shape=True,
                     dtype=tf.float32,
@@ -49,7 +51,7 @@ def fit_partitioned(sample_data: tf.Tensor, design: tf.Tensor,
     Usage example:
     `distribution = fit(sample_data);`
 
-    :param design: 1d vector of size 'shape(sample_data)[0] assigning each sample to one group/partition.
+    :param partitions: 1d vector of size 'shape(sample_data)[axis] assigning each sample to one group/partition.
     :param sample_data: matrix containing samples for each distribution on axis 'axis'\n
         E.g. `(N, M)` matrix with `M` distributions containing `N` observed values each
     :param axis: the axis containing the data of one distribution
@@ -58,22 +60,15 @@ def fit_partitioned(sample_data: tf.Tensor, design: tf.Tensor,
     :return: negative binomial distribution
     """
     with tf.name_scope(name):
-        ### we have to use numpy since tensorflow is currently missing axis support in its "unique" methods.
-        with tf.name_scope("unique"):
-            unique_rows, partition_index, counts = tf.py_func(
-                lambda design: np.unique(design, axis=0, return_inverse=True, return_counts=True),
-                [design],
-                [design.dtype, tf.int64, tf.int64]
-            )
-            partition_index = tf.cast(partition_index, tf.int32)
-            counts = tf.cast(counts, tf.int32)
-        
-        ### => waiting for tf.unique_with_counts_v2 to be released:
-        # unique_rows, partition_index, counts = tf.unique_with_counts(design, axis=0, name="unique")
+        uniques, partition_index = tf.unique(partitions, name="unique")
         
         def fit_part(i):
-            part = tf.gather_nd(sample_data, tf.where(tf.equal(partition_index, i)))
-            dist = fit(part, optimizable=optimizable, validate_shape=validate_shape, dtype=dtype)
+            smpl = tf.squeeze(tf.gather(sample_data, tf.where(tf.equal(partition_index, i)), axis=axis), axis=axis)
+            w = None
+            if weights is not None:
+                w = tf.squeeze(tf.gather(weights, tf.where(tf.equal(partition_index, i)), axis=axis), axis=axis)
+            dist = fit(smpl, axis=axis, weights=w, optimizable=optimizable,
+                       validate_shape=validate_shape, dtype=dtype)
             
             retvalTuple = (
                 dist.r,
@@ -82,13 +77,33 @@ def fit_partitioned(sample_data: tf.Tensor, design: tf.Tensor,
             )
             return retvalTuple
         
-        idx = tf.range(tf.size(counts))
+        idx = tf.range(tf.size(uniques))
         # r, p, mu = tf.map_fn(fit_part, idx, dtype=(sample_data.dtype, sample_data.dtype, sample_data.dtype))
         r, mu = tf.map_fn(fit_part, idx, dtype=(dtype, dtype))
         
-        stacked_r = tf.squeeze(tf.gather(r, partition_index, name="r"))
-        # stacked_p = tf.squeeze(tf.gather(p, partition_index, name="p"))
-        stacked_mu = tf.squeeze(tf.gather(mu, partition_index, name="mu"))
+        # shape(r) == shape(mu) == [ size(uniques), ..., 1, ... ]
+        
+        stacked_r = tf.gather(r, partition_index, name="r")
+        # stacked_p = tf.gather(p, partition_index, name="p")
+        stacked_mu = tf.gather(mu, partition_index, name="mu")
+        
+        # shape(r) == shape(mu) == [ shape(sample_data)[axis], ..., 1, ... ]
+        
+        with tf.name_scope("swap_dims"):
+            perm = tf.range(tf.rank(r))[1:]
+            perm = tf.concat(
+                [
+                    tf.expand_dims(perm[axis], 0),
+                    tf.where(tf.equal(perm, perm[axis]), tf.zeros_like(perm), perm)
+                ],
+                axis=0
+            )
+        
+        stacked_r = tf.squeeze(tf.transpose(stacked_r, perm=perm), axis=0)
+        # stacked_p = tf.squeeze(tf.transpose(stacked_p, perm=perm), axis=0)
+        stacked_mu = tf.squeeze(tf.transpose(stacked_mu, perm=perm), axis=0)
+        
+        # shape(r) == shape(mu) == shape(sample_data)
         
         return NegativeBinomial(r=stacked_r, mu=stacked_mu)
 
