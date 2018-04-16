@@ -38,7 +38,8 @@ class NegativeBinomial(TFNegativeBinomial):
         self.r = r
 
 
-def fit_partitioned(sample_data, design, optimizable=False,
+def fit_partitioned(sample_data: tf.Tensor, design: tf.Tensor,
+                    optimizable=False,
                     validate_shape=True,
                     dtype=tf.float32,
                     name="fit_nb_partitioned") -> NegativeBinomial:
@@ -57,11 +58,18 @@ def fit_partitioned(sample_data, design, optimizable=False,
     :return: negative binomial distribution
     """
     with tf.name_scope(name):
-        # we have to use numpy since tensorflow is currently missing axis support in its "unique" methods.
-        unique_rows, partition_index, counts = np.unique(design, axis=0, return_inverse=True, return_counts=True)
+        ### we have to use numpy since tensorflow is currently missing axis support in its "unique" methods.
+        with tf.name_scope("unique"):
+            unique_rows, partition_index, counts = tf.py_func(
+                lambda design: np.unique(design, axis=0, return_inverse=True, return_counts=True),
+                [design],
+                [design.dtype, tf.int64, tf.int64]
+            )
+            partition_index = tf.cast(partition_index, tf.int32)
+            counts = tf.cast(counts, tf.int32)
         
-        sample_data = tf.convert_to_tensor(sample_data, dtype=dtype)
-        partition_index = tf.convert_to_tensor(partition_index, dtype=tf.int32)
+        ### => waiting for tf.unique_with_counts_v2 to be released:
+        # unique_rows, partition_index, counts = tf.unique_with_counts(design, axis=0, name="unique")
         
         def fit_part(i):
             part = tf.gather_nd(sample_data, tf.where(tf.equal(partition_index, i)))
@@ -77,24 +85,6 @@ def fit_partitioned(sample_data, design, optimizable=False,
         idx = tf.range(tf.size(counts))
         # r, p, mu = tf.map_fn(fit_part, idx, dtype=(sample_data.dtype, sample_data.dtype, sample_data.dtype))
         r, mu = tf.map_fn(fit_part, idx, dtype=(dtype, dtype))
-        
-        # old implementation using dynamic partitions:
-        
-        # dyn_parts = tf.dynamic_partition(sample_data, partition_index, unique_rows.shape[0], name="dynamic_parts")
-        # params_r = list()
-        # # params_p = list()
-        # params_mu = list()
-        # for idx, part in enumerate(dyn_parts):
-        #     dist = fit(part, optimizable=optimizable, name="negbin_%i" % idx)
-        #     params_r.append(dist.r)
-        # #     params_p.append(dist.p)
-        #     params_mu.append(dist.mu)
-        #
-        # stacked_r = tf.stack(params_r, name="stack_r")
-        # stacked_mu = tf.stack(params_mu, name="stack_mu")
-        #
-        # stacked_r = tf.squeeze(tf.gather(stacked_r, partition_index, name="r"))
-        # stacked_mu = tf.squeeze(tf.gather(stacked_mu, partition_index, name="mu"))
         
         stacked_r = tf.squeeze(tf.gather(r, partition_index, name="r"))
         # stacked_p = tf.squeeze(tf.gather(p, partition_index, name="p"))

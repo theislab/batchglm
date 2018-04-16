@@ -19,7 +19,6 @@ class EstimatorGraph(TFEstimatorGraph):
             self,
             num_samples,
             num_genes,
-            design,
             graph=None,
             optimizable_nb=False,
             optimizable_lm=False
@@ -29,7 +28,7 @@ class EstimatorGraph(TFEstimatorGraph):
         # initial graph elements
         with self.graph.as_default():
             sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
-            design_tensor = tf.convert_to_tensor(design, dtype=tf.int32, name="design")
+            design = tf.placeholder(tf.float32, shape=(num_samples, None), name="design")
             
             dist = nb_utils.fit_partitioned(sample_data, design, optimizable=optimizable_nb,
                                             name="background_NB-dist")
@@ -40,13 +39,11 @@ class EstimatorGraph(TFEstimatorGraph):
             log_p = tf.log(p, name="log_p")
             log_mu = tf.log(mu, name="log_mu")
             
-            design_tensor_asfloat = tf.cast(design_tensor, dtype=r.dtype, name="design_casted")
-            
-            linreg_a = LinearRegression(design_tensor_asfloat, log_r, name="lin_reg_a", fast=not optimizable_lm)
+            linreg_a = LinearRegression(design, log_r, name="lin_reg_a", fast=not optimizable_lm)
             a = linreg_a.estimated_params
             a = tf.identity(a, "a")
             
-            linreg_b = LinearRegression(design_tensor_asfloat, log_mu, name="lin_reg_b", fast=not optimizable_lm)
+            linreg_b = LinearRegression(design, log_mu, name="lin_reg_b", fast=not optimizable_lm)
             b = linreg_b.estimated_params
             b = tf.identity(b, "b")
             
@@ -67,7 +64,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
             
             self.sample_data = sample_data
-            self.design_tensor = design_tensor
+            self.design_tensor = design
             self.design = design
             
             self.initializer_op = tf.global_variables_initializer()
@@ -115,7 +112,7 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     def __init__(self, input_data: dict, tf_estimator_graph=None):
         if tf_estimator_graph is None:
             (num_samples, num_genes) = input_data["sample_data"].shape
-            tf_estimator_graph = EstimatorGraph(num_samples, num_genes, input_data["design"])
+            tf_estimator_graph = EstimatorGraph(num_samples, num_genes)
         
         TFEstimator.__init__(self, input_data, tf_estimator_graph)
     
