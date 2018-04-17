@@ -1,7 +1,7 @@
-from models.negative_binomial import Simulator
-from models.negative_binomial.estimator import Estimator
+from models.negative_binomial_linear_biased import Simulator
+from models.negative_binomial_linear_biased.estimator import Estimator
 
-from test.util import stat_frame
+from examples.util import stat_frame
 
 
 def simulate(data_folder=None, generate_new_data=False):

@@ -1,7 +1,7 @@
 from models.negative_binomial_mixture import Simulator
 from models.negative_binomial_mixture.estimator import Estimator
 
-from test.util import stat_frame
+from examples.util import stat_frame
 
 
 def simulate(data_folder=None, generate_new_data=False):
@@ -24,10 +24,10 @@ def simulate(data_folder=None, generate_new_data=False):
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data, use_em=True)
+    estimator = Estimator(sim.data)
     estimator.validate_data()
     estimator.initialize()
-    estimator.train(steps=5)
+    estimator.train(steps=10)
     
     return estimator
 

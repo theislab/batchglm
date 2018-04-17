@@ -1,7 +1,7 @@
-from models.negative_binomial_linear_biased import Simulator
-from models.negative_binomial_linear_biased.estimator import Estimator
+from models.negative_binomial_mixture import Simulator
+from models.negative_binomial_mixture.estimator import Estimator
 
-from test.util import stat_frame
+from examples.util import stat_frame
 
 
 def simulate(data_folder=None, generate_new_data=False):
@@ -24,10 +24,10 @@ def simulate(data_folder=None, generate_new_data=False):
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data)
+    estimator = Estimator(sim.data, use_em=True)
     estimator.validate_data()
     estimator.initialize()
-    # estimator.train(steps=10)
+    estimator.train(steps=5)
     
     return estimator
 
@@ -48,5 +48,5 @@ if __name__ == '__main__':
     estimator = estimate(sim)
     
     print("loss: %d" % estimator.loss)
-    stats = stat_frame(estimator, sim, ["r", "mu"])
+    stats = stat_frame(estimator, sim, ["r", "mu", "mixture_prob"])
     print(stats)
