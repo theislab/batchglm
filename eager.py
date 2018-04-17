@@ -46,7 +46,7 @@ with tf.name_scope("prepare_data"):
         initial_mixture_probs = tf.expand_dims(initial_mixture_probs, -1)
         initial_mixture_probs = tf.identity(initial_mixture_probs, name="adjusted_initial_mixture_probs")
     assert (initial_mixture_probs.shape == (num_mixtures, num_samples, 1))
-    
+
     # broadcast sample data to shape (num_mixtures, num_samples, num_genes)
     with tf.name_scope("broadcast"):
         sample_data = tf.expand_dims(sample_data, axis=0)
@@ -83,7 +83,7 @@ log_probs = tf.log(joint_probs, name="log_probs")
 with tf.name_scope("training"):
     # minimize negative log probability (log(1) = 0)
     loss = -tf.reduce_sum(log_probs, name="loss")
-    
+
     # define train function
     em_op = None
     if use_em:
@@ -100,7 +100,7 @@ with tf.name_scope("training"):
             expected_weight = sum_of_logs - tf.reduce_logsumexp(sum_of_logs, axis=0, keepdims=True)
             expected_weight = tf.exp(expected_weight)
             expected_weight = tf.identity(expected_weight, name="normalize")
-            
+
             # mixture_prob = expected_weight
     train_op = None
     if optimizable_nb or not use_em:

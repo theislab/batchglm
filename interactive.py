@@ -24,8 +24,8 @@ num_mixtures = input_data["initial_mixture_probs"].shape[0]
 ###########################
 optimizable_nb = False
 use_em = True
-random_effect=0.1
-learning_rate=0.05
+random_effect = 0.1
+learning_rate = 0.05
 
 sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
 design = tf.placeholder(tf.float32, shape=(num_samples, None), name="design")
@@ -44,7 +44,7 @@ with tf.name_scope("prepare_data"):
         initial_mixture_probs = tf.expand_dims(initial_mixture_probs, -1)
         initial_mixture_probs = tf.identity(initial_mixture_probs, name="adjusted_initial_mixture_probs")
     assert (initial_mixture_probs.shape == (num_mixtures, num_samples, 1))
-    
+
     # broadcast sample data to shape (num_mixtures, num_samples, num_genes)
     with tf.name_scope("broadcast"):
         sample_data = tf.expand_dims(sample_data, axis=0)
@@ -64,7 +64,7 @@ with tf.name_scope("mixture_prob"):
         # optimize logits to keep `mixture_prob` between the interval [0, 1]
         logit_mixture_prob = tf.Variable(tf_utils.logit(initial_mixture_probs), name="logit_prob")
         mixture_prob = tf.sigmoid(logit_mixture_prob, name="prob")
-        
+
         # normalize: the assignment probabilities should sum up to 1
         # => `sum(mixture_prob of one sample) = 1`
         mixture_prob = mixture_prob / tf.reduce_sum(mixture_prob, axis=0, keepdims=True)
@@ -97,7 +97,7 @@ log_probs = tf.log(joint_probs, name="log_probs")
 with tf.name_scope("training"):
     # minimize negative log probability (log(1) = 0)
     loss = -tf.reduce_sum(log_probs, name="loss")
-    
+
     # define train function
     em_op = None
     if use_em:
@@ -114,7 +114,7 @@ with tf.name_scope("training"):
             expected_weight = sum_of_logs - tf.reduce_logsumexp(sum_of_logs, axis=0, keepdims=True)
             expected_weight = tf.exp(expected_weight)
             expected_weight = tf.identity(expected_weight, name="normalize")
-            
+
             em_op = tf.assign(mixture_prob, expected_weight)
     train_op = None
     if optimizable_nb or not use_em:
@@ -160,4 +160,3 @@ sess.run(mixture_prob, feed_dict=feed_dict)
 
 print(sim.r[:, 0])
 print(real_r[:, 0])
-

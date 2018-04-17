@@ -7,7 +7,7 @@ def input_to_feed_dict(graph, input_data: dict) -> Dict[Union[Union[tf.Tensor, t
     with graph.as_default():
         for (key, value) in input_data.items():
             retval[graph.get_tensor_by_name(key + ":0")] = value
-    
+
     return retval
 
 
@@ -25,7 +25,7 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
 
     .. seealso:: :py:meth:`reduce_mean()` in module :py:mod:`tensorflow`
     """
-    
+
     retVal = None
     if weight is None:
         retVal = tf.reduce_mean(input_tensor, axis=axis, name=name, keepdims=True, **kwargs)
@@ -40,10 +40,10 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
                                                              keepdims=True,
                                                              name="denominator_sum",
                                                              **kwargs)
-    
+
     if not keepdims:
         retVal = tf.squeeze(retVal, axis=axis)
-    
+
     return retVal
 
 
