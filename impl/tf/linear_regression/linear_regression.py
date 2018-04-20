@@ -12,12 +12,20 @@ class LinearRegression:
     squared_error: tf.Tensor
     fast: bool
 
-    def __init__(self, X: tf.Tensor, y: tf.Tensor, weight_matrix=None, l2_reg=0.0, fast=True, name="linear_regression"):
+    def __init__(self, X: tf.Tensor,
+                 y: tf.Tensor,
+                 b=None,
+                 weight_matrix=None,
+                 l2_reg=0.0,
+                 fast=True,
+                 name="linear_regression"):
         """
             This class solves one or more linear regression problems: t(X) * b = y
 
             :param X: Tensor of shape ([...], M, N)
             :param y: Tensor of shape ([...], M, K)
+            :param b: None or Tensor of shape ([...], N, K).
+                Use this parameter to provide an optimizable variable with custom constraints.
             :param weight_matrix:   | if specified, the least-squares solution will be weighted by this matrix:
                                     | t(y - Xb) * weight_matrix * (y - Xb)
             :param l2_reg: \lambda - regularization
@@ -29,14 +37,13 @@ class LinearRegression:
         # lambda_I = tf.tile(l2_reg, (tf.shape(X)[-2], tf.shape(X)[-2]))
 
         with tf.name_scope(name):
-            b = None
-            if fast:
+            if fast and b is None:
                 Xt = tf.transpose(X, name="Xt")
                 if weight_matrix is not None:
                     Xt = tf.matmul(Xt, weight_matrix, name="XtM")
 
                 b = tf.matmul(tf.matrix_inverse(Xt @ X - l2_reg), Xt @ y, name="weight")
-            else:
+            elif b is None:
                 b_shape = X.get_shape().as_list()[0:-2] + [X.get_shape().as_list()[-1], y.get_shape().as_list()[-1]]
                 b = tf.Variable(tf.random_normal(b_shape, dtype=X.dtype), name='weight')
 

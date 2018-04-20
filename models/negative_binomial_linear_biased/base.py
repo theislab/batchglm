@@ -43,7 +43,7 @@ def validate_data(input_data):
     smpls = np.all(smpls, 0)
 
     removed_smpls = np.where(smpls == False)
-    print("removing samples due to too small variance: \n%s" % removed_smpls)
+    print("removing genes due to too small variance: \n%s" % removed_smpls)
 
     input_data.sample_data = np.squeeze(input_data.sample_data[:, np.where(smpls)])
 

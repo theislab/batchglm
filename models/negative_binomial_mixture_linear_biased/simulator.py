@@ -45,7 +45,7 @@ class Simulator(NegativeBinomialMixtureSimulator, Model, metaclass=abc.ABCMeta):
 
         self.params['a'] = np.log(
             np.concatenate([
-                self.params["r"],
+                self.params["mu"],
                 np.random.uniform(
                     min_bias,
                     max_bias,
@@ -55,7 +55,7 @@ class Simulator(NegativeBinomialMixtureSimulator, Model, metaclass=abc.ABCMeta):
         )
         self.params['b'] = np.log(
             np.concatenate([
-                self.params["mu"],
+                self.params["r"],
                 np.random.uniform(
                     min_bias,
                     max_bias,
@@ -66,13 +66,13 @@ class Simulator(NegativeBinomialMixtureSimulator, Model, metaclass=abc.ABCMeta):
 
     @property
     def r(self):
-        retval = np.exp(np.matmul(self.data.design, self.params['a']))
+        retval = np.exp(np.matmul(self.data.design, self.params['b']))
         retval = retval[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
         return retval
 
     @property
     def mu(self):
-        retval = np.exp(np.matmul(self.data.design, self.params['b']))
+        retval = np.exp(np.matmul(self.data.design, self.params['a']))
         retval = retval[self.mixture_assignment, np.arange(len(self.mixture_assignment))]
         return retval
 

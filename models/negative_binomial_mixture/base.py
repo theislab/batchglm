@@ -30,7 +30,7 @@ def validate_data(input_data) -> np.ndarray:
     smpls = np.mean(input_data.sample_data, 0) < np.var(input_data.sample_data, 0)
 
     removed_smpls = np.where(smpls == False)
-    print("removing samples due to too small variance: \n%s" % removed_smpls)
+    print("removing genes due to too small variance: \n%s" % removed_smpls)
 
     input_data.sample_data = np.squeeze(input_data.sample_data[:, np.where(smpls)])
 

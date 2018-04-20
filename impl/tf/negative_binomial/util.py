@@ -37,7 +37,7 @@ class NegativeBinomial(TFNegativeBinomial):
                         p = mu / (r + mu)
                         p = tf.identity(p, "p")
 
-                        var = mu * (mu + r) / r
+                        var = mu + (tf.square(mu) / r)
                         var = tf.identity(var, "var")
 
                 else:
@@ -98,7 +98,10 @@ def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
     :param sample_data: matrix containing samples for each distribution on axis 'axis'\n
         E.g. `(N, M)` matrix with `M` distributions containing `N` observed values each
     :param axis: the axis containing the data of one distribution
+    :param weights: if specified, the fit will be weighted
     :param optimizable: if true, the returned parameters will be optimizable
+    :param validate_shape: should newly created variables perform shape inference?
+    :param dtype: the data type to use; should be a floating point type
     :param name: name of the operation
     :return: negative binomial distribution
     """
@@ -113,12 +116,12 @@ def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
             dist = fit(smpl, axis=axis, weights=w, optimizable=optimizable,
                        validate_shape=validate_shape, dtype=dtype)
 
-            retvalTuple = (
+            retval_tuple = (
                 dist.r,
                 # dist.p,
                 dist.mu
             )
-            return retvalTuple
+            return retval_tuple
 
         idx = tf.range(tf.size(uniques))
         # r, p, mu = tf.map_fn(fit_part, idx, dtype=(sample_data.dtype, sample_data.dtype, sample_data.dtype))
@@ -164,27 +167,25 @@ def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
     :param weights: if specified, the closed-form fit will be weighted
     :param optimizable: if true, the returned distribution's parameters will be optimizable
     :param name: A name for the returned distribution (optional).
+    :param validate_shape: should newly created variables perform shape inference?
+    :param dtype: the data type to use; should be a floating point type
     :return: negative binomial distribution
     """
     with tf.name_scope("fit"):
-        (r, p) = fit_mme(sample_data, axis=axis, weights=weights)
+        distribution = fit_mme(sample_data, axis=axis, weights=weights)
 
         if optimizable:
-            r = tf.Variable(name="r", initial_value=r, dtype=dtype, validate_shape=validate_shape)
+            r = tf.Variable(name="r", initial_value=distribution.r, dtype=dtype, validate_shape=validate_shape)
             # r_var = tf.Variable(tf.zeros(tf.shape(r)), dtype=tf.float32, validate_shape=False, name="r_var")
             #
             # r_assign_op = tf.assign(r_var, r)
-
-        # keep mu constant
-        mu = reduce_weighted_mean(sample_data, weight=weights, axis=axis, keepdims=True, name="mu")
-
-        distribution = NegativeBinomial(r=r, mu=mu, name=name)
+            distribution = NegativeBinomial(r=r, mu=distribution.mu, name=name)
 
     return distribution
 
 
 def fit_mme(sample_data: tf.Tensor, axis=0, weights=None, replace_values=None, dtype=tf.float32,
-            name="MME") -> (tf.Tensor, tf.Tensor):
+            name="MME") -> NegativeBinomial:
     """
         Calculates the Maximum-of-Momentum Estimator of `NB(r, p)` for given sample data along axis 'axis.
 
@@ -209,13 +210,9 @@ def fit_mme(sample_data: tf.Tensor, axis=0, weights=None, replace_values=None, d
         if replace_values is None:
             replace_values = tf.fill(tf.shape(variance), tf.constant(math.inf, dtype=dtype), name="inf_constant")
 
-        r_by_mean = tf.where(tf.less(mean, variance),
-                             mean / (variance - mean),
-                             replace_values)
-        r = r_by_mean * mean
+        r = tf.where(tf.less(mean, variance),
+                     tf.square(mean) / (variance - mean),
+                     replace_values)
         r = tf.identity(r, "r")
 
-        p = 1 / (r_by_mean + 1)
-        p = tf.identity(p, "p")
-
-        return r, p
+        return NegativeBinomial(r=r, mu=mean)
