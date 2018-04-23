@@ -9,9 +9,8 @@ from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph, nb_utils
 class EstimatorGraph(TFEstimatorGraph):
     sample_data: tf.Tensor
 
-    r: tf.Tensor
-    p: tf.Tensor
     mu: tf.Tensor
+    sigma2: tf.Tensor
     mixture_assignment: tf.Tensor
 
     def __init__(
@@ -120,29 +119,24 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # parameters
             with tf.name_scope("mu"):
-                mu = tf.reduce_sum(distribution.mu * mixture_prob, axis=-3)
-            with tf.name_scope("r"):
-                r = tf.reduce_sum(distribution.r * mixture_prob, axis=-3)
-            with tf.name_scope("p"):
-                p = tf.reduce_sum(distribution.p * mixture_prob, axis=-3)
+                mu = tf.reduce_sum(distribution.mean * mixture_prob, axis=-3)
+            with tf.name_scope("sigma2"):
+                sigma2 = tf.reduce_sum(distribution.variance * mixture_prob, axis=-3)
             log_mu = tf.log(mu, name="log_mu")
-            log_r = tf.log(r, name="log_r")
-            log_p = tf.log(p, name="log_p")
+            log_sigma2 = tf.log(mu, name="log_sigma2")
 
             # set up class attributes
             self.sample_data = sample_data
 
             self.initializer_op = tf.global_variables_initializer()
 
-            self.r = r
-            self.p = p
             self.mu = mu
-            self.log_r = log_r
-            self.log_p = log_p
+            self.sigma2 = sigma2
             self.log_mu = log_mu
-            assert (self.r.shape == (num_samples, num_genes))
-            assert (self.p.shape == (num_samples, num_genes))
+            self.log_sigma2 = log_sigma2
+
             assert (self.mu.shape == (num_samples, num_genes))
+            assert (self.sigma2.shape == (num_samples, num_genes))
 
             self.mixture_prob = tf.squeeze(mixture_prob)
             with tf.name_scope("mixture_assignment"):
@@ -191,16 +185,12 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
         return self.run(self.model.loss)
 
     @property
-    def r(self):
-        return self.run(self.model.r)
-
-    @property
-    def p(self):
-        return self.run(self.model.p)
-
-    @property
     def mu(self):
         return self.run(self.model.mu)
+
+    @property
+    def sigma2(self):
+        return self.run(self.model.sigma2)
 
     @property
     def mixture_assignment(self):

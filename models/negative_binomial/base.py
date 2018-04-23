@@ -12,19 +12,15 @@ class InputData(BasicInputData):
 
 
 class Model(metaclass=abc.ABCMeta):
-    @property
-    @abc.abstractmethod
-    def r(self):
-        pass
-
-    @property
-    @abc.abstractmethod
-    def p(self):
-        pass
 
     @property
     @abc.abstractmethod
     def mu(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def sigma2(self):
         pass
 
 

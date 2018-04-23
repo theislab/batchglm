@@ -10,9 +10,8 @@ from .external import nb_utils, LinearRegression
 class EstimatorGraph(TFEstimatorGraph):
     sample_data: tf.Tensor
 
-    r: tf.Tensor
-    p: tf.Tensor
     mu: tf.Tensor
+    sigma2: tf.Tensor
     a: tf.Tensor
     b: tf.Tensor
 
@@ -44,25 +43,26 @@ class EstimatorGraph(TFEstimatorGraph):
 
             dist = nb_utils.fit_partitioned(sample_data, partitions, optimizable=optimizable_nb,
                                             name="background_NB-dist")
-            r = dist.r
-            p = dist.p
-            mu = dist.mu
-            log_r = tf.log(r, name="log_r")
-            log_p = tf.log(p, name="log_p")
-            log_mu = tf.log(mu, name="log_mu")
 
-            linreg_a = LinearRegression(design, log_r, name="lin_reg_a", fast=not optimizable_lm)
+            mu = dist.mean
+            mu = tf.identity(mu, name="mu")
+            sigma2 = dist.variance
+            sigma2 = tf.identity(sigma2, name="sigma2")
+            log_mu = tf.log(mu, name="log_mu")
+            log_sigma2 = tf.log(sigma2, name="log_sigma2")
+
+            linreg_a = LinearRegression(design, log_mu, name="lin_reg_a", fast=not optimizable_lm)
             a = linreg_a.estimated_params
             a = tf.identity(a, "a")
 
-            linreg_b = LinearRegression(design, log_mu, name="lin_reg_b", fast=not optimizable_lm)
+            linreg_b = LinearRegression(design, log_sigma2, name="lin_reg_b", fast=not optimizable_lm)
             b = linreg_b.estimated_params
             b = tf.identity(b, "b")
 
-            r_true = tf.exp(tf.gather(a, 0), name="true_r")
-            mu_true = tf.exp(tf.gather(b, 0), name="true_mu")
+            mu_true = tf.exp(tf.gather(a, 0), name="true_r")
+            sigma2_true = tf.exp(tf.gather(b, 0), name="true_mu")
 
-            distribution = nb_utils.NegativeBinomial(r=r_true, mu=mu_true, name="true_NB-dist")
+            distribution = nb_utils.NegativeBinomial(mean=mu_true, variance=sigma2_true, name="true_NB-dist")
             log_probs = tf.identity(distribution.log_prob(sample_data), name="log_probs")
 
             with tf.name_scope("training"):
@@ -80,17 +80,16 @@ class EstimatorGraph(TFEstimatorGraph):
             self.design = design
 
             self.initializer_op = tf.global_variables_initializer()
-            self.r = r
-            self.p = p
+
             self.mu = mu
-            self.log_r = log_r
-            self.log_p = log_p
+            self.sigma2 = sigma2
             self.log_mu = log_mu
+            self.log_sigma2 = log_sigma2
 
             self.a = a
             self.b = b
-            self.r_true = r_true
             self.mu_true = mu_true
+            self.sigma2_true = sigma2_true
 
             self.distribution = distribution
             self.log_probs = log_probs
@@ -133,16 +132,12 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
         return self.run(self.model.loss)
 
     @property
-    def r(self):
-        return self.run(self.model.r)
-
-    @property
-    def p(self):
-        return self.run(self.model.p)
-
-    @property
     def mu(self):
         return self.run(self.model.mu)
+
+    @property
+    def sigma2(self):
+        return self.run(self.model.sigma2)
 
     @property
     def a(self):

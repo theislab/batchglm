@@ -1,9 +1,6 @@
 import tensorflow as tf
 import numpy as np
 
-from tensorflow.contrib import eager as tfe
-from tensorflow.python import debug as tf_debug
-
 # tfe.enable_eager_execution()
 
 import impl.tf.negative_binomial.util as nb_utils
@@ -11,7 +8,7 @@ import impl.tf.util as tf_utils
 from impl.tf.linear_regression import LinearRegression
 from models.negative_binomial_mixture_linear_biased import Simulator
 
-import models.stats as stat_utils
+import utils.stats as stat_utils
 
 sim = Simulator()
 # sim.generate()
@@ -80,22 +77,22 @@ assert (mixture_prob.shape == (num_mixtures, num_samples, 1))
 with tf.name_scope("initialization"):
     init_dist = nb_utils.fit(sample_data, weights=initial_mixture_probs, axis=-2)
 
-    init_a_intercept = tf.log(init_dist.mu)
+    init_a_intercept = tf.log(init_dist.mean)
     init_a_slopes = tf.truncated_normal([1, num_design_params - 1, num_genes],
                                         dtype=design.dtype)
 
-    init_b_intercept = tf.log(init_dist.var)
+    init_b_intercept = tf.log(init_dist.variance)
     init_b_slopes = tf.truncated_normal([1, num_design_params - 1, num_genes],
                                         dtype=design.dtype)
 
 # define variables
-var_obs = tf.Variable(tf.tile(init_dist.var, (1, num_samples, 1)), name="var")
-mu_obs = tf.Variable(tf.tile(init_dist.mu, (1, num_samples, 1)), name="mu")
+mu_obs = tf.Variable(tf.tile(init_dist.mean, (1, num_samples, 1)), name="mu")
+sigma2_obs = tf.Variable(tf.tile(init_dist.variance, (1, num_samples, 1)), name="var")
 
-log_var_obs = tf.log(var_obs, name="log_var_obs")
 log_mu_obs = tf.log(mu_obs, name="log_mu_obs")
+log_sigma2_obs = tf.log(sigma2_obs, name="log_var_obs")
 
-with tf.name_scope("var_a"):
+with tf.name_scope("variable_a"):
     a_intercept = tf.Variable(init_a_intercept, name='a_intercept')
     a_slopes = tf.Variable(init_a_slopes, name='a_slopes')
     a_slopes = tf.tile(a_slopes, (num_mixtures, 1, 1), name="constraint_a")
@@ -106,9 +103,9 @@ with tf.name_scope("var_a"):
     a = tf.identity(a, name="a")
 assert a.shape == (num_mixtures, num_design_params, num_genes)
 
-linreg_a = LinearRegression(design, log_var_obs, b=a, name="lin_reg_a", fast=False)
+linreg_a = LinearRegression(design, log_sigma2_obs, b=a, name="lin_reg_a", fast=False)
 
-with tf.name_scope("var_b"):
+with tf.name_scope("variable_b"):
     b_intercept = tf.Variable(init_b_intercept, name='a_intercept')
     b_slopes = tf.Variable(init_b_slopes, name='a_slopes')
     b_slopes = tf.tile(b_slopes, (num_mixtures, 1, 1), name="constraint_a")
@@ -122,7 +119,7 @@ assert a.shape == (num_mixtures, num_design_params, num_genes)
 linreg_b = LinearRegression(design, log_mu_obs, b=b, name="lin_reg_b", fast=False)
 
 # calculate mixture model probability:
-distribution = nb_utils.NegativeBinomial(var=var_obs, mu=mu_obs, name="NB_dist")
+distribution = nb_utils.NegativeBinomial(mean=mu_obs, variance=sigma2_obs, name="NB_dist")
 
 count_probs = distribution.prob(sample_data, name="count_probs")
 # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
@@ -136,11 +133,8 @@ with tf.name_scope("training"):
     # minimize negative log probability (log(1) = 0)
     loss = -tf.reduce_sum(log_probs, name="loss")
 
-# optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-optimizer = tf.contrib.opt.ScipyOptimizerInterface(loss=loss,
-                                                   method='L-BFGS-B')
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
-optimizer.minimize
 
 with tf.name_scope("var_estim"):
     var_estim = tf.exp(tf.gather(a, tf.zeros(num_samples, dtype=tf.int32), axis=-2))
@@ -148,11 +142,11 @@ with tf.name_scope("var_estim"):
 with tf.name_scope("mu_estim"):
     mu_estim = tf.exp(tf.gather(b, tf.zeros(num_samples, dtype=tf.int32), axis=-2))
     # mu_estim = tf.exp(b[:, 0, :])
-dist_estim = nb_utils.NegativeBinomial(var=var_estim, mu=mu_estim, name="dist_estim")
+dist_estim = nb_utils.NegativeBinomial(variance=var_estim, mean=mu_estim, name="dist_estim")
 
+mu = tf.reduce_sum(distribution.mean * mixture_prob, axis=-3)
+sigma2 = tf.reduce_sum(distribution.variance * mixture_prob, axis=-3)
 r = tf.reduce_sum(distribution.r * mixture_prob, axis=-3)
-p = tf.reduce_sum(distribution.p * mixture_prob, axis=-3)
-mu = tf.reduce_sum(distribution.mu * mixture_prob, axis=-3)
 
 #################################
 sess = tf.InteractiveSession()
@@ -181,18 +175,17 @@ def train(feed_dict, steps=10, learning_rate=0.05):
 
 for i in range(10):
     print("loss: %d" % sess.run(loss, feed_dict=feed_dict))
-    print(stat_utils.mapd(run(r), sim.r))
+    print(stat_utils.mapd(run(sigma2), sim.sigma2))
+    print(stat_utils.mapd(run(r), ))
     print(stat_utils.mapd(run(mu), sim.mu))
     print(stat_utils.mae(run(tf.squeeze(mixture_prob)), sim.mixture_prob))
 
     train(feed_dict, steps=10, learning_rate=0.5)
 
-(real_r, real_mu) = sess.run((distribution.r, distribution.mu), feed_dict=feed_dict)
+(real_r, real_mu) = sess.run((distribution.r, distribution.mean), feed_dict=feed_dict)
 real_mixture_prob = sess.run(mixture_prob, feed_dict=feed_dict)
 
 sess.run(log_probs, feed_dict=feed_dict)
 sess.run(distribution.prob(sample_data), feed_dict=feed_dict)
 sess.run(mixture_prob, feed_dict=feed_dict)
 
-print(sim.r[:, 0])
-print(real_r[:, 0])

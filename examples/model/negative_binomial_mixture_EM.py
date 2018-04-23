@@ -2,6 +2,7 @@ from models.negative_binomial_mixture import Simulator
 from models.negative_binomial_mixture.estimator import Estimator
 
 from examples.util import stat_frame
+import utils.stats as stat_utils
 
 
 def simulate(data_folder=None, generate_new_data=False):
@@ -48,5 +49,6 @@ if __name__ == '__main__':
     estimator = estimate(sim)
 
     print("loss: %d" % estimator.loss)
-    stats = stat_frame(estimator, sim, ["r", "mu", "mixture_prob"])
+    stats = stat_frame(estimator, sim, ["mu", "sigma2"])
     print(stats)
+    print("MAE of mixture probs: %.4f" % stat_utils.mae(estimator.mixture_prob, sim.mixture_prob))

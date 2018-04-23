@@ -1,4 +1,4 @@
-import models.stats as stats
+import utils.stats as stats
 import pandas as pd
 import numpy as np
 

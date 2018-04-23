@@ -9,9 +9,8 @@ from .util import fit
 class EstimatorGraph(TFEstimatorGraph):
     sample_data: tf.Tensor
 
-    r: tf.Tensor
-    p: tf.Tensor
     mu: tf.Tensor
+    sigma2: tf.Tensor
 
     def __init__(self, graph=None, optimizable_nb=True):
         super().__init__(graph)
@@ -37,27 +36,22 @@ class EstimatorGraph(TFEstimatorGraph):
             initializer_op = tf.global_variables_initializer()
 
             # parameters
-            mu = distribution.mu
+            mu = distribution.mean
             mu = tf.identity(mu, name="mu")
-            r = distribution.r
-            r = tf.identity(r, name="r")
-            p = distribution.p
-            p = tf.identity(p, name="p")
-            log_r = tf.log(r, name="log_r")
-            log_p = tf.log(p, name="log_p")
+            sigma2 = distribution.variance
+            sigma2 = tf.identity(sigma2, name="sigma2")
             log_mu = tf.log(mu, name="log_mu")
+            log_sigma2 = tf.log(sigma2, name="log_sigma2")
 
             # set up class attributes
             self.sample_data = sample_data
 
             self.initializer_op = tf.global_variables_initializer()
 
-            self.r = r
-            self.p = p
             self.mu = mu
-            self.log_r = log_r
-            self.log_p = log_p
+            self.sigma2 = sigma2
             self.log_mu = log_mu
+            self.log_sigma2 = log_sigma2
 
             self.distribution = distribution
             self.log_probs = log_probs
@@ -97,13 +91,9 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
         return self.run(self.model.loss)
 
     @property
-    def r(self):
-        return self.run(self.model.r)
-
-    @property
-    def p(self):
-        return self.run(self.model.p)
-
-    @property
     def mu(self):
         return self.run(self.model.mu)
+
+    @property
+    def sigma2(self):
+        return self.run(self.model.sigma2)

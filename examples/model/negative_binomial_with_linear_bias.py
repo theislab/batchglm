@@ -48,5 +48,5 @@ if __name__ == '__main__':
     estimator = estimate(sim)
 
     print("loss: %d" % estimator.loss)
-    stats = stat_frame(estimator, sim, ["r", "mu"])
+    stats = stat_frame(estimator, sim, ["mu", "sigma2"])
     print(stats)

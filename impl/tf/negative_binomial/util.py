@@ -7,66 +7,66 @@ from impl.tf.util import reduce_weighted_mean
 
 
 class NegativeBinomial(TFNegativeBinomial):
-    mu: tf.Tensor
+    mean: tf.Tensor
+    variance: tf.Tensor
     p: tf.Tensor
     r: tf.Tensor
-    var: tf.Tensor
 
-    def __init__(self, r=None, var=None, p=None, mu=None, name="NegativeBinomial"):
+    def __init__(self, r=None, variance=None, p=None, mean=None, name="NegativeBinomial"):
         with tf.name_scope(name):
             if r is not None:
-                if var is not None:
+                if variance is not None:
                     raise ValueError("Must pass either shape 'r' or variance, but not both")
 
                 if p is not None:
-                    if mu is not None:
+                    if mean is not None:
                         raise ValueError("Must pass either probs or means, but not both")
 
                     with tf.name_scope("reparametrize"):
-                        mu = p * r / (1 - p)
-                        mu = tf.identity(mu, "mu")
+                        mean = p * r / (1 - p)
+                        mean = tf.identity(mean, "mu")
 
-                        var = mu / (1 - p)
-                        var = tf.identity(var, "var")
+                        variance = mean / (1 - p)
+                        variance = tf.identity(variance, "var")
 
-                elif mu is not None:
+                elif mean is not None:
                     if p is not None:
                         raise ValueError("Must pass either probs or means, but not both")
 
                     with tf.name_scope("reparametrize"):
-                        p = mu / (r + mu)
+                        p = mean / (r + mean)
                         p = tf.identity(p, "p")
 
-                        var = mu + (tf.square(mu) / r)
-                        var = tf.identity(var, "var")
+                        variance = mean + (tf.square(mean) / r)
+                        variance = tf.identity(variance, "var")
 
                 else:
                     raise ValueError("Must pass probs or means")
 
-            elif var is not None:
+            elif variance is not None:
                 if r is not None:
                     raise ValueError("Must pass either shape 'r' or variance, but not both")
 
                 if p is not None:
-                    if mu is not None:
+                    if mean is not None:
                         raise ValueError("Must pass either probs or means, but not both")
 
                     with tf.name_scope("reparametrize"):
-                        mu = var * (1 - p)
-                        mu = tf.identity(mu, "mu")
+                        mean = variance * (1 - p)
+                        mean = tf.identity(mean, "mu")
 
-                        r = mu / (var - mu)
+                        r = mean / (variance - mean)
                         r = tf.identity(r, "r")
 
-                elif mu is not None:
+                elif mean is not None:
                     if p is not None:
                         raise ValueError("Must pass either probs or means, but not both")
 
                     with tf.name_scope("reparametrize"):
-                        p = 1 - (mu / var)
+                        p = 1 - (mean / variance)
                         p = tf.identity(p, "p")
 
-                        r = mu * mu / (var - mu)
+                        r = mean * mean / (variance - mean)
                         r = tf.identity(r, "r")
                 else:
                     raise ValueError("Must pass probs or means")
@@ -75,10 +75,10 @@ class NegativeBinomial(TFNegativeBinomial):
 
             super().__init__(r, probs=p)
 
-        self.mu = mu
-        self.p = p
+        self.mean = mean
+        self.variance = variance
         self.r = r
-        self.var = mu / (1 - p)
+        self.p = p
 
 
 def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
@@ -119,7 +119,7 @@ def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
             retval_tuple = (
                 dist.r,
                 # dist.p,
-                dist.mu
+                dist.mean
             )
             return retval_tuple
 
@@ -151,7 +151,7 @@ def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
 
         # shape(r) == shape(mu) == shape(sample_data)
 
-        return NegativeBinomial(r=stacked_r, mu=stacked_mu)
+        return NegativeBinomial(r=stacked_r, mean=stacked_mu)
 
 
 def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
@@ -172,14 +172,14 @@ def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
     :return: negative binomial distribution
     """
     with tf.name_scope("fit"):
-        distribution = fit_mme(sample_data, axis=axis, weights=weights)
+        distribution = fit_mme(sample_data, axis=axis, weights=weights, dtype=dtype)
 
         if optimizable:
             r = tf.Variable(name="r", initial_value=distribution.r, dtype=dtype, validate_shape=validate_shape)
             # r_var = tf.Variable(tf.zeros(tf.shape(r)), dtype=tf.float32, validate_shape=False, name="r_var")
             #
             # r_assign_op = tf.assign(r_var, r)
-            distribution = NegativeBinomial(r=r, mu=distribution.mu, name=name)
+            distribution = NegativeBinomial(r=r, mean=distribution.mean, name=name)
 
     return distribution
 
@@ -215,4 +215,4 @@ def fit_mme(sample_data: tf.Tensor, axis=0, weights=None, replace_values=None, d
                      replace_values)
         r = tf.identity(r, "r")
 
-        return NegativeBinomial(r=r, mu=mean)
+        return NegativeBinomial(r=r, mean=mean)
