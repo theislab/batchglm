@@ -77,17 +77,17 @@ assert (mixture_prob.shape == (num_mixtures, num_samples, 1))
 with tf.name_scope("initialization"):
     init_dist = nb_utils.fit(sample_data, weights=initial_mixture_probs, axis=-2)
 
-    init_a_intercept = tf.log(init_dist.mean)
+    init_a_intercept = tf.log(init_dist.mean())
     init_a_slopes = tf.truncated_normal([1, num_design_params - 1, num_genes],
                                         dtype=design.dtype)
 
-    init_b_intercept = tf.log(init_dist.variance)
+    init_b_intercept = tf.log(init_dist.variance())
     init_b_slopes = tf.truncated_normal([1, num_design_params - 1, num_genes],
                                         dtype=design.dtype)
 
 # define variables
-mu_obs = tf.Variable(tf.tile(init_dist.mean, (1, num_samples, 1)), name="mu")
-sigma2_obs = tf.Variable(tf.tile(init_dist.variance, (1, num_samples, 1)), name="var")
+mu_obs = tf.Variable(tf.tile(init_dist.mean(), (1, num_samples, 1)), name="mu")
+sigma2_obs = tf.Variable(tf.tile(init_dist.variance(), (1, num_samples, 1)), name="var")
 
 log_mu_obs = tf.log(mu_obs, name="log_mu_obs")
 log_sigma2_obs = tf.log(sigma2_obs, name="log_var_obs")
@@ -144,8 +144,8 @@ with tf.name_scope("mu_estim"):
     # mu_estim = tf.exp(b[:, 0, :])
 dist_estim = nb_utils.NegativeBinomial(variance=var_estim, mean=mu_estim, name="dist_estim")
 
-mu = tf.reduce_sum(distribution.mean * mixture_prob, axis=-3)
-sigma2 = tf.reduce_sum(distribution.variance * mixture_prob, axis=-3)
+mu = tf.reduce_sum(distribution.mean() * mixture_prob, axis=-3)
+sigma2 = tf.reduce_sum(distribution.variance() * mixture_prob, axis=-3)
 r = tf.reduce_sum(distribution.r * mixture_prob, axis=-3)
 
 #################################
@@ -182,7 +182,7 @@ for i in range(10):
 
     train(feed_dict, steps=10, learning_rate=0.5)
 
-(real_r, real_mu) = sess.run((distribution.r, distribution.mean), feed_dict=feed_dict)
+(real_r, real_mu) = sess.run((distribution.r, distribution.mean()), feed_dict=feed_dict)
 real_mixture_prob = sess.run(mixture_prob, feed_dict=feed_dict)
 
 sess.run(log_probs, feed_dict=feed_dict)

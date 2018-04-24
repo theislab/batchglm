@@ -44,9 +44,9 @@ class EstimatorGraph(TFEstimatorGraph):
             dist = nb_utils.fit_partitioned(sample_data, partitions, optimizable=optimizable_nb,
                                             name="background_NB-dist")
 
-            mu = dist.mean
+            mu = dist.mean()
             mu = tf.identity(mu, name="mu")
-            sigma2 = dist.variance
+            sigma2 = dist.variance()
             sigma2 = tf.identity(sigma2, name="sigma2")
             log_mu = tf.log(mu, name="log_mu")
             log_sigma2 = tf.log(sigma2, name="log_sigma2")

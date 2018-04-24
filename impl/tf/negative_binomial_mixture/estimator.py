@@ -119,9 +119,9 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # parameters
             with tf.name_scope("mu"):
-                mu = tf.reduce_sum(distribution.mean * mixture_prob, axis=-3)
+                mu = tf.reduce_sum(distribution.mean() * mixture_prob, axis=-3)
             with tf.name_scope("sigma2"):
-                sigma2 = tf.reduce_sum(distribution.variance * mixture_prob, axis=-3)
+                sigma2 = tf.reduce_sum(distribution.variance() * mixture_prob, axis=-3)
             log_mu = tf.log(mu, name="log_mu")
             log_sigma2 = tf.log(mu, name="log_sigma2")
 

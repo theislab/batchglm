@@ -113,7 +113,7 @@ with tf.name_scope("training"):
 
 # parameters
 with tf.name_scope("mu"):
-    mu = tf.reduce_sum(distribution.mean * mixture_prob, axis=-3)
+    mu = tf.reduce_sum(distribution.mean() * mixture_prob, axis=-3)
 with tf.name_scope("r"):
     r = tf.reduce_sum(distribution.r * mixture_prob, axis=-3)
 with tf.name_scope("p"):
@@ -137,7 +137,7 @@ for i in range(5):
     errors.append(loss_res)
     print(i)
 
-(real_r, real_mu) = sess.run((distribution.r, distribution.mean), feed_dict=feed_dict)
+(real_r, real_mu) = sess.run((distribution.r, distribution.mean()), feed_dict=feed_dict)
 real_mixture_prob = sess.run(mixture_prob, feed_dict=feed_dict)
 
 sess.run(log_probs, feed_dict=feed_dict)

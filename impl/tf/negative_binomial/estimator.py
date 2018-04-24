@@ -36,9 +36,9 @@ class EstimatorGraph(TFEstimatorGraph):
             initializer_op = tf.global_variables_initializer()
 
             # parameters
-            mu = distribution.mean
+            mu = distribution.mean()
             mu = tf.identity(mu, name="mu")
-            sigma2 = distribution.variance
+            sigma2 = distribution.variance()
             sigma2 = tf.identity(sigma2, name="sigma2")
             log_mu = tf.log(mu, name="log_mu")
             log_sigma2 = tf.log(sigma2, name="log_sigma2")
