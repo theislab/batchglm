@@ -47,6 +47,6 @@ if __name__ == '__main__':
     sim = simulate(data_folder, generate_new_data)
     estimator = estimate(sim)
 
-    print("loss: %d" % estimator.loss)
+    print("loss: %f" % estimator.loss)
     stats = stat_frame(estimator, sim, ["mu", "sigma2"])
     print(stats)

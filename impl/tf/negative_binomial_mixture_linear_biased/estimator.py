@@ -28,17 +28,21 @@ class EstimatorGraph(TFEstimatorGraph):
             sample_data,
             design,
             initial_mixture_probs,
-            learning_rate,
-            num_mixtures,
-            num_samples,
-            num_genes,
-            num_design_params,
+            # num_mixtures,
+            # num_samples,
+            # num_genes,
+            # num_design_params,
             graph=None,
             random_effect=0.1
     ):
         super().__init__(graph)
         # initial graph elements
         with self.graph.as_default():
+            # shape parameters
+            num_mixtures = initial_mixture_probs.shape[0]
+            num_design_params = design.shape[-1]
+            (num_samples, num_genes) = sample_data.shape
+
             # data preparation
             with tf.name_scope("prepare_data"):
                 # apply a random intercept to avoid zero gradients and infinite values
@@ -82,11 +86,11 @@ class EstimatorGraph(TFEstimatorGraph):
                 init_dist = nb_utils.fit(sample_data, weights=initial_mixture_probs, axis=-2)
 
                 init_a_intercept = tf.log(init_dist.mean())
-                init_a_slopes = tf.truncated_normal([1, num_design_params - 1, num_genes],
+                init_a_slopes = tf.truncated_normal(tf.TensorShape([1, num_design_params - 1, num_genes]),
                                                     dtype=design.dtype)
 
                 init_b_intercept = tf.log(init_dist.variance())
-                init_b_slopes = tf.truncated_normal([1, num_design_params - 1, num_genes],
+                init_b_slopes = tf.truncated_normal(tf.TensorShape([1, num_design_params - 1, num_genes]),
                                                     dtype=design.dtype)
 
             # define variables
@@ -133,7 +137,7 @@ class EstimatorGraph(TFEstimatorGraph):
             log_probs = tf.log(joint_probs, name="log_probs")
 
             # minimize negative log probability (log(1) = 0)
-            loss = -tf.reduce_sum(log_probs, name="loss")
+            loss = -tf.reduce_mean(log_probs, name="loss")
             # # define training operations
             # with tf.name_scope("training"):
             #     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -150,8 +154,6 @@ class EstimatorGraph(TFEstimatorGraph):
             # set up class attributes
             self.sample_data = sample_data
             self.design = design
-
-            self.initializer_op = tf.global_variables_initializer()
 
             self.distribution_obs = dist_obs
             self.distribution_estim = dist_estim
@@ -175,10 +177,16 @@ class EstimatorGraph(TFEstimatorGraph):
 
             self.log_probs = log_probs
             self.loss = loss
-            # self.train_op = train_op
+
+            self.initializer_op = None
+            self.train_op = None
 
     def initialize(self, session, feed_dict, **kwargs):
-        session.run(self.initializer_op, feed_dict=feed_dict)
+        with self.graph.as_default():
+            if self.initializer_op is not None:
+                session.run(self.initializer_op, feed_dict=feed_dict)
+            else:
+                session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
 
     def train(self, session, feed_dict, *args, steps=1000, learning_rate=0.05, **kwargs):
         if self.train_op is None:
@@ -203,27 +211,38 @@ class EstimatorGraph(TFEstimatorGraph):
 class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
 
-    def __init__(self, input_data: dict, use_em=False, tf_estimator_graph=None):
-        if tf_estimator_graph is None:
-            # shape parameters
-            num_mixtures = tf.convert_to_tensor(input_data["initial_mixture_probs"].shape[0], name="num_mixtures")
-            num_design_params = tf.convert_to_tensor(input_data["design"].shape[-1], name="num_design_params")
-            (num_samples, num_genes) = input_data["sample_data"].shape
-            num_samples = tf.convert_to_tensor(num_samples, name="num_samples")
-            num_genes = tf.convert_to_tensor(num_genes, name="num_genes")
+    def __init__(self, input_data: dict, mini_batches=False, model=None):
+        if model is None:
+            g = tf.Graph()
+            with g.as_default():
+                # shape parameters
+                num_mixtures = input_data["initial_mixture_probs"].shape[0]
+                num_design_params = input_data["design"].shape[-1]
+                (num_samples, num_genes) = input_data["sample_data"].shape
 
-            # placeholders
-            sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
-            design = tf.placeholder(tf.float32, shape=(num_samples, num_design_params), name="design")
-            initial_mixture_probs = tf.placeholder(tf.float32,
-                                                   shape=(num_mixtures, num_samples),
-                                                   name="initial_mixture_probs")
-            learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
+                # num_mixtures = tf.convert_to_tensor(num_mixtures, name="num_mixtures")
+                # num_design_params = tf.convert_to_tensor(num_design_params, name="num_design_params")
+                # num_samples = tf.convert_to_tensor(num_samples, name="num_samples")
+                # num_genes = tf.convert_to_tensor(num_genes, name="num_genes")
 
-            tf_estimator_graph = EstimatorGraph(sample_data, design, initial_mixture_probs, learning_rate,
-                                                num_mixtures, num_samples, num_genes, num_design_params)
+                # placeholders
+                sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
+                design = tf.placeholder(tf.float32, shape=(num_samples, num_design_params), name="design")
+                initial_mixture_probs = tf.placeholder(tf.float32,
+                                                       shape=(num_mixtures, num_samples),
+                                                       name="initial_mixture_probs")
+                learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
 
-        TFEstimator.__init__(self, input_data, tf_estimator_graph)
+                model = EstimatorGraph(sample_data, design, initial_mixture_probs,
+                                       # num_mixtures, num_samples, num_genes, num_design_params,
+                                       graph=g)
+
+                optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+                train_op = optimizer.minimize(model.loss, global_step=tf.train.get_global_step())
+
+                model.train_op = train_op
+
+        TFEstimator.__init__(self, input_data, model)
 
     @property
     def loss(self):
