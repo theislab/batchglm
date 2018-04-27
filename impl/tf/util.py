@@ -48,4 +48,24 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
 
 
 def logit(input_tensor, name="logit"):
-    return tf.log(input_tensor / (1 - input_tensor))
+    with tf.name_scope(name):
+        return tf.log(input_tensor / (1 - input_tensor))
+
+
+def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name="swap_dims"):
+    with tf.name_scope(name):
+        rank = tf.range(tf.rank(tensor))
+        idx0 = rank[axis0]
+        idx1 = rank[axis1]
+        perm0 = tf.where(tf.equal(rank, idx0), tf.tile(tf.expand_dims(idx1, 0), [tf.size(rank)]), rank)
+        perm1 = tf.where(tf.equal(rank, idx1), tf.tile(tf.expand_dims(idx0, 0), [tf.size(rank)]), perm0)
+
+    if exec_transpose:
+        retval = tf.transpose(tensor, perm1)
+
+        if return_perm:
+            return retval, perm1
+        else:
+            return retval
+    else:
+        return perm1

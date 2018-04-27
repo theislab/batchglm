@@ -1,6 +1,45 @@
+from typing import Union
+
 import tensorflow as tf
+import numpy as np
 
 import impl.tf.stats as stats
+
+
+def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="param_weight") -> tf.Variable:
+    """
+    This method creates a weight variable from an initial intercept and slope.
+
+    If there are more than two dimensions, these additional dimensions can be set to size `1` for `init_slopes`.
+    This will introduce a dependency for all weights to be equal along the dimensions of size `1`.
+
+    :param init_intercept: Tensor of shape ([...], 1, N)
+    :param init_slopes: Tensor of shape ([...], M-1, N)
+    :param name: name of this variable
+    :return: Tensor of shape ([...], M, N)
+    """
+    with tf.name_scope(name):
+        intercept = tf.Variable(init_intercept, name='intercept')
+        slope = tf.Variable(init_slopes, name='slope')
+
+        # broadcast slope if necessary; need `tf.broadcast_to`... TODO!!!
+        tile_shape = tf.TensorShape(np.concatenate(
+            [
+                np.where(intercept.shape[:-2] != slope.shape[:-2], intercept.shape[:-2],
+                         np.ones_like(intercept.shape[:-2])),
+                [1],
+                [1]
+            ]
+        ))
+        if tile_shape.num_elements() != 1:
+            slope = tf.tile(slope, tile_shape, name="constraint")
+
+        weight = tf.concat([
+            intercept,
+            slope
+        ], axis=-2)
+
+    return weight
 
 
 class LinearRegression:
@@ -11,6 +50,7 @@ class LinearRegression:
     b: tf.Tensor
     squared_error: tf.Tensor
     fast: bool
+    initializer: Union[tf.Tensor, tf.Operation]
 
     def __init__(self, X: tf.Tensor,
                  y: tf.Tensor,
@@ -26,6 +66,7 @@ class LinearRegression:
             :param y: Tensor of shape ([...], M, K)
             :param b: None or Tensor of shape ([...], N, K).
                 Use this parameter to provide an optimizable variable with custom constraints.
+                E.g. param_variable() can create such a constraint variable
             :param weight_matrix:   | if specified, the least-squares solution will be weighted by this matrix:
                                     | t(y - Xb) * weight_matrix * (y - Xb)
             :param l2_reg: \lambda - regularization
@@ -36,6 +77,7 @@ class LinearRegression:
         l2_reg = tf.convert_to_tensor(l2_reg, dtype=X.dtype, name="l2_reg")
         # lambda_I = tf.tile(l2_reg, (tf.shape(X)[-2], tf.shape(X)[-2]))
 
+        initializer = None
         with tf.name_scope(name):
             if fast and b is None:
                 Xt = tf.transpose(X, name="Xt")
@@ -46,6 +88,7 @@ class LinearRegression:
             elif b is None:
                 b_shape = X.get_shape().as_list()[0:-2] + [X.get_shape().as_list()[-1], y.get_shape().as_list()[-1]]
                 b = tf.Variable(tf.random_normal(b_shape, dtype=X.dtype), name='weight')
+                initializer = b.initializer
 
             diff = y - X @ b
             squared_diff = tf.square(diff, name="squared_diff")
@@ -61,6 +104,7 @@ class LinearRegression:
         self.b = b
         self.squared_error = loss
         self.fast = fast
+        self.initializer = initializer
 
     @property
     def estimated_params(self) -> tf.Tensor:
