@@ -59,8 +59,8 @@ class LinearBatchModel:
             init_b_slopes = tf.truncated_normal(tf.TensorShape([1, num_design_params - 1, num_genes]),
                                                 dtype=design.dtype)
 
-            a = tf_linreg.param_variable(init_a_intercept, init_a_slopes, name="a")
-            b = tf_linreg.param_variable(init_b_intercept, init_b_slopes, name="b")
+            a, a_init_op = tf_linreg.param_variable(init_a_intercept, init_a_slopes, name="a")
+            b, b_init_op = tf_linreg.param_variable(init_b_intercept, init_b_slopes, name="b")
             assert a.shape == (num_mixtures, num_design_params, num_genes) == b.shape
 
             with tf.name_scope("broadcast"):
@@ -92,7 +92,7 @@ class LinearBatchModel:
         self.a = a
         self.b = b
         self.loss = loss
-        self.initializer = tf.group(a.initializer, b.initializer)
+        self.initializer = tf.group(a_init_op, b_init_op)
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -109,47 +109,38 @@ class EstimatorGraph(TFEstimatorGraph):
     mixture_prob: tf.Tensor
     mixture_assignment: tf.Tensor
 
-    initializers: dict
-
     def __init__(
             self,
-            sample_data,
-            design,
-            initial_mixture_probs,
-            # num_mixtures,
-            # num_samples,
-            # num_genes,
-            # num_design_params,
-            graph=None
+            num_mixtures,
+            num_samples,
+            num_genes,
+            num_design_params,
+            batch_size=250,
+            graph=None,
+            random_effect=0.1
     ):
         super().__init__(graph)
         # initial graph elements
         with self.graph.as_default():
-            # shape parameters
-            num_mixtures = initial_mixture_probs.shape[0]
-            num_design_params = design.shape[-1]
-            (num_samples, num_genes) = sample_data.shape
+            # placeholders
+            sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
+            design = tf.placeholder(tf.float32, shape=(num_samples, num_design_params), name="design")
+            initial_mixture_probs = tf.placeholder(tf.float32,
+                                                   shape=(num_mixtures, num_samples),
+                                                   name="initial_mixture_probs")
 
-            initializers = []
+            learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
 
-            # data preparation
-            # broadcast data
-            # TODO: change tf.tile to tf.broadcast_to after next TF release
-            with tf.name_scope("broadcast"):
-                initial_mixture_probs = tf.expand_dims(initial_mixture_probs, -1)
-                assert (initial_mixture_probs.shape == (num_mixtures, num_samples, 1))
-
-                sample_data = tf.expand_dims(sample_data, axis=0)
-                sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
-                assert (sample_data.shape == (num_mixtures, num_samples, num_genes))
-
-                design = tf.expand_dims(design, axis=0)
-                design = tf.tile(design, (num_mixtures, 1, 1))
-                assert (design.shape == (num_mixtures, num_samples, num_design_params))
+            # apply a random intercept to avoid zero gradients and infinite values
+            with tf.name_scope("randomize"):
+                initial_mixture_probs += tf.random_uniform(initial_mixture_probs.shape, 0, random_effect,
+                                                           dtype=tf.float32)
+                initial_mixture_probs = initial_mixture_probs / tf.reduce_sum(initial_mixture_probs, axis=0,
+                                                                              keepdims=True)
 
             with tf.name_scope("initialization"):
                 # implicit broadcasting of sample_data and initial_mixture_probs to
-                # shape (num_mixtures, num_samples, num_genes)
+                #   shape (num_mixtures, num_samples, num_genes)
                 init_dist = nb_utils.fit(tf.expand_dims(sample_data, 0),
                                          weights=tf.expand_dims(initial_mixture_probs, -1), axis=-2)
                 assert init_dist.r.shape == [num_mixtures, 1, num_genes]
@@ -157,34 +148,75 @@ class EstimatorGraph(TFEstimatorGraph):
                 init_a_intercept = tf.log(init_dist.mean())
                 init_b_intercept = tf.log(init_dist.variance())
 
-            # define variables
-            # confounder vector is batch-independent
-            mu = tf.Variable(init_dist.mean(), name="mu")
-            sigma2 = tf.Variable(init_dist.variance(), name="var")
+            # define mixture parameters
+            mixture_model = MixtureModel(initial_mixture_probs)
+            mixture_prob = tf.transpose(mixture_model.prob)
 
-            batch_model = LinearBatchModel(init_a_intercept, init_b_intercept, batch_)
+            data = tf.data.Dataset.from_tensor_slices((
+                sample_data,
+                design,
+                mixture_prob
+            ))
+            data = data.repeat()
+            data = data.shuffle(batch_size * 4)
+            data = data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
 
-            with tf.name_scope("var_estim"):
-                var_estim = tf.exp(tf.gather(a, tf.zeros(num_samples, dtype=tf.int32), axis=-2))
-                # var_estim = tf.exp(a[:, 0, :])
+            iterator = data.make_initializable_iterator()
+
+            batch_sample_data, batch_design, batch_mixture_prob = iterator.get_next()
+            batch_mixture_prob = tf.transpose(batch_mixture_prob)
+
+            # initializers = []
+
+            # # data preparation
+            # # broadcast data
+            # # TODO: change tf.tile to tf.broadcast_to after next TF release
+            # with tf.name_scope("broadcast"):
+            #     initial_mixture_probs = tf.expand_dims(initial_mixture_probs, -1)
+            #     assert (initial_mixture_probs.shape == (num_mixtures, num_samples, 1))
+            #
+            #     sample_data = tf.expand_dims(sample_data, axis=0)
+            #     sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
+            #     assert (sample_data.shape == (num_mixtures, num_samples, num_genes))
+            #
+            #     design = tf.expand_dims(design, axis=0)
+            #     design = tf.tile(design, (num_mixtures, 1, 1))
+            #     assert (design.shape == (num_mixtures, num_samples, num_design_params))
+
+            # Batch model:
+            #     only `batch_size` samples will be used;
+            #     All per-sample variables have to be passed via `data`.
+            #     Sample-independent variables (e.g. per-gene distributions) can be created inside the batch model
+            batch_model = LinearBatchModel(init_a_intercept,
+                                           init_b_intercept,
+                                           batch_sample_data, batch_design, batch_mixture_prob)
+
             with tf.name_scope("mu_estim"):
-                mu_estim = tf.exp(tf.gather(b, tf.zeros(num_samples, dtype=tf.int32), axis=-2))
+                mu_estim = tf.exp(tf.gather(batch_model.a, tf.zeros(num_samples, dtype=tf.int32), axis=-2))
                 # mu_estim = tf.exp(b[:, 0, :])
-            dist_estim = nb_utils.NegativeBinomial(variance=var_estim, mean=mu_estim, name="dist_estim")
+            with tf.name_scope("var_estim"):
+                sigma2_estim = tf.exp(tf.gather(batch_model.b, tf.zeros(num_samples, dtype=tf.int32), axis=-2))
+                # var_estim = tf.exp(a[:, 0, :])
+            dist_estim = nb_utils.NegativeBinomial(mean=mu_estim, variance=sigma2_estim, name="dist_estim")
+
+            with tf.name_scope("mu_obs"):
+                mu_obs = tf.matmul(design, batch_model.a)
+            with tf.name_scope("var_obs"):
+                sigma2_obs = tf.matmul(design, batch_model.b)
+            dist_obs = nb_utils.NegativeBinomial(mean=mu_obs, variance=sigma2_obs)
 
             # set up class attributes
             self.sample_data = sample_data
             self.design = design
 
-            self.distribution_obs = dist_obs
             self.distribution_estim = dist_estim
 
             self.mu = tf.reduce_sum(dist_obs.mean() * mixture_prob, axis=-3)
             self.sigma2 = tf.reduce_sum(dist_obs.variance() * mixture_prob, axis=-3)
             self.log_mu = tf.log(self.mu, name="log_mu")
             self.log_sigma2 = tf.log(self.sigma2, name="log_sigma2")
-            self.a = a
-            self.b = b
+            self.a = batch_model.a
+            self.b = batch_model.b
             assert (self.mu.shape == (num_samples, num_genes))
             assert (self.sigma2.shape == (num_samples, num_genes))
             assert (self.a.shape == (num_mixtures, num_design_params, num_genes))
@@ -196,11 +228,13 @@ class EstimatorGraph(TFEstimatorGraph):
             assert (self.mixture_prob.shape == (num_mixtures, num_samples))
             assert (self.mixture_assignment.shape == num_samples)
 
-            self.log_probs = log_probs
-            self.loss = loss
+            # training
+            self.loss = batch_model.loss
 
-            self.initializer_op = None
-            self.train_op = None
+            self.initializer_op = tf.global_variables_initializer()
+
+            self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+            self.train_op = self.optimizer.minimize(self.loss, global_step=tf.train.get_global_step())
 
     def initialize(self, session, feed_dict, **kwargs):
         with self.graph.as_default():
@@ -210,8 +244,11 @@ class EstimatorGraph(TFEstimatorGraph):
                 session.run(tf.global_variables_initializer(), feed_dict=feed_dict)
 
     def train(self, session, feed_dict, *args, steps=1000, learning_rate=0.05, **kwargs):
-        if self.train_op is None:
-            raise RuntimeWarning("this graph is not trainable")
+
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+        train_op = optimizer.minimize(self.loss, global_step=tf.train.get_global_step())
+        self.train_op = train_op
+
         print(learning_rate)
         errors = []
         for i in range(steps):
@@ -234,66 +271,22 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
 
     def __init__(self, input_data: dict,
                  batch_size=250,
-                 random_effect=0.1,
                  model=None):
         if model is None:
-            g = tf.Graph()
-            with g.as_default():
-                # shape parameters
-                num_mixtures = input_data["initial_mixture_probs"].shape[0]
-                num_design_params = input_data["design"].shape[-1]
-                (num_samples, num_genes) = input_data["sample_data"].shape
+            # g = tf.Graph()
+            # with g.as_default():
 
-                # num_mixtures = tf.convert_to_tensor(num_mixtures, name="num_mixtures")
-                # num_design_params = tf.convert_to_tensor(num_design_params, name="num_design_params")
-                # num_samples = tf.convert_to_tensor(num_samples, name="num_samples")
-                # num_genes = tf.convert_to_tensor(num_genes, name="num_genes")
+            # shape parameters
+            num_mixtures = input_data["initial_mixture_probs"].shape[0]
+            num_design_params = input_data["design"].shape[-1]
+            (num_samples, num_genes) = input_data["sample_data"].shape
 
-                # placeholders
-                sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
-                design = tf.placeholder(tf.float32, shape=(num_samples, num_design_params), name="design")
-                initial_mixture_probs = tf.placeholder(tf.float32,
-                                                       shape=(num_mixtures, num_samples),
-                                                       name="initial_mixture_probs")
+            # num_mixtures = tf.convert_to_tensor(num_mixtures, name="num_mixtures")
+            # num_design_params = tf.convert_to_tensor(num_design_params, name="num_design_params")
+            # num_samples = tf.convert_to_tensor(num_samples, name="num_samples")
+            # num_genes = tf.convert_to_tensor(num_genes, name="num_genes")
 
-                learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
-
-                # apply a random intercept to avoid zero gradients and infinite values
-                with tf.name_scope("randomize"):
-                    initial_mixture_probs += tf.random_uniform(initial_mixture_probs.shape, 0, random_effect,
-                                                               dtype=tf.float32)
-                    initial_mixture_probs = initial_mixture_probs / tf.reduce_sum(initial_mixture_probs, axis=0,
-                                                                                  keepdims=True)
-
-                # define mixture parameters
-                mixture_model = MixtureModel(initial_mixture_probs)
-                mixture_probs = tf.transpose(mixture_model.prob)
-
-                # define mean and variance
-
-                data = tf.data.Dataset.from_tensor_slices((
-                    sample_data,
-                    design,
-
-                    mixture_probs
-                ))
-                data = data.repeat()
-                data = data.shuffle(batch_size * 4)
-                data = data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
-
-                iterator = data.make_initializable_iterator()
-
-                batch_sample_data, batch_design, batch_mixture_prob = iterator.get_next()
-                batch_mixture_prob = tf.transpose(batch_mixture_prob)
-
-                model = EstimatorGraph(sample_data, design, initial_mixture_probs,
-                                       # num_mixtures, num_samples, num_genes, num_design_params,
-                                       graph=g)
-
-                optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                train_op = optimizer.minimize(model.loss, global_step=tf.train.get_global_step())
-
-                model.train_op = train_op
+            model = EstimatorGraph(num_mixtures, num_samples, num_genes, num_design_params)
 
         TFEstimator.__init__(self, input_data, model)
 

@@ -6,7 +6,8 @@ import numpy as np
 import impl.tf.stats as stats
 
 
-def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="param_weight") -> tf.Variable:
+def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="param_weight") -> \
+        (tf.Variable, tf.Operation):
     """
     This method creates a weight variable from an initial intercept and slope.
 
@@ -21,6 +22,9 @@ def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="para
     with tf.name_scope(name):
         intercept = tf.Variable(init_intercept, name='intercept')
         slope = tf.Variable(init_slopes, name='slope')
+
+        intercept_init_op = intercept.initializer
+        slope_init_op = slope.initializer
 
         # broadcast slope if necessary; need `tf.broadcast_to`... TODO!!!
         tile_shape = tf.TensorShape(np.concatenate(
@@ -39,7 +43,7 @@ def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="para
             slope
         ], axis=-2)
 
-    return weight
+    return weight, tf.group(intercept_init_op, slope_init_op, name="initializer")
 
 
 class LinearRegression:
