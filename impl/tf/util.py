@@ -1,5 +1,5 @@
 import tensorflow as tf
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Tuple
 
 
 def input_to_feed_dict(graph, input_data: dict) -> Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]:
@@ -26,12 +26,12 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
     .. seealso:: :py:meth:`reduce_mean()` in module :py:mod:`tensorflow`
     """
 
-    retVal = None
+    retval = None
     if weight is None:
-        retVal = tf.reduce_mean(input_tensor, axis=axis, name=name, keepdims=True, **kwargs)
+        retval = tf.reduce_mean(input_tensor, axis=axis, name=name, keepdims=True, **kwargs)
     else:
         with tf.name_scope(name):
-            retVal = tf.reduce_sum(weight * input_tensor,
+            retval = tf.reduce_sum(weight * input_tensor,
                                    axis=axis,
                                    keepdims=True,
                                    name="sum_of_fractions",
@@ -42,9 +42,9 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
                                                              **kwargs)
 
     if not keepdims:
-        retVal = tf.squeeze(retVal, axis=axis)
+        retval = tf.squeeze(retval, axis=axis)
 
-    return retVal
+    return retval
 
 
 def logit(input_tensor, name="logit"):
@@ -69,3 +69,77 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
             return retval
     else:
         return perm1
+
+
+def for_loop(condition, modifier, body_op, idx=0):
+    idx = tf.convert_to_tensor(idx)
+
+    def body(i):
+        with tf.control_dependencies([body_op(i)]):
+            return [modifier(i)]
+
+    # do the loop:
+    loop = tf.while_loop(condition, body, [idx])
+    return loop
+
+
+def for_i_in_range(size, body_op):
+    loop = for_loop(
+        lambda i: tf.less(i, size),
+        lambda i: tf.add(i, 1),
+        body_op
+    )
+    return loop
+
+
+# class IteratorStepper:
+#     iterator: tf.data.Iterator
+#     variables: Tuple[tf.Variable, ...]
+#
+#     def __init__(self, iterator: tf.data.Iterator, name="IteratorStepper"):
+#         self.iterator = iterator
+#
+#         iter_values = self.iterator.get_next()
+#         if not type(iter_values) == tuple:
+#             iter_values = (iter_values,)
+#
+#         with tf.name_scope(name):
+#             with tf.name_scope("variables"):
+#                 self.variables = ()
+#                 for idx, var in enumerate(iter_values):
+#                     self.variables += (
+#                         tf.Variable(var, trainable=False, name="var%d" % idx),
+#                     )
+#
+#     def initialized_values(self):
+#         retval = ()
+#         for idx, var in enumerate(self.variables):
+#             retval += (var.initialized_value(),)
+#
+#         return retval
+#
+#     def step_op(self):
+#         iter_values = self.iterator.get_next()
+#         if not type(iter_values) == tuple:
+#             iter_values = (iter_values,)
+#
+#         with tf.name_scope("assign_ops"):
+#             assign_ops = ()
+#             for idx, (var, value) in enumerate(zip(self.variables, iter_values)):
+#                 assign_ops += (
+#                     tf.assign(var, value, name="assign%d" % idx),
+#                 )
+#         return tf.group(assign_ops, name="step_op")
+
+
+def caching_placeholder(dtype, shape=None, name=None):
+    placehldr = tf.placeholder(dtype, shape=shape, name=name)
+    var = tf.Variable(placehldr, trainable=False, name=name + "_cache")
+    return var
+
+
+def randomize(tensor, modifier=tf.multiply, min=0.5, max=2.0, name="randomize"):
+    with tf.name_scope(name):
+        tensor = modifier(tensor, tf.random_uniform(tensor.shape, min, max,
+                                                    dtype=tf.float32))
+    return tensor

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 
 import tensorflow as tf
 import numpy as np
@@ -7,7 +7,7 @@ import impl.tf.stats as stats
 
 
 def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="param_weight") -> \
-        (tf.Variable, tf.Operation):
+        Tuple[tf.Tensor, tf.Variable, tf.Variable]:
     """
     This method creates a weight variable from an initial intercept and slope.
 
@@ -17,14 +17,13 @@ def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="para
     :param init_intercept: Tensor of shape ([...], 1, N)
     :param init_slopes: Tensor of shape ([...], M-1, N)
     :param name: name of this variable
-    :return: Tensor of shape ([...], M, N)
+    :return: Weight tensor of shape ([...], M, N),
+        Intercept variable of shape ([...], 1, N),
+        Slope variable of shape ([...], M-1, N)
     """
     with tf.name_scope(name):
-        intercept = tf.Variable(init_intercept, name='intercept')
-        slope = tf.Variable(init_slopes, name='slope')
-
-        intercept_init_op = intercept.initializer
-        slope_init_op = slope.initializer
+        intercept = tf.Variable(init_intercept, name='intercept').initialized_value()
+        slope = tf.Variable(init_slopes, name='slope').initialized_value()
 
         # broadcast slope if necessary; need `tf.broadcast_to`... TODO!!!
         tile_shape = tf.TensorShape(np.concatenate(
@@ -43,7 +42,7 @@ def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="para
             slope
         ], axis=-2)
 
-    return weight, tf.group(intercept_init_op, slope_init_op, name="initializer")
+    return weight, intercept, slope
 
 
 class LinearRegression:
@@ -54,7 +53,6 @@ class LinearRegression:
     b: tf.Tensor
     squared_error: tf.Tensor
     fast: bool
-    initializer: Union[tf.Tensor, tf.Operation]
 
     def __init__(self, X: tf.Tensor,
                  y: tf.Tensor,
@@ -81,7 +79,6 @@ class LinearRegression:
         l2_reg = tf.convert_to_tensor(l2_reg, dtype=X.dtype, name="l2_reg")
         # lambda_I = tf.tile(l2_reg, (tf.shape(X)[-2], tf.shape(X)[-2]))
 
-        initializer = None
         with tf.name_scope(name):
             if fast and b is None:
                 Xt = tf.transpose(X, name="Xt")
@@ -91,8 +88,7 @@ class LinearRegression:
                 b = tf.matmul(tf.matrix_inverse(Xt @ X - l2_reg), Xt @ y, name="weight")
             elif b is None:
                 b_shape = X.get_shape().as_list()[0:-2] + [X.get_shape().as_list()[-1], y.get_shape().as_list()[-1]]
-                b = tf.Variable(tf.random_normal(b_shape, dtype=X.dtype), name='weight')
-                initializer = b.initializer
+                b = tf.Variable(tf.random_normal(b_shape, dtype=X.dtype), name='weight').initialized_value()
 
             diff = y - X @ b
             squared_diff = tf.square(diff, name="squared_diff")
@@ -108,7 +104,6 @@ class LinearRegression:
         self.b = b
         self.squared_error = loss
         self.fast = fast
-        self.initializer = initializer
 
     @property
     def estimated_params(self) -> tf.Tensor:

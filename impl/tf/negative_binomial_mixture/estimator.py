@@ -21,24 +21,28 @@ class EstimatorGraph(TFEstimatorGraph):
             graph=None,
             optimizable_nb=False,
             use_em=False,
-            random_effect=0.1,
-            learning_rate=0.05
+            random_effect=0.1
     ):
         super().__init__(graph)
 
         with self.graph.as_default():
             # placeholders
-            sample_data = tf.placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
-            initial_mixture_probs = tf.placeholder(tf.float32,
-                                                   shape=(num_mixtures, num_samples),
-                                                   name="initial_mixture_probs")
+            sample_data_hldr = tf_utils.caching_placeholder(tf.float32, shape=(num_samples, num_genes),
+                                                            name="sample_data")
+            initial_mixture_probs_hldr = tf_utils.caching_placeholder(tf.float32,
+                                                                      shape=(num_mixtures, num_samples),
+                                                                      name="initial_mixture_probs")
+
+            learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
+            global_train_step = tf.Variable(0, name="train_step")
 
             # data preparation
             with tf.name_scope("prepare_data"):
                 # apply a random intercept to avoid zero gradients and infinite values
                 with tf.name_scope("randomize"):
-                    initial_mixture_probs += tf.random_uniform(initial_mixture_probs.shape, 0, random_effect,
-                                                               dtype=tf.float32)
+                    initial_mixture_probs = initial_mixture_probs_hldr + tf.random_uniform(
+                        initial_mixture_probs_hldr.shape, 0, random_effect, dtype=tf.float32)
+
                     initial_mixture_probs = initial_mixture_probs / tf.reduce_sum(initial_mixture_probs, axis=0,
                                                                                   keepdims=True)
                     initial_mixture_probs = tf.expand_dims(initial_mixture_probs, -1)
@@ -47,7 +51,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 # broadcast sample data to shape (num_mixtures, num_samples, num_genes)
                 with tf.name_scope("broadcast"):
-                    sample_data = tf.expand_dims(sample_data, axis=0)
+                    sample_data = tf.expand_dims(sample_data_hldr, axis=0)
                     sample_data = tf.tile(sample_data, (num_mixtures, 1, 1))
                     # TODO: change tf.tile to tf.broadcast_to after next TF release
                 assert (sample_data.shape == (num_mixtures, num_samples, num_genes))
@@ -75,6 +79,7 @@ class EstimatorGraph(TFEstimatorGraph):
             distribution = nb_utils.fit(sample_data=sample_data,
                                         axis=-2,
                                         weights=mixture_prob,
+                                        optimizable=optimizable_nb,
                                         name="fit_nb-dist")
 
             count_probs = distribution.prob(sample_data, name="count_probs")
@@ -98,7 +103,7 @@ class EstimatorGraph(TFEstimatorGraph):
                         E(p_{j,k}) = \frac{P_{x}(j,k)}{\sum_{a}{P_{x}(j,a)}} \\
                         P_{x}(j,k) = \prod_{i}{L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k})} \\
                         log_{P_x}(j, k) = \sum_{i}{log(L_{NB}(x_{i,j,k} | \mu_{j,k}, \phi_{j,k}))} \\
-                        E(p_{j,k}) = exp(\frac{log_{P_{x}(j,k)}}{log(\sum_{a}{exp(log_{P_{x}}(j,a)}))})
+                        E(p_{j,k}) = exp(log_{P_{x}(j,k)}- log(\sum_{a}{exp(log_{P_{x}}(j,a)})))
 
                         Here, the log(sum(exp(a))) trick can be used for the denominator to avoid numeric instabilities.
                         """
@@ -111,7 +116,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 train_op = None
                 if optimizable_nb or not use_em:
                     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                    train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+                    train_op = optimizer.minimize(loss, global_step=global_train_step)
                     if use_em:
                         train_op = tf.group(train_op, em_op)
                 else:
@@ -127,8 +132,6 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # set up class attributes
             self.sample_data = sample_data
-
-            self.initializer_op = tf.global_variables_initializer()
 
             self.mu = mu
             self.sigma2 = sigma2
@@ -148,18 +151,30 @@ class EstimatorGraph(TFEstimatorGraph):
             self.log_probs = log_probs
 
             self.loss = loss
+            self.global_train_step = global_train_step
             self.train_op = train_op
 
-    def initialize(self, session, feed_dict, **kwargs):
-        session.run(self.initializer_op, feed_dict=feed_dict)
+            self.initializer_ops = [
+                tf.variables_initializer([sample_data_hldr, initial_mixture_probs_hldr]),
+                tf.variables_initializer(tf.global_variables()),
+            ]
 
-    def train(self, session, feed_dict, *args, steps=1000, **kwargs):
+    def initialize(self, session, feed_dict, **kwargs):
+        with self.graph.as_default():
+            for op in self.initializer_ops:
+                session.run(op, feed_dict=feed_dict)
+
+    def train(self, session, feed_dict, *args, steps=1000, learning_rate=0.05, **kwargs):
+        print("learning rate: %s" % learning_rate)
         errors = []
         for i in range(steps):
-            (loss_res, _) = session.run((self.loss, self.train_op),
-                                        feed_dict=feed_dict)
+            # feed_dict = feed_dict.copy()
+            feed_dict = dict()
+            feed_dict["learning_rate:0"] = learning_rate
+            (train_step, loss_res, _) = session.run((self.global_train_step, self.loss, self.train_op),
+                                                    feed_dict=feed_dict)
             errors.append(loss_res)
-            print(i)
+            print("Step: %d\tloss: %f" % (train_step, loss_res))
 
         return errors
 
@@ -172,11 +187,17 @@ class EstimatorGraph(TFEstimatorGraph):
 class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
 
-    def __init__(self, input_data: dict, use_em=False, tf_estimator_graph=None):
+    def __init__(self, input_data: dict, use_em=False, optimizable_nb=False, tf_estimator_graph=None):
         if tf_estimator_graph is None:
             num_mixtures = input_data["initial_mixture_probs"].shape[0]
             (num_samples, num_genes) = input_data["sample_data"].shape
-            tf_estimator_graph = EstimatorGraph(num_mixtures, num_samples, num_genes, use_em=use_em)
+
+            tf.reset_default_graph()
+
+            tf_estimator_graph = EstimatorGraph(num_mixtures, num_samples, num_genes,
+                                                use_em=use_em,
+                                                optimizable_nb=optimizable_nb,
+                                                graph=tf.get_default_graph())
 
         TFEstimator.__init__(self, input_data, tf_estimator_graph)
 

@@ -9,7 +9,7 @@ from utils.config import getConfig
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data, batch_size=2000)
+    estimator = Estimator(sim.data, batch_size=1000)
     # estimator.validate_data()
     estimator.initialize()
     # estimator.train(steps=10)
@@ -46,8 +46,8 @@ if __name__ == '__main__':
     stats = stat_frame(estimator, sim, ["mu", "sigma2"])
     print(stats)
     
-    for i in range(10):
-        estimator.train(steps=100, learning_rate=0.05)
+    for i in range(50):
+        estimator.train(steps=10, learning_rate=0.05)
         
         print("loss: %f" % estimator.loss)
         stats = stat_frame(estimator, sim, ["mu", "sigma2"])

@@ -44,7 +44,8 @@ class TFEstimator(BasicEstimator, TFSession):
     def __init__(self, input_data: dict, tf_estimator_graph: TFEstimatorGraph):
         super().__init__(input_data)
         self.model = tf_estimator_graph
-        self.create_new_session()
+        if self.model is not None:
+            self.create_new_session()
 
     def create_new_session(self) -> None:
         with self.model.graph.as_default():
