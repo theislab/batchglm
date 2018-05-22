@@ -7,9 +7,15 @@ setup(
         'tensorflow',
         'numpy',
         'pandas',
-        'plotnine',
-        'plotly',
-        'matplotlib',
-        'patsy'
-    ]
+        'tables',  # pytables
+        'patsy'  # design matrix generation
+    ],
+    extras_require={
+        'plotting': [
+            "matplotlib",
+            "plotnine",
+            "plotly"
+        ]
+    }
+
 )
