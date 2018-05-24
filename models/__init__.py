@@ -1,1 +1,1 @@
-from .base import BasicInputData, BasicEstimator, BasicSimulator
+from .base import BasicEstimator, BasicSimulator

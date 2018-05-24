@@ -175,12 +175,15 @@ def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
             #
             # distribution = NegativeBinomial(variance=variance, mean=distribution.mean(), name=name)
             with tf.name_scope("r"):
-                r = tf.Variable(name="log_r", initial_value=tf.log(distribution.r), dtype=distribution.r.dtype)
+                r = tf.Variable(name="log_r", initial_value=tf.log(distribution.r),
+                                dtype=distribution.r.dtype,
+                                validate_shape=validate_shape)
                 r = tf.clip_by_value(r, r.dtype.min, r.dtype.max)
                 r = tf.exp(r)
             with tf.name_scope("mu"):
                 mu = tf.Variable(name="log_mu", initial_value=tf.log(distribution.mean()),
-                                 dtype=distribution.mean().dtype)
+                                 dtype=distribution.mean().dtype,
+                                 validate_shape=validate_shape)
                 mu = tf.clip_by_value(mu, mu.dtype.min, mu.dtype.max)
                 mu = tf.exp(mu)
             

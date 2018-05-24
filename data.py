@@ -91,7 +91,9 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     
     if explanatory_vars is None:
         explanatory_vars = dataset.get(explanatory_vars_key)
-    if explanatory_vars is None:
+    if explanatory_vars is not None:
+        explanatory_vars = explanatory_vars.values
+    else:
         explanatory_vars = list(dataset.variables.keys())
     
     if formula is None:

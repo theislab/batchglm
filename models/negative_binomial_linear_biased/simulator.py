@@ -1,118 +1,106 @@
 import abc
 
-import os
 import math
 import numpy as np
-import pandas as pd
-import patsy
+import xarray as xr
+# import pandas as pd
+# import patsy
 
+import data as data_utils
 from models.negative_binomial import NegativeBinomialSimulator
-from .base import Model, InputData
+from .base import Model
 
 
-def generate_sample_description(num_samples, num_batches=4, num_confounder=2):
+def generate_sample_description(num_samples, num_batches=4, num_confounder=2) -> xr.Dataset:
     reps_batches = math.ceil(num_samples / num_batches)
     reps_confounder = math.ceil(num_samples / num_confounder)
-
+    
     # batch column
     batches = np.repeat(range(num_batches), reps_batches)
     batches = batches[range(num_samples)]
-
+    
     # confounder column
     confounders = np.squeeze(np.tile([np.arange(num_confounder)], reps_confounder))
     confounders = confounders[range(num_samples)]
-
+    
     # build sample description
-    sample_description = {
-        "batch": batches,
-        "confounder": confounders,
-    }
-    sample_description = pd.DataFrame(data=sample_description, dtype="category")
-
+    sample_description = xr.Dataset({
+        "batch": ("samples", batches),
+        "confounder": ("samples", confounders),
+    }, coords={
+        "explanatory_vars": ["batch", "confounder"]
+    })
+    # sample_description = pd.DataFrame(data=sample_description, dtype="category")
+    
     return sample_description
 
 
 class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
-    # static variables
-    cfg = NegativeBinomialSimulator.cfg.copy()
-
-    # type hinting
-    data: InputData
-    sample_description: pd.DataFrame
-
+    
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         Model.__init__(self)
-
-        self.data = InputData()
-        self.sample_description = None
-
+    
     def generate_sample_description(self, num_batches=4, num_confounder=2):
-        self.sample_description = generate_sample_description(self.num_samples, num_batches, num_confounder)
-
+        sample_description = generate_sample_description(self.num_samples, num_batches, num_confounder)
+        self.data.merge(sample_description, inplace=True)
+    
     def generate_params(self, *args, min_bias=0.5, max_bias=2, **kwargs):
+        """
+        
+        :param min_mean: minimum mean value
+        :param max_mean: maximum mean value
+        :param min_r: minimum r value
+        :param max_r: maximum r value
+        :param min_bias: minimum bias factor of design parameters
+        :param max_bias: maximum bias factor of design parameters
+        """
         super().generate_params(*args, **kwargs)
-
-        if self.sample_description is None:
+        
+        if not "sample_description" in self.data:
             self.generate_sample_description()
-
-        self.formula = "~ 1 "
-        for col in self.sample_description.columns:
-            self.formula += " + %s" % col
-
-        self.data.design = patsy.dmatrix(self.formula, self.sample_description)
-
-        # num_classes = np.unique(self.data.design, axis=0).shape[0]
-
-        self.params['a'] = np.log(
-            np.concatenate([
-                np.expand_dims(self.params["mu"], 0),
-                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_genes))
-            ])
+        
+        if not "design" in self.data:
+            data_utils.design_matrix_from_dataset(self.data, inplace=True)
+        
+        self.params['a'] = (
+            ("design_params", "genes"),
+            np.log(
+                np.concatenate([
+                    np.expand_dims(self.params["mu"], 0),
+                    np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_genes))
+                ])
+            )
         )
-        self.params['b'] = np.log(
-            np.concatenate([
-                np.expand_dims(self.params["sigma2"], 0),
-                np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_genes))
-            ])
+        self.params['b'] = (
+            ("design_params", "genes"),
+            np.log(
+                np.concatenate([
+                    np.expand_dims(self.params["sigma2"], 0),
+                    np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_genes))
+                ])
+            )
         )
-
+    
     @property
     def mu(self):
         return np.exp(np.matmul(self.data.design, self.params['a']))
-
+    
     @property
     def sigma2(self):
         return np.exp(np.matmul(self.data.design, self.params['b']))
-
+    
     @property
     def a(self):
         return self.params['a']
-
+    
     @property
     def b(self):
         return self.params['b']
 
-    def load(self, folder):
-        super().load(folder)
 
-        file = os.path.join(folder, "sample_description.tsv")
-        if os.path.isfile(file):
-            self.sample_description = pd.read_csv(file, sep="\t", dtype="category")
-
-            self.formula = "~ 1 "
-            for col in self.sample_description.columns:
-                self.formula += " + %s" % col
-
-    def save(self, folder):
-        super().save(folder)
-
-        file = os.path.join(folder, "sample_description.tsv")
-        self.sample_description.to_csv(file, sep="\t", index=False)
-
-
-def main():
+def sim_test():
     sim = Simulator()
     sim.generate()
-    sim.save("resources/")
+    sim.save("test.h5")
     return sim

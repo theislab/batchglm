@@ -1,13 +1,17 @@
+import xarray as xr
 import tensorflow as tf
 from typing import Dict, Any, Union, Tuple
 
 
-def input_to_feed_dict(graph, input_data: dict) -> Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]:
+def input_to_feed_dict(graph, input_data: xr.Dataset) -> Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]:
+    placeholders = {op.name: op for op in graph.get_operations() if op.type.lower().startswith("placeholder")}
+    
+    keys = set(input_data.keys()).intersection(placeholders.keys())
+    
     retval = {}
-    with graph.as_default():
-        for (key, value) in input_data.items():
-            retval[graph.get_tensor_by_name(key + ":0")] = value
-
+    for k in keys:
+        retval[graph.get_tensor_by_name(k + ":0")] = input_data[k]
+    
     return retval
 
 
@@ -25,7 +29,7 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
 
     .. seealso:: :py:meth:`reduce_mean()` in module :py:mod:`tensorflow`
     """
-
+    
     retval = None
     if weight is None:
         retval = tf.reduce_mean(input_tensor, axis=axis, name=name, keepdims=True, **kwargs)
@@ -40,10 +44,10 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
                                                              keepdims=True,
                                                              name="denominator_sum",
                                                              **kwargs)
-
+    
     if not keepdims:
         retval = tf.squeeze(retval, axis=axis)
-
+    
     return retval
 
 
@@ -59,10 +63,10 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
         idx1 = rank[axis1]
         perm0 = tf.where(tf.equal(rank, idx0), tf.tile(tf.expand_dims(idx1, 0), [tf.size(rank)]), rank)
         perm1 = tf.where(tf.equal(rank, idx1), tf.tile(tf.expand_dims(idx0, 0), [tf.size(rank)]), perm0)
-
+    
     if exec_transpose:
         retval = tf.transpose(tensor, perm1)
-
+        
         if return_perm:
             return retval, perm1
         else:
@@ -73,11 +77,11 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
 
 def for_loop(condition, modifier, body_op, idx=0):
     idx = tf.convert_to_tensor(idx)
-
+    
     def body(i):
         with tf.control_dependencies([body_op(i)]):
             return [modifier(i)]
-
+    
     # do the loop:
     loop = tf.while_loop(condition, body, [idx])
     return loop

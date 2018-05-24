@@ -69,4 +69,16 @@ def mapd(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray:
     :param axis: axis to reduce
     :return: mean{|estim - obs| / obs}
     """
-    return np.mean(np.abs(estim - obs) / obs, axis=axis)
+    return np.mean(abs_percentage_deviation(estim, obs), axis=axis)
+
+
+def abs_percentage_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
+    """
+    Calculate the absolute percentage deviation between the estimated and the observed data
+
+    :param estim: ndarray representing the estimated data
+    :param obs: ndarray representing the observed data
+    :param axis: axis to reduce
+    :return: mean{|estim - obs| / obs}
+    """
+    return np.abs(estim - obs) / obs

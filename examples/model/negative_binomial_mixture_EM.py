@@ -39,7 +39,7 @@ if __name__ == '__main__':
     sim_data_folder = os.path.join(data_folder, Simulator.__module__)
     
     sim = Simulator()
-    simulate(sim, sim_data_folder, generate_new_data)
+    simulate(sim, data_folder=sim_data_folder, generate_new_data=generate_new_data)
     
     estimator = estimate(sim)
     
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     print(stats)
     print("MAE of mixture probs: %.4f" % stat_utils.mae(estimator.mixture_prob, sim.mixture_prob))
     
-    for i in range(10):
+    for i in range(1):
         estimator.train(steps=10, learning_rate=0.05)
         
         print("loss: %f" % estimator.loss)

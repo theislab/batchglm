@@ -9,7 +9,7 @@ from utils.config import getConfig
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data, optimizable_r=True, optimizable_mu=True)
+    estimator = Estimator(sim.data, optimizable=True)
     # estimator.validate_data()
     estimator.initialize()
     # estimator.train(steps=10)
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     sim_data_folder = os.path.join(data_folder, Simulator.__module__)
     
     sim = Simulator()
-    simulate(sim, sim_data_folder, generate_new_data)
+    simulate(sim, data_folder=sim_data_folder, generate_new_data=generate_new_data)
     
     estimator = estimate(sim)
     
