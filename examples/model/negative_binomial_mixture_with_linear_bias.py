@@ -12,9 +12,12 @@ from utils.config import getConfig
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data, batch_size=500)
+    estimator = Estimator(
+        sim.data, batch_size=500,
+        # log_dir="data/log/impl.tf.negative_binomial_mixture_linear_biased.estimator/2018-05-29_16:16:51/"
+    )
     # estimator.validate_data()
-    estimator.initialize()
+    # estimator.initialize()
     # estimator.train(steps=10)
     
     return estimator

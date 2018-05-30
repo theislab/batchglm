@@ -2,11 +2,9 @@ import abc
 from typing import Dict, Any, Union
 
 import xarray as xr
-
 import tensorflow as tf
 
 from models import BasicEstimator
-
 from .util import input_to_feed_dict
 
 
@@ -49,7 +47,15 @@ class TFEstimator(BasicEstimator, TFSession):
         if self.model is not None:
             self.create_new_session()
     
+    def close_session(self):
+        try:
+            self.session.close()
+            return True
+        except:
+            return False
+    
     def create_new_session(self) -> None:
+        self.close_session()
         with self.model.graph.as_default():
             self.session = tf.Session(graph=self.model.graph)
             self.feed_dict = self.model.input_to_feed_dict(self.input_data)

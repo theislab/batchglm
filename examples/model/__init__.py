@@ -2,7 +2,8 @@ import os
 
 
 def simulate(sim, data_folder=None, data_file="data.h5", generate_new_data=False):
-    data_file = os.path.join(data_folder, data_file)
+    if data_folder is not None:
+        data_file = os.path.join(data_folder, data_file)
     
     if generate_new_data:
         print("Generating new data...")

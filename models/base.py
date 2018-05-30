@@ -4,8 +4,6 @@ import os
 import xarray as xr
 
 _XARRAY_NETCDF_ENGINE = "netcdf4"
-
-
 # _XARRAY_NETCDF_ENGINE = "h5netcdf"
 
 
@@ -86,7 +84,7 @@ class BasicSimulator(metaclass=abc.ABCMeta):
         """
         Saves parameters and sampled data to specified file in HDF5 format
         :param path: the path to the target file where the data will be saved
-        :param group: the group inside the HDF5 file where the data will be saved
+        :param group: the group+ inside the HDF5 file where the data will be saved
         :param append: if False, existing files under the specified path will be replaced.
         """
         path = os.path.expanduser(path)

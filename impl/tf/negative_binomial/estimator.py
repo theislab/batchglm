@@ -99,6 +99,12 @@ class EstimatorGraph(TFEstimatorGraph):
 
 
 class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
+    PARAMS = {
+        "mu": ("samples", "genes"),
+        "sigma2": ("samples", "genes"),
+        "loss": ()
+    }
+    
     model: EstimatorGraph
     
     def __init__(self, input_data: xr.Dataset, model=None, optimizable=False):

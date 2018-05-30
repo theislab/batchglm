@@ -52,8 +52,8 @@ class TimedRunHook(tf.train.SessionRunHook):
                 self._timer.should_trigger_for_step(self._next_step))
         requests = {"global_step": self._global_step_tensor}
         if self._shall_request:
-            if self._request is not None:
-                requests = {**requests, **self._request}
+            if self.call_request_tensors is not None:
+                requests = {**requests, **self.call_request_tensors}
         
         return tf.train.SessionRunArgs(requests)
     

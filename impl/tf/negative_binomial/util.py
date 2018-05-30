@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial as TFNegativeBinomial
 
-from impl.tf.util import reduce_weighted_mean
+from impl.tf import reduce_weighted_mean
 
 
 class NegativeBinomial(TFNegativeBinomial):

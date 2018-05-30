@@ -3,6 +3,7 @@ import abc
 import xarray as xr
 import tensorflow as tf
 
+import impl.tf.ops
 import impl.tf.util as tf_utils
 from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph, nb_utils
 
@@ -67,7 +68,7 @@ class EstimatorGraph(TFEstimatorGraph):
                                                )
                 else:
                     # optimize logits to keep `mixture_prob` between the interval [0, 1]
-                    logit_mixture_prob = tf.Variable(tf_utils.logit(initial_mixture_probs), name="logit_prob")
+                    logit_mixture_prob = tf.Variable(impl.tf.ops.logit(initial_mixture_probs), name="logit_prob")
                     mixture_prob = tf.sigmoid(logit_mixture_prob, name="prob")
                     
                     # normalize: the assignment probabilities should sum up to 1
@@ -86,8 +87,8 @@ class EstimatorGraph(TFEstimatorGraph):
             count_probs = distribution.prob(sample_data, name="count_probs")
             log_count_probs = tf.log(count_probs, name="log_count_probs")
             # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
-            joint_probs = tf_utils.reduce_weighted_mean(count_probs, weight=mixture_prob, axis=-3,
-                                                        name="joint_probs")
+            joint_probs = impl.tf.ops.reduce_weighted_mean(count_probs, weight=mixture_prob, axis=-3,
+                                                           name="joint_probs")
             
             log_probs = tf.log(joint_probs, name="log_probs")
             
@@ -189,6 +190,13 @@ class EstimatorGraph(TFEstimatorGraph):
 
 
 class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
+    PARAMS = {
+        "mu": ("samples", "genes"),
+        "sigma2": ("samples", "genes"),
+        "mixture_prob": ("mixtures", "samples"),
+        "loss": ()
+    }
+    
     model: EstimatorGraph
     
     def __init__(self, input_data: xr.Dataset, use_em=False, optimizable_nb=False, model=None):
