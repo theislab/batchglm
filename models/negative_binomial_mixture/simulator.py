@@ -41,7 +41,7 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     
     @property
     def mixture_prob(self):
-        return self.params["mixture_probs"]
+        return self.params["mixture_prob"]
     
     def generate_params(self, *args, min_mean=20, max_mean=10000, min_r=10, max_r=100, prob_transition=0.9,
                         shuffle_mixture_assignment=False, **kwargs):
@@ -92,7 +92,7 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
         
         self.data["initial_mixture_probs"] = (("mixtures", "samples"), initial_mixture_probs)
         self.params["mixture_assignment"] = (("samples"), real_mixture_assignment)
-        self.params["mixture_probs"] = (("mixtures", "samples"), real_mixture_probs)
+        self.params["mixture_prob"] = (("mixtures", "samples"), real_mixture_probs)
     
     def generate_data(self):
         self.data["sample_data"] = (
