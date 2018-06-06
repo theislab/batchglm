@@ -14,37 +14,38 @@ from .base import Model
 def generate_sample_description(num_samples, num_batches=4, num_confounder=2) -> xr.Dataset:
     reps_batches = math.ceil(num_samples / num_batches)
     reps_confounder = math.ceil(num_samples / num_confounder)
-    
+
     # batch column
     batches = np.repeat(range(num_batches), reps_batches)
     batches = batches[range(num_samples)].astype(str)
-    
+
     # confounder column
     confounders = np.squeeze(np.tile([np.arange(num_confounder)], reps_confounder))
     confounders = confounders[range(num_samples)].astype(str)
-    
+
     # build sample description
     sample_description = xr.Dataset({
         "batch": ("samples", batches),
         "confounder": ("samples", confounders),
     }, attrs={
-        "formula": ["~ 1 + batch + confounder"]
+        "formula": "~ 1 + batch + confounder"
     })
     # sample_description = pd.DataFrame(data=sample_description, dtype="category")
-    
+
     return sample_description
 
 
 class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
-    
+
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         Model.__init__(self)
-    
+
     def generate_sample_description(self, num_batches=4, num_confounder=2):
         sample_description = generate_sample_description(self.num_samples, num_batches, num_confounder)
         self.data.merge(sample_description, inplace=True)
-    
+        self.data.attrs["formula"] = sample_description.attrs["formula"]
+
     def generate_params(self, *args, min_bias=0.5, max_bias=2, **kwargs):
         """
         
@@ -56,13 +57,13 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         :param max_bias: maximum bias factor of design parameters
         """
         super().generate_params(*args, **kwargs)
-        
+
         if not "sample_description" in self.data:
             self.generate_sample_description()
-        
+
         if not "design" in self.data:
             data_utils.design_matrix_from_dataset(self.data, inplace=True)
-        
+
         self.params['a'] = (
             ("design_params", "genes"),
             np.log(
@@ -81,19 +82,19 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
                 ])
             )
         )
-    
+
     @property
     def mu(self):
         return np.exp(np.matmul(self.data.design, self.params['a']))
-    
+
     @property
     def sigma2(self):
         return np.exp(np.matmul(self.data.design, self.params['b']))
-    
+
     @property
     def a(self):
         return self.params['a']
-    
+
     @property
     def b(self):
         return self.params['b']

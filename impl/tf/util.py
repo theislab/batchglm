@@ -1,6 +1,10 @@
+from typing import Dict, Any, Union
+
+import os
+import datetime
+
 import xarray as xr
 import tensorflow as tf
-from typing import Dict, Any, Union
 
 
 def input_to_feed_dict(graph: tf.Graph, input_data: Union[dict, xr.Dataset]) \
@@ -27,3 +31,10 @@ def input_to_feed_dict(graph: tf.Graph, input_data: Union[dict, xr.Dataset]) \
     return retval
 
 
+def save_timestep(step, data: dict, params: dict, working_dir):
+    xarray = {key: (dim, data[key]) for (key, dim) in params.items()}
+    xarray = xr.Dataset(xarray)
+    xarray["global_step"] = (), step
+    xarray["time"] = (), datetime.datetime.now()
+
+    xarray.to_netcdf(path=os.path.join(working_dir, "estimation-%d.h5" % step))
