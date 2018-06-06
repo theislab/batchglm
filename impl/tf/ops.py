@@ -15,7 +15,7 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
 
     .. seealso:: :py:meth:`reduce_mean()` in module :py:mod:`tensorflow`
     """
-    
+
     retval = None
     if weight is None:
         retval = tf.reduce_mean(input_tensor, axis=axis, name=name, keepdims=True, **kwargs)
@@ -30,10 +30,10 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
                                                              keepdims=True,
                                                              name="denominator_sum",
                                                              **kwargs)
-    
+
     if not keepdims:
         retval = tf.squeeze(retval, axis=axis)
-    
+
     return retval
 
 
@@ -61,10 +61,10 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
         idx1 = rank[axis1]
         perm0 = tf.where(tf.equal(rank, idx0), tf.tile(tf.expand_dims(idx1, 0), [tf.size(rank)]), rank)
         perm1 = tf.where(tf.equal(rank, idx1), tf.tile(tf.expand_dims(idx0, 0), [tf.size(rank)]), perm0)
-    
+
     if exec_transpose:
         retval = tf.transpose(tensor, perm1)
-        
+
         if return_perm:
             return retval, perm1
         else:
@@ -99,11 +99,11 @@ def for_loop(condition, modifier, body_fn, idx=0):
     :return: tf.while_loop
     """
     idx = tf.convert_to_tensor(idx)
-    
+
     def body(i):
         with tf.control_dependencies([body_fn(i)]):
             return [modifier(i)]
-    
+
     # do the loop:
     loop = tf.while_loop(condition, body, [idx])
     return loop
@@ -180,3 +180,19 @@ def keep_const(tensor: tf.Tensor, cond: tf.Tensor, constant: tf.Tensor = None, n
 
         constant = tf.broadcast_to(constant, shape=cond)
         return tf.where(cond, tensor, constant)
+
+
+def caching_placeholder(dtype, shape=None, name=None):
+    """
+    Placeholder which keeps its data after initialization.
+    Saves feeding the data in each session run.
+
+    :param dtype: data type of the placeholder
+    :param shape: shape of the placeholder
+    :param name: name of the placeholder
+    :return: tf.Variable, initialized by the placeholder
+    """
+    placehldr = tf.placeholder(dtype, shape=shape, name=name)
+
+    var = tf.Variable(placehldr, trainable=False, name=name + "_cache")
+    return var
