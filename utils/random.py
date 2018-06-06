@@ -12,7 +12,7 @@ class NegativeBinomial:
     p: np.ndarray
     r: np.ndarray
 
-    def __init__(self, r=None, variance=None, p=None, mean=None, name="NegativeBinomial"):
+    def __init__(self, r=None, variance=None, p=None, mean=None):
         if r is not None:
             if variance is not None:
                 raise ValueError("Must pass either shape 'r' or variance, but not both")
