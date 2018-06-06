@@ -32,15 +32,15 @@ def design_matrix(sample_description: pd.DataFrame, formula: str,
     :return: a model design matrix
     """
     sample_description: pd.DataFrame = sample_description.copy()
-    
+
     if type(as_categorical) is not bool or as_categorical:
         if type(as_categorical) is bool and as_categorical:
             as_categorical = np.repeat(True, sample_description.columns.size)
-        
+
         for to_cat, col in zip(as_categorical, sample_description):
             if to_cat:
                 sample_description[col] = sample_description[col].astype("category")
-    
+
     dmatrix = patsy.dmatrix(formula, sample_description)
     return dmatrix
 
@@ -51,7 +51,7 @@ def _factors_from_formula(formula):
     for l in [list(t.factors) for t in desc.rhs_termlist]:
         for i in l:
             factors.add(i.name())
-    
+
     return factors
 
 
@@ -98,41 +98,50 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     """
     if not inplace:
         dataset = dataset.copy()
-    
+
     if formula is None:
         formula = dataset.attrs.get(formula_key)
     if formula is None:
         # could not find formula; try to construct it from explanatory variables
         raise ValueError("formula could not be found")
-        
+
     factors = _factors_from_formula(formula)
     explanatory_vars = set(dataset.variables.keys())
     explanatory_vars = list(explanatory_vars.intersection(factors))
-    
+
     dimensions = list(dataset[explanatory_vars].dims.keys())
     dimensions.append("design_params")
-    
+
     sample_description = dataset[explanatory_vars].to_dataframe()
     dataset[design_key] = (
         dimensions,
         design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
     )
-    
+
     dataset.attrs[formula_key] = formula
-    
+
     return dataset
 
 
 def load_mtx_to_adata(path, cache=True):
+    """
+    Loads mtx file, genes and barcodes from a given directory into an `anndata.AnnData` object
+
+    :param path: the folder containing the files
+    :param cache: Should a cache file be used for the AnnData object?
+
+        See `scanpy.api.read` for details.
+    :return: `anndata.AnnData` object
+    """
     ad = sc.read(os.path.join(path, "matrix.mtx"), cache=cache).T
-    
+
     files = os.listdir(os.path.join(path))
     for file in files:
         if file.startswith("genes"):
             delim = ","
             if file.endswith("tsv"):
                 delim = "\t"
-            
+
             tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
             ad.var = tbl
             ad.var_names = tbl[1]
@@ -140,7 +149,7 @@ def load_mtx_to_adata(path, cache=True):
             delim = ","
             if file.endswith("tsv"):
                 delim = "\t"
-            
+
             tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
             ad.obs = tbl
             ad.obs_names = tbl[0]
@@ -149,21 +158,27 @@ def load_mtx_to_adata(path, cache=True):
 
 
 def load_mtx_to_xarray(path):
+    """
+    Loads mtx file, genes and barcodes from a given directory into an `xarray.DataArray` object
+
+    :param path: the folder containing the files
+    :return: `xarray.DataArray` object
+    """
     matrix = sc.read(os.path.join(path, "matrix.mtx"), cache=False).X.toarray()
-    
+
     # retval = xr.Dataset({
     #     "sample_data": (["samples", "genes"], np.transpose(matrix)),
     # })
-    
+
     retval = xr.DataArray(np.transpose(matrix), dims=("samples", "genes"))
-    
+
     files = os.listdir(os.path.join(path))
     for file in files:
         if file.startswith("genes"):
             delim = ","
             if file.endswith("tsv"):
                 delim = "\t"
-            
+
             tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
             # retval["var"] = (["var_annotations", "genes"], np.transpose(tbl))
             for col_id in tbl:
@@ -172,7 +187,7 @@ def load_mtx_to_xarray(path):
             delim = ","
             if file.endswith("tsv"):
                 delim = "\t"
-            
+
             tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
             # retval["obs"] = (["obs_annotations", "samples"], np.transpose(tbl))
             for col_id in tbl:
@@ -181,6 +196,14 @@ def load_mtx_to_xarray(path):
 
 
 def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Dict[str, xr.DataArray]:
+    """
+    Loads recursively all `mtx` structures inside a given directory or zip file
+
+    :param dir_or_zipfile: directory or zip file which will be traversed
+    :param target_format: format to read into. Either "xarray" or "adata"
+    :param cache: option passed to `load_mtx_to_adata` when `target_format == "adata"`
+    :return: Dict[str, xr.DataArray] containing {"path" : data}
+    """
     dir_or_zipfile = os.path.expanduser(dir_or_zipfile)
     if dir_or_zipfile.endswith(".zip"):
         path = tempfile.mkdtemp()
@@ -189,7 +212,7 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
         zip_ref.close()
     else:
         path = dir_or_zipfile
-    
+
     adatas = {}
     for root, dirs, files in os.walk(path):
         for file in files:
@@ -200,7 +223,7 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
                     ad = load_mtx_to_adata(root, cache=cache)
                 else:
                     raise RuntimeError("Unknown target format %s" % target_format)
-                
+
                 adatas[root[len(path) + 1:]] = ad
-    
+
     return adatas
