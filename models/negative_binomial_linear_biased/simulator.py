@@ -17,18 +17,18 @@ def generate_sample_description(num_samples, num_batches=4, num_confounder=2) ->
     
     # batch column
     batches = np.repeat(range(num_batches), reps_batches)
-    batches = batches[range(num_samples)]
+    batches = batches[range(num_samples)].astype(str)
     
     # confounder column
     confounders = np.squeeze(np.tile([np.arange(num_confounder)], reps_confounder))
-    confounders = confounders[range(num_samples)]
+    confounders = confounders[range(num_samples)].astype(str)
     
     # build sample description
     sample_description = xr.Dataset({
         "batch": ("samples", batches),
         "confounder": ("samples", confounders),
-    }, coords={
-        "explanatory_vars": ["batch", "confounder"]
+    }, attrs={
+        "formula": ["~ 1 + batch + confounder"]
     })
     # sample_description = pd.DataFrame(data=sample_description, dtype="category")
     

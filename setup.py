@@ -11,6 +11,7 @@ setup(
         'dask',
         # HDF5 / NetCDF support
         'h5netcdf',
+        'toolz',
         # design matrix generation
         'patsy'
     ],
@@ -18,7 +19,12 @@ setup(
         'plotting': [
             "matplotlib",
             "plotnine",
-            "plotly"
+            "plotly",
+            # ECDF, etc.
+            "mlxtend",
+            # tSNE, etc.
+            "scanpy",
+            "MulticoreTSNE"
         ]
     }
 

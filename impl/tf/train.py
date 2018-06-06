@@ -5,7 +5,11 @@ import tensorflow as tf
 
 class TimedRunHook(tf.train.SessionRunHook):
     """Runs ops or functions every N steps or seconds."""
-    
+
+    _next_step: int
+    _global_step_tensor: tf.Tensor
+    _shall_request: bool
+
     def __init__(self,
                  run_steps=None,
                  run_secs=None,
@@ -32,45 +36,45 @@ class TimedRunHook(tf.train.SessionRunHook):
                 `requested_data` will contain an equivalent result of session.run(`call_request_tensors`).
     
         """
-        
+
         self.call_request_tensors = call_request_tensors
         self.call_fn = call_fn
-        
-        self._timer = tf.train.SecondOrStepTimer(every_secs=run_secs,
-                                                 every_steps=run_steps)
-    
+
+        self.timer = tf.train.SecondOrStepTimer(every_secs=run_secs,
+                                                every_steps=run_steps)
+
     def begin(self):
         self._next_step = None
         self._global_step_tensor = tf.train.get_or_create_global_step()
         if self._global_step_tensor is None:
             raise RuntimeError(
                 "Global step should be created to use TimedRunHook.")
-    
+
     def before_run(self, run_context):  # pylint: disable=unused-argument
         self._shall_request = (
                 self._next_step is None or
-                self._timer.should_trigger_for_step(self._next_step))
+                self.timer.should_trigger_for_step(self._next_step))
         requests = {"global_step": self._global_step_tensor}
         if self._shall_request:
             if self.call_request_tensors is not None:
                 requests = {**requests, **self.call_request_tensors}
-        
+
         return tf.train.SessionRunArgs(requests)
-    
+
     def after_run(self, run_context: tf.train.SessionRunContext, run_values: tf.train.SessionRunValues):
         stale_global_step = run_values.results["global_step"]
         global_step = stale_global_step + 1
-        
+
         if self._next_step is None or self._shall_request:
             global_step = run_context.session.run(self._global_step_tensor)
-        
+
         if self._shall_request:
-            self._timer.update_last_triggered_step(global_step)
-            
+            self.timer.update_last_triggered_step(global_step)
+
             request_data: dict = run_values.results.copy()
             del request_data["global_step"]
-            
+
             if self.call_fn is not None:
                 self.call_fn(run_context.session, global_step, request_data)
-        
+
         self._next_step = global_step + 1

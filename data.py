@@ -1,4 +1,9 @@
-from typing import Union
+from typing import Union, Dict
+
+import os
+import tempfile
+import zipfile as zf
+import scanpy.api as sc
 
 import patsy
 import pandas as pd
@@ -40,11 +45,19 @@ def design_matrix(sample_description: pd.DataFrame, formula: str,
     return dmatrix
 
 
+def _factors_from_formula(formula):
+    desc = patsy.ModelDesc.from_formula(formula)
+    factors = set()
+    for l in [list(t.factors) for t in desc.rhs_termlist]:
+        for i in l:
+            factors.add(i.name())
+    
+    return factors
+
+
 def design_matrix_from_dataset(dataset: xr.Dataset,
                                formula=None,
                                formula_key="formula",
-                               explanatory_vars=None,
-                               explanatory_vars_key="explanatory_vars",
                                design_key="design",
                                as_categorical=True,
                                inplace=False):
@@ -71,9 +84,6 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
         E.g. '~ 1 + batch + confounder'
     :param formula_key: index of the formula attribute inside 'dataset'.
         Only used, if 'formula' is None.
-    :param explanatory_vars: list of variable keys to use as explanatory variables.
-    :param explanatory_vars_key: index of the coordinate containing the explanatory variables.
-        Only used, if 'explanatory_vars' is None.
     :param design_key: Under which key should the design matrix be stored?
     :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
         
@@ -89,20 +99,15 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     if not inplace:
         dataset = dataset.copy()
     
-    if explanatory_vars is None:
-        explanatory_vars = dataset.get(explanatory_vars_key)
-    if explanatory_vars is not None:
-        explanatory_vars = explanatory_vars.values
-    else:
-        explanatory_vars = list(dataset.variables.keys())
-    
     if formula is None:
         formula = dataset.attrs.get(formula_key)
     if formula is None:
-        formula = ["~ 1", ]
-        for i in explanatory_vars:
-            formula.append(" + " + i)
-        formula = "".join(formula)
+        # could not find formula; try to construct it from explanatory variables
+        raise ValueError("formula could not be found")
+        
+    factors = _factors_from_formula(formula)
+    explanatory_vars = set(dataset.variables.keys())
+    explanatory_vars = list(explanatory_vars.intersection(factors))
     
     dimensions = list(dataset[explanatory_vars].dims.keys())
     dimensions.append("design_params")
@@ -114,6 +119,88 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     )
     
     dataset.attrs[formula_key] = formula
-    dataset.coords[explanatory_vars_key] = explanatory_vars
     
     return dataset
+
+
+def load_mtx_to_adata(path, cache=True):
+    ad = sc.read(os.path.join(path, "matrix.mtx"), cache=cache).T
+    
+    files = os.listdir(os.path.join(path))
+    for file in files:
+        if file.startswith("genes"):
+            delim = ","
+            if file.endswith("tsv"):
+                delim = "\t"
+            
+            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
+            ad.var = tbl
+            ad.var_names = tbl[1]
+        elif file.startswith("barcodes"):
+            delim = ","
+            if file.endswith("tsv"):
+                delim = "\t"
+            
+            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
+            ad.obs = tbl
+            ad.obs_names = tbl[0]
+    ad.var_names_make_unique()
+    return ad
+
+
+def load_mtx_to_xarray(path):
+    matrix = sc.read(os.path.join(path, "matrix.mtx"), cache=False).X.toarray()
+    
+    # retval = xr.Dataset({
+    #     "sample_data": (["samples", "genes"], np.transpose(matrix)),
+    # })
+    
+    retval = xr.DataArray(np.transpose(matrix), dims=("samples", "genes"))
+    
+    files = os.listdir(os.path.join(path))
+    for file in files:
+        if file.startswith("genes"):
+            delim = ","
+            if file.endswith("tsv"):
+                delim = "\t"
+            
+            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
+            # retval["var"] = (["var_annotations", "genes"], np.transpose(tbl))
+            for col_id in tbl:
+                retval.coords["gene_annot%d" % col_id] = ("genes", tbl[col_id])
+        elif file.startswith("barcodes"):
+            delim = ","
+            if file.endswith("tsv"):
+                delim = "\t"
+            
+            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
+            # retval["obs"] = (["obs_annotations", "samples"], np.transpose(tbl))
+            for col_id in tbl:
+                retval.coords["sample_annot%d" % col_id] = ("samples", tbl[col_id])
+    return retval
+
+
+def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Dict[str, xr.DataArray]:
+    dir_or_zipfile = os.path.expanduser(dir_or_zipfile)
+    if dir_or_zipfile.endswith(".zip"):
+        path = tempfile.mkdtemp()
+        zip_ref = zf.ZipFile(dir_or_zipfile)
+        zip_ref.extractall(path)
+        zip_ref.close()
+    else:
+        path = dir_or_zipfile
+    
+    adatas = {}
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file == "matrix.mtx":
+                if target_format.lower() == "xarray":
+                    ad = load_mtx_to_xarray(root)
+                elif target_format.lower() == "adata":
+                    ad = load_mtx_to_adata(root, cache=cache)
+                else:
+                    raise RuntimeError("Unknown target format %s" % target_format)
+                
+                adatas[root[len(path) + 1:]] = ad
+    
+    return adatas

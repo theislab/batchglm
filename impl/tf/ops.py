@@ -143,3 +143,40 @@ def placeholder_variable(dtype, shape=None, name=None):
     placehldr = tf.placeholder(dtype, shape=shape, name=name)
     var = tf.Variable(placehldr, trainable=False, name=name + "_cache")
     return var
+
+
+def randomize(tensor, modifier=tf.multiply, min=0.5, max=2.0, name="randomize"):
+    """
+    Randomizes a tensor by applying some random uniform bias
+
+    :param tensor: The tensor which should be randomized
+    :param modifier: The modifier function, should take two tensors as arguments. `tf.multiply` per default.
+    :param min: minimum bias value
+    :param max: maximum bias value
+    :param name: name of this operation
+    :return: The randomized tensor returned by `modifier`
+    """
+    with tf.name_scope(name):
+        tensor = modifier(tensor, tf.random_uniform(tensor.shape, min, max,
+                                                    dtype=tf.float32))
+    return tensor
+
+
+def keep_const(tensor: tf.Tensor, cond: tf.Tensor, constant: tf.Tensor = None, name="keep_const"):
+    """
+    Keeps some parts of a tensor constant during training ops by replacing the parts defined by `cond`
+
+    :param tensor: The tensor which should be partially kept constant
+    :param cond: The condition, e.g. a boolean tensor (See tf.where)
+    :param constant: replacement value(s).
+
+        If None, `tf.stop_gradient(tensor)` will be used instead
+    :param name: The name scope of this operation
+    :return: tf.Tensor with non-trainable parts
+    """
+    with tf.name_scope(name):
+        if constant is None:
+            constant = tf.stop_gradient(tensor)
+
+        constant = tf.broadcast_to(constant, shape=cond)
+        return tf.where(cond, tensor, constant)
