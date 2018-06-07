@@ -1,4 +1,5 @@
 import abc
+import collections.abc
 from typing import Dict, Any, Union
 
 import xarray as xr
@@ -68,3 +69,22 @@ class TFEstimator(BasicEstimator, TFSession):
     
     def evaluate(self, s):
         pass
+    
+    def get(self, key: Union[str, collections.abc.Iterable]) -> Union[Any, Dict[str, Any]]:
+        """
+        Returns the values of the tensor(s) specified by key.
+        
+        :param key: Either a string or an iterable list/set/tuple/etc. of strings
+        :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
+        """
+        if isinstance(key, str):
+            return self.run(self.model.__getattribute__(key))
+        elif isinstance(key, collections.abc.Iterable):
+            d = {s: self.model.__getattribute__(s) for s in key}
+            return self.run(d)
+    
+    def __getitem__(self, key):
+        """
+        See :func:`TFEstimator.get` for reference
+        """
+        return self.get(key)

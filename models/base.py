@@ -26,6 +26,9 @@ class BasicEstimator(metaclass=abc.ABCMeta):
 
 
 class BasicSimulator(metaclass=abc.ABCMeta):
+    num_samples: int
+    num_genes: int
+
     data: xr.Dataset
     params: xr.Dataset
 
@@ -105,3 +108,13 @@ class BasicSimulator(metaclass=abc.ABCMeta):
             mode="a",
             engine=pkg_constants.XARRAY_NETCDF_ENGINE
         )
+
+    def __copy__(self):
+        retval = self.__class__()
+        retval.num_samples = self.num_samples
+        retval.num_genes = self.num_genes
+
+        retval.data = self.data.copy()
+        retval.params = self.params.copy()
+
+        return retval

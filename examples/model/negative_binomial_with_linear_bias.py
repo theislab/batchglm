@@ -9,10 +9,9 @@ from utils.config import getConfig
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data, batch_size=1000)
+    estimator = Estimator(sim.data, batch_size=500)
     # estimator.validate_data()
     estimator.initialize()
-    # estimator.train(steps=10)
 
     return estimator
 
