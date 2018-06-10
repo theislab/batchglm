@@ -16,19 +16,24 @@ except ImportError:
 
 # import impl.tf.ops as tf_ops
 import impl.tf.util as tf_utils
-from impl.tf.train import TimedRunHook
-from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph
+import impl.tf.train as train_utils
+from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
 from .external import nb_utils, tf_linreg
 
 # session / device config
-CONFIG = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+# CONFIG = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
 
 PARAMS = {
     "a": ("design_params", "genes"),
     "b": ("design_params", "genes"),
     "mu": ("samples", "genes"),
     "r": ("samples", "genes"),
-    "loss": ()
+    "sigma2": ("samples", "genes"),
+    "loss": (),
+    "count_probs": ("samples", "genes"),
+    "log_count_probs": ("samples", "genes"),
+    "log_likelihood": (),
+    "full_data_loss": (),
 }
 
 
@@ -208,13 +213,13 @@ class EstimatorGraph(TFEstimatorGraph):
                 tf.summary.scalar('loss', batch_model.loss)
             
             with tf.name_scope("training"):
-                self.global_train_step = tf.train.get_or_create_global_step()
+                self.global_step = tf.train.get_or_create_global_step()
                 self.loss = batch_model.loss
                 
                 self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
                 self.gradient = self.optimizer.compute_gradients(self.loss)
                 
-                self.train_op = self.optimizer.minimize(self.loss, global_step=self.global_train_step)
+                self.train_op = self.optimizer.minimize(self.loss, global_step=self.global_step)
             
             self.init_ops = []
             self.init_op = tf.variables_initializer(tf.global_variables(), name="init_op")
@@ -246,43 +251,19 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("loss"):
                 self.full_data_loss = -tf.reduce_mean(self.log_count_probs)
             self.full_data_gradient = tf.gradients(self.full_data_loss, tf.trainable_variables())
-    
-    def initialize(self, session, feed_dict, **kwargs):
-        with self.graph.as_default():
-            for op in self.init_ops:
-                session.run(op, feed_dict=feed_dict)
-            session.run(self.init_op)
-    
-    def train(self, session, feed_dict=None, *args, steps=1000, learning_rate=0.05, **kwargs):
-        print("learning rate: %s" % learning_rate)
-        
-        feed_dict = dict() if feed_dict is None else feed_dict.copy()
-        feed_dict["learning_rate:0"] = learning_rate
-        
-        loss_res = None
-        for i in range(steps):
-            (train_step, loss_res, _) = session.run((self.global_train_step, self.loss, self.train_op),
-                                                    feed_dict=feed_dict)
-            
-            print("Step: %d\tloss: %f" % (train_step, loss_res))
-        
-        return loss_res
 
 
-class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
+class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
+    
+    @property
+    def PARAMS(cls) -> dict:
+        return PARAMS
     
     def __init__(self, input_data: Union[xr.Dataset, anndata.AnnData],
                  batch_size=500,
-                 model=None,
-                 working_dir=None):
-        if working_dir is None:
-            working_dir = tempfile.TemporaryDirectory().name
-            # working_dir = os.path.join("data/log/", self.__module__,
-            #                            datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
-            # if not os.path.exists(working_dir):
-            #     os.makedirs(working_dir)
-        self.working_dir = working_dir
+                 model=None
+                 ):
         
         if model is None:
             tf.reset_default_graph()
@@ -315,71 +296,20 @@ class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
                 graph=tf.get_default_graph()
             )
         
-        TFEstimator.__init__(self, input_data, model)
+        MonitoredTFEstimator.__init__(self, input_data, model)
     
-    def create_new_session(self):
-        self.close_session()
-        self.feed_dict = {}
-    
-    def initialize(
-            self,
-            save_checkpoint_steps=None,
-            save_checkpoint_secs=None,
-            save_summaries_steps=None,
-            save_summaries_secs=None,
-    ):
-        if save_checkpoint_secs is None and save_checkpoint_steps is None:
-            save_checkpoint_steps = 10
-        if save_summaries_secs is None and save_summaries_steps is None:
-            save_summaries_steps = 10
-        
+    def _scaffold(self):
         with self.model.graph.as_default():
-            # set up session parameters
             scaffold = tf.train.Scaffold(
                 init_op=self.model.init_op,
                 summary_op=self.model.merged_summary,
                 saver=self.model.saver,
             )
-            hooks = [
-                TimedRunHook(
-                    run_steps=save_summaries_steps + 1 if save_summaries_steps is not None else None,
-                    run_secs=save_summaries_secs + 1 if save_summaries_secs is not None else None,
-                    call_request_tensors={p: self.model.__getattribute__(p) for p in PARAMS.keys()},
-                    call_fn=lambda sess, step, data: self._save_timestep(step, data)
-                ),
-                tf.train.NanTensorHook(self.model.loss),
-            ]
-            
-            # create session
-            self.session = tf.train.MonitoredTrainingSession(
-                checkpoint_dir=self.working_dir,
-                scaffold=scaffold,
-                hooks=hooks,
-                save_checkpoint_steps=save_checkpoint_steps,
-                save_checkpoint_secs=save_checkpoint_secs,
-                save_summaries_steps=save_summaries_steps,
-                save_summaries_secs=save_summaries_secs,
-            )
+        return scaffold
     
-    def _save_timestep(self, step, data: dict):
-        tf_utils.save_timestep(step=step, data=data, params=PARAMS, working_dir=self.working_dir)
-    
-    def to_xarray(self, params=PARAMS):
-        model_params = {p: self.model.__getattribute__(p) for p in params.keys()}
-        
-        data = self.session.run(model_params, feed_dict=None)
-        
-        output = {key: (dim, data[key]) for (key, dim) in params.items()}
-        output = xr.Dataset(output)
-        
-        return output
-    
-    def run(self, tensor):
-        return self.session._tf_sess().run(tensor)
-    
-    @property
-    def loss(self):
-        return self.get("loss")
+    def train(self, *args, learning_rate=0.05, **kwargs):
+        tf.logging.info("learning rate: %s" % learning_rate)
+        super().train(feed_dict={"learning_rate:0": learning_rate})
     
     @property
     def mu(self):

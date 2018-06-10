@@ -4,8 +4,8 @@ import tempfile
 
 # import numpy as np
 
-from models.negative_binomial_linear_biased import Simulator
-from models.negative_binomial_linear_biased.estimator import Estimator
+from models.negative_binomial import Simulator
+from models.negative_binomial.estimator import Estimator
 
 
 # from utils.config import getConfig
@@ -14,14 +14,12 @@ from models.negative_binomial_linear_biased.estimator import Estimator
 def estimate(sim: Simulator, working_dir: str):
     print(sim.data.sample_data)
     
-    estimator = Estimator(sim.data, batch_size=500)
+    estimator = Estimator(sim.data)
     estimator.initialize(
         working_dir=working_dir,
-        save_checkpoint_steps=200,
-        save_summaries_steps=200,
         stop_at_step=1000,
         stop_below_loss_change=0.001,
-        export=["a", "b", "mu", "r", "loss"],
+        export=["mu", "r", "loss"],
         export_steps=200
     )
     sim.save(os.path.join(working_dir, "sim_data.h5"))
@@ -31,7 +29,7 @@ def estimate(sim: Simulator, working_dir: str):
     return estimator
 
 
-class Negative_Binomial_With_Linear_Bias_Test(unittest.TestCase):
+class Negative_Binomial_Test(unittest.TestCase):
     sim: Simulator
     working_dir: tempfile.TemporaryDirectory
     

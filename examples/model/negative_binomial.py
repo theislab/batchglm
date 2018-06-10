@@ -9,7 +9,7 @@ from utils.config import getConfig
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data, optimizable=True)
+    estimator = Estimator(sim.data)
     # estimator.validate_data()
     estimator.initialize()
     # estimator.train(steps=10)

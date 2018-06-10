@@ -1,15 +1,22 @@
 import abc
 
 import xarray as xr
-
+import numpy as np
 import tensorflow as tf
 
+try:
+    import anndata
+except ImportError:
+    anndata = None
+
 import impl.tf.ops as tf_ops
-from .external import AbstractEstimator, TFEstimator, TFEstimatorGraph
+import impl.tf.util as tf_utils
+from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
 from .util import fit, NegativeBinomial
 
 PARAMS = {
     "mu": ("samples", "genes"),
+    "r": ("samples", "genes"),
     "sigma2": ("samples", "genes"),
     "loss": ()
 }
@@ -21,15 +28,18 @@ class EstimatorGraph(TFEstimatorGraph):
     mu: tf.Tensor
     sigma2: tf.Tensor
     
-    def __init__(self, num_samples, num_genes, graph=None, optimizable=True):
+    def __init__(self, sample_data, num_samples, num_genes, graph=None, optimizable=True):
         super().__init__(graph)
         
         # initial graph elements
         with self.graph.as_default():
-            sample_data = tf_ops.caching_placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
+            # # does not work due to broken tf.Variable initialization.
+            # # Integrate data directly into the graph, until this issue is fixed.
+            # sample_data_var = tf_ops.caching_placeholder(tf.float32, shape=(num_samples, num_genes), name="sample_data")
+            # sample_data = sample_data_var.initialized_value()
             
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
-            global_train_step = tf.Variable(0, name="train_step")
+            global_step = tf.train.get_or_create_global_step()
             
             distribution = fit(sample_data=sample_data, optimizable=optimizable, name="fit_nb-dist")
             
@@ -49,12 +59,10 @@ class EstimatorGraph(TFEstimatorGraph):
                 if optimizable:
                     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
                     gradient = optimizer.compute_gradients(loss)
-                    train_op = optimizer.minimize(loss, global_step=global_train_step)
+                    train_op = optimizer.minimize(loss, global_step=global_step)
             
             # set up class attributes
             self.sample_data = sample_data
-            
-            self.initializer_op = tf.global_variables_initializer()
             
             self.mu = distribution.mean()
             self.r = distribution.r
@@ -65,56 +73,61 @@ class EstimatorGraph(TFEstimatorGraph):
             self.log_count_probs = log_count_probs
             self.log_likelihood = log_likelihood
             
-            self.loss = loss
             self.optimizer = optimizer
             self.gradient = gradient
-            self.train_op = train_op
-            self.global_train_step = global_train_step
             
-            self.initializer_ops = [
-                tf.variables_initializer([sample_data]),
-                tf.variables_initializer(tf.global_variables()),
-            ]
-    
-    def initialize(self, session, feed_dict, **kwargs):
-        with self.graph.as_default():
-            for op in self.initializer_ops:
-                session.run(op, feed_dict=feed_dict)
-    
-    def train(self, session, feed_dict, *args, steps=1000, learning_rate=0.05, **kwargs):
-        print("learning rate: %s" % learning_rate)
-        errors = []
-        for i in range(steps):
-            # feed_dict = feed_dict.copy()
-            feed_dict = dict()
-            feed_dict["learning_rate:0"] = learning_rate
-            (train_step, loss_res, _) = session.run((self.global_train_step, self.loss, self.train_op),
-                                                    feed_dict=feed_dict)
-            errors.append(loss_res)
-            print("Step: %d\tloss: %f" % (train_step, loss_res))
-        
-        return errors
+            self.loss = loss
+            self.train_op = train_op
+            self.init_op = tf.global_variables_initializer()
+            self.global_step = global_step
 
 
-class Estimator(AbstractEstimator, TFEstimator, metaclass=abc.ABCMeta):
+class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
     
-    def __init__(self, input_data: xr.Dataset, model=None, optimizable=False):
+    @property
+    def PARAMS(cls) -> dict:
+        return PARAMS
+    
+    def __init__(self, input_data: xr.Dataset, model=None, fast=False):
         num_genes = input_data.dims["genes"]
         num_samples = input_data.dims["samples"]
         
         if model is None:
             tf.reset_default_graph()
             
-            model = EstimatorGraph(num_samples, num_genes,
-                                   optimizable=optimizable,
+            # read input_data
+            if isinstance(input_data, xr.Dataset):
+                num_genes = input_data.dims["genes"]
+                num_samples = input_data.dims["samples"]
+                
+                sample_data = np.asarray(input_data["sample_data"], dtype=np.float32)
+            elif anndata is not None and isinstance(input_data, anndata.AnnData):
+                num_genes = input_data.n_vars
+                num_samples = input_data.n_obs
+                
+                # TODO: load sample_data as sparse array instead of casting it to a dense numpy array
+                sample_data = np.asarray(input_data.X, dtype=np.float32)
+            else:
+                raise ValueError("input_data has to be an instance of either xarray.Dataset or anndata.AnnData")
+            
+            model = EstimatorGraph(sample_data,
+                                   num_samples, num_genes,
+                                   optimizable=not fast,
                                    graph=tf.get_default_graph())
         
-        TFEstimator.__init__(self, input_data, model)
+        MonitoredTFEstimator.__init__(self, input_data, model)
     
-    @property
-    def loss(self):
-        return self.get("loss")
+    def _scaffold(self):
+        with self.model.graph.as_default():
+            scaffold = tf.train.Scaffold(
+                init_op=self.model.init_op,
+            )
+        return scaffold
+    
+    def train(self, *args, learning_rate=0.05, **kwargs):
+        tf.logging.info("learning rate: %s" % learning_rate)
+        super().train(feed_dict={"learning_rate:0": learning_rate})
     
     @property
     def mu(self):

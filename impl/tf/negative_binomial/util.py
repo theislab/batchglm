@@ -175,16 +175,34 @@ def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
             #
             # distribution = NegativeBinomial(variance=variance, mean=distribution.mean(), name=name)
             with tf.name_scope("r"):
-                r = tf.Variable(name="log_r", initial_value=tf.log(distribution.r),
+                r_init = tf.clip_by_value(
+                    tf.log(distribution.r),
+                    clip_value_min=np.log(1),
+                    clip_value_max=np.log(distribution.r.dtype.max) / 8
+                )
+                r = tf.Variable(name="log_r", initial_value=r_init,
                                 dtype=distribution.r.dtype,
                                 validate_shape=validate_shape)
-                r = tf.clip_by_value(r, r.dtype.min, r.dtype.max)
+                r = tf.clip_by_value(
+                    r,
+                    np.log(np.nextafter(0, 1, dtype=r.dtype.as_numpy_dtype)),
+                    np.log(r.dtype.max)
+                )
                 r = tf.exp(r)
             with tf.name_scope("mu"):
-                mu = tf.Variable(name="log_mu", initial_value=tf.log(distribution.mean()),
+                mu_init = tf.clip_by_value(
+                    tf.log(distribution.mean()),
+                    clip_value_min=np.log(1),
+                    clip_value_max=np.log(distribution.mean().dtype.max) / 8
+                )
+                mu = tf.Variable(name="log_mu", initial_value=mu_init,
                                  dtype=distribution.mean().dtype,
                                  validate_shape=validate_shape)
-                mu = tf.clip_by_value(mu, mu.dtype.min, mu.dtype.max)
+                mu = tf.clip_by_value(
+                    mu,
+                    np.log(np.nextafter(0, 1, dtype=mu.dtype.as_numpy_dtype)),
+                    np.log(mu.dtype.max)
+                )
                 mu = tf.exp(mu)
             
             distribution = NegativeBinomial(r=r, mean=mu, name=name)
@@ -216,7 +234,8 @@ def fit_mme(sample_data: tf.Tensor, axis=0, weights=None, replace_values=None, d
                                         keepdims=True,
                                         name="variance")
         if replace_values is None:
-            replace_values = tf.fill(tf.shape(variance), tf.constant(math.inf, dtype=dtype), name="inf_constant")
+            replace_values = tf.fill(tf.shape(variance), tf.constant(variance.dtype.max, dtype=dtype),
+                                     name="inf_constant")
         
         r = tf.where(tf.less(mean, variance),
                      tf.square(mean) / (variance - mean),

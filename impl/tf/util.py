@@ -17,24 +17,15 @@ def input_to_feed_dict(graph: tf.Graph, input_data: Union[dict, xr.Dataset]) \
     :return: dict{"placeholder:0", data} for all placeholder names in `input_data`
     """
     placeholders = {op.name: op for op in graph.get_operations() if op.type.lower().startswith("placeholder")}
-
+    
     if isinstance(input_data, xr.Dataset):
         keys = input_data.variables.keys()
     else:
         keys = input_data.keys()
     keys = set(keys).intersection(placeholders.keys())
-
+    
     retval = {}
     for k in keys:
         retval[graph.get_tensor_by_name(k + ":0")] = input_data[k]
-
+    
     return retval
-
-
-def save_timestep(step, data: dict, params: dict, working_dir):
-    xarray = {key: (dim, data[key]) for (key, dim) in params.items()}
-    xarray = xr.Dataset(xarray)
-    xarray["global_step"] = (), step
-    xarray["time"] = (), datetime.datetime.now()
-
-    xarray.to_netcdf(path=os.path.join(working_dir, "estimation-%d.h5" % step))
