@@ -330,7 +330,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def b(self):
         return self.get("b")
-    
+
+    @property
+    def gradient(self):
+        return self.get("gradient")
+
     @property
     def count_probs(self):
         return self.get("count_probs")

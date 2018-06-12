@@ -31,7 +31,7 @@ def estimate(sim: Simulator, working_dir: str):
     return estimator
 
 
-class Negative_Binomial_With_Linear_Bias_Test(unittest.TestCase):
+class NegativeBinomialWithLinearBiasTest(unittest.TestCase):
     sim: Simulator
     working_dir: tempfile.TemporaryDirectory
     

@@ -11,24 +11,31 @@ from models.negative_binomial import NegativeBinomialSimulator
 from .base import Model
 
 
-def generate_sample_description(num_samples, num_batches=4, num_confounder=2) -> xr.Dataset:
-    reps_batches = math.ceil(num_samples / num_batches)
-    reps_confounder = math.ceil(num_samples / num_confounder)
+def generate_sample_description(num_samples, num_batches=4, num_conditions=2) -> xr.Dataset:
+    ds = {}
+    var_list = ["~ 1"]
 
-    # batch column
-    batches = np.repeat(range(num_batches), reps_batches)
-    batches = batches[range(num_samples)].astype(str)
+    if num_batches > 0:
+        # batch column
+        reps_batches = math.ceil(num_samples / num_batches)
+        batches = np.repeat(range(num_batches), reps_batches)
+        batches = batches[range(num_samples)].astype(str)
 
-    # confounder column
-    confounders = np.squeeze(np.tile([np.arange(num_confounder)], reps_confounder))
-    confounders = confounders[range(num_samples)].astype(str)
+        ds["batch"] = ("samples", batches)
+        var_list.append("batch")
+
+    if num_conditions > 0:
+        # condition column
+        reps_conditions = math.ceil(num_samples / num_conditions)
+        conditions = np.squeeze(np.tile([np.arange(num_conditions)], reps_conditions))
+        conditions = conditions[range(num_samples)].astype(str)
+
+        ds["condition"] = ("samples", conditions)
+        var_list.append("condition")
 
     # build sample description
-    sample_description = xr.Dataset({
-        "batch": ("samples", batches),
-        "confounder": ("samples", confounders),
-    }, attrs={
-        "formula": "~ 1 + batch + confounder"
+    sample_description = xr.Dataset(ds, attrs={
+        "formula": " + ".join(var_list)
     })
     # sample_description = pd.DataFrame(data=sample_description, dtype="category")
 
@@ -41,8 +48,8 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         Model.__init__(self)
 
-    def generate_sample_description(self, num_batches=4, num_confounder=2):
-        sample_description = generate_sample_description(self.num_samples, num_batches, num_confounder)
+    def generate_sample_description(self, num_batches=4, num_conditions=2):
+        sample_description = generate_sample_description(self.num_samples, num_batches, num_conditions)
         self.data.merge(sample_description, inplace=True)
         self.data.attrs["formula"] = sample_description.attrs["formula"]
 
@@ -58,11 +65,11 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         """
         super().generate_params(*args, **kwargs)
 
-        if "sample_description" not in self.data:
+        if "formula" not in self.data.attrs:
             self.generate_sample_description()
 
         if "design" not in self.data:
-            data_utils.design_matrix_from_dataset(self.data, inplace=True)
+            data_utils.design_matrix_from_dataset(self.data, dim="samples", inplace=True)
 
         self.params['a'] = (
             ("design_params", "genes"),
