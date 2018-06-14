@@ -13,12 +13,17 @@ setup(
         'h5netcdf',
         'toolz',
         # design matrix generation
-        'patsy'
+        'patsy',
+        'PyYAML'
     ],
     extras_require={
         'scanpy_deps': [
             "scanpy",
             "anndata"
+        ],
+        'plotting_deps': [
+            "plotnine",
+            "matplotlib"
         ]
     }
 

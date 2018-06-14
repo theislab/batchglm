@@ -3,7 +3,6 @@ from typing import Union, Dict
 import os
 import tempfile
 import zipfile as zf
-import scanpy.api as sc
 
 import patsy
 import pandas as pd
@@ -67,13 +66,7 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     The formula will be chosen by the following order:
         1) from the parameter 'formula'
         2) from dataset[formula_key]
-        3) arbitrarily as '~ 1 {+ explanatory_vars[i]}' for all elements in the explanatory variables
-    
-    The explanatory variables will be chosen by the following order:
-        1) from the parameter 'explanatory_vars'
-        2) from dataset[explanatory_vars_key]
-        3) all variables inside 'dataset'
-    
+
     The resulting design matrix as well as the formula and explanatory variables will be stored at the corresponding
     '*_key' keys in the returned dataset.
     
@@ -81,7 +74,7 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     :param formula: model formula as string, describing the relations of the explanatory variables.
         If None, the formula is assumed to be stored inside 'dataset' as attribute
     
-        E.g. '~ 1 + batch + confounder'
+        E.g. '~ 1 + batch + condition'
     :param formula_key: index of the formula attribute inside 'dataset'.
         Only used, if 'formula' is None.
     :param design_key: Under which key should the design matrix be stored?
@@ -133,6 +126,8 @@ def load_mtx_to_adata(path, cache=True):
         See `scanpy.api.read` for details.
     :return: `anndata.AnnData` object
     """
+    import scanpy.api as sc
+
     ad = sc.read(os.path.join(path, "matrix.mtx"), cache=cache).T
 
     files = os.listdir(os.path.join(path))
@@ -164,6 +159,8 @@ def load_mtx_to_xarray(path):
     :param path: the folder containing the files
     :return: `xarray.DataArray` object
     """
+    import scanpy.api as sc
+
     matrix = sc.read(os.path.join(path, "matrix.mtx"), cache=False).X.toarray()
 
     # retval = xr.Dataset({
@@ -227,3 +224,19 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
                 adatas[root[len(path) + 1:]] = ad
 
     return adatas
+
+
+class ChDir:
+    """
+    Context manager to temporarily change the working directory
+    """
+
+    def __init__(self, path):
+        self.cwd = os.getcwd()
+        self.other_wd = path
+
+    def __enter__(self):
+        os.chdir(self.other_wd)
+
+    def __exit__(self, *args):
+        os.chdir(self.cwd)

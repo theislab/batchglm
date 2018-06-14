@@ -1,14 +1,15 @@
 import abc
 import collections.abc
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, List
 
 import os
 import datetime
-import threading
 
+import numpy as np
 import xarray as xr
 import tensorflow as tf
 
+import pkg_constants
 from models import BasicEstimator
 from .train import StopAtLossHook, TimedRunHook
 
@@ -19,7 +20,7 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
     init_op: tf.Tensor
     train_op: tf.Tensor
     global_step: tf.Tensor
-    
+
     def __init__(self, graph=None):
         if graph is None:
             graph = tf.Graph()
@@ -30,7 +31,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
     model: TFEstimatorGraph
     session: tf.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
-    
+
     @property
     @abc.abstractmethod
     def PARAMS(cls) -> dict:
@@ -39,41 +40,41 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         for all parameters of this estimator.
         """
         pass
-    
+
     def __init__(self, input_data: xr.Dataset, tf_estimator_graph):
         super().__init__(input_data)
-        
+
         self.model = tf_estimator_graph
         self.session = None
-    
+
     def initialize(self):
         self.close_session()
         self.feed_dict = {}
-        
+
         self.session = tf.Session()
-    
+
     def close_session(self):
         try:
             self.session.close()
             return True
         except:
             return False
-    
+
     def run(self, tensor):
         return self.session.run(tensor, feed_dict=self.feed_dict)
-    
+
     def to_xarray(self, params: list):
         # fetch data
         data = self.get(params)
-        
+
         # get shape of params
         shapes = self.PARAMS
-        
+
         output = {key: (shapes[key], data[key]) for key in params}
         output = xr.Dataset(output)
-        
+
         return output
-    
+
     def get(self, key: Union[str, collections.abc.Iterable]) -> Union[Any, Dict[str, Any]]:
         """
         Returns the values of the tensor(s) specified by key.
@@ -86,15 +87,15 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         elif isinstance(key, collections.abc.Iterable):
             d = {s: self.model.__getattribute__(s) for s in key}
             return self.run(d)
-    
+
     @property
     def global_step(self):
         return self.get("global_step")
-    
+
     @property
     def loss(self):
         return self.get("loss")
-    
+
     def __getitem__(self, key):
         """
         See :func:`TFEstimator.get` for reference
@@ -105,15 +106,15 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
     session: tf.train.MonitoredSession
     working_dir: str
-    
+
     def __init__(self, input_data: xr.Dataset, tf_estimator_graph: TFEstimatorGraph):
         super().__init__(input_data, tf_estimator_graph)
-        
+
         self.working_dir = None
-    
+
     def run(self, tensor):
         return self.session._tf_sess().run(tensor, feed_dict=self.feed_dict)
-    
+
     @abc.abstractmethod
     def _scaffold(self) -> tf.train.Scaffold:
         """
@@ -122,7 +123,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         :return: tf.train.Scaffold object
         """
         pass
-    
+
     def initialize(
             self,
             working_dir: str = None,
@@ -132,9 +133,11 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             save_summaries_secs=None,
             stop_at_step=None,
             stop_below_loss_change=None,
+            loss_average_steps=25,
             export_steps=None,
             export_secs=None,
             export: list = None,
+            export_compression=True,
     ):
         """
         Initializes this Estimator.
@@ -155,12 +158,13 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             See keys of `estimator.PARAMS` for possible parameters.
         :param export_steps: number of steps after which the parameters specified in `export` will be exported
         :param export_secs: time period after which the parameters specified in `export` will be exported
+        :param export_compression: Enable compression for exported data. Defaults to `True`.
         """
-        
+
         self.close_session()
         self.feed_dict = {}
         self.working_dir = working_dir
-        
+
         if working_dir is None and not all(val is None for val in [
             save_checkpoint_steps,
             save_checkpoint_secs,
@@ -170,29 +174,29 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             export_secs
         ]):
             raise ValueError("No working_dir provided but actions saving data requested")
-        
+
         with self.model.graph.as_default():
             # set up session parameters
             scaffold = self._scaffold()
-            
+
             hooks = [tf.train.NanTensorHook(self.model.loss), ]
             if export_secs is not None or export_steps is not None:
                 hooks.append(TimedRunHook(
-                    run_steps=export_steps + 1 if export_steps is not None else None,
-                    run_secs=export_secs + 1 if export_secs is not None else None,
+                    run_steps=export_steps if export_steps is not None else None,
+                    run_secs=export_secs if export_secs is not None else None,
                     call_request_tensors={p: self.model.__getattribute__(p) for p in export},
-                    call_fn=lambda sess, step, data: threading.Thread(
-                        target=self._save_timestep,
-                        args=(step, data)
-                    ).start(),
+                    call_fn=lambda sess, step, time_measures, data: self._save_timestep(step, time_measures, data),
+                    asynchronous=True,
                 ))
             if stop_at_step is not None:
                 hooks.append(tf.train.StopAtStepHook(last_step=stop_at_step))
             if stop_below_loss_change is not None:
                 hooks.append(StopAtLossHook(
-                    self.model.loss, min_average_loss_change=stop_below_loss_change)
+                    self.model.loss,
+                    min_loss_change=stop_below_loss_change,
+                    loss_averaging_steps=loss_average_steps)
                 )
-            
+
             # create session
             self.session = tf.train.MonitoredTrainingSession(
                 checkpoint_dir=self.working_dir,
@@ -202,28 +206,42 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                 save_checkpoint_secs=save_checkpoint_secs,
                 save_summaries_steps=save_summaries_steps,
                 save_summaries_secs=save_summaries_secs,
-            
+
             )
-    
-    def _save_timestep(self, step: int, data: dict):
+
+    def _save_timestep(self, step: int, time_measures: List[float], data: dict, compression=True):
         """
         Saves one time step. Special method for TimedRunHook
         
         :param step: the current step which should be saved
         :param data: dict {"param" : data} containing the data which should be saved to disk
+        :param compression: if None, no compression will be used.
+            Otherwise the specified compression will be used for all variables.
         """
         # get shape of params
         shapes = self.PARAMS
-        
+
         # create mapping: {key: (dimensions, data)}
         xarray = {key: (shapes[key], data) for (key, data) in data.items()}
-        
+
         xarray = xr.Dataset(xarray)
-        xarray["global_step"] = (), step
-        xarray["time"] = (), datetime.datetime.now()
-        
-        xarray.to_netcdf(path=os.path.join(self.working_dir, "estimation-%d.h5" % step))
-    
+        xarray.coords["global_step"] = (), step
+        xarray.coords["current_time"] = (), datetime.datetime.now()
+        xarray.coords["time_elapsed"] = (), (np.sum(time_measures) if len(time_measures) > 0 else 0)
+
+        encoding = None
+        if compression:
+            opts = dict()
+            opts["zlib"] = True
+
+            encoding = {var: opts for var in xarray.data_vars if xarray[var].shape != ()}
+
+        path = os.path.join(self.working_dir, "estimation-%d.h5" % step)
+        tf.logging.info("Exporting data to %s" % path)
+        xarray.to_netcdf(path=path,
+                         engine=pkg_constants.XARRAY_NETCDF_ENGINE,
+                         encoding=encoding)
+
     def train(self, *args, feed_dict=None, **kwargs):
         """
         Starts training of the model
@@ -240,7 +258,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                 (self.model.global_step, self.model.loss, self.model.train_op),
                 feed_dict=feed_dict
             )
-            
+
             tf.logging.info("Step: %d\tloss: %f" % (train_step, loss_res))
-        
+
         return loss_res

@@ -29,7 +29,7 @@ def estimate(sim: Simulator, working_dir: str):
     return estimator
 
 
-class Negative_Binomial_Test(unittest.TestCase):
+class NegativeBinomialTest(unittest.TestCase):
     sim: Simulator
     working_dir: tempfile.TemporaryDirectory
     
