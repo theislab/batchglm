@@ -55,6 +55,7 @@ def _factors_from_formula(formula):
 
 
 def design_matrix_from_dataset(dataset: xr.Dataset,
+                               dim: str,
                                formula=None,
                                formula_key="formula",
                                design_key="design",
@@ -69,7 +70,10 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
 
     The resulting design matrix as well as the formula and explanatory variables will be stored at the corresponding
     '*_key' keys in the returned dataset.
-    
+
+    :param dim: name of the dimension for which the design matrix should be created.
+
+        The design matrix will be of shape (dim, "design_params").
     :param dataset: xarray.Dataset containing explanatory variables.
     :param formula: model formula as string, describing the relations of the explanatory variables.
         If None, the formula is assumed to be stored inside 'dataset' as attribute
@@ -102,10 +106,13 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     explanatory_vars = set(dataset.variables.keys())
     explanatory_vars = list(explanatory_vars.intersection(factors))
 
-    dimensions = list(dataset[explanatory_vars].dims.keys())
-    dimensions.append("design_params")
+    dimensions = (dim, "design_params")
 
-    sample_description = dataset[explanatory_vars].to_dataframe()
+    if len(explanatory_vars) > 0:
+        sample_description = dataset[explanatory_vars].to_dataframe()
+    else:
+        sample_description = pd.DataFrame({"intercept": range(dataset.dims[dim])})
+
     dataset[design_key] = (
         dimensions,
         design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)

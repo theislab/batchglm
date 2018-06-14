@@ -315,13 +315,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self,
             *args,
             stop_below_loss_change=1e-5,
-            loss_average_steps=200,
+            loss_averaging_steps=200,
             **kwargs,
     ):
         super().initialize(
             *args,
             stop_below_loss_change=stop_below_loss_change,
-            loss_average_steps=loss_average_steps,
+            loss_averaging_steps=loss_averaging_steps,
             **kwargs
         )
 
@@ -344,6 +344,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def b(self):
         return self.get("b")
+
+    @property
+    def gradient(self):
+        return self.get("gradient")
 
     @property
     def count_probs(self):

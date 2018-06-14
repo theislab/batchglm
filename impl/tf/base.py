@@ -133,7 +133,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             save_summaries_secs=None,
             stop_at_step=None,
             stop_below_loss_change=None,
-            loss_average_steps=25,
+            loss_averaging_steps=50,
             export_steps=None,
             export_secs=None,
             export: list = None,
@@ -152,6 +152,12 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         :param stop_at_step: the step after which the training will be interrupted
         :param stop_below_loss_change: training will be interrupted as soon as the loss improvement drops
             below this value
+        :param loss_averaging_steps: if `stop_below_loss_change` is used, this parameter specifies the number of
+            steps used to average the loss.
+
+            E.g. a value of '25' would mean that the loss change at step `i` would be calculated as
+                `mean_loss(i-24, [...], i) - mean_loss(i-49, [...], i-25)`.
+            Useful in cases where the loss is not monotonously falling, e.g. when using mini-batches.
         :param export: list of parameter names.
         
             These parameters will be fetched from `model` and exported as NetCDF4-formatted `xarray.dataset`'s.
@@ -194,8 +200,8 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                 hooks.append(StopAtLossHook(
                     self.model.loss,
                     min_loss_change=stop_below_loss_change,
-                    loss_averaging_steps=loss_average_steps)
-                )
+                    loss_averaging_steps=loss_averaging_steps
+                ))
 
             # create session
             self.session = tf.train.MonitoredTrainingSession(

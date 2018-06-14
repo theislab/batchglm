@@ -172,6 +172,10 @@ class StopAtLossHook(tf.train.SessionRunHook):
         :param min_loss_change: minimum change between loss of the last step and the current loss.
         :param loss_averaging_steps:
             Number of steps which will be remembered for averaging.
+
+            E.g. a value of '25' would mean that the loss change at step `i` would be calculated as
+                `mean_loss(i-24, [...], i) - mean_loss(i-49, [...], i-25)`.
+            Useful in cases where the loss is not monotonously falling, e.g. when using mini-batches.
         """
         self._loss_history = np.repeat(np.inf, loss_averaging_steps)
         self._last_step = None
@@ -202,8 +206,12 @@ class StopAtLossHook(tf.train.SessionRunHook):
         loss = run_values.results["loss"]
 
         if global_step >= self._last_step:
-            if self.loss_change < self.min_loss_change:
+            loss_change = self.loss_change
+            if loss_change < self.min_loss_change:
                 run_context.request_stop()
+
+            if global_step % self._loss_history.size == 0 and not np.isinf(loss_change):
+                tf.logging.info("loss change at step %d: %s" % (global_step, loss_change))
 
             self._last_step = global_step
             self._update_loss_change(global_step, loss)
