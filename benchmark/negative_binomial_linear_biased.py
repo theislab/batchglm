@@ -32,16 +32,16 @@ def init_benchmark(
     sim.save(os.path.join(root_dir, config["sim_data"]))
 
     config["benchmark_samples"] = {
-        "batch_sgd": prepare_benchmark_sample(
+        "minibatch_sgd": prepare_benchmark_sample(
             root_dir=root_dir,
-            working_dir="batch_sgd",
+            working_dir="minibatch_sgd",
             batch_size=batch_size,
             stop_at_step=stop_at_step,
             learning_rate=learning_rate,
         ),
-        "sgd": prepare_benchmark_sample(
+        "gradient_descent": prepare_benchmark_sample(
             root_dir=root_dir,
-            working_dir="sgd",
+            working_dir="gradient_descent",
             batch_size=sim.num_samples,
             stop_at_step=stop_at_step,
             learning_rate=learning_rate,
@@ -151,9 +151,6 @@ def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Sim
 
 
 def plot_benchmark(root_dir: str, config_file="config.yml"):
-    root_dir = os.path.expanduser("~/Sync/tmp/test")
-    config_file = "config.yml"
-
     print("loading config...", end="", flush=True)
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
@@ -172,7 +169,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
 
     from dask.diagnostics import ProgressBar
 
-    def mapd_plot(mapd_val):
+    def plot_mapd(mapd_val, name_prefix):
         with ProgressBar():
             df = mapd_val.to_dataframe("mapd").reset_index()
 
@@ -182,50 +179,54 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
                 + pn.geom_vline(xintercept=df.loc[[np.argmin(df.mapd)]].time_elapsed.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df.mapd), alpha=0.5)
                 )
-        return plot
+        plot.save(os.path.join(plot_dir, name_prefix + ".time.svg"), format="svg")
+
+        plot = (pn.ggplot(df)
+                + pn.aes(x="global_step", y="mapd", group="benchmark", color="benchmark")
+                + pn.geom_line()
+                + pn.geom_vline(xintercept=df.loc[[np.argmin(df.mapd)]].global_step.values[0], color="black")
+                + pn.geom_hline(yintercept=np.min(df.mapd), alpha=0.5)
+                )
+        plot.save(os.path.join(plot_dir, name_prefix + ".step.svg"), format="svg")
 
     print("plotting...")
-    mapd_val = stat_utils.rmsd(
+    mapd_val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.a[0], dims=("genes",))),
         np.exp(benchmark_data.a.isel(design_params=0)), axis=[0])
-    plot = mapd_plot(mapd_val)
-    plot.save(os.path.join(plot_dir, "real_mu.svg"), format="svg")
-    # plt.show()
+    plot_mapd(mapd_val, "real_mu")
 
-    mapd_val = stat_utils.rmsd(
+    mapd_val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.b[0], dims=("genes",))),
         np.exp(benchmark_data.b.isel(design_params=0)), axis=[0])
-    plot = mapd_plot(mapd_val)
-    plot.save(os.path.join(plot_dir, "real_r.svg"), format="svg")
-    # plt.show()
+    plot_mapd(mapd_val, "real_r")
 
     print("ready")
 
 
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--root_dir', help='root directory of the benchmark', required=True)
     subparsers = parser.add_subparsers(help='select an action')
 
-    init = subparsers.add_parser('init', help='set up a benchmark')
-    init.set_defaults(action='init')
-    init.add_argument('--num_samples', help='number of samples to generate', type=int, default=4000)
-    init.add_argument('--num_genes', help='number of genes to generate', type=int, default=500)
-    init.add_argument('--batch_size', help='batch size to use for mini-batch SGD', type=int, default=500)
-    init.add_argument('--learning_rate', help='learning rate to use for all optimizers', type=float, default=0.05)
-    init.add_argument('--stop_at_step', help='number of steps to run', type=int, default=5000)
+    act_init = subparsers.add_parser('init', help='set up a benchmark')
+    act_init.set_defaults(action='init')
+    act_init.add_argument('--num_samples', help='number of samples to generate', type=int, default=4000)
+    act_init.add_argument('--num_genes', help='number of genes to generate', type=int, default=500)
+    act_init.add_argument('--batch_size', help='batch size to use for mini-batch SGD', type=int, default=500)
+    act_init.add_argument('--learning_rate', help='learning rate to use for all optimizers', type=float, default=0.05)
+    act_init.add_argument('--stop_at_step', help='number of steps to run', type=int, default=5000)
 
-    run = subparsers.add_parser('run', help='run a benchmark')
-    run.set_defaults(action='run')
-    run.add_argument('--benchmark_sample', help='If specified, only this benchmark sample will be executed')
+    act_run = subparsers.add_parser('run', help='run a benchmark')
+    act_run.set_defaults(action='run')
+    act_run.add_argument('--benchmark_sample', help='If specified, only this benchmark sample will be executed')
 
-    print_samples = subparsers.add_parser('print_samples', help='print all benchmark samples')
-    print_samples.set_defaults(action='print_samples')
+    act_print_samples = subparsers.add_parser('print_samples', help='print all benchmark samples')
+    act_print_samples.set_defaults(action='print_samples')
 
-    plot = subparsers.add_parser('plot', help='generate plots')
-    plot.set_defaults(action='plot')
+    act_plot = subparsers.add_parser('plot', help='generate plots')
+    act_plot.set_defaults(action='plot')
 
     args, unknown = parser.parse_known_args()
 
@@ -256,3 +257,7 @@ if __name__ == '__main__':
             print(smpl)
     elif action == "plot":
         plot_benchmark(root_dir)
+
+
+if __name__ == '__main__':
+    main()
