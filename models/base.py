@@ -1,4 +1,6 @@
 import abc
+from typing import Union, Any, Dict, Iterable
+
 import os
 
 import xarray as xr
@@ -6,11 +8,68 @@ import xarray as xr
 import pkg_constants
 
 
-class BasicEstimator(metaclass=abc.ABCMeta):
-    input_data: xr.Dataset
+class BasicModel(metaclass=abc.ABCMeta):
+
+    @classmethod
+    @abc.abstractmethod
+    def params(cls) -> dict:
+        """
+        This method should return a dict of {parameter: (dim0_name, dim1_name, ..)} mappings
+        for all parameters of this estimator.
+        """
+        raise NotImplementedError()
+
+    def to_xarray(self, params: list):
+        # fetch data
+        data = self.get(params)
+
+        # get shape of params
+        shapes = self.params()
+
+        output = {key: (shapes[key], data[key]) for key in params}
+        output = xr.Dataset(output)
+
+        return output
+
+    @abc.abstractmethod
+    def export_params(self, append_to=None, **kwargs):
+        """
+        Exports this model in another format
+
+        :param append_to: If specified, the parameters will be appended to this data set
+        :return: data set containing all necessary parameters of this model.
+
+            If `append_to` is specified, the return value will be of type `type(append_to)`.
+
+            Otherwise, a xarray.Dataset will be returned.
+        """
+        pass
+
+    def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
+        """
+        Returns the values specified by key.
+
+        :param key: Either a string or an iterable list/set/tuple/etc. of strings
+        :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
+        """
+        for k in list(key):
+            if k not in self.params():
+                raise ValueError("Unknown parameter %s" % k)
+
+        if isinstance(key, str):
+            return self.__getattribute__(key)
+        elif isinstance(key, Iterable):
+            return {s: self.__getattribute__(s) for s in key}
+
+    def __getitem__(self, item):
+        return self.get(item)
+
+
+class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
+    input_data: any
     loss: any
 
-    def __init__(self, input_data: xr.Dataset):
+    def __init__(self, input_data):
         self.input_data = input_data
 
     def validate_data(self, **kwargs):
@@ -25,7 +84,7 @@ class BasicEstimator(metaclass=abc.ABCMeta):
         pass
 
 
-class BasicSimulator(metaclass=abc.ABCMeta):
+class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
     num_samples: int
     num_genes: int
 

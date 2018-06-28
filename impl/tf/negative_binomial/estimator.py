@@ -9,23 +9,22 @@ try:
 except ImportError:
     anndata = None
 
-# import impl.tf.ops as tf_ops
-# import impl.tf.util as tf_utils
 from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
-from .util import fit, NegativeBinomial
+from . import util as nb_utils
 
-PARAMS = {
-    "mu": ("samples", "genes"),
-    "r": ("samples", "genes"),
-    "sigma2": ("samples", "genes"),
-    "loss": ()
-}
+ESTIMATOR_PARAMS = AbstractEstimator.params().copy()
+ESTIMATOR_PARAMS.update({
+    "mu_raw": ("genes",),
+    "r_raw": ("genes",),
+    "sigma2_raw": ("genes",),
+})
 
 
 class EstimatorGraph(TFEstimatorGraph):
     sample_data: tf.Tensor
 
     mu: tf.Tensor
+    r: tf.Tensor
     sigma2: tf.Tensor
 
     def __init__(self, sample_data, num_samples, num_genes, graph=None, optimizable=True):
@@ -43,7 +42,7 @@ class EstimatorGraph(TFEstimatorGraph):
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
             global_step = tf.train.get_or_create_global_step()
 
-            distribution = fit(sample_data=sample_data, optimizable=optimizable, name="fit_nb-dist")
+            distribution = nb_utils.fit(sample_data=sample_data, optimizable=optimizable, name="fit_nb-dist")
 
             count_probs = distribution.prob(sample_data, name="count_probs")
             log_count_probs = distribution.log_prob(sample_data, name="log_count_probs")
@@ -66,9 +65,13 @@ class EstimatorGraph(TFEstimatorGraph):
             # set up class attributes
             self.sample_data = sample_data
 
-            self.mu = distribution.mean()
-            self.r = distribution.r
-            self.sigma2 = distribution.variance()
+            self.mu_raw = distribution.mean()
+            self.r_raw = distribution.r
+            self.sigma2_raw = distribution.variance()
+
+            self.mu = tf.tile(self.mu_raw, (num_samples, 1))
+            self.r = tf.tile(self.r_raw, (num_samples, 1))
+            self.sigma2 = tf.tile(self.sigma2_raw, (num_samples, 1))
 
             self.distribution = distribution
             self.count_probs = count_probs
@@ -87,31 +90,31 @@ class EstimatorGraph(TFEstimatorGraph):
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
 
-    @property
-    def PARAMS(cls) -> dict:
-        return PARAMS
+    @classmethod
+    def params(cls) -> dict:
+        return ESTIMATOR_PARAMS
 
     def __init__(self, input_data: xr.Dataset, model=None, fast=False):
-        num_genes = input_data.dims["genes"]
-        num_samples = input_data.dims["samples"]
-
         if model is None:
             tf.reset_default_graph()
 
             # read input_data
-            if isinstance(input_data, xr.Dataset):
-                num_genes = input_data.dims["genes"]
-                num_samples = input_data.dims["samples"]
-
-                sample_data = np.asarray(input_data["sample_data"], dtype=np.float32)
-            elif anndata is not None and isinstance(input_data, anndata.AnnData):
-                num_genes = input_data.n_vars
-                num_samples = input_data.n_obs
-
+            if anndata is not None and isinstance(input_data, anndata.AnnData):
                 # TODO: load sample_data as sparse array instead of casting it to a dense numpy array
                 sample_data = np.asarray(input_data.X, dtype=np.float32)
+
+                num_genes = input_data.n_vars
+                num_samples = input_data.n_obs
+            elif isinstance(input_data, xr.Dataset):
+                sample_data = np.asarray(input_data["sample_data"], dtype=np.float32)
+
+                num_genes = input_data.dims["genes"]
+                num_samples = input_data.dims["samples"]
             else:
-                raise ValueError("input_data has to be an instance of either xarray.Dataset or anndata.AnnData")
+                sample_data = input_data
+                (num_samples, num_genes) = input_data.shape
+
+            self._sample_data = sample_data
 
             model = EstimatorGraph(sample_data,
                                    num_samples, num_genes,
@@ -132,6 +135,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         super().train(feed_dict={"learning_rate:0": learning_rate})
 
     @property
+    def sample_data(self):
+        return self._sample_data
+
+    @property
     def mu(self):
         return self.get("mu")
 
@@ -143,14 +150,20 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def sigma2(self):
         return self.get("sigma2")
 
-    @property
-    def count_probs(self):
-        return self.get("count_probs")
+    def count_probs(self, sample_data=None):
+        if sample_data is None:
+            return self.get("count_probs")
+        else:
+            return super().count_probs(sample_data)
 
-    @property
-    def log_count_probs(self):
-        return self.get("log_count_probs")
+    def log_count_probs(self, sample_data=None):
+        if sample_data is None:
+            return self.get("log_count_probs")
+        else:
+            return super().log_count_probs(sample_data)
 
-    @property
-    def log_likelihood(self):
-        return self.get("log_likelihood")
+    def log_likelihood(self, sample_data=None):
+        if sample_data is None:
+            return self.get("log_likelihood")
+        else:
+            return super().log_likelihood(sample_data)

@@ -1,7 +1,27 @@
+from typing import Union
+
 import tensorflow as tf
 
 
-def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, name="mean", **kwargs):
+def reduce_sum(input_tensor, axis=None, keepdims=False, name="sum") -> Union[tf.Tensor, tf.SparseTensor]:
+    if isinstance(input_tensor, tf.SparseTensor):
+        with tf.name_scope(name):
+            return tf.sparse_reduce_sum(input_tensor, axis=axis, keep_dims=keepdims)
+    else:
+        return tf.reduce_sum(input_tensor, axis=axis, keepdims=keepdims, name=name)
+
+
+def reduce_mean(input_tensor, axis=None, keepdims=False, name="mean") -> Union[tf.Tensor, tf.SparseTensor]:
+    if isinstance(input_tensor, tf.SparseTensor):
+        with tf.name_scope(name):
+            size = tf.size(input_tensor) if axis is None else tf.cumprod(tf.gather(tf.shape(input_tensor), axis))
+            sum = reduce_sum(input_tensor, axis=None, keepdims=False)
+            return sum / tf.cast(size, dtype=sum.dtype)
+    else:
+        return tf.reduce_mean(input_tensor, axis=axis, keepdims=keepdims, name=name)
+
+
+def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, name="weighted_mean"):
     """
     Calculates the weighted mean of `input_tensor`. See also tf.reduce_mean
 
@@ -15,25 +35,23 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
 
     .. seealso:: :py:meth:`reduce_mean()` in module :py:mod:`tensorflow`
     """
-
+    
     retval = None
     if weight is None:
-        retval = tf.reduce_mean(input_tensor, axis=axis, name=name, keepdims=True, **kwargs)
+        retval = reduce_mean(input_tensor, axis=axis, name=name, keepdims=True)
     else:
         with tf.name_scope(name):
-            retval = tf.reduce_sum(weight * input_tensor,
-                                   axis=axis,
-                                   keepdims=True,
-                                   name="sum_of_fractions",
-                                   **kwargs) / tf.reduce_sum(weight,
-                                                             axis=axis,
-                                                             keepdims=True,
-                                                             name="denominator_sum",
-                                                             **kwargs)
-
+            retval = reduce_sum(weight * input_tensor,
+                                axis=axis,
+                                keepdims=True,
+                                name="sum_of_fractions") / reduce_sum(weight,
+                                                                      axis=axis,
+                                                                      keepdims=True,
+                                                                      name="denominator_sum")
+    
     if not keepdims:
         retval = tf.squeeze(retval, axis=axis)
-
+    
     return retval
 
 
@@ -61,10 +79,10 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
         idx1 = rank[axis1]
         perm0 = tf.where(tf.equal(rank, idx0), tf.tile(tf.expand_dims(idx1, 0), [tf.size(rank)]), rank)
         perm1 = tf.where(tf.equal(rank, idx1), tf.tile(tf.expand_dims(idx0, 0), [tf.size(rank)]), perm0)
-
+    
     if exec_transpose:
         retval = tf.transpose(tensor, perm1)
-
+        
         if return_perm:
             return retval, perm1
         else:
@@ -99,11 +117,11 @@ def for_loop(condition, modifier, body_fn, idx=0):
     :return: tf.while_loop
     """
     idx = tf.convert_to_tensor(idx)
-
+    
     def body(i):
         with tf.control_dependencies([body_fn(i)]):
             return [modifier(i)]
-
+    
     # do the loop:
     loop = tf.while_loop(condition, body, [idx])
     return loop
@@ -177,7 +195,7 @@ def keep_const(tensor: tf.Tensor, cond: tf.Tensor, constant: tf.Tensor = None, n
     with tf.name_scope(name):
         if constant is None:
             constant = tf.stop_gradient(tensor)
-
+        
         constant = tf.broadcast_to(constant, shape=cond)
         return tf.where(cond, tensor, constant)
 
@@ -193,6 +211,6 @@ def caching_placeholder(dtype, shape=None, name=None):
     :return: tf.Variable, initialized by the placeholder
     """
     placehldr = tf.placeholder(dtype, shape=shape, name=name)
-
+    
     var = tf.Variable(placehldr, trainable=False, name=name + "_cache")
     return var

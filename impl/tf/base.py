@@ -1,6 +1,5 @@
 import abc
-import collections.abc
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Union, List, Iterable
 
 import os
 import datetime
@@ -10,8 +9,9 @@ import xarray as xr
 import tensorflow as tf
 
 import pkg_constants
-from models import BasicEstimator
+from models.base import BasicEstimator
 from .train import StopAtLossHook, TimedRunHook
+import utils.stats as stat_utils
 
 
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
@@ -32,15 +32,6 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
     session: tf.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
 
-    @property
-    @abc.abstractmethod
-    def PARAMS(cls) -> dict:
-        """
-        This method should return a dict of {parameter: (dim0_name, dim1_name, ..)} mappings
-        for all parameters of this estimator.
-        """
-        pass
-
     def __init__(self, input_data: xr.Dataset, tf_estimator_graph):
         super().__init__(input_data)
 
@@ -54,28 +45,25 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         self.session = tf.Session()
 
     def close_session(self):
+        if self.session is None:
+            return False
         try:
             self.session.close()
             return True
-        except:
+        except tf.errors.OpError:
             return False
 
     def run(self, tensor):
         return self.session.run(tensor, feed_dict=self.feed_dict)
 
-    def to_xarray(self, params: list):
-        # fetch data
-        data = self.get(params)
+    def _get_unsafe(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
+        if isinstance(key, str):
+            return self.run(self.model.__getattribute__(key))
+        elif isinstance(key, Iterable):
+            d = {s: self.model.__getattribute__(s) for s in key}
+            return self.run(d)
 
-        # get shape of params
-        shapes = self.PARAMS
-
-        output = {key: (shapes[key], data[key]) for key in params}
-        output = xr.Dataset(output)
-
-        return output
-
-    def get(self, key: Union[str, collections.abc.Iterable]) -> Union[Any, Dict[str, Any]]:
+    def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
         """
         Returns the values of the tensor(s) specified by key.
 
@@ -83,10 +71,13 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
         """
         if isinstance(key, str):
-            return self.run(self.model.__getattribute__(key))
-        elif isinstance(key, collections.abc.Iterable):
-            d = {s: self.model.__getattribute__(s) for s in key}
-            return self.run(d)
+            if key not in self.params():
+                raise ValueError("Unknown parameter %s" % key)
+        elif isinstance(key, Iterable):
+            for k in list(key):
+                if k not in self.params():
+                    raise ValueError("Unknown parameter %s" % k)
+        return self._get_unsafe(key)
 
     @property
     def global_step(self):
@@ -96,11 +87,105 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
     def loss(self):
         return self.get("loss")
 
-    def __getitem__(self, key):
+    def _train_to_convergence(self,
+                              feed_dict,
+                              loss_history_size,
+                              stop_at_loss_change,
+                              convergence_criteria="t_test"):
+
+        previous_loss_hist = np.tile(np.inf, loss_history_size)
+        loss_hist = np.tile(np.inf, loss_history_size)
+
+        def should_stop(step):
+            if step % len(loss_hist) == 0 and not np.any(np.isinf(previous_loss_hist)):
+                if convergence_criteria == "simple":
+                    change = loss_hist[-2] - loss_hist[-1]
+                    tf.logging.info("loss change: %f", change)
+                    return change < stop_at_loss_change
+                if convergence_criteria == "moving_average":
+                    change = np.mean(previous_loss_hist) - np.mean(loss_hist)
+                    tf.logging.info("loss change: %f", change)
+                    return change < stop_at_loss_change
+                elif convergence_criteria == "absolute_moving_average":
+                    change = np.abs(np.mean(previous_loss_hist) - np.mean(loss_hist))
+                    tf.logging.info("absolute loss change: %f", change)
+                    return change < stop_at_loss_change
+                elif convergence_criteria == "t_test":
+                    pval = stat_utils.t_test(previous_loss_hist, loss_hist)
+                    tf.logging.info("pval: %f", pval)
+                    return pval > stop_at_loss_change
+            else:
+                return False
+
+        while True:
+            train_step, global_loss, _ = self.session.run(
+                (self.model.global_step, self.model.loss, self.model.train_op),
+                feed_dict=feed_dict
+            )
+
+            tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
+
+            # update last_loss every N+1st step:
+            if train_step % len(loss_hist) == 1:
+                previous_loss_hist = np.copy(loss_hist)
+
+            loss_hist[(train_step - 1) % len(loss_hist)] = global_loss
+
+            # check convergence every N steps:
+            if should_stop(train_step):
+                break
+
+        return np.mean(loss_hist)
+
+    def train(self, *args,
+              feed_dict=None,
+              convergence_criteria="t_test",
+              loss_history_size=None,
+              stop_at_loss_change=None,
+              **kwargs):
         """
-        See :func:`TFEstimator.get` for reference
+        Starts training of the model
+
+        :param feed_dict: dict of values which will be feeded each `session.run()`
+
+            See also feed_dict parameter of `session.run()`.
+        :param convergence_criteria: criteria after which the training will be interrupted.
+
+            Currently implemented criterias:
+
+            "simple":
+                stop, when `loss(step=i) - loss(step=i-1)` < `stop_at_loss_change`
+            "moving_average":
+                stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stop_at_loss_change`
+            "absolute_moving_average":
+                stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stop_at_loss_change`
+            "t_test" (recommended):
+                Perform t-Test between the last [i-2N..i-N] and [i-N..i] losses.
+                Stop if P("both distributions are equal") > `stop_at_loss_change`.
+        :param stop_at_loss_change: Additional parameter for convergence criteria.
+
+            See parameter `convergence_criteria` for exact meaning
+        :param loss_history_size: specifies `N` in `convergence_criteria`.
+
+        :returns last value of `loss`
         """
-        return self.get(key)
+        # feed_dict = dict() if feed_dict is None else feed_dict.copy()
+
+        # default values:
+        if loss_history_size is None:
+            loss_history_size = 200
+        if stop_at_loss_change is None:
+            if convergence_criteria in ["simple", "moving_agerage", "absolute_moving_average"]:
+                stop_at_loss_change = 1e-5
+            else:
+                stop_at_loss_change = 0.05
+
+        self._train_to_convergence(
+            convergence_criteria=convergence_criteria,
+            loss_history_size=loss_history_size,
+            stop_at_loss_change=stop_at_loss_change,
+            feed_dict=feed_dict
+        )
 
 
 class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
@@ -112,8 +197,10 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
 
         self.working_dir = None
 
-    def run(self, tensor):
-        return self.session._tf_sess().run(tensor, feed_dict=self.feed_dict)
+    def run(self, tensor, feed_dict=None):
+        if feed_dict is None:
+            feed_dict = self.feed_dict
+        return self.session._tf_sess().run(tensor, feed_dict=feed_dict)
 
     @abc.abstractmethod
     def _scaffold(self) -> tf.train.Scaffold:
@@ -225,7 +312,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             Otherwise the specified compression will be used for all variables.
         """
         # get shape of params
-        shapes = self.PARAMS
+        shapes = self.params()
 
         # create mapping: {key: (dimensions, data)}
         xarray = {key: (shapes[key], data) for (key, data) in data.items()}
@@ -248,23 +335,25 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                          engine=pkg_constants.XARRAY_NETCDF_ENGINE,
                          encoding=encoding)
 
-    def train(self, *args, feed_dict=None, **kwargs):
+    def train(self, *args,
+              use_stop_hooks=False,
+              **kwargs):
         """
-        Starts training of the model
-        
-        :param feed_dict: dict of values which will be feeded each `session.run()`
-            
-            See also feed_dict parameter of `session.run()`.
-        :returns last value of `loss`
+        See TFEstimator.train() for more options
+
+        :param use_stop_hooks: [Experimental]
+
+            If true, session run hooks have to call `request_stop` to end training.
+
+            See `tf.train.SessionRunHook` for details.
         """
-        # feed_dict = dict() if feed_dict is None else feed_dict.copy()
-        loss_res = None
-        while not self.session.should_stop():
-            train_step, loss_res, _ = self.session.run(
-                (self.model.global_step, self.model.loss, self.model.train_op),
-                feed_dict=feed_dict
-            )
+        if use_stop_hooks:
+            while not self.session.should_stop():
+                train_step, loss_res, _ = self.session.run(
+                    (self.model.global_step, self.model.loss, self.model.train_op),
+                    feed_dict=kwargs.get("feed_dict", None)
+                )
 
-            tf.logging.info("Step: %d\tloss: %f" % (train_step, loss_res))
-
-        return loss_res
+                tf.logging.info("Step: %d\tloss: %f" % (train_step, loss_res))
+        else:
+            super().train(*args, **kwargs)

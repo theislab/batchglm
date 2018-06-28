@@ -9,6 +9,11 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 
+try:
+    import anndata
+except ImportError:
+    anndata = None
+
 
 def design_matrix(sample_description: pd.DataFrame, formula: str,
                   as_categorical: Union[bool, list] = True) -> patsy.design_info.DesignMatrix:
@@ -40,27 +45,32 @@ def design_matrix(sample_description: pd.DataFrame, formula: str,
             if to_cat:
                 sample_description[col] = sample_description[col].astype("category")
 
-    dmatrix = patsy.dmatrix(formula, sample_description)
+    dmatrix = patsy.highlevel.dmatrix(formula, sample_description)
     return dmatrix
 
 
-def _factors_from_formula(formula):
-    desc = patsy.ModelDesc.from_formula(formula)
-    factors = set()
-    for l in [list(t.factors) for t in desc.rhs_termlist]:
-        for i in l:
-            factors.add(i.name())
+#
+# def _factors(formula_like: Union[str, patsy.design_info.DesignInfo]):
+#     if isinstance(formula_like, str):
+#         desc = patsy.desc.ModelDesc.from_formula(formula_like)
+#
+#         factors = set()
+#         for l in [list(t.factors) for t in desc.rhs_termlist]:
+#             for i in l:
+#                 factors.add(i.name())
+#
+#         return factors
+#     else:
+#         return formula_like.term_names
 
-    return factors
 
-
-def design_matrix_from_dataset(dataset: xr.Dataset,
-                               dim: str,
-                               formula=None,
-                               formula_key="formula",
-                               design_key="design",
-                               as_categorical=True,
-                               inplace=False):
+def design_matrix_from_xarray(dataset: xr.Dataset,
+                              dim: str,
+                              formula=None,
+                              formula_key="formula",
+                              design_key="design",
+                              as_categorical=True,
+                              append=False):
     """
     Create a design matrix from a given xarray.Dataset and model formula.
     
@@ -80,7 +90,7 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     
         E.g. '~ 1 + batch + condition'
     :param formula_key: index of the formula attribute inside 'dataset'.
-        Only used, if 'formula' is None.
+        Will store the formula as `dataset.attrs[formula_key]` inside the dataset
     :param design_key: Under which key should the design matrix be stored?
     :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
         
@@ -90,21 +100,31 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
         is True.
         
         Set to false, if columns should not be changed.
-    :param inplace: should 'dataset' be changed inplace?
-    :return: xarray.Dataset containing the created design matrix as variable named 'design_key'
+    :param append: should 'dataset' be changed inplace by appending the design matrix and formula?
+    :return:
+        if append is False:
+            2D design matrix
+        else:
+            xarray.Dataset containing the created design matrix as <retval>[design_key] and the formula as
+            <retval>.attrs[formula_key]
     """
-    if not inplace:
-        dataset = dataset.copy()
-
     if formula is None:
         formula = dataset.attrs.get(formula_key)
     if formula is None:
         # could not find formula; try to construct it from explanatory variables
         raise ValueError("formula could not be found")
 
-    factors = _factors_from_formula(formula)
-    explanatory_vars = set(dataset.variables.keys())
-    explanatory_vars = list(explanatory_vars.intersection(factors))
+    # explanatory_vars = _factors(formula)
+    # explanatory_vars.remove("Intercept")
+    #
+    # # explanatory_vars = set(dataset.variables.keys())
+    # # explanatory_vars = list(explanatory_vars.intersection(factors))
+    #
+    # for i in explanatory_vars:
+    #     if i not in dataset.variables:
+    #         raise ValueError("Unknown variable: %s" % i)
+
+    explanatory_vars = [key for key, val in dataset.variables.items() if val.dims == (dim,)]
 
     dimensions = (dim, "design_params")
 
@@ -113,14 +133,89 @@ def design_matrix_from_dataset(dataset: xr.Dataset,
     else:
         sample_description = pd.DataFrame({"intercept": range(dataset.dims[dim])})
 
-    dataset[design_key] = (
-        dimensions,
-        design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
-    )
+    dmat = design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
 
-    dataset.attrs[formula_key] = formula
+    if append:
+        dataset[design_key] = (
+            dimensions,
+            dmat
+        )
 
-    return dataset
+        dataset.attrs[formula_key] = formula
+
+        return dataset
+    else:
+        return dmat
+
+
+def design_matrix_from_anndata(dataset: anndata.AnnData,
+                               formula=None,
+                               formula_key="formula",
+                               design_key="design",
+                               as_categorical=True,
+                               append=False):
+    """
+    Create a design matrix from a given xarray.Dataset and model formula.
+
+    The formula will be chosen by the following order:
+        1) from the parameter 'formula'
+        2) from dataset.uns[formula_key]
+
+    The resulting design matrix as well as the formula and explanatory variables will be stored at the corresponding
+    '*_key' keys in the returned dataset.
+
+    :param dataset: anndata.AnnData containing explanatory variables.
+    :param formula: model formula as string, describing the relations of the explanatory variables.
+        If None, the formula is assumed to be stored inside 'dataset' as attribute
+
+        E.g. '~ 1 + batch + condition'
+    :param formula_key: index of the formula attribute inside 'dataset'.
+        Will store the formula as `dataset.uns[formula_key]` inside the dataset
+    :param design_key: Under which key should the design matrix be stored?
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
+    :param append: should 'dataset' be changed inplace by appending the design matrix and formula?
+    :return:
+        if append is False:
+            2D design matrix
+        else:
+            anndata.AnnData containing the created design matrix as <retval>.obsm[design_key] and the formula as
+            <retval>.uns[formula_key]
+    """
+    if formula is None:
+        formula = dataset.uns.get(formula_key)
+    if formula is None:
+        # could not find formula; try to construct it from explanatory variables
+        raise ValueError("formula could not be found")
+
+    # explanatory_vars = _factors(formula)
+    # explanatory_vars.remove("Intercept")
+    #
+    # # explanatory_vars = set(dataset.obs.keys())
+    # # explanatory_vars = list(explanatory_vars.intersection(factors))
+    #
+    # for i in explanatory_vars:
+    #     if i not in dataset.obs:
+    #         raise ValueError("Unknown variable: %s" % i)
+
+    sample_description = dataset.obs
+
+    dmat = design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
+
+    if append:
+        dataset.obsm[design_key] = dmat
+
+        dataset.uns[formula_key] = formula
+
+        return dataset
+    else:
+        return dmat
 
 
 def load_mtx_to_adata(path, cache=True):
@@ -146,7 +241,7 @@ def load_mtx_to_adata(path, cache=True):
 
             tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
             ad.var = tbl
-            ad.var_names = tbl[1]
+            # ad.var_names = tbl[1]
         elif file.startswith("barcodes"):
             delim = ","
             if file.endswith("tsv"):
@@ -154,8 +249,11 @@ def load_mtx_to_adata(path, cache=True):
 
             tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
             ad.obs = tbl
-            ad.obs_names = tbl[0]
-    ad.var_names_make_unique()
+            # ad.obs_names = tbl[0]
+    # ad.var_names_make_unique()
+    ad.var.columns = ad.var.columns.astype(str)
+    ad.obs.columns = ad.obs.columns.astype(str)
+
     return ad
 
 

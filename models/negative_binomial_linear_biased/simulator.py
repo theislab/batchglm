@@ -7,7 +7,7 @@ import xarray as xr
 # import patsy
 
 import data as data_utils
-from models.negative_binomial import NegativeBinomialSimulator
+from models.negative_binomial.simulator import Simulator as NegativeBinomialSimulator
 from .base import Model
 
 
@@ -15,6 +15,7 @@ def generate_sample_description(num_samples, num_batches=4, num_conditions=2) ->
     ds = {}
     var_list = ["~ 1"]
 
+    ds["intercept"] = ("samples", np.repeat(1, num_samples))
     if num_batches > 0:
         # batch column
         reps_batches = math.ceil(num_samples / num_batches)
@@ -42,7 +43,7 @@ def generate_sample_description(num_samples, num_batches=4, num_conditions=2) ->
     return sample_description
 
 
-class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
+class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
 
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
@@ -52,6 +53,8 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
         sample_description = generate_sample_description(self.num_samples, num_batches, num_conditions)
         self.data.merge(sample_description, inplace=True)
         self.data.attrs["formula"] = sample_description.attrs["formula"]
+
+        del self.data["intercept"]
 
     def generate_params(self, *args, min_bias=0.5, max_bias=2, **kwargs):
         """
@@ -69,7 +72,7 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
             self.generate_sample_description()
 
         if "design" not in self.data:
-            data_utils.design_matrix_from_dataset(self.data, dim="samples", inplace=True)
+            data_utils.design_matrix_from_xarray(self.data, dim="samples", append=True)
 
         self.params['a'] = (
             ("design_params", "genes"),
@@ -90,25 +93,24 @@ class Simulator(NegativeBinomialSimulator, Model, metaclass=abc.ABCMeta):
             )
         )
 
-    @property
-    def mu(self):
-        return np.exp(np.matmul(self.data.design, self.params['a']))
+        del self.params["mu"]
+        del self.params["r"]
 
     @property
-    def r(self):
-        return np.exp(np.matmul(self.data.design, self.params['b']))
+    def design(self):
+        return self.data["design"].values
 
     @property
     def a(self):
-        return self.params['a']
+        return self.params['a'].values
 
     @property
     def b(self):
-        return self.params['b']
+        return self.params['b'].values
 
 
 def sim_test():
     sim = Simulator()
     sim.generate()
-    sim.save("test.h5")
+    sim.save("unit_test.h5")
     return sim

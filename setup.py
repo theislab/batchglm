@@ -14,7 +14,7 @@ setup(
         'toolz',
         # design matrix generation
         'patsy',
-        'PyYAML'
+        'PyYAML', 'scipy'
     ],
     extras_require={
         'scanpy_deps': [
@@ -23,7 +23,9 @@ setup(
         ],
         'plotting_deps': [
             "plotnine",
-            "matplotlib"
+            "matplotlib",
+            'mlxtend',
+            "seaborn"
         ]
     }
 

@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.stats
 
 
 def normalize(measure: np.ndarray, data: np.ndarray) -> np.ndarray:
@@ -82,3 +83,32 @@ def abs_percentage_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
     :return: mean{|estim - obs| / obs}
     """
     return np.abs(estim - obs) / obs
+
+
+def welch_test(mu1, mu2, var1, var2, n1, n2):
+    s_delta = np.sqrt((var1 / n1) + (var2 / n2))
+    t = (mu1 - mu2) / s_delta
+
+    df = (
+            np.square((var1 / n1) + (var2 / n2)) /
+            (
+                    (np.square(var1 / n1) / (n1 - 1)) +
+                    (np.square(var2 / n2) / (n2 - 1))
+            )
+    )
+
+    return t, df
+
+
+def t_test(x1, x2):
+    mu1 = np.mean(x1)
+    var1 = np.var(x1)
+    mu2 = np.mean(x2)
+    var2 = np.var(x2)
+    n1 = np.size(x1)
+    n2 = np.size(x2)
+
+    t, df = welch_test(mu1, mu2, var1, var2, n1, n2)
+    pval = scipy.stats.t(df).cdf(t)
+
+    return pval

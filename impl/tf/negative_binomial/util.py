@@ -1,9 +1,10 @@
-import math
+from typing import Union
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial as TFNegativeBinomial
 
-from impl.tf import reduce_weighted_mean
+from impl.tf.ops import reduce_weighted_mean
 
 
 class NegativeBinomial(TFNegativeBinomial):
@@ -144,7 +145,7 @@ def fit_partitioned(sample_data: tf.Tensor, partitions: tf.Tensor,
         return NegativeBinomial(r=stacked_r, mean=stacked_mu)
 
 
-def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
+def fit(sample_data: Union[tf.Tensor, tf.SparseTensor], axis=0, weights=None, optimizable=False,
         validate_shape=True,
         dtype=tf.float32,
         name="nb-dist") -> NegativeBinomial:
@@ -210,7 +211,7 @@ def fit(sample_data: tf.Tensor, axis=0, weights=None, optimizable=False,
     return distribution
 
 
-def fit_mme(sample_data: tf.Tensor, axis=0, weights=None, replace_values=None, dtype=tf.float32,
+def fit_mme(sample_data: Union[tf.Tensor, tf.SparseTensor], axis=0, weights=None, replace_values=None, dtype=tf.float32,
             name="MME") -> NegativeBinomial:
     """
         Calculates the Maximum-of-Momentum Estimator of `NB(r, p)` for given sample data along axis 'axis.

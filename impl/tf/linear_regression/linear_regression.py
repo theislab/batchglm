@@ -1,4 +1,4 @@
-from typing import Union, Tuple
+from typing import Tuple
 
 import tensorflow as tf
 import numpy as np
@@ -119,6 +119,7 @@ class LinearRegression:
         Calculate the root of the mean squared deviation between the estimated weights `b` and the observed `b`
         
         :param b_obs: Tensor representing the observed weights `b`
+        :param name: name of this operation
         :return: \sqrt{mean{(b_{estim} - b_{obs})^2}}
         """
         return stats.rmsd(self.b, b_obs, name=name)
@@ -128,6 +129,7 @@ class LinearRegression:
         Calculate the mean absolute error between the estimated weights `b` and the observed `b`
         
         :param b_obs: Tensor representing the observed weights `b`
+        :param name: name of this operation
         :return: mean{(b_{estim} - b_{obs})}
         """
         return stats.mae(self.b, b_obs, name=name)
@@ -137,6 +139,7 @@ class LinearRegression:
         Calculate the normalized RMSD between the estimated weights `b` and the observed `b`
         
         :param b_obs: Tensor representing the observed weights `b`
+        :param name: name of this operation
         :return: \frac{RMSD}{max(b_{obs}) - min(b_{obs})}
         """
         return stats.normalized_rmsd(self.b, b_obs, name=name)
@@ -146,6 +149,7 @@ class LinearRegression:
         Calculate the normalized MAE between the estimated weights `b` and the observed `b`
         
         :param b_obs: Tensor representing the observed weights `b`
+        :param name: name of this operation
         :return: \frac{MAE}{max(b_{obs}) - min(b_{obs})}
         """
         return stats.normalized_mae(self.b, b_obs, name=name)

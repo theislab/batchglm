@@ -3,12 +3,16 @@ import abc
 import numpy as np
 
 import utils.random as rand_utils
-from models import BasicSimulator
+from models.base import BasicSimulator
 
 from .base import Model
 
 
-class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
+class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
+
+    @property
+    def sample_data(self):
+        return self.data["sample_data"].values
 
     @property
     def mu(self):
@@ -17,22 +21,6 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
     @property
     def r(self):
         return np.tile(self.params['r'], (self.num_samples, 1))
-
-    @property
-    def sigma2(self):
-        return self.mu + (np.square(self.mu) / self.r)
-
-    @property
-    def count_probs(self):
-        return rand_utils.NegativeBinomial(mean=self.mu, r=self.r).prob(self.data["sample_data"])
-
-    @property
-    def log_count_probs(self):
-        return rand_utils.NegativeBinomial(mean=self.mu, r=self.r).log_prob(self.data["sample_data"])
-
-    @property
-    def log_likelihood(self):
-        return np.sum(self.log_count_probs)
 
     def generate_params(self, *args, min_mean=200, max_mean=100000, min_r=10, max_r=100, **kwargs):
         """
@@ -64,5 +52,5 @@ class Simulator(BasicSimulator, Model, metaclass=abc.ABCMeta):
 def sim_test():
     sim = Simulator()
     sim.generate()
-    sim.save("test.h5")
+    sim.save("unit_test.h5")
     return sim
