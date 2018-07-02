@@ -17,7 +17,7 @@ All equally-named dimensions have to be of the same size.
 
 Create a Tensorflow model with all necessary parameters:
 ```python
-from impl.tf import TFEstimatorGraph
+from impl.tf.base import TFEstimatorGraph
 
 class EstimatorGraph(TFEstimatorGraph):
     def __init__(self, graph):
@@ -35,7 +35,7 @@ class EstimatorGraph(TFEstimatorGraph):
 Now create the actual Estimator for the given model:
 ```python
 from models.<some_model> import AbstractEstimator
-from impl.tf import MonitoredTFEstimator
+from impl.tf.base import MonitoredTFEstimator
 
 class SomeEstimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
@@ -83,9 +83,10 @@ class SomeEstimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMe
 ```
 
 Some additional notes:
-- estimator["param_1"] == estimator.get("param_1") == estimator.session.run(estimator.model.param_1)
+- estimator.get("param_1") == estimator.session.run(estimator.model.param_1)
 - estimator.to_xarray(param_list) needs the PARAMS definition to export the estimated parameters as  
     xarray.Dataset()
 - All necessary parameters should be directly exposed as parameter tensors in EstimatorGraph 
     (e.g. EstimatorGraph().param_1) with correct shapes as defined in PARAMS. 
     However, this property is currently not validated automatically.
+
