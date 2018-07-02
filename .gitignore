@@ -1,5 +1,7 @@
+cache
 data
 config.ini
+.metadata
 .idea
 .Rhistory
 playground/*

@@ -1,3 +1,3 @@
 
-Differential expression test for scanpy with TensorFlow dependency.
+Fitting models with stochastic gradient descent
 
