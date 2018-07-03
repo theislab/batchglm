@@ -145,6 +145,40 @@ def for_i_in_range(size, body_fn):
     return loop
 
 
+def map_reduce(last_elem: tf.Tensor, data: tf.data.Dataset, map_fn, reduce_fn=tf.add, **kwargs):
+    """
+    Iterate over elements in a tf.data.Dataset.
+    Fetches new elements until "last_elem" appears at `idx[-1]`.
+
+    TODO: remove 'last_elem' as soon as tensorflow iterators support some `has_next` functionality
+
+    :param last_elem: the last element
+    :param data: tf.data.Dataset containing `(idx, val)` with idx as a vector of shape `(batch_size,)`
+    :param map_fn: function taking arguments `(idx, val)`
+    :param reduce_fn: function taking two return values of `map_fn` and reducing them into one return value
+    :param kwargs: additional arguments passed to the `tf.while loop`
+    :return:
+    """
+    iterator = data.make_initializable_iterator()
+
+    def cond(idx, val):
+        return tf.not_equal(tf.gather(idx, tf.size(idx) - 1), last_elem)
+
+    def body_fn(old_idx, old_val):
+        idx, val = iterator.get_next()
+
+        return idx, reduce_fn(old_val, map_fn(idx, val))
+
+    def init_vals():
+        idx, val = iterator.get_next()
+        return idx, map_fn(idx, val)
+
+    with tf.control_dependencies([iterator.initializer]):
+        _, reduced = tf.while_loop(cond, body_fn, init_vals(), **kwargs)
+
+    return reduced
+
+
 def placeholder_variable(dtype, shape=None, name=None):
     """
     Creates a placeholder with name `name` and returns a Variable initialized with this placeholder.

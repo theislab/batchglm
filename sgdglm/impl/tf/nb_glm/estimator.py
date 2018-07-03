@@ -13,6 +13,7 @@ except ImportError:
     anndata = None
 
 import utils.stats as stat_utils
+import impl.tf.ops as tf_ops
 from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
 from .external import nb_utils, tf_linreg
 
@@ -174,31 +175,10 @@ class ModelVars:
             self.b_slope = b_slope
 
 
-def fetch_batch(indices, X, design):
-    batch_X = tf.gather(X, indices)
-    batch_design = tf.gather(design, indices)
-    return indices, (batch_X, batch_design)
-
-
-def map_reduce(last_elem: tf.Tensor, data: tf.data.Dataset, map_fn, reduce_fn=tf.add, **kwargs):
-    iterator = data.make_initializable_iterator()
-
-    def cond(idx, val):
-        return tf.not_equal(tf.gather(idx, tf.size(idx) - 1), last_elem)
-
-    def body_fn(old_idx, old_val):
-        idx, val = iterator.get_next()
-
-        return idx, reduce_fn(old_val, map_fn(idx, val))
-
-    def init_vals():
-        idx, val = iterator.get_next()
-        return idx, map_fn(idx, val)
-
-    with tf.control_dependencies([iterator.initializer]):
-        _, reduced = tf.while_loop(cond, body_fn, init_vals(), **kwargs)
-
-    return reduced
+# def fetch_batch(indices, X, design):
+#     batch_X = tf.gather(X, indices)
+#     batch_design = tf.gather(design, indices)
+#     return indices, (batch_X, batch_design)
 
 
 class FullDataModel:
@@ -225,7 +205,7 @@ class FullDataModel:
         model = map_model(*fetch_fn(sample_indices))
 
         with tf.name_scope("log_likelihood"):
-            log_likelihood = map_reduce(
+            log_likelihood = tf_ops.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
                 map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
@@ -233,7 +213,7 @@ class FullDataModel:
             )
 
         with tf.name_scope("loss"):
-            loss = -map_reduce(
+            loss = -tf_ops.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
                 map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
@@ -274,8 +254,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
     def __init__(
             self,
-            X,
-            design,
+            fetch_fn,
             num_observations,
             num_features,
             num_design_params,
@@ -306,7 +285,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 ))
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
                 training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
-                training_data = training_data.map(lambda indices: fetch_batch(indices, X, design))
+                training_data = training_data.map(fetch_fn)
                 training_data = training_data.prefetch(2)
 
                 iterator = training_data.make_one_shot_iterator()
@@ -385,20 +364,12 @@ class EstimatorGraph(TFEstimatorGraph):
             self.init_ops = []
             self.init_op = init_op
 
-            # ### set up class attributes
-            self.X = X
-            self.design = design
+            # # ### set up class attributes
+            # self.X = X
+            # self.design = design
 
-            # self.distribution_estim = batch_model.dist_estim
-            # self.distribution_obs = batch_model.dist_obs
-
-            # self.mu = batch_model.dist_obs.mean()
-            # self.r = batch_model.dist_obs.r
-            # self.sigma2 = batch_model.dist_obs.variance()
             self.a = batch_vars.a
             self.b = batch_vars.b
-            # assert (self.mu.shape == (num_observations, num_features))
-            # assert (self.sigma2.shape == (num_observations, num_features))
             assert (self.a.shape == (num_design_params, num_features))
             assert (self.b.shape == (num_design_params, num_features))
 
@@ -412,7 +383,7 @@ class EstimatorGraph(TFEstimatorGraph):
                                                            name="sample_selection")
             full_data = FullDataModel(
                 sample_indices=sample_selection,
-                fetch_fn=lambda indices: fetch_batch(indices, X, design),
+                fetch_fn=fetch_fn,
                 batch_size=batch_size,
                 a=self.a,
                 b=self.b,
@@ -485,44 +456,68 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if anndata is not None and isinstance(input_data, anndata.AnnData):
                 X = input_data.X
                 if design_matrix is None:
-                    design_matrix = input_data.obsm[design_key]
+                    design_matrix = np.asarray(input_data.obsm[design_key], dtype=np.float32)
+                else:
+                    design_matrix = np.asarray(design_matrix, dtype=np.float32)
 
                 num_features = input_data.n_vars
                 num_observations = input_data.n_obs
                 num_design_params = design_matrix.shape[-1]
+
+                def fetch_X(idx):
+                    return input_data.chunk_X(idx)
+
+                def fetch_design(idx):
+                    return design_matrix[idx]
             elif isinstance(input_data, xr.Dataset):
-                X = np.asarray(input_data["X"].values, dtype=np.float32)
+                X: xr.DataArray = input_data["X"].astype("float32")
                 if design_matrix is None:
-                    design_matrix = np.asarray(input_data[design_key], dtype=np.float32)
+                    design_matrix: xr.DataArray = input_data[design_key].astype("float32").values
+                else:
+                    design_matrix = np.asarray(design_matrix, dtype=np.float32)
 
                 num_features = input_data.dims["features"]
                 num_observations = input_data.dims["observations"]
                 num_design_params = input_data.dims["design_params"]
+
+                def fetch_X(idx):
+                    return X[idx].values
+
+                def fetch_design(idx):
+                    return design_matrix[idx]
             else:
                 X = np.asarray(input_data, dtype=np.float32)
+                design_matrix = np.asarray(design_matrix, dtype=np.float32)
 
                 (num_observations, num_features) = input_data.shape
                 num_design_params = design_matrix.shape[-1]
 
-            design_matrix = np.asarray(design_matrix, dtype=np.float32)
+                def fetch_X(idx):
+                    return X[idx]
+
+                def fetch_design(idx):
+                    return design_matrix[idx]
+
+            # ### prepare fetch_fn:
+            def fetch_fn(idx):
+                X_tensor = tf.py_func(fetch_X, [idx], tf.float32)
+                X_tensor.set_shape(
+                    idx.get_shape().as_list() + [num_features]
+                )
+
+                design_tensor = tf.py_func(fetch_design, [idx], tf.float32)
+                design_tensor.set_shape(
+                    idx.get_shape().as_list() + [num_design_params]
+                )
+                return idx, (X_tensor, design_tensor)
+
             self._X = X
             self._design = design_matrix
 
             with graph.as_default():
-                if scipy.sparse.issparse(X):
-                    # coo = X.tocoo()
-                    # indices = np.mat([coo.row, coo.col]).transpose()
-                    # X = tf.SparseTensor(indices, coo.data, coo.shape)
-
-                    # ### Convert to dense matrix to reduce overhead.
-                    X = tf.convert_to_tensor(X.toarray(), dtype=tf.float32)
-                else:
-                    X = tf.convert_to_tensor(X, dtype=tf.float32)
-
                 # create model
                 model = EstimatorGraph(
-                    X=X,
-                    design=design_matrix,
+                    fetch_fn=fetch_fn,
                     num_observations=num_observations, num_features=num_features, num_design_params=num_design_params,
                     batch_size=batch_size,
                     graph=graph,
