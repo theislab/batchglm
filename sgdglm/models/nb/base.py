@@ -30,7 +30,7 @@ ESTIMATOR_PARAMS.update({
 class Model(BasicModel, metaclass=abc.ABCMeta):
 
     @classmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         return MODEL_PARAMS
 
     @property
@@ -72,14 +72,14 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
                 append_to.obsm["mu"] = self.mu
                 append_to.obsm["r"] = self.r
             elif isinstance(append_to, xr.Dataset):
-                append_to["mu"] = (self.params()["mu"], self.mu)
-                append_to["r"] = (self.params()["r"], self.r)
+                append_to["mu"] = (self.param_shapes()["mu"], self.mu)
+                append_to["r"] = (self.param_shapes()["r"], self.r)
             else:
                 raise ValueError("Unsupported data type: %s" % str(type(append_to)))
         else:
             ds = xr.Dataset({
-                "mu": (self.params()["mu"], self.mu),
-                "r": (self.params()["r"], self.r),
+                "mu": (self.param_shapes()["mu"], self.mu),
+                "r": (self.param_shapes()["r"], self.r),
             })
             return ds
 
@@ -142,5 +142,5 @@ class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
     input_data: Union[xr.Dataset, anndata.AnnData]
 
     @classmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS

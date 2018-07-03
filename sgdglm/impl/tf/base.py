@@ -71,11 +71,11 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
         """
         if isinstance(key, str):
-            if key not in self.params():
+            if key not in self.param_shapes():
                 raise ValueError("Unknown parameter %s" % key)
         elif isinstance(key, Iterable):
             for k in list(key):
-                if k not in self.params():
+                if k not in self.param_shapes():
                     raise ValueError("Unknown parameter %s" % k)
         return self._get_unsafe(key)
 
@@ -312,7 +312,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             Otherwise the specified compression will be used for all variables.
         """
         # get shape of params
-        shapes = self.params()
+        shapes = self.param_shapes()
 
         # create mapping: {key: (dimensions, data)}
         xarray = {key: (shapes[key], data) for (key, data) in data.items()}

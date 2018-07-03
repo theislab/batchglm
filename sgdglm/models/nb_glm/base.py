@@ -29,7 +29,7 @@ ESTIMATOR_PARAMS.update({
 class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
 
     @classmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         return MODEL_PARAMS
 
     @property
@@ -62,16 +62,16 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
                 append_to.varm["a"] = np.transpose(self.a)
                 append_to.varm["b"] = np.transpose(self.b)
             elif isinstance(append_to, xr.Dataset):
-                append_to["design"] = (self.params()["design"], self.design)
-                append_to["a"] = (self.params()["a"], self.a)
-                append_to["b"] = (self.params()["b"], self.b)
+                append_to["design"] = (self.param_shapes()["design"], self.design)
+                append_to["a"] = (self.param_shapes()["a"], self.a)
+                append_to["b"] = (self.param_shapes()["b"], self.b)
             else:
                 raise ValueError("Unsupported data type: %s" % str(type(append_to)))
         else:
             ds = xr.Dataset({
-                "design": (self.params()["design"], self.design),
-                "a": (self.params()["a"], self.a),
-                "b": (self.params()["b"], self.b),
+                "design": (self.param_shapes()["design"], self.design),
+                "a": (self.param_shapes()["a"], self.a),
+                "b": (self.param_shapes()["b"], self.b),
             })
             return ds
 
@@ -142,5 +142,5 @@ class AnndataModel(Model):
 class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
 
     @classmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS

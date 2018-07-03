@@ -5,6 +5,11 @@ import os
 
 import xarray as xr
 
+try:
+    import anndata
+except ImportError:
+    anndata = None
+
 import pkg_constants
 
 
@@ -12,7 +17,7 @@ class BasicModel(metaclass=abc.ABCMeta):
 
     @classmethod
     @abc.abstractmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         """
         This method should return a dict of {parameter: (dim0_name, dim1_name, ..)} mappings
         for all parameters of this estimator.
@@ -20,16 +25,51 @@ class BasicModel(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     def to_xarray(self, params: list):
+        """
+        Converts the specified parameters into an xr.Dataset object
+
+        :param params: string or list of strings specifying parameters which can be fetched by `self.get(params)`
+        """
         # fetch data
         data = self.get(params)
 
         # get shape of params
-        shapes = self.params()
+        shapes = self.param_shapes()
 
         output = {key: (shapes[key], data[key]) for key in params}
         output = xr.Dataset(output)
 
         return output
+
+    def to_anndata(self, params: list, adata: anndata.AnnData):
+        """
+        Converts the specified parameters into an anndata.AnnData object
+
+        :param params: string or list of strings specifying parameters which can be fetched by `self.get(params)`
+        :param adata: the anndata.Anndata object to which the parameters will be appended
+        """
+        # fetch data
+        data = self.get(params)
+
+        # get shape of params
+        shapes = self.param_shapes()
+
+        output = {key: (shapes[key], data[key]) for key in params}
+        for k, v in output.items():
+            if k == "X":
+                continue
+            if v.dims == ("observations",):
+                adata.obs[k] = v.values
+            elif v.dims[0] == "observations":
+                adata.obsm[k] = v.values
+            elif v.dims == ("features",):
+                adata.var[k] = v.values
+            elif v.dims[0] == "features":
+                adata.varm[k] = v.values
+            else:
+                adata.uns[k] = v.values
+
+        return adata
 
     @abc.abstractmethod
     def export_params(self, append_to=None, **kwargs):
@@ -53,7 +93,7 @@ class BasicModel(metaclass=abc.ABCMeta):
         :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
         """
         for k in list(key):
-            if k not in self.params():
+            if k not in self.param_shapes():
                 raise ValueError("Unknown parameter %s" % k)
 
         if isinstance(key, str):
@@ -134,8 +174,16 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
         """
         path = os.path.expanduser(path)
 
-        self.data = xr.open_dataset(path, group=os.path.join(group, "data"), engine="h5netcdf")
-        self.params = xr.open_dataset(path, group=os.path.join(group, "params"), engine="h5netcdf")
+        self.data = xr.open_dataset(
+            path,
+            group=os.path.join(group, "data"),
+            engine=pkg_constants.XARRAY_NETCDF_ENGINE
+        )
+        self.params = xr.open_dataset(
+            path,
+            group=os.path.join(group, "params"),
+            engine=pkg_constants.XARRAY_NETCDF_ENGINE
+        )
 
         self.num_features = self.data.dims["features"]
         self.num_observations = self.data.dims["observations"]
@@ -167,6 +215,29 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
             mode="a",
             engine=pkg_constants.XARRAY_NETCDF_ENGINE
         )
+
+    def data_to_anndata(self):
+        """
+        Converts the generated data into an anndata.AnnData object
+
+        :return: anndata.AnnData object
+        """
+        adata = anndata.AnnData(self.data.X.values)
+        for k, v in self.data.variables.items():
+            if k == "X":
+                continue
+            if v.dims == ("observations",):
+                adata.obs[k] = v.values
+            elif v.dims[0] == "observations":
+                adata.obsm[k] = v.values
+            elif v.dims == ("features",):
+                adata.var[k] = v.values
+            elif v.dims[0] == "features":
+                adata.varm[k] = v.values
+            else:
+                adata.uns[k] = v.values
+
+        return adata
 
     def __copy__(self):
         retval = self.__class__()

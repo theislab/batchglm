@@ -63,6 +63,32 @@ class NB_GLM_Test(unittest.TestCase):
 
         return estimator, sim
 
+    def test_anndata(self):
+        adata = self.sim.data_to_anndata()
+
+        wd = os.path.join(self.working_dir.name, "anndata")
+        os.makedirs(wd, exist_ok=True)
+
+        print(adata)
+        estimator = Estimator(adata, batch_size=500)
+        estimator.initialize(
+            working_dir=wd,
+            save_checkpoint_steps=20,
+            save_summaries_steps=20,
+            # stop_at_step=1000,
+            # stop_below_loss_change=1e-5,
+
+            export=["a", "b", "mu", "r", "loss"],
+            export_steps=20
+        )
+        adata.write(os.path.join(wd, "adata.h5"))
+
+        estimator.train(learning_rate=0.5, stop_at_loss_change=0.05)
+
+        self._estims.append(estimator)
+
+        return estimator, adata
+
     def test_zero_variance(self):
         sim = self.sim.__copy__()
         sim.data.X[:, 0] = np.exp(sim.a)[0, 0]

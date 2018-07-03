@@ -5,19 +5,17 @@ import logging
 import xarray as xr
 import tensorflow as tf
 import numpy as np
-import scipy.sparse
 
 try:
     import anndata
 except ImportError:
     anndata = None
 
-import utils.stats as stat_utils
 import impl.tf.ops as tf_ops
 from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
 from .external import nb_utils, tf_linreg
 
-ESTIMATOR_PARAMS = AbstractEstimator.params().copy()
+ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
 ESTIMATOR_PARAMS.update({
     "batch_probs": ("batch_observations", "features"),
     "batch_log_probs": ("batch_observations", "features"),
@@ -432,7 +430,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
 
     @classmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
     def __init__(self, input_data: Union[xr.Dataset, anndata.AnnData, Dict[Tuple[int, int], any]],

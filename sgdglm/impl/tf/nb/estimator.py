@@ -12,7 +12,7 @@ except ImportError:
 from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
 from . import util as nb_utils
 
-ESTIMATOR_PARAMS = AbstractEstimator.params().copy()
+ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
 ESTIMATOR_PARAMS.update({
     "mu_raw": ("features",),
     "r_raw": ("features",),
@@ -91,7 +91,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
 
     @classmethod
-    def params(cls) -> dict:
+    def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
     def __init__(self, input_data: xr.Dataset, model=None, fast=False):
