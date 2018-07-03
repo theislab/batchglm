@@ -42,7 +42,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         self.close_session()
         self.feed_dict = {}
 
-        self.session = tf.Session()
+        self.session = tf.Session(config=pkg_constants.TF_CONFIG_PROTO)
 
     def close_session(self):
         if self.session is None:
@@ -292,6 +292,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
 
             # create session
             self.session = tf.train.MonitoredTrainingSession(
+                config=pkg_constants.TF_CONFIG_PROTO,
                 checkpoint_dir=self.working_dir,
                 scaffold=scaffold,
                 hooks=hooks,
