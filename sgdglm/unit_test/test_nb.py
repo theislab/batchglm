@@ -13,7 +13,7 @@ from api.models.nb import Simulator, Estimator
 def estimate(sim: Simulator, working_dir: str):
     print(sim.data.X)
 
-    estimator = Estimator(sim.data)
+    estimator = Estimator(sim.input_data)
     estimator.initialize(
         working_dir=working_dir,
         # stop_at_step=1000,
@@ -48,6 +48,13 @@ class NegativeBinomialTest(unittest.TestCase):
         os.makedirs(wd, exist_ok=True)
 
         estimator = estimate(sim, wd)
+
+        # test finalizing
+        estimator = estimator.finalize()
+        print(estimator.mu)
+        print(estimator.gradient)
+        print(estimator.probs())
+        print(estimator.log_probs().values)
 
         return estimator, sim
 

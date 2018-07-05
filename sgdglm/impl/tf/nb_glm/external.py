@@ -1,4 +1,4 @@
-from models.nb_glm.base import AbstractEstimator
+from models.nb_glm.base import AbstractEstimator, XArrayEstimatorStore, InputData
 
 import impl.tf.nb.util as nb_utils
 from impl.tf.base import TFEstimatorGraph, MonitoredTFEstimator

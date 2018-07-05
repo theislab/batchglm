@@ -32,9 +32,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
     session: tf.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
 
-    def __init__(self, input_data: xr.Dataset, tf_estimator_graph):
-        super().__init__(input_data)
-
+    def __init__(self, tf_estimator_graph):
         self.model = tf_estimator_graph
         self.session = None
 
@@ -50,7 +48,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         try:
             self.session.close()
             return True
-        except tf.errors.OpError:
+        except (tf.errors.OpError, RuntimeError):
             return False
 
     def run(self, tensor):
@@ -192,8 +190,8 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
     session: tf.train.MonitoredSession
     working_dir: str
 
-    def __init__(self, input_data: xr.Dataset, tf_estimator_graph: TFEstimatorGraph):
-        super().__init__(input_data, tf_estimator_graph)
+    def __init__(self, tf_estimator_graph: TFEstimatorGraph):
+        super().__init__(tf_estimator_graph)
 
         self.working_dir = None
 

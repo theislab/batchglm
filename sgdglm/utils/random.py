@@ -1,5 +1,7 @@
 import numpy as np
-import scipy.stats as scistats
+# import scipy.stats
+# import scipy.special
+from scipy.special import binom, gammaln, xlog1py
 
 
 class NegativeBinomial:
@@ -76,7 +78,16 @@ class NegativeBinomial:
         return random_data
 
     def prob(self, X):
-        return scistats.nbinom(n=self.r, p=1 - self.p).pmf(X)
+        # p = self.p
+        # r = self.r
+        # return scipy.stats.nbinom(n=r, p=1 - p).pmf(X)
+        # return binom(X + r - 1, X) * np.power(p, X) * np.power(1 - p, r)
+        return np.exp(self.log_prob(X))
 
     def log_prob(self, X):
-        return scistats.nbinom(n=self.r, p=1 - self.p).logpmf(X)
+        p = self.p
+        r = self.r
+
+        # return scipy.stats.nbinom(n=r, p=1 - p).logpmf(X)
+        coeff = gammaln(r + X) - gammaln(X + 1) - gammaln(r)
+        return coeff + r * np.log(1 - p) + xlog1py(X, p - 1)

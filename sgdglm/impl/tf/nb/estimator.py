@@ -9,7 +9,8 @@ try:
 except ImportError:
     anndata = None
 
-from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
+import impl.tf.train as train_utils
+from .external import AbstractEstimator, XArrayEstimatorStore, MonitoredTFEstimator, TFEstimatorGraph, InputData
 from . import util as nb_utils
 
 ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
@@ -40,51 +41,51 @@ class EstimatorGraph(TFEstimatorGraph):
             # X = X_var.initialized_value()
 
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
-            global_step = tf.train.get_or_create_global_step()
 
             distribution = nb_utils.fit(X=X, optimizable=optimizable, name="fit_nb-dist")
 
             probs = distribution.prob(X, name="probs")
             log_probs = distribution.log_prob(X, name="log_probs")
 
-            with tf.name_scope("training"):
-                # minimize negative log probability (log(1) = 0)
-                log_likelihood = tf.reduce_sum(log_probs, name="log_likelihood")
-                with tf.name_scope("loss"):
-                    loss = -tf.reduce_mean(log_probs)
+            log_likelihood = tf.reduce_sum(log_probs, name="log_likelihood")
+            with tf.name_scope("loss"):
+                loss = -tf.reduce_mean(log_probs)
 
-                # define train function
-                optimizer = None
-                gradient = None
-                train_op = None
-                if optimizable:
-                    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                    gradient = optimizer.compute_gradients(loss)
-                    train_op = optimizer.minimize(loss, global_step=global_step)
+            # ### management
+            with tf.name_scope("training"):
+                trainers = train_utils.MultiTrainer(
+                    loss=loss,
+                    variables=tf.trainable_variables(),
+                    learning_rate=learning_rate
+                )
+                gradient = trainers.gradient
+
+                aggregated_gradient = tf.add_n(
+                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
 
             # set up class attributes
             self.X = X
 
-            self.mu_raw = distribution.mean()
-            self.r_raw = distribution.r
-            self.sigma2_raw = distribution.variance()
+            self.mu_raw = tf.squeeze(distribution.mean())
+            self.r_raw = tf.squeeze(distribution.r)
+            self.sigma2_raw = tf.squeeze(distribution.variance())
 
-            self.mu = tf.tile(self.mu_raw, (num_observations, 1))
-            self.r = tf.tile(self.r_raw, (num_observations, 1))
-            self.sigma2 = tf.tile(self.sigma2_raw, (num_observations, 1))
+            self.mu = tf.tile(distribution.mean(), (num_observations, 1))
+            self.r = tf.tile(distribution.r, (num_observations, 1))
+            self.sigma2 = tf.tile(distribution.variance(), (num_observations, 1))
 
             self.distribution = distribution
             self.probs = probs
             self.log_probs = log_probs
             self.log_likelihood = log_likelihood
-
-            self.optimizer = optimizer
-            self.gradient = gradient
-
             self.loss = loss
-            self.train_op = train_op
+
+            self.trainers = trainers
+            self.gradient = aggregated_gradient
+            self.plain_gradient = gradient
+            self.global_step = trainers.global_step
+            self.train_op = trainers.train_op_GD
             self.init_op = tf.global_variables_initializer()
-            self.global_step = global_step
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
@@ -94,34 +95,36 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
-    def __init__(self, input_data: xr.Dataset, model=None, fast=False):
+    def __init__(self, input_data: InputData, model=None, fast=False):
+        self._input_data = input_data
+
         if model is None:
             tf.reset_default_graph()
 
-            # read input_data
-            if anndata is not None and isinstance(input_data, anndata.AnnData):
-                # TODO: load X as sparse array instead of casting it to a dense numpy array
-                X = np.asarray(input_data.X, dtype=np.float32)
+            # # read input_data
+            # if anndata is not None and isinstance(input_data, anndata.AnnData):
+            #     # TODO: load X as sparse array instead of casting it to a dense numpy array
+            #     X = np.asarray(input_data.X, dtype=np.float32)
+            #
+            #     num_features = input_data.n_vars
+            #     num_observations = input_data.n_obs
+            # elif isinstance(input_data, xr.Dataset):
+            #     X = np.asarray(input_data["X"], dtype=np.float32)
+            #
+            #     num_features = input_data.dims["features"]
+            #     num_observations = input_data.dims["observations"]
+            # else:
+            #     X = input_data
+            #     (num_observations, num_features) = input_data.shape
+            #
+            # self._X = X
 
-                num_features = input_data.n_vars
-                num_observations = input_data.n_obs
-            elif isinstance(input_data, xr.Dataset):
-                X = np.asarray(input_data["X"], dtype=np.float32)
-
-                num_features = input_data.dims["features"]
-                num_observations = input_data.dims["observations"]
-            else:
-                X = input_data
-                (num_observations, num_features) = input_data.shape
-
-            self._X = X
-
-            model = EstimatorGraph(X,
-                                   num_observations, num_features,
+            model = EstimatorGraph(input_data.X.values,
+                                   input_data.num_observations, input_data.num_features,
                                    optimizable=not fast,
                                    graph=tf.get_default_graph())
 
-        MonitoredTFEstimator.__init__(self, input_data, model)
+        MonitoredTFEstimator.__init__(self, model)
 
     def _scaffold(self):
         with self.model.graph.as_default():
@@ -135,35 +138,52 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         super().train(feed_dict={"learning_rate:0": learning_rate})
 
     @property
+    def input_data(self) -> InputData:
+        return self._input_data
+
+    @property
     def X(self):
-        return self._X
+        return self.input_data.X
+
+    @property
+    def mu_raw(self) -> xr.DataArray:
+        return self.to_xarray("mu_raw")
+
+    @property
+    def r_raw(self) -> xr.DataArray:
+        return self.to_xarray("r_raw")
+
+    @property
+    def sigma2_raw(self) -> xr.DataArray:
+        return self.mu_raw + ((self.mu_raw * self.mu_raw) / self.r_raw)
 
     @property
     def mu(self):
-        return self.get("mu")
+        mu = self.mu_raw.expand_dims(dim="observations", axis=0)
+        mu = mu.isel(observations=np.repeat(0, self.input_data.num_observations))
+        return mu
 
     @property
     def r(self):
-        return self.get("r")
+        r = self.mu_raw.expand_dims(dim="observations", axis=0)
+        r = r.isel(observations=np.repeat(0, self.input_data.num_observations))
+        return r
+
+    # @property
+    # def sigma2(self):
+    #     sigma2 = self.mu_raw.expand_dims(dim="observations", axis=0)
+    #     sigma2 = sigma2.isel(observations=np.repeat(0, self.input_data.num_samples))
+    #     return sigma2
 
     @property
-    def sigma2(self):
-        return self.get("sigma2")
+    def loss(self):
+        return self.to_xarray("loss")
 
-    def probs(self, X=None):
-        if X is None:
-            return self.get("probs")
-        else:
-            return super().probs(X)
+    @property
+    def gradient(self):
+        return self.to_xarray("gradient")
 
-    def log_probs(self, X=None):
-        if X is None:
-            return self.get("log_probs")
-        else:
-            return super().log_probs(X)
-
-    def log_likelihood(self, X=None):
-        if X is None:
-            return self.get("log_likelihood")
-        else:
-            return super().log_likelihood(X)
+    def finalize(self):
+        store = XArrayEstimatorStore(self)
+        self.close_session()
+        return store

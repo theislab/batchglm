@@ -8,13 +8,19 @@ except ImportError:
 import xarray as xr
 import numpy as np
 
+from models.nb.base import InputData as NegativeBinomialInputData
 from models.nb.base import Model as NegativeBinomialModel
 from models.nb.base import MODEL_PARAMS as NB_MODEL_PARAMS
+from models.nb.base import INPUT_DATA_PARAMS as NB_INPUT_DATA_PARAMS
 from models.base import BasicEstimator
+
+INPUT_DATA_PARAMS = NB_INPUT_DATA_PARAMS.copy()
+INPUT_DATA_PARAMS.update({
+    "design": ("observations", "design_params"),
+})
 
 MODEL_PARAMS = NB_MODEL_PARAMS.copy()
 MODEL_PARAMS.update({
-    "design": ("samples", "design_params"),
     "a": ("design_params", "features"),
     "b": ("design_params", "features"),
 })
@@ -26,6 +32,48 @@ ESTIMATOR_PARAMS.update({
 })
 
 
+class InputData(NegativeBinomialInputData):
+
+    def __init__(self, data, design=None, design_key="design"):
+        super().__init__(data=data)
+
+        fetch_design = None
+        if design is not None:
+            if isinstance(design, xr.DataArray):
+                self.design = design
+            else:
+                self.design = xr.DataArray(design, dims=INPUT_DATA_PARAMS["design"])
+        elif anndata is not None and isinstance(data, anndata.AnnData):
+            design = data.obsm[design_key]
+            design = xr.DataArray(design, dims=INPUT_DATA_PARAMS["design"])
+        elif isinstance(data, xr.Dataset):
+            design: xr.DataArray = data[design_key]
+        else:
+            raise ValueError("Missing design matrix!")
+
+        num_design_params = design.shape[-1]
+
+        design = design.astype("float32")
+        # design = design.chunk({"observations": 1})
+        if fetch_design is None:
+            def fetch_design(idx):
+                return design[idx]
+
+        self.design = design
+        self.num_design_params = num_design_params
+
+        self.fetch_design = fetch_design
+
+    def set_chunk_size(self, cs: int):
+        super().set_chunk_size(cs)
+        self.design = self.design.chunk({"observations": cs})
+
+    def __copy__(self):
+        X = self.X.copy()
+        design = self.design.copy()
+        return InputData(data=X, design=design)
+
+
 class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
 
     @classmethod
@@ -34,109 +82,124 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def design(self) -> Union[np.ndarray, Iterable, int, float]:
+    def input_data(self) -> InputData:
+        pass
+
+    @property
+    def design(self) -> xr.DataArray:
+        return self.input_data.design
+
+    @property
+    @abc.abstractmethod
+    def a(self) -> xr.DataArray:
         pass
 
     @property
     @abc.abstractmethod
-    def a(self) -> Union[np.ndarray, Iterable, int, float]:
+    def b(self) -> xr.DataArray:
         pass
 
     @property
-    @abc.abstractmethod
-    def b(self) -> Union[np.ndarray, Iterable, int, float]:
-        pass
+    def mu(self) -> xr.DataArray:
+        return np.exp(self.design.dot(self.a))
 
     @property
-    def mu(self):
-        return np.exp(np.matmul(self.design, self.a))
-
-    @property
-    def r(self):
-        return np.exp(np.matmul(self.design, self.b))
+    def r(self) -> xr.DataArray:
+        return np.exp(self.design.dot(self.b))
 
     def export_params(self, append_to=None, **kwargs):
         if append_to is not None:
             if isinstance(append_to, anndata.AnnData):
-                append_to.obsm["design"] = self.design
+                # append_to.obsm["design"] = self.design
                 append_to.varm["a"] = np.transpose(self.a)
                 append_to.varm["b"] = np.transpose(self.b)
             elif isinstance(append_to, xr.Dataset):
-                append_to["design"] = (self.param_shapes()["design"], self.design)
+                # append_to["design"] = (self.param_shapes()["design"], self.design)
                 append_to["a"] = (self.param_shapes()["a"], self.a)
                 append_to["b"] = (self.param_shapes()["b"], self.b)
             else:
                 raise ValueError("Unsupported data type: %s" % str(type(append_to)))
         else:
             ds = xr.Dataset({
-                "design": (self.param_shapes()["design"], self.design),
+                # "design": (self.param_shapes()["design"], self.design),
                 "a": (self.param_shapes()["a"], self.a),
                 "b": (self.param_shapes()["b"], self.b),
             })
             return ds
 
 
-def model_from_params(data: Union[xr.Dataset, anndata.AnnData] = None, design=None, a=None, b=None) -> Model:
-    if anndata is not None and isinstance(data, anndata.AnnData):
-        return AnndataModel(data)
-    elif isinstance(data, xr.Dataset):
-        return XArrayModel(data)
-    else:
-        ds = xr.Dataset({
-            "design": (MODEL_PARAMS["design"], design),
-            "a": (MODEL_PARAMS["a"], a),
-            "b": (MODEL_PARAMS["b"], b),
-        })
-        if data is not None:
-            ds["X"] = (MODEL_PARAMS["X"], data)
+def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], params=None, a=None, b=None):
+    input_data = InputData(data)
 
-        return XArrayModel(ds)
+    if params is None:
+        if isinstance(data, Model):
+            params = xr.Dataset({
+                "a": data.a,
+                "b": data.b,
+            })
+        elif anndata is not None and isinstance(data, anndata.AnnData):
+            params = xr.Dataset({
+                "a": (MODEL_PARAMS["a"], data.obsm["a"]),
+                "b": (MODEL_PARAMS["b"], data.obsm["b"]),
+            })
+        elif isinstance(data, xr.Dataset):
+            params = data
+        else:
+            params = xr.Dataset({
+                "a": (MODEL_PARAMS["a"], a) if not isinstance(a, xr.DataArray) else a,
+                "b": (MODEL_PARAMS["b"], b) if not isinstance(b, xr.DataArray) else b,
+            })
+
+    return input_data, params
+
+
+def model_from_params(*args, **kwargs) -> Model:
+    (input_data, params) = _model_from_params(*args, **kwargs)
+    return XArrayModel(input_data, params)
 
 
 class XArrayModel(Model):
-    data: xr.Dataset
+    _input_data: InputData
+    params: xr.Dataset
 
-    def __init__(self, data: xr.Dataset):
-        self.data = data
-
-    @property
-    def X(self):
-        return self.data["X"]
+    def __init__(self, input_data: InputData, params: xr.Dataset):
+        self._input_data = input_data
+        self.params = params
 
     @property
-    def design(self) -> Union[np.ndarray, Iterable, int, float]:
-        return self.data["design"]
+    def input_data(self) -> InputData:
+        return self._input_data
 
     @property
     def a(self):
-        return self.data['a']
+        return self.params['a']
 
     @property
     def b(self):
-        return self.data['b']
+        return self.params['b']
 
 
-class AnndataModel(Model):
-    data: anndata.AnnData
-
-    def __init__(self, data: anndata.AnnData):
-        self.data = data
-
-    @property
-    def X(self):
-        return self.data.X
-
-    @property
-    def design(self):
-        return self.data.obsm["design"]
-
-    @property
-    def a(self):
-        return np.transpose(self.data.varm["a"])
-
-    @property
-    def b(self):
-        return np.transpose(self.data.varm["b"])
+# class AnndataModel(Model):
+#     data: anndata.AnnData
+#
+#     def __init__(self, data: anndata.AnnData):
+#         self.data = data
+#
+#     @property
+#     def X(self):
+#         return self.data.X
+#
+#     @property
+#     def design(self):
+#         return self.data.obsm["design"]
+#
+#     @property
+#     def a(self):
+#         return np.transpose(self.data.varm["a"])
+#
+#     @property
+#     def b(self):
+#         return np.transpose(self.data.varm["b"])
 
 
 class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
@@ -144,3 +207,36 @@ class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
     @classmethod
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
+
+
+class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
+
+    def initialize(self, **kwargs):
+        raise NotImplementedError("This object only stores estimated values")
+
+    def train(self, **kwargs):
+        raise NotImplementedError("This object only stores estimated values")
+
+    def finalize(self, **kwargs) -> AbstractEstimator:
+        return self
+
+    def validate_data(self, **kwargs):
+        raise NotImplementedError("This object only stores estimated values")
+
+    def __init__(self, estim: AbstractEstimator):
+        input_data = estim.input_data
+        params = estim.to_xarray(["a", "b", "loss", "gradient"])
+
+        XArrayModel.__init__(self, input_data, params)
+
+    @property
+    def input_data(self):
+        return self._input_data
+
+    @property
+    def loss(self, **kwargs):
+        return self.params["loss"]
+
+    @property
+    def gradient(self, **kwargs):
+        return self.params["gradient"]

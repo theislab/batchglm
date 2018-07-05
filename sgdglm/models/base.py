@@ -1,5 +1,5 @@
 import abc
-from typing import Union, Any, Dict, Iterable
+from typing import Union, Any, Dict, Iterable, TypeVar, Type
 
 import os
 
@@ -13,6 +13,13 @@ except ImportError:
 import pkg_constants
 
 
+class BasicInputData:
+    """
+    base class for all input data types
+    """
+    pass
+
+
 class BasicModel(metaclass=abc.ABCMeta):
 
     @classmethod
@@ -24,37 +31,53 @@ class BasicModel(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def to_xarray(self, params: list):
+    @property
+    @abc.abstractmethod
+    def input_data(self) -> BasicInputData:
         """
-        Converts the specified parameters into an xr.Dataset object
+        Get the input data of this model
 
-        :param params: string or list of strings specifying parameters which can be fetched by `self.get(params)`
+        :return: the input data object
+        """
+        raise NotImplementedError()
+
+    def to_xarray(self, parm: Union[str, list]):
+        """
+        Converts the specified parameters into an xr.Dataset or xr.DataArray object
+
+        :param parm: string or list of strings specifying parameters which can be fetched by `self.get(params)`
         """
         # fetch data
-        data = self.get(params)
+        data = self.get(parm)
 
         # get shape of params
         shapes = self.param_shapes()
 
-        output = {key: (shapes[key], data[key]) for key in params}
-        output = xr.Dataset(output)
+        if isinstance(parm, str):
+            output = xr.DataArray(data, dims=shapes[parm])
+        else:
+            output = {key: (shapes[key], data[key]) for key in parm}
+            output = xr.Dataset(output)
 
         return output
 
-    def to_anndata(self, params: list, adata: anndata.AnnData):
+    def to_anndata(self, parm: list, adata: anndata.AnnData):
         """
         Converts the specified parameters into an anndata.AnnData object
 
-        :param params: string or list of strings specifying parameters which can be fetched by `self.get(params)`
+        :param parm: string or list of strings specifying parameters which can be fetched by `self.get(params)`
         :param adata: the anndata.Anndata object to which the parameters will be appended
         """
+        if isinstance(parm, str):
+            parm = [parm]
+
         # fetch data
-        data = self.get(params)
+        data = self.get(parm)
 
         # get shape of params
         shapes = self.param_shapes()
 
-        output = {key: (shapes[key], data[key]) for key in params}
+        output = {key: (shapes[key], data[key]) for key in parm}
         for k, v in output.items():
             if k == "X":
                 continue
@@ -105,22 +128,45 @@ class BasicModel(metaclass=abc.ABCMeta):
         return self.get(item)
 
 
-class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
-    input_data: any
-    loss: any
+_Estim_T = TypeVar('_Estim_T', bound='BasicEstimator')
 
-    def __init__(self, input_data):
-        self.input_data = input_data
+
+class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
 
     def validate_data(self, **kwargs):
         raise NotImplementedError()
 
     @abc.abstractmethod
     def initialize(self, **kwargs):
+        """
+        Initializes this estimator
+        """
         pass
 
     @abc.abstractmethod
     def train(self, **kwargs):
+        """
+        Starts the training routine
+        """
+        pass
+
+    @abc.abstractmethod
+    def finalize(self, **kwargs) -> Type[_Estim_T]:
+        """
+        Clean up, free resources
+
+        :return: some Estimator containing all necessary data
+        """
+        pass
+
+    @property
+    @abc.abstractmethod
+    def loss(self, **kwargs):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def gradient(self, **kwargs):
         pass
 
 

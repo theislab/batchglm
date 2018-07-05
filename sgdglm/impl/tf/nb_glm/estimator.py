@@ -11,8 +11,9 @@ try:
 except ImportError:
     anndata = None
 
-import impl.tf.ops as tf_ops
-from .external import AbstractEstimator, MonitoredTFEstimator, TFEstimatorGraph
+import impl.tf.ops as op_utils
+import impl.tf.train as train_utils
+from .external import AbstractEstimator, XArrayEstimatorStore, InputData, MonitoredTFEstimator, TFEstimatorGraph
 from .external import nb_utils, tf_linreg
 
 ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
@@ -203,7 +204,7 @@ class FullDataModel:
         model = map_model(*fetch_fn(sample_indices))
 
         with tf.name_scope("log_likelihood"):
-            log_likelihood = tf_ops.map_reduce(
+            log_likelihood = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
                 map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
@@ -211,7 +212,7 @@ class FullDataModel:
             )
 
         with tf.name_scope("loss"):
-            loss = -tf_ops.map_reduce(
+            loss = -op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
                 map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
@@ -310,54 +311,36 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # ### management
             with tf.name_scope("training"):
-                global_step = tf.train.get_or_create_global_step()
+                trainers = train_utils.MultiTrainer(
+                    loss=loss,
+                    variables=tf.trainable_variables(),
+                    learning_rate=learning_rate
+                )
+                gradient = trainers.gradient
 
-                gradient = tf.gradients(loss, tf.trainable_variables())
-                gradient = [(g, v) for g, v in zip(gradient, tf.trainable_variables())]
-
-                aggregated_gradient = tf.add_n([tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
-                # max_gradient = tf.reduce_max(
-                #     tf.concat([tf.reduce_max(tf.abs(grad)) for (grad, var) in gradient], axis=0)
-                # )
-
-                # # smooth loss
-                # loss_ema = tf.train.ExponentialMovingAverage(decay=0.7, zero_debias=True)
-                # apply_loss_ema = loss_ema.apply([loss])
-                # smoothed_loss = loss_ema.average(loss)
-                #
-                # with tf.control_dependencies([apply_loss_ema]):
-                optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-                optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
-                optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
-
-                train_op_GD = optim_GD.apply_gradients(gradient, global_step=global_step)
-                train_op_Adam = optim_Adam.apply_gradients(gradient, global_step=global_step)
-                train_op_Adagrad = optim_Adagrad.apply_gradients(gradient, global_step=global_step)
-                train_op_RMSProp = optim_RMSProp.apply_gradients(gradient, global_step=global_step)
+                aggregated_gradient = tf.add_n(
+                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
 
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
-                # with tf.control_dependencies([init_op]):
-                #     init_op = tf.assign(smoothed_loss, loss)
 
             self.batch_vars = batch_vars
             self.batch_model = batch_model
 
             self.loss = loss
-            # self.smoothed_loss = smoothed_loss
 
-            self.global_step = global_step
+            self.trainers = trainers
+            self.global_step = trainers.global_step
 
             self.gradient = aggregated_gradient
             self.plain_gradient = gradient
 
-            self.train_op_GD = train_op_GD
-            self.train_op_Adam = train_op_Adam
-            self.train_op_Adagrad = train_op_Adagrad
-            self.train_op_RMSProp = train_op_RMSProp
+            # self.train_op_GD = train_op_GD
+            # self.train_op_Adam = train_op_Adam
+            # self.train_op_Adagrad = train_op_Adagrad
+            # self.train_op_RMSProp = train_op_RMSProp
             # default train op
-            self.train_op = train_op_GD
+            self.train_op = trainers.train_op_GD
 
             self.init_ops = []
             self.init_op = init_op
@@ -433,10 +416,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
-    def __init__(self, input_data: Union[xr.Dataset, anndata.AnnData, Dict[Tuple[int, int], any]],
+    def __init__(self, input_data: InputData,
                  batch_size=500,
-                 design_matrix=None,
-                 design_key="design",
                  model=None,
                  graph=None,
                  init_a_intercept=None,
@@ -450,73 +431,28 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if graph is None:
                 graph = tf.Graph()
 
-            # read input_data
-            if anndata is not None and isinstance(input_data, anndata.AnnData):
-                X = input_data.X
-                if design_matrix is None:
-                    design_matrix = np.asarray(input_data.obsm[design_key], dtype=np.float32)
-                else:
-                    design_matrix = np.asarray(design_matrix, dtype=np.float32)
-
-                num_features = input_data.n_vars
-                num_observations = input_data.n_obs
-                num_design_params = design_matrix.shape[-1]
-
-                def fetch_X(idx):
-                    return input_data.chunk_X(idx)
-
-                def fetch_design(idx):
-                    return design_matrix[idx]
-            elif isinstance(input_data, xr.Dataset):
-                X: xr.DataArray = input_data["X"].astype("float32")
-                if design_matrix is None:
-                    design_matrix: xr.DataArray = input_data[design_key].astype("float32").values
-                else:
-                    design_matrix = np.asarray(design_matrix, dtype=np.float32)
-
-                num_features = input_data.dims["features"]
-                num_observations = input_data.dims["observations"]
-                num_design_params = input_data.dims["design_params"]
-
-                def fetch_X(idx):
-                    return X[idx].values
-
-                def fetch_design(idx):
-                    return design_matrix[idx]
-            else:
-                X = np.asarray(input_data, dtype=np.float32)
-                design_matrix = np.asarray(design_matrix, dtype=np.float32)
-
-                (num_observations, num_features) = input_data.shape
-                num_design_params = design_matrix.shape[-1]
-
-                def fetch_X(idx):
-                    return X[idx]
-
-                def fetch_design(idx):
-                    return design_matrix[idx]
+            self._input_data = input_data
 
             # ### prepare fetch_fn:
             def fetch_fn(idx):
-                X_tensor = tf.py_func(fetch_X, [idx], tf.float32)
+                X_tensor = tf.py_func(input_data.fetch_X, [idx], tf.float32)
                 X_tensor.set_shape(
-                    idx.get_shape().as_list() + [num_features]
+                    idx.get_shape().as_list() + [input_data.num_features]
                 )
 
-                design_tensor = tf.py_func(fetch_design, [idx], tf.float32)
+                design_tensor = tf.py_func(input_data.fetch_design, [idx], tf.float32)
                 design_tensor.set_shape(
-                    idx.get_shape().as_list() + [num_design_params]
+                    idx.get_shape().as_list() + [input_data.num_design_params]
                 )
                 return idx, (X_tensor, design_tensor)
-
-            self._X = X
-            self._design = design_matrix
 
             with graph.as_default():
                 # create model
                 model = EstimatorGraph(
                     fetch_fn=fetch_fn,
-                    num_observations=num_observations, num_features=num_features, num_design_params=num_design_params,
+                    num_observations=input_data.num_observations,
+                    num_features=input_data.num_features,
+                    num_design_params=input_data.num_design_params,
                     batch_size=batch_size,
                     graph=graph,
                     init_a_intercept=init_a_intercept,
@@ -526,7 +462,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     extended_summary=extended_summary
                 )
 
-        MonitoredTFEstimator.__init__(self, input_data, model)
+        MonitoredTFEstimator.__init__(self, model)
 
     def _scaffold(self):
         with self.model.graph.as_default():
@@ -551,71 +487,76 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       **kwargs)
 
     @property
-    def X(self):
-        return self._X
+    def input_data(self):
+        return self._input_data
 
-    @property
-    def design(self):
-        return self._design
-
-    @property
-    def mu(self):
-        return self.get("mu")
-
-    @property
-    def r(self):
-        return self.get("r")
-
-    @property
-    def sigma2(self):
-        return self.get("sigma2")
+    # @property
+    # def mu(self):
+    #     return self.to_xarray("mu")
+    #
+    # @property
+    # def r(self):
+    #     return self.to_xarray("r")
+    #
+    # @property
+    # def sigma2(self):
+    #     return self.to_xarray("sigma2")
 
     @property
     def a(self):
-        return self.get("a")
+        return self.to_xarray("a")
 
     @property
     def b(self):
-        return self.get("b")
+        return self.to_xarray("b")
 
     @property
-    def gradient(self):
-        return self._get_unsafe("gradient")
-
-    def probs(self, X=None, sample_indices=None):
-        if X is None:
-            if sample_indices is None:
-                sample_indices = np.arange(self.model.num_observations)
-            feed_dict = {self.model.sample_selection: sample_indices}
-
-            return self.run(self.model.full_data.probs, feed_dict=feed_dict)
-        else:
-            return super().probs(X)
-
-    def log_probs(self, X=None, sample_indices=None):
-        if X is None:
-            if sample_indices is None:
-                sample_indices = np.arange(self.model.num_observations)
-            feed_dict = {self.model.sample_selection: sample_indices}
-
-            return self.run(self.model.full_data.log_probs, feed_dict=feed_dict)
-        else:
-            return super().log_probs(X)
-
-    def log_likelihood(self, X=None, sample_indices=None):
-        if X is None:
-            if sample_indices is None:
-                sample_indices = np.arange(self.model.num_observations)
-            feed_dict = {self.model.sample_selection: sample_indices}
-
-            return self.run(self.model.full_data.log_likelihood, feed_dict=feed_dict)
-        else:
-            return super().log_likelihood(X)
+    def batch_loss(self):
+        return self.to_xarray("loss")
 
     @property
-    def full_loss(self):
+    def batch_gradient(self):
+        return self.to_xarray("gradient")
+
+    # def probs(self, X=None, sample_indices=None):
+    #     if X is None:
+    #         if sample_indices is None:
+    #             sample_indices = np.arange(self.model.num_observations)
+    #         feed_dict = {self.model.sample_selection: sample_indices}
+    #
+    #         return self.run(self.model.full_data.probs, feed_dict=feed_dict)
+    #     else:
+    #         return super().probs(X)
+    #
+    # def log_probs(self, X=None, sample_indices=None):
+    #     if X is None:
+    #         if sample_indices is None:
+    #             sample_indices = np.arange(self.model.num_observations)
+    #         feed_dict = {self.model.sample_selection: sample_indices}
+    #
+    #         return self.run(self.model.full_data.log_probs, feed_dict=feed_dict)
+    #     else:
+    #         return super().log_probs(X)
+    #
+    # def log_likelihood(self, X=None, sample_indices=None):
+    #     if X is None:
+    #         if sample_indices is None:
+    #             sample_indices = np.arange(self.model.num_observations)
+    #         feed_dict = {self.model.sample_selection: sample_indices}
+    #
+    #         return self.run(self.model.full_data.log_likelihood, feed_dict=feed_dict)
+    #     else:
+    #         return super().log_likelihood(X)
+
+    @property
+    def loss(self):
         return self._get_unsafe("full_loss")
 
     @property
-    def full_gradient(self):
+    def gradient(self):
         return self._get_unsafe("full_gradient")
+
+    def finalize(self):
+        store = XArrayEstimatorStore(self)
+        self.close_session()
+        return store

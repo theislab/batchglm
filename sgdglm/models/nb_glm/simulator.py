@@ -8,7 +8,7 @@ import xarray as xr
 
 import data as data_utils
 from models.nb.simulator import Simulator as NegativeBinomialSimulator
-from .base import Model
+from .base import Model, InputData
 
 
 def generate_sample_description(num_observations, num_batches=4, num_conditions=2) -> xr.Dataset:
@@ -97,16 +97,24 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         del self.params["r"]
 
     @property
+    def input_data(self) -> InputData:
+        return InputData(self.data)
+
+    @property
+    def X(self):
+        return self.data["X"]
+
+    @property
     def design(self):
-        return self.data["design"].values
+        return self.data["design"]
 
     @property
     def a(self):
-        return self.params['a'].values
+        return self.params['a']
 
     @property
     def b(self):
-        return self.params['b'].values
+        return self.params['b']
 
 
 def sim_test():
