@@ -7,7 +7,7 @@ from sgdglm.examples.model import simulate
 
 
 def estimate(sim: Simulator):
-    estimator = Estimator(sim.data)
+    estimator = Estimator(sim.input_data)
     # estimator.validate_data()
     estimator.initialize()
     estimator.train()

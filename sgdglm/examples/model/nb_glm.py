@@ -8,7 +8,7 @@ from sgdglm.examples.model import simulate
 
 
 def estimate(sim: Simulator, wd):
-    estimator = Estimator(sim.data, batch_size=500)
+    estimator = Estimator(sim.input_data, batch_size=500)
     # estimator.validate_data()
     estimator.initialize(
         working_dir=wd,

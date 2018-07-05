@@ -128,7 +128,7 @@ def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     print("\t[OK]")
 
     print("starting estimation of benchmark sample '%s'..." % sample)
-    estimator = Estimator(sim.data, batch_size=batch_size)
+    estimator = Estimator(sim.input_data, batch_size=batch_size)
     estimator.initialize(**init_args)
     estimator.train(learning_rate=learning_rate)
     print("estimation of benchmark sample '%s' ready" % sample)
