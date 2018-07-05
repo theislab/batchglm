@@ -1,5 +1,7 @@
+build
 cache
 data
+dist
 config.ini
 .metadata
 .idea
