@@ -161,13 +161,18 @@ class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def loss(self, **kwargs):
+    def loss(self):
         pass
 
     @property
     @abc.abstractmethod
-    def gradient(self, **kwargs):
+    def gradient(self):
         pass
+
+    @property
+    @abc.abstractmethod
+    def hessian_diagonal(self):
+        return
 
 
 class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):

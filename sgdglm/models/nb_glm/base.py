@@ -28,7 +28,8 @@ MODEL_PARAMS.update({
 ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
 ESTIMATOR_PARAMS.update({
     "loss": (),
-    "gradient": ("features",)
+    "gradient": ("features",),
+    "hessian_diagonal": ("features", "variables",),
 })
 
 
@@ -225,7 +226,7 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
-        params = estim.to_xarray(["a", "b", "loss", "gradient"])
+        params = estim.to_xarray(["a", "b", "loss", "gradient", "hessian_diagonal"])
 
         XArrayModel.__init__(self, input_data, params)
 
@@ -234,9 +235,13 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
         return self._input_data
 
     @property
-    def loss(self, **kwargs):
+    def loss(self):
         return self.params["loss"]
 
     @property
-    def gradient(self, **kwargs):
+    def gradient(self):
         return self.params["gradient"]
+
+    @property
+    def hessian_diagonal(self):
+        return self.params["hessian_diagonal"]

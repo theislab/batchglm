@@ -22,8 +22,8 @@ def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="para
         Slope variable of shape ([...], M-1, N)
     """
     with tf.name_scope(name):
-        intercept = tf.Variable(init_intercept, name='intercept').initialized_value()
-        slope = tf.Variable(init_slopes, name='slope').initialized_value()
+        intercept = tf.Variable(init_intercept, name='intercept')
+        slope = tf.Variable(init_slopes, name='slope')
 
         # broadcast slope if necessary; need `tf.broadcast_to`... TODO!!!
         tile_shape = tf.TensorShape(np.concatenate(

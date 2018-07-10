@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 
 import numpy as np
 import tensorflow as tf
@@ -148,7 +148,7 @@ def fit_partitioned(X: tf.Tensor, partitions: tf.Tensor,
 def fit(X: Union[tf.Tensor, tf.SparseTensor], axis=0, weights=None, optimizable=False,
         validate_shape=True,
         dtype=tf.float32,
-        name="nb-dist") -> NegativeBinomial:
+        name="nb-dist") -> Union[NegativeBinomial, Tuple[NegativeBinomial, tf.Variable, tf.Variable]]:
     """
     Fits negative binomial distributions NB(r, p) to given sample data along axis 'axis'.
 
@@ -181,13 +181,13 @@ def fit(X: Union[tf.Tensor, tf.SparseTensor], axis=0, weights=None, optimizable=
                     clip_value_min=np.log(1),
                     clip_value_max=np.log(distribution.r.dtype.max) / 8
                 )
-                r = tf.Variable(name="log_r", initial_value=r_init,
-                                dtype=distribution.r.dtype,
-                                validate_shape=validate_shape)
+                r_var = tf.Variable(name="log_r", initial_value=r_init,
+                                    dtype=distribution.r.dtype,
+                                    validate_shape=validate_shape)
                 r = tf.clip_by_value(
-                    r,
-                    np.log(np.nextafter(0, 1, dtype=r.dtype.as_numpy_dtype)),
-                    np.log(r.dtype.max)
+                    r_var,
+                    np.log(np.nextafter(0, 1, dtype=r_var.dtype.as_numpy_dtype)),
+                    np.log(r_var.dtype.max)
                 )
                 r = tf.exp(r)
             with tf.name_scope("mu"):
@@ -196,19 +196,19 @@ def fit(X: Union[tf.Tensor, tf.SparseTensor], axis=0, weights=None, optimizable=
                     clip_value_min=np.log(1),
                     clip_value_max=np.log(distribution.mean().dtype.max) / 8
                 )
-                mu = tf.Variable(name="log_mu", initial_value=mu_init,
-                                 dtype=distribution.mean().dtype,
-                                 validate_shape=validate_shape)
+                mu_var = tf.Variable(name="log_mu", initial_value=mu_init,
+                                     dtype=distribution.mean().dtype,
+                                     validate_shape=validate_shape)
                 mu = tf.clip_by_value(
-                    mu,
-                    np.log(np.nextafter(0, 1, dtype=mu.dtype.as_numpy_dtype)),
-                    np.log(mu.dtype.max)
+                    mu_var,
+                    np.log(np.nextafter(0, 1, dtype=mu_var.dtype.as_numpy_dtype)),
+                    np.log(mu_var.dtype.max)
                 )
                 mu = tf.exp(mu)
 
-            distribution = NegativeBinomial(r=r, mean=mu, name=name)
-
-    return distribution
+            return NegativeBinomial(r=r, mean=mu, name=name), mu_var, r_var
+        else:
+            return distribution
 
 
 def fit_mme(X: Union[tf.Tensor, tf.SparseTensor], axis=0, weights=None, replace_values=None, dtype=tf.float32,

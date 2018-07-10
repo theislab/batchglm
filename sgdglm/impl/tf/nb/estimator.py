@@ -10,6 +10,7 @@ except ImportError:
     anndata = None
 
 import impl.tf.train as train_utils
+import impl.tf.ops as op_utils
 from .external import AbstractEstimator, XArrayEstimatorStore, MonitoredTFEstimator, TFEstimatorGraph, InputData
 from . import util as nb_utils
 
@@ -42,26 +43,45 @@ class EstimatorGraph(TFEstimatorGraph):
 
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
 
-            distribution = nb_utils.fit(X=X, optimizable=optimizable, name="fit_nb-dist")
+            distribution, mu_var, r_var = nb_utils.fit(X=X, optimizable=optimizable, name="fit_nb-dist")
 
-            probs = distribution.prob(X, name="probs")
-            log_probs = distribution.log_prob(X, name="log_probs")
+            with tf.name_scope("probs"):
+                probs = distribution.prob(X, name="probs")
+                probs = tf.clip_by_value(
+                    probs,
+                    0.,
+                    1.
+                )
+
+            with tf.name_scope("log_probs"):
+                log_probs = distribution.log_prob(X, name="log_probs")
+                log_probs = tf.clip_by_value(
+                    log_probs,
+                    np.log(np.nextafter(0, 1, dtype=log_probs.dtype.as_numpy_dtype)),
+                    0.
+                )
 
             log_likelihood = tf.reduce_sum(log_probs, name="log_likelihood")
             with tf.name_scope("loss"):
                 loss = -tf.reduce_mean(log_probs)
 
+            trainable_variables = [mu_var, r_var]
             # ### management
             with tf.name_scope("training"):
                 trainers = train_utils.MultiTrainer(
                     loss=loss,
-                    variables=tf.trainable_variables(),
+                    variables=trainable_variables,
                     learning_rate=learning_rate
                 )
                 gradient = trainers.gradient
 
                 aggregated_gradient = tf.add_n(
                     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
+
+            with tf.name_scope("hessian_diagonal"):
+                hessians = tf.hessians(loss, [mu_var, r_var])
+                hessian_diagonal = [tf.diag_part(h) for h in hessians]
+                hessian_diagonal = tf.transpose(tf.concat(hessian_diagonal, axis=0))
 
             # set up class attributes
             self.X = X
@@ -79,6 +99,7 @@ class EstimatorGraph(TFEstimatorGraph):
             self.log_probs = log_probs
             self.log_likelihood = log_likelihood
             self.loss = loss
+            self.hessian_diagonal = hessian_diagonal
 
             self.trainers = trainers
             self.gradient = aggregated_gradient
@@ -95,34 +116,17 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
-    def __init__(self, input_data: InputData, model=None, fast=False):
+    def __init__(self, input_data: InputData, model=None, graph=None, fast=False):
         self._input_data = input_data
 
         if model is None:
-            tf.reset_default_graph()
-
-            # # read input_data
-            # if anndata is not None and isinstance(input_data, anndata.AnnData):
-            #     # TODO: load X as sparse array instead of casting it to a dense numpy array
-            #     X = np.asarray(input_data.X, dtype=np.float32)
-            #
-            #     num_features = input_data.n_vars
-            #     num_observations = input_data.n_obs
-            # elif isinstance(input_data, xr.Dataset):
-            #     X = np.asarray(input_data["X"], dtype=np.float32)
-            #
-            #     num_features = input_data.dims["features"]
-            #     num_observations = input_data.dims["observations"]
-            # else:
-            #     X = input_data
-            #     (num_observations, num_features) = input_data.shape
-            #
-            # self._X = X
+            if graph is None:
+                graph = tf.Graph()
 
             model = EstimatorGraph(input_data.X.values,
                                    input_data.num_observations, input_data.num_features,
                                    optimizable=not fast,
-                                   graph=tf.get_default_graph())
+                                   graph=graph)
 
         MonitoredTFEstimator.__init__(self, model)
 
@@ -182,6 +186,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def gradient(self):
         return self.to_xarray("gradient")
+
+    @property
+    def hessian_diagonal(self):
+        return self.to_xarray("hessian_diagonal")
 
     def finalize(self):
         store = XArrayEstimatorStore(self)

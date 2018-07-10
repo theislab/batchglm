@@ -1,5 +1,5 @@
 import abc
-from typing import Union, Dict, Tuple
+from typing import Union, Dict, Tuple, List
 import logging
 
 import xarray as xr
@@ -179,6 +179,34 @@ class ModelVars:
 #     batch_design = tf.gather(design, indices)
 #     return indices, (batch_X, batch_design)
 
+def feature_wise_hessians(X, design, a, b) -> List[tf.Tensor]:
+    X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
+    a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
+    b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
+
+    def hessian(data):  # data is tuple (X_t, a_t, b_t)
+        X_t, a_t, b_t = data
+        X = tf.transpose(X_t)
+        a = tf.transpose(a_t)
+        b = tf.transpose(b_t)
+
+        model = BasicModel(X, design, a, b)
+
+        hess = tf.hessians(-model.log_likelihood, [a, b])
+
+        return hess
+
+    hessians = tf.map_fn(
+        fn=hessian,
+        elems=(X_t, a_t, b_t),
+        dtype=[tf.float32, tf.float32],  # hessians of [a, b]
+        parallel_iterations=np.iinfo(np.int).max
+    )
+
+    stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
+
+    return stacked
+
 
 class FullDataModel:
     def __init__(
@@ -212,16 +240,28 @@ class FullDataModel:
             )
 
         with tf.name_scope("loss"):
-            loss = -op_utils.map_reduce(
+            loss = -log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
+
+        with tf.name_scope("hessians"):
+            def hessian_map(idx, data):
+                X, design = data
+                return feature_wise_hessians(X, design, a, b)
+
+            def hessian_red(prev, cur):
+                return [tf.add(p, c) for p, c in zip(prev, cur)]
+
+            hessians = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
-                map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
+                map_fn=hessian_map,
+                reduce_fn=hessian_red,
                 parallel_iterations=1,
             )
-            loss = loss / tf.cast(tf.size(sample_indices), dtype=loss.dtype)
 
         self.X = model.X
         self.design = model.design
+
+        self.batched_data = batched_data
 
         self.dist_estim = model.dist_estim
         self.mu_estim = model.mu_estim
@@ -241,6 +281,8 @@ class FullDataModel:
 
         self.log_likelihood = log_likelihood
         self.loss = loss
+
+        self.hessians = hessians
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -273,10 +315,15 @@ class EstimatorGraph(TFEstimatorGraph):
 
         # initial graph elements
         with self.graph.as_default():
-            # design = tf_ops.caching_placeholder(tf.float32, shape=(num_observations, num_design_params), name="design")
+            # design = tf_ops.caching_placeholder(tf.float32,
+            #                                     shape=(num_observations, num_design_params), name="design")
 
+            # ### placeholders
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
             # train_steps = tf.placeholder(tf.int32, shape=(), name="training_steps")
+
+            # ### performance related settings
+            buffer_size = 4
 
             with tf.name_scope("input_pipeline"):
                 data_indices = tf.data.Dataset.from_tensor_slices((
@@ -285,7 +332,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
                 training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
                 training_data = training_data.map(fetch_fn)
-                training_data = training_data.prefetch(2)
+                training_data = training_data.prefetch(buffer_size)
 
                 iterator = training_data.make_one_shot_iterator()
                 batch_sample_index, (batch_X, batch_design) = iterator.get_next()
@@ -324,6 +371,7 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
 
+            self.fetch_fn = fetch_fn
             self.batch_vars = batch_vars
             self.batch_model = batch_model
 
@@ -362,28 +410,41 @@ class EstimatorGraph(TFEstimatorGraph):
             sample_selection = tf.placeholder_with_default(tf.range(num_observations),
                                                            shape=(None,),
                                                            name="sample_selection")
-            full_data = FullDataModel(
+            full_data_model = FullDataModel(
                 sample_indices=sample_selection,
                 fetch_fn=fetch_fn,
-                batch_size=batch_size,
+                batch_size=batch_size * buffer_size,
                 a=self.a,
                 b=self.b,
             )
-            full_gradient_a, full_gradient_b = tf.gradients(full_data.loss, (batch_vars.a, batch_vars.b))
+            full_gradient_a, full_gradient_b = tf.gradients(full_data_model.loss, (batch_vars.a, batch_vars.b))
             full_gradient = (
                     tf.reduce_sum(tf.abs(full_gradient_a), axis=0) +
                     tf.reduce_sum(tf.abs(full_gradient_b), axis=0)
             )
 
-            self.sample_selection = sample_selection
-            self.full_data = full_data
+            with tf.name_scope("hessian_diagonal"):
+                hessian_diagonal = [
+                    tf.map_fn(
+                        # elems=tf.transpose(hess, perm=[2, 0, 1]),
+                        elems=hess,
+                        fn=tf.diag_part,
+                        parallel_iterations=np.iinfo(np.int).max
+                    )
+                    for hess in full_data_model.hessians
+                ]
+                hessian_diagonal = tf.concat(hessian_diagonal, axis=-1)
 
-            self.mu = full_data.mu
-            self.r = full_data.r
-            self.sigma2 = full_data.sigma2
+            self.sample_selection = sample_selection
+            self.full_data_model = full_data_model
+
+            self.mu = full_data_model.mu
+            self.r = full_data_model.r
+            self.sigma2 = full_data_model.sigma2
 
             self.full_gradient = full_gradient
-            self.full_loss = full_data.loss
+            self.full_loss = full_data_model.loss
+            self.hessian_diagonal = hessian_diagonal
 
             with tf.name_scope('summaries'):
                 tf.summary.histogram('a_intercept', batch_vars.a_intercept)
@@ -402,7 +463,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     tf.summary.histogram('gradient_a', tf.gradients(loss, batch_vars.a))
                     tf.summary.histogram('gradient_b', tf.gradients(loss, batch_vars.b))
                     tf.summary.histogram("full_gradient", full_gradient)
-                    tf.summary.scalar("full_gradient_median", tf.contrib.distributions.percentile(full_gradient, 50.))
+                    tf.summary.scalar("full_gradient_median",
+                                      tf.contrib.distributions.percentile(full_gradient, 50.))
                     tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
 
             self.saver = tf.train.Saver()
@@ -550,11 +612,15 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def loss(self):
-        return self._get_unsafe("full_loss")
+        return self.to_xarray("full_loss")
 
     @property
     def gradient(self):
-        return self._get_unsafe("full_gradient")
+        return self.to_xarray("full_gradient")
+
+    @property
+    def hessian_diagonal(self):
+        return self.to_xarray("hessian_diagonal")
 
     def finalize(self):
         store = XArrayEstimatorStore(self)

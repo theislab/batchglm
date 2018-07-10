@@ -35,7 +35,7 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
 
     .. seealso:: :py:meth:`reduce_mean()` in module :py:mod:`tensorflow`
     """
-
+    
     retval = None
     if weight is None:
         retval = reduce_mean(input_tensor, axis=axis, name=name, keepdims=True)
@@ -48,10 +48,10 @@ def reduce_weighted_mean(input_tensor, weight=None, axis=None, keepdims=False, n
                                                                       axis=axis,
                                                                       keepdims=True,
                                                                       name="denominator_sum")
-
+    
     if not keepdims:
         retval = tf.squeeze(retval, axis=axis)
-
+    
     return retval
 
 
@@ -79,10 +79,10 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
         idx1 = rank[axis1]
         perm0 = tf.where(tf.equal(rank, idx0), tf.tile(tf.expand_dims(idx1, 0), [tf.size(rank)]), rank)
         perm1 = tf.where(tf.equal(rank, idx1), tf.tile(tf.expand_dims(idx0, 0), [tf.size(rank)]), perm0)
-
+    
     if exec_transpose:
         retval = tf.transpose(tensor, perm1)
-
+        
         if return_perm:
             return retval, perm1
         else:
@@ -117,11 +117,11 @@ def for_loop(condition, modifier, body_fn, idx=0):
     :return: tf.while_loop
     """
     idx = tf.convert_to_tensor(idx)
-
+    
     def body(i):
         with tf.control_dependencies([body_fn(i)]):
             return [modifier(i)]
-
+    
     # do the loop:
     loop = tf.while_loop(condition, body, [idx])
     return loop
@@ -160,22 +160,22 @@ def map_reduce(last_elem: tf.Tensor, data: tf.data.Dataset, map_fn, reduce_fn=tf
     :return:
     """
     iterator = data.make_initializable_iterator()
-
+    
     def cond(idx, val):
         return tf.not_equal(tf.gather(idx, tf.size(idx) - 1), last_elem)
-
+    
     def body_fn(old_idx, old_val):
         idx, val = iterator.get_next()
-
+        
         return idx, reduce_fn(old_val, map_fn(idx, val))
-
+    
     def init_vals():
         idx, val = iterator.get_next()
         return idx, map_fn(idx, val)
-
+    
     with tf.control_dependencies([iterator.initializer]):
         _, reduced = tf.while_loop(cond, body_fn, init_vals(), **kwargs)
-
+    
     return reduced
 
 
@@ -229,7 +229,7 @@ def keep_const(tensor: tf.Tensor, cond: tf.Tensor, constant: tf.Tensor = None, n
     with tf.name_scope(name):
         if constant is None:
             constant = tf.stop_gradient(tensor)
-
+        
         constant = tf.broadcast_to(constant, shape=cond)
         return tf.where(cond, tensor, constant)
 
@@ -245,6 +245,37 @@ def caching_placeholder(dtype, shape=None, name=None):
     :return: tf.Variable, initialized by the placeholder
     """
     placehldr = tf.placeholder(dtype, shape=shape, name=name)
-
+    
     var = tf.Variable(placehldr, trainable=False, name=name + "_cache")
     return var
+
+
+def hessian_diagonal(ys, xs, name="hessian_diagonal", **kwargs):
+    """
+    Returns the second order derivative of ys wrt. xs.
+    See tf.gradients() for more details.
+
+    :param ys: values
+    :param xs: (list of) variables
+    :param name: name of this operation
+    :param kwargs: further arguments which will be passed to tf.gradient()
+    :return: (list of) tensor(s) corresponding to the variable(s) passed in `xs`
+    """
+    with tf.name_scope(name):
+        return tf.gradients(tf.gradients(ys, xs, name="first_order", **kwargs), xs, name="second_order", **kwargs)
+
+
+def jacobian(fx, x, **kwargs):
+    """
+    Given a tensor fx, which is a function of x, vectorize fx (via tf.reshape(fx, [-1])),
+    and then compute the jacobian of each entry of fx with respect to x.
+    Specifically, if x has shape (m,n,...,p), and fx has L entries (tf.size(fx)=L), then
+    the output will be (L,m,n,...,p), where output[i] will be (m,n,...,p), with each entry denoting the
+    gradient of output[i] wrt the corresponding element of x.
+    """
+    return tf.map_fn(
+        fn=lambda fxi: tf.gradients(fxi, x)[0],
+        elems=tf.reshape(fx, [-1]),
+        dtype=x.dtype,
+        **kwargs
+    )

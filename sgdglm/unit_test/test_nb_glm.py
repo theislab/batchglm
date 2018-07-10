@@ -63,9 +63,10 @@ class NB_GLM_Test(unittest.TestCase):
 
         # test finalizing
         estimator = estimator.finalize()
-        print(estimator.mu)
-        print(estimator.gradient)
-        print(estimator.probs())
+        print(estimator.mu.values)
+        print(estimator.gradient.values)
+        print(estimator.hessian_diagonal.values)
+        print(estimator.probs().values)
         print(estimator.log_probs().values)
 
         return estimator, sim
