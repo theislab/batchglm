@@ -1,5 +1,5 @@
 import abc
-from typing import Union, Iterable
+from typing import Union
 
 try:
     import anndata
@@ -35,10 +35,13 @@ ESTIMATOR_PARAMS.update({
 
 class InputData(NegativeBinomialInputData):
 
-    def __init__(self, data, design=None, design_key="design"):
-        super().__init__(data=data)
+    def __init__(self, data, design=None, observation_names=None, feature_names=None,
+                 design_key="design", from_store=False):
+        super().__init__(data=data, observation_names=observation_names, feature_names=feature_names,
+                         from_store=from_store)
+        if from_store:
+            return
 
-        fetch_design = None
         if design is not None:
             if isinstance(design, xr.DataArray):
                 self.design = design
@@ -52,27 +55,29 @@ class InputData(NegativeBinomialInputData):
         else:
             raise ValueError("Missing design matrix!")
 
-        num_design_params = design.shape[-1]
-
         design = design.astype("float32")
         # design = design.chunk({"observations": 1})
-        if fetch_design is None:
-            def fetch_design(idx):
-                return design[idx]
 
-        self.design = design
-        self.num_design_params = num_design_params
+        self.data["design"] = design
 
-        self.fetch_design = fetch_design
+    @property
+    def design(self):
+        return self.data["design"]
+
+    @design.setter
+    def design(self, data):
+        self.data["design"] = data
+
+    @property
+    def num_design_params(self):
+        return self.data.dims["design_params"]
+
+    def fetch_design(self, idx):
+        return self.design[idx]
 
     def set_chunk_size(self, cs: int):
         super().set_chunk_size(cs)
         self.design = self.design.chunk({"observations": cs})
-
-    def __copy__(self):
-        X = self.X.copy()
-        design = self.design.copy()
-        return InputData(data=X, design=design)
 
 
 class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
@@ -178,6 +183,12 @@ class XArrayModel(Model):
     @property
     def b(self):
         return self.params['b']
+
+    def __str__(self):
+        return "[%s.%s object at %s]: data=%s" % (type(self).__module__, type(self).__name__, hex(id(self)), self.data)
+
+    def __repr__(self):
+        return self.__str__()
 
 
 # class AnndataModel(Model):

@@ -22,6 +22,41 @@ ESTIMATOR_PARAMS.update({
 })
 
 
+def param_bounds(dtype):
+    if isinstance(dtype, tf.DType):
+        min = dtype.min
+        max = dtype.max
+        dtype = dtype.as_numpy_dtype
+    else:
+        min = np.finfo(dtype).min
+        max = np.finfo(dtype).max
+
+    sf = dtype(2.5)
+    bounds_min = {
+        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "mu": np.nextafter(0, np.inf, dtype=dtype),
+        "r": np.nextafter(0, np.inf, dtype=dtype),
+        "probs": dtype(0),
+        "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+    }
+    bounds_max = {
+        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "probs": dtype(1),
+        "log_probs": dtype(0),
+    }
+    return bounds_min, bounds_max
+
+
+def clip_param(param, name):
+    bounds_min, bounds_max = param_bounds(param.dtype)
+    return tf.clip_by_value(
+        param,
+        bounds_min[name],
+        bounds_max[name]
+    )
+
 class EstimatorGraph(TFEstimatorGraph):
     X: tf.Tensor
 
@@ -47,19 +82,11 @@ class EstimatorGraph(TFEstimatorGraph):
 
             with tf.name_scope("probs"):
                 probs = distribution.prob(X, name="probs")
-                probs = tf.clip_by_value(
-                    probs,
-                    0.,
-                    1.
-                )
+                probs = clip_param(probs, "probs")
 
             with tf.name_scope("log_probs"):
                 log_probs = distribution.log_prob(X, name="log_probs")
-                log_probs = tf.clip_by_value(
-                    log_probs,
-                    np.log(np.nextafter(0, 1, dtype=log_probs.dtype.as_numpy_dtype)),
-                    0.
-                )
+                log_probs = clip_param(log_probs, "log_probs")
 
             log_likelihood = tf.reduce_sum(log_probs, name="log_likelihood")
             with tf.name_scope("loss"):

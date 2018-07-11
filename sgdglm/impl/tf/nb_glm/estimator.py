@@ -31,6 +31,52 @@ logger = logging.getLogger(__name__)
 # session / device config
 # CONFIG = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
 
+def param_bounds(dtype):
+    if isinstance(dtype, tf.DType):
+        min = dtype.min
+        max = dtype.max
+        dtype = dtype.as_numpy_dtype
+    else:
+        min = np.finfo(dtype).min
+        max = np.finfo(dtype).max
+
+    sf = dtype(2.5)
+    bounds_min = {
+        "a_intercept": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "a_slope": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b_intercept": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b_slope": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "mu": np.nextafter(0, np.inf, dtype=dtype),
+        "r": np.nextafter(0, np.inf, dtype=dtype),
+        "probs": dtype(0),
+        "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+    }
+    bounds_max = {
+        "a_intercept": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "a_slope": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "b_intercept": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "b_slope": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_r": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "probs": dtype(1),
+        "log_probs": dtype(0),
+    }
+    return bounds_min, bounds_max
+
+
+def clip_param(param, name):
+    bounds_min, bounds_max = param_bounds(param.dtype)
+    return tf.clip_by_value(
+        param,
+        bounds_min[name],
+        bounds_max[name]
+    )
+
+
 class BasicModel:
 
     def __init__(self, X, design, a, b):
@@ -40,39 +86,23 @@ class BasicModel:
 
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design, a, name="log_mu_obs")
-            log_mu = tf.clip_by_value(
-                log_mu,
-                np.log(np.nextafter(0, 1, dtype=log_mu.dtype.as_numpy_dtype)),
-                np.log(log_mu.dtype.max)
-            )
+            log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
         with tf.name_scope("r"):
             log_r = tf.matmul(design, b, name="log_r_obs")
-            log_r = tf.clip_by_value(
-                log_r,
-                np.log(np.nextafter(0, 1, dtype=log_r.dtype.as_numpy_dtype)),
-                np.log(log_r.dtype.max)
-            )
+            log_r = clip_param(log_r, "log_r")
             r = tf.exp(log_r)
 
         dist_obs = nb_utils.NegativeBinomial(mean=mu, r=r, name="dist_obs")
 
         with tf.name_scope("probs"):
             probs = dist_obs.prob(X)
-            probs = tf.clip_by_value(
-                probs,
-                0.,
-                1.
-            )
+            probs = clip_param(probs, "probs")
 
         with tf.name_scope("log_probs"):
             log_probs = dist_obs.log_prob(X)
-            log_probs = tf.clip_by_value(
-                log_probs,
-                np.log(np.nextafter(0, 1, dtype=log_probs.dtype.as_numpy_dtype)),
-                0.
-            )
+            log_probs = clip_param(log_probs, "log_probs")
 
         self.X = X
         self.design = design
@@ -107,11 +137,11 @@ class ModelVars:
             self,
             X,
             design,
-            name="Linear_Batch_Model",
             init_a_intercept=None,
             init_a_slopes=None,
             init_b_intercept=None,
             init_b_slopes=None,
+            name="Linear_Batch_Model",
     ):
         with tf.name_scope(name):
             num_design_params = design.shape[-1]
@@ -119,6 +149,9 @@ class ModelVars:
 
             assert X.shape == [batch_size, num_features]
             assert design.shape == [batch_size, num_design_params]
+
+            # ### parameter bounds
+            dtype = X.dtype
 
             with tf.name_scope("initialization"):
                 # implicit broadcasting of X and initial_mixture_probs to
@@ -128,21 +161,13 @@ class ModelVars:
 
                 if init_a_intercept is None:
                     init_a_intercept = tf.log(init_dist.mean())
-                    init_a_intercept = tf.clip_by_value(
-                        init_a_intercept,
-                        clip_value_min=np.log(1),
-                        clip_value_max=np.log(init_a_intercept.dtype.max) / 8
-                    )
+                    init_a_intercept = clip_param(init_a_intercept, "a_intercept")
                 else:
                     init_a_intercept = tf.convert_to_tensor(init_a_intercept, dtype=X.dtype)
 
                 if init_b_intercept is None:
                     init_b_intercept = tf.log(init_dist.r)
-                    init_b_intercept = tf.clip_by_value(
-                        init_b_intercept,
-                        clip_value_min=np.log(1),
-                        clip_value_max=np.log(init_a_intercept.dtype.max) / 8
-                    )
+                    init_b_intercept = clip_param(init_b_intercept, "a_intercept")
                 else:
                     init_b_intercept = tf.convert_to_tensor(init_b_intercept, dtype=X.dtype)
                 assert init_b_intercept.shape == [1, num_features] == init_b_intercept.shape
@@ -150,17 +175,17 @@ class ModelVars:
                 if init_a_slopes is None:
                     init_a_slopes = tf.random_uniform(
                         tf.TensorShape([num_design_params - 1, num_features]),
-                        minval=np.nextafter(0, 1, dtype=design.dtype.as_numpy_dtype),
-                        maxval=np.sqrt(np.nextafter(0, 1, dtype=design.dtype.as_numpy_dtype)),
-                        dtype=design.dtype
+                        minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
+                        maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
+                        dtype=dtype
                     )
                 else:
-                    init_a_slopes = tf.convert_to_tensor(init_a_slopes, dtype=X.dtype)
+                    init_a_slopes = tf.convert_to_tensor(init_a_slopes, dtype=dtype)
 
                 if init_b_slopes is None:
                     init_b_slopes = init_a_slopes
                 else:
-                    init_b_slopes = tf.convert_to_tensor(init_b_slopes, dtype=X.dtype)
+                    init_b_slopes = tf.convert_to_tensor(init_b_slopes, dtype=dtype)
 
             a, a_intercept, a_slope = tf_linreg.param_variable(init_a_intercept, init_a_slopes, name="a")
             b, b_intercept, b_slope = tf_linreg.param_variable(init_b_intercept, init_b_slopes, name="b")
@@ -296,6 +321,7 @@ class EstimatorGraph(TFEstimatorGraph):
     def __init__(
             self,
             fetch_fn,
+            feature_isnonzero,
             num_observations,
             num_features,
             num_design_params,
@@ -337,6 +363,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 iterator = training_data.make_one_shot_iterator()
                 batch_sample_index, (batch_X, batch_design) = iterator.get_next()
 
+            dtype = batch_X.dtype
+
             # Batch model:
             #     only `batch_size` observations will be used;
             #     All per-sample variables have to be passed via `data`.
@@ -371,104 +399,141 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
 
-            self.fetch_fn = fetch_fn
-            self.batch_vars = batch_vars
-            self.batch_model = batch_model
+            # ### output values:
+            #       override all-zero features with lower bound coefficients
+            with tf.name_scope("output"):
+                bounds_min, bounds_max = param_bounds(dtype)
+                param_nonzero = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_params, 1])
+                alt_a = tf.concat([
+                    tf.tile(
+                        tf.reshape(bounds_min["a_intercept"], [1, 1]),
+                        [1, num_features]
+                    ),
+                    tf.zeros(shape=[num_design_params - 1, num_features], dtype=batch_vars.a.dtype),
+                ], axis=0, name="alt_a")
+                alt_b = tf.concat([
+                    tf.tile(
+                        tf.reshape(bounds_max["b_intercept"], [1, 1]),
+                        [1, num_features]
+                    ),
+                    tf.zeros(shape=[num_design_params - 1, num_features], dtype=batch_vars.a.dtype),
+                ], axis=0, name="alt_b")
 
-            self.loss = loss
+                a = tf.where(
+                    param_nonzero,
+                    batch_vars.a,
+                    alt_a,
+                    name="a"
+                )
+                b = tf.where(
+                    param_nonzero,
+                    batch_vars.b,
+                    alt_b,
+                    name="b"
+                )
 
-            self.trainers = trainers
-            self.global_step = trainers.global_step
+                # ### alternative definitions for custom observations:
+                sample_selection = tf.placeholder_with_default(tf.range(num_observations),
+                                                               shape=(None,),
+                                                               name="sample_selection")
+                full_data_model = FullDataModel(
+                    sample_indices=sample_selection,
+                    fetch_fn=fetch_fn,
+                    batch_size=batch_size * buffer_size,
+                    a=a,
+                    b=b,
+                )
+                full_gradient_a, full_gradient_b = tf.gradients(full_data_model.loss, (batch_vars.a, batch_vars.b))
+                full_gradient = (
+                        tf.reduce_sum(tf.abs(full_gradient_a), axis=0) +
+                        tf.reduce_sum(tf.abs(full_gradient_b), axis=0)
+                )
 
-            self.gradient = aggregated_gradient
-            self.plain_gradient = gradient
+                with tf.name_scope("hessian_diagonal"):
+                    hessian_diagonal = [
+                        tf.map_fn(
+                            # elems=tf.transpose(hess, perm=[2, 0, 1]),
+                            elems=hess,
+                            fn=tf.diag_part,
+                            parallel_iterations=np.iinfo(np.int).max
+                        )
+                        for hess in full_data_model.hessians
+                    ]
+                    hessian_diagonal = tf.concat(hessian_diagonal, axis=-1)
 
-            # self.train_op_GD = train_op_GD
-            # self.train_op_Adam = train_op_Adam
-            # self.train_op_Adagrad = train_op_Adagrad
-            # self.train_op_RMSProp = train_op_RMSProp
-            # default train op
-            self.train_op = trainers.train_op_GD
+                mu = full_data_model.mu
+                r = full_data_model.r
+                sigma2 = full_data_model.sigma2
 
-            self.init_ops = []
-            self.init_op = init_op
+        self.fetch_fn = fetch_fn
+        self.batch_vars = batch_vars
+        self.batch_model = batch_model
 
-            # # ### set up class attributes
-            # self.X = X
-            # self.design = design
+        self.loss = loss
 
-            self.a = batch_vars.a
-            self.b = batch_vars.b
-            assert (self.a.shape == (num_design_params, num_features))
-            assert (self.b.shape == (num_design_params, num_features))
+        self.trainers = trainers
+        self.global_step = trainers.global_step
 
-            self.batch_probs = batch_model.probs
-            self.batch_log_probs = batch_model.log_probs
-            self.batch_log_likelihood = batch_model.log_likelihood
+        self.gradient = aggregated_gradient
+        self.plain_gradient = gradient
 
-            # ### alternative definitions for custom observations:
-            sample_selection = tf.placeholder_with_default(tf.range(num_observations),
-                                                           shape=(None,),
-                                                           name="sample_selection")
-            full_data_model = FullDataModel(
-                sample_indices=sample_selection,
-                fetch_fn=fetch_fn,
-                batch_size=batch_size * buffer_size,
-                a=self.a,
-                b=self.b,
-            )
-            full_gradient_a, full_gradient_b = tf.gradients(full_data_model.loss, (batch_vars.a, batch_vars.b))
-            full_gradient = (
-                    tf.reduce_sum(tf.abs(full_gradient_a), axis=0) +
-                    tf.reduce_sum(tf.abs(full_gradient_b), axis=0)
-            )
+        # self.train_op_GD = train_op_GD
+        # self.train_op_Adam = train_op_Adam
+        # self.train_op_Adagrad = train_op_Adagrad
+        # self.train_op_RMSProp = train_op_RMSProp
+        # default train op
+        self.train_op = trainers.train_op_GD
 
-            with tf.name_scope("hessian_diagonal"):
-                hessian_diagonal = [
-                    tf.map_fn(
-                        # elems=tf.transpose(hess, perm=[2, 0, 1]),
-                        elems=hess,
-                        fn=tf.diag_part,
-                        parallel_iterations=np.iinfo(np.int).max
-                    )
-                    for hess in full_data_model.hessians
-                ]
-                hessian_diagonal = tf.concat(hessian_diagonal, axis=-1)
+        self.init_ops = []
+        self.init_op = init_op
 
-            self.sample_selection = sample_selection
-            self.full_data_model = full_data_model
+        # # ### set up class attributes
+        # self.X = X
+        # self.design = design
 
-            self.mu = full_data_model.mu
-            self.r = full_data_model.r
-            self.sigma2 = full_data_model.sigma2
+        self.a = a
+        self.b = b
+        assert (self.a.shape == (num_design_params, num_features))
+        assert (self.b.shape == (num_design_params, num_features))
 
-            self.full_gradient = full_gradient
-            self.full_loss = full_data_model.loss
-            self.hessian_diagonal = hessian_diagonal
+        self.mu = mu
+        self.r = r
+        self.sigma2 = sigma2
 
-            with tf.name_scope('summaries'):
-                tf.summary.histogram('a_intercept', batch_vars.a_intercept)
-                tf.summary.histogram('b_intercept', batch_vars.b_intercept)
-                tf.summary.histogram('a_slope', batch_vars.a_slope)
-                tf.summary.histogram('b_slope', batch_vars.b_slope)
-                tf.summary.scalar('loss', loss)
-                tf.summary.scalar('learning_rate', learning_rate)
+        self.batch_probs = batch_model.probs
+        self.batch_log_probs = batch_model.log_probs
+        self.batch_log_likelihood = batch_model.log_likelihood
 
-                if extended_summary:
-                    tf.summary.scalar('median_ll',
-                                      tf.contrib.distributions.percentile(
-                                          tf.reduce_sum(batch_model.log_probs, axis=1),
-                                          50.)
-                                      )
-                    tf.summary.histogram('gradient_a', tf.gradients(loss, batch_vars.a))
-                    tf.summary.histogram('gradient_b', tf.gradients(loss, batch_vars.b))
-                    tf.summary.histogram("full_gradient", full_gradient)
-                    tf.summary.scalar("full_gradient_median",
-                                      tf.contrib.distributions.percentile(full_gradient, 50.))
-                    tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
+        self.sample_selection = sample_selection
+        self.full_data_model = full_data_model
 
-            self.saver = tf.train.Saver()
-            self.merged_summary = tf.summary.merge_all()
+        self.full_gradient = full_gradient
+        self.full_loss = full_data_model.loss
+        self.hessian_diagonal = hessian_diagonal
+
+        with tf.name_scope('summaries'):
+            tf.summary.histogram('a_intercept', batch_vars.a_intercept)
+            tf.summary.histogram('b_intercept', batch_vars.b_intercept)
+            tf.summary.histogram('a_slope', batch_vars.a_slope)
+            tf.summary.histogram('b_slope', batch_vars.b_slope)
+            tf.summary.scalar('loss', loss)
+            tf.summary.scalar('learning_rate', learning_rate)
+
+            if extended_summary:
+                tf.summary.scalar('median_ll',
+                                  tf.contrib.distributions.percentile(
+                                      tf.reduce_sum(batch_model.log_probs, axis=1),
+                                      50.)
+                                  )
+                tf.summary.histogram('gradient_a', tf.gradients(loss, batch_vars.a))
+                tf.summary.histogram('gradient_b', tf.gradients(loss, batch_vars.b))
+                tf.summary.histogram("full_gradient", full_gradient)
+                tf.summary.scalar("full_gradient_median",
+                                  tf.contrib.distributions.percentile(full_gradient, 50.))
+                tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
+
+        self.saver = tf.train.Saver()
+        self.merged_summary = tf.summary.merge_all()
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
@@ -512,6 +577,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 # create model
                 model = EstimatorGraph(
                     fetch_fn=fetch_fn,
+                    feature_isnonzero=input_data.feature_isnonzero,
                     num_observations=input_data.num_observations,
                     num_features=input_data.num_features,
                     num_design_params=input_data.num_design_params,

@@ -1,5 +1,5 @@
 import abc
-from typing import Union, Iterable, Type
+from typing import Union
 
 import dask
 import dask.array as da
@@ -38,31 +38,51 @@ ESTIMATOR_PARAMS.update({
 
 class InputData(BasicInputData):
 
-    def __init__(self, data):
-        fetch_X = None
+    @classmethod
+    def from_data(cls, *args, from_store=False, **kwargs):
+        return cls(*args, **kwargs, from_store=False)
+
+    @classmethod
+    def from_store(cls, *args, from_store=True, **kwargs):
+        return cls(*args, **kwargs, from_store=True)
+
+    def __init__(self, data, observation_names=None, feature_names=None, from_store=False):
+        if from_store:
+            self.data = data
+            return
+
+        # fetch_X = None
+        # all_observations_zero = None
         if anndata is not None and isinstance(data, anndata.AnnData):
             X = data.X
+            # all_observations_zero = ~np.any(data.X, axis=0)
+            #
+            # num_features = data.n_vars
+            # num_observations = data.n_obs
+            #
+            # def fetch_X(idx):
+            #     idx = np.asarray(idx).reshape(-1)
+            #     retval = data.chunk_X(idx)[:, ~all_observations_zero]
+            #
+            #     if idx.size == 1:
+            #         retval = np.squeeze(retval, axis=0)
+            #
+            #     return retval.astype(np.float32)
+            #
+            # delayed_fetch = dask.delayed(fetch_X, pure=True)
+            # X = [
+            #     dask.array.from_delayed(
+            #         delayed_fetch(idx),
+            #         shape=(num_features,),
+            #         dtype=np.float32
+            #     ) for idx in range(num_observations)
+            # ]
+            X = dask.array.from_array(X, X.shape)
 
-            num_features = data.n_vars
-            num_observations = data.n_obs
-
-            def fetch_X(idx):
-                idx = np.asarray(idx).reshape(-1)
-                retval = data.chunk_X(idx)
-                if idx.size == 1:
-                    retval = np.squeeze(retval, axis=0)
-                return retval.astype(np.float32)
-
-            delayed_fetch = dask.delayed(fetch_X, pure=True)
-            X = [
-                dask.array.from_delayed(
-                    delayed_fetch(idx),
-                    shape=(num_features,),
-                    dtype=np.float32
-                ) for idx in range(num_observations)
-            ]
-
-            X = xr.DataArray(dask.array.stack(X), dims=INPUT_DATA_PARAMS["X"])
+            X = xr.DataArray(dask.array.stack(X), dims=INPUT_DATA_PARAMS["X"], coords={
+                "observations": data.obs_names,
+                "features": data.var_names,
+            })
         elif isinstance(data, xr.Dataset):
             X: xr.DataArray = data["X"]
         elif isinstance(data, xr.DataArray):
@@ -70,26 +90,81 @@ class InputData(BasicInputData):
         else:
             X = xr.DataArray(data, dims=INPUT_DATA_PARAMS["X"])
 
-        (num_observations, num_features) = X.shape
-
         X = X.astype("float32")
         # X = X.chunk({"observations": 1})
-        if fetch_X is None:
-            def fetch_X(idx):
-                return X[idx].values
 
-        self.X = X
-        self.num_observations = num_observations
-        self.num_features = num_features
+        # if all_observations_zero is None:
+        #     all_observations_zero = ~
+        #
+        # if fetch_X is None:
+        #     def fetch_X(idx):
+        #         return X[idx, ~all_observations_zero].values
 
-        self.fetch_X = fetch_X
+        self.data = xr.Dataset({
+            "X": X,
+        }, coords={
+            "feature_allzero": ~X.any(dim="observations")
+        })
+        if observation_names is not None:
+            self.data = self.data.assign_coords(observations=observation_names)
+        elif "observations" not in self.data.coords:
+            self.data = self.data.assign_coords(observations=self.data.coords["observations"])
+
+        if feature_names is not None:
+            self.data = self.data.assign_coords(features=feature_names)
+        elif "features" not in self.data.coords:
+            self.data = self.data.assign_coords(features=self.data.coords["features"])
+
+        # self.fetch_X = fetch_X
+
+    @property
+    def X(self):
+        return self.data.X
+
+    @X.setter
+    def X(self, data):
+        self.data["X"] = data
+
+    @property
+    def num_observations(self):
+        return self.data.dims["observations"]
+
+    @property
+    def num_features(self):
+        return self.data.dims["features"]
+
+    @property
+    def feature_isnonzero(self):
+        return ~self.feature_isallzero
+
+    @property
+    def feature_isallzero(self):
+        return self.data.coords["feature_allzero"]
+
+    def fetch_X(self, idx):
+        return self.X[idx].values
 
     def set_chunk_size(self, cs: int):
         self.X = self.X.chunk({"observations": cs})
 
     def __copy__(self):
-        X = self.X.copy()
-        return InputData(data=X)
+        return self.from_store(self.data)
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            data = self.data.isel(observations=item)
+        elif isinstance(item, tuple):
+            data = self.data.isel(observations=item[0], features=item[1])
+        else:
+            data = self.data.isel(observations=item)
+
+        return self.from_store(data)
+
+    def __str__(self):
+        return "[%s.%s object at %s]: data=%s" % (type(self).__module__, type(self).__name__, hex(id(self)), self.data)
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Model(BasicModel, metaclass=abc.ABCMeta):
@@ -106,6 +181,14 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
     @property
     def X(self) -> xr.DataArray:
         return self.input_data.X
+
+    @property
+    def feature_isnonzero(self):
+        return self.input_data.feature_isnonzero
+
+    @property
+    def feature_isallzero(self):
+        return self.input_data.feature_isallzero
 
     @property
     @abc.abstractmethod
@@ -211,6 +294,13 @@ class XArrayModel(Model):
     @property
     def r(self):
         return self.params["r"]
+
+    def __str__(self):
+        return "[%s.%s object at %s]: params=%s" % \
+               (type(self).__module__, type(self).__name__, hex(id(self)), self.params)
+
+    def __repr__(self):
+        return self.__str__()
 
 
 # class AnndataModel(Model):

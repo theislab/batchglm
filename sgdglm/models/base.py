@@ -41,11 +41,12 @@ class BasicModel(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def to_xarray(self, parm: Union[str, list]):
+    def to_xarray(self, parm: Union[str, list], coords=None):
         """
         Converts the specified parameters into an xr.Dataset or xr.DataArray object
 
         :param parm: string or list of strings specifying parameters which can be fetched by `self.get(params)`
+        :param coords: optional dict-like object with arrays corresponding to dimension names
         """
         # fetch data
         data = self.get(parm)
@@ -55,9 +56,17 @@ class BasicModel(metaclass=abc.ABCMeta):
 
         if isinstance(parm, str):
             output = xr.DataArray(data, dims=shapes[parm])
+            if coords is not None:
+                for i in output.dims:
+                    if i in coords:
+                        output.coords[i] = coords[i]
         else:
             output = {key: (shapes[key], data[key]) for key in parm}
             output = xr.Dataset(output)
+            if coords is not None:
+                for i in output.dims:
+                    if i in coords:
+                        output.coords[i] = coords[i]
 
         return output
 

@@ -10,6 +10,13 @@ class NegativeBinomial:
     # p: np.ndarray
     r: np.ndarray
 
+    @classmethod
+    def mme(cls, data, axis=0):
+        mean = np.mean(data, axis=axis)
+        variance = np.mean(np.square(data - mean), axis=axis)
+
+        return cls(mean=mean, variance=variance)
+
     def __init__(self, r=None, variance=None, p=None, mean=None):
         if r is not None:
             if variance is not None:

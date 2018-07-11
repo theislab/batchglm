@@ -43,6 +43,7 @@ class NegativeBinomialTest(unittest.TestCase):
 
     def test_default_fit(self):
         sim = self.sim.__copy__()
+        print(sim.input_data[2:4, [5, 6, 7]])
 
         wd = os.path.join(self.working_dir.name, "default_fit")
         os.makedirs(wd, exist_ok=True)

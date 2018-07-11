@@ -20,7 +20,7 @@ def estimate(sim: Simulator, input_data: InputData, working_dir: str):
         save_checkpoint_steps=20,
         save_summaries_steps=20,
         # stop_at_step=1000,
-        # stop_below_loss_change=1e-5,
+        # stop_below_loss_change=1e-5,i
 
         export=["a", "b", "mu", "r", "loss"],
         export_steps=20
@@ -54,6 +54,7 @@ class NB_GLM_Test(unittest.TestCase):
 
     def test_default_fit(self):
         sim = self.sim.__copy__()
+        print(sim.input_data[2:4, [5, 6, 7]])
 
         wd = os.path.join(self.working_dir.name, "default_fit")
         os.makedirs(wd, exist_ok=True)
@@ -98,7 +99,7 @@ class NB_GLM_Test(unittest.TestCase):
 
     def test_low_values(self):
         sim = self.sim.__copy__()
-        sim.data.X[1:, 0] = 0
+        sim.data.X[:, 0] = 0
 
         wd = os.path.join(self.working_dir.name, "low_values")
         os.makedirs(wd, exist_ok=True)
