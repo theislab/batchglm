@@ -37,6 +37,7 @@ ESTIMATOR_PARAMS.update({
 
 
 class InputData(BasicInputData):
+    data: xr.Dataset
 
     @classmethod
     def from_data(cls, *args, from_store=False, **kwargs):
@@ -161,7 +162,12 @@ class InputData(BasicInputData):
         return self.from_store(data)
 
     def __str__(self):
-        return "[%s.%s object at %s]: data=%s" % (type(self).__module__, type(self).__name__, hex(id(self)), self.data)
+        return "[%s.%s object at %s]: data=%s" % (
+            type(self).__module__,
+            type(self).__name__,
+            hex(id(self)),
+            self.data
+        )
 
     def __repr__(self):
         return self.__str__()
@@ -296,8 +302,12 @@ class XArrayModel(Model):
         return self.params["r"]
 
     def __str__(self):
-        return "[%s.%s object at %s]: params=%s" % \
-               (type(self).__module__, type(self).__name__, hex(id(self)), self.params)
+        return "[%s.%s object at %s]: data=%s" % (
+            type(self).__module__,
+            type(self).__name__,
+            hex(id(self)),
+            self.params
+        )
 
     def __repr__(self):
         return self.__str__()

@@ -79,13 +79,15 @@ def clip_param(param, name):
 
 class BasicModel:
 
-    def __init__(self, X, design, a, b):
+    def __init__(self, X, design, a, b, scaling_factors=None):
         dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
                                                r=tf.exp(tf.gather(b, 0)),
                                                name="dist_estim")
 
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design, a, name="log_mu_obs")
+            if scaling_factors is not None:
+                log_mu = log_mu + scaling_factors
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
@@ -204,7 +206,7 @@ class ModelVars:
 #     batch_design = tf.gather(design, indices)
 #     return indices, (batch_X, batch_design)
 
-def feature_wise_hessians(X, design, a, b) -> List[tf.Tensor]:
+def feature_wise_hessians(X, design, a, b, scaling_factors=None) -> List[tf.Tensor]:
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
     b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
@@ -215,7 +217,7 @@ def feature_wise_hessians(X, design, a, b) -> List[tf.Tensor]:
         a = tf.transpose(a_t)
         b = tf.transpose(b_t)
 
-        model = BasicModel(X, design, a, b)
+        model = BasicModel(X, design, a, b, scaling_factors=scaling_factors)
 
         hess = tf.hessians(-model.log_likelihood, [a, b])
 
@@ -249,8 +251,8 @@ class FullDataModel:
         batched_data = batched_data.prefetch(1)
 
         def map_model(idx, data) -> BasicModel:
-            data, design = data
-            model = BasicModel(data, design, a, b)
+            X, design, scaling_factors = data
+            model = BasicModel(X, design, a, b, scaling_factors=scaling_factors)
             return model
 
         super()
@@ -269,8 +271,8 @@ class FullDataModel:
 
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
-                X, design = data
-                return feature_wise_hessians(X, design, a, b)
+                X, design, scaling_factors = data
+                return feature_wise_hessians(X, design, a, b, scaling_factors=scaling_factors)
 
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -361,7 +363,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 training_data = training_data.prefetch(buffer_size)
 
                 iterator = training_data.make_one_shot_iterator()
-                batch_sample_index, (batch_X, batch_design) = iterator.get_next()
+                batch_sample_index, (batch_X, batch_design, batch_scaling_factors) = iterator.get_next()
 
             dtype = batch_X.dtype
 
@@ -378,7 +380,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 init_b_slopes=init_b_slopes,
             )
 
-            batch_model = BasicModel(batch_X, batch_design, batch_vars.a, batch_vars.b)
+            batch_model = BasicModel(batch_X, batch_design, batch_vars.a, batch_vars.b,
+                                     scaling_factors=batch_scaling_factors)
 
             # minimize negative log probability (log(1) = 0);
             # use the mean loss to keep a constant learning rate independently of the batch size
@@ -395,6 +398,13 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 aggregated_gradient = tf.add_n(
                     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
+
+                # train only dispersion
+                trainers_b_only = train_utils.MultiTrainer(
+                    loss=loss,
+                    variables=[batch_vars.b_intercept, batch_vars.b_slope],
+                    learning_rate=learning_rate
+                )
 
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
@@ -472,6 +482,7 @@ class EstimatorGraph(TFEstimatorGraph):
         self.loss = loss
 
         self.trainers = trainers
+        self.trainers_b_only = trainers_b_only
         self.global_step = trainers.global_step
 
         self.gradient = aggregated_gradient
@@ -571,7 +582,15 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 design_tensor.set_shape(
                     idx.get_shape().as_list() + [input_data.num_design_params]
                 )
-                return idx, (X_tensor, design_tensor)
+
+                if input_data.scaling_factors is not None:
+                    scaling_factors_tensor = tf.py_func(input_data.fetch_scaling_factors, [idx], tf.float32)
+                    scaling_factors_tensor.set_shape(idx.get_shape())
+                else:
+                    scaling_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
+
+                # return idx, data
+                return idx, (X_tensor, design_tensor, scaling_factors_tensor)
 
             with graph.as_default():
                 # create model
@@ -606,12 +625,15 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
               convergence_criteria="t_test",
               loss_history_size=200,
               stop_at_loss_change=0.05,
+              b_only=False,
               **kwargs):
+        train_op = self.model.trainers_b_only.train_op_GD if b_only else None
         super().train(*args,
                       feed_dict={"learning_rate:0": learning_rate},
                       convergence_criteria=convergence_criteria,
                       loss_history_size=loss_history_size,
                       stop_at_loss_change=stop_at_loss_change,
+                      train_op=train_op,
                       **kwargs)
 
     @property
@@ -645,36 +667,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def batch_gradient(self):
         return self.to_xarray("gradient")
-
-    # def probs(self, X=None, sample_indices=None):
-    #     if X is None:
-    #         if sample_indices is None:
-    #             sample_indices = np.arange(self.model.num_observations)
-    #         feed_dict = {self.model.sample_selection: sample_indices}
-    #
-    #         return self.run(self.model.full_data.probs, feed_dict=feed_dict)
-    #     else:
-    #         return super().probs(X)
-    #
-    # def log_probs(self, X=None, sample_indices=None):
-    #     if X is None:
-    #         if sample_indices is None:
-    #             sample_indices = np.arange(self.model.num_observations)
-    #         feed_dict = {self.model.sample_selection: sample_indices}
-    #
-    #         return self.run(self.model.full_data.log_probs, feed_dict=feed_dict)
-    #     else:
-    #         return super().log_probs(X)
-    #
-    # def log_likelihood(self, X=None, sample_indices=None):
-    #     if X is None:
-    #         if sample_indices is None:
-    #             sample_indices = np.arange(self.model.num_observations)
-    #         feed_dict = {self.model.sample_selection: sample_indices}
-    #
-    #         return self.run(self.model.full_data.log_likelihood, feed_dict=feed_dict)
-    #     else:
-    #         return super().log_likelihood(X)
 
     @property
     def loss(self):

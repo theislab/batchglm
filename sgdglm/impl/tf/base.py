@@ -86,6 +86,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         return self.get("loss")
 
     def _train_to_convergence(self,
+                              train_op,
                               feed_dict,
                               loss_history_size,
                               stop_at_loss_change,
@@ -117,7 +118,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 
         while True:
             train_step, global_loss, _ = self.session.run(
-                (self.model.global_step, self.model.loss, self.model.train_op),
+                (self.model.global_step, self.model.loss, train_op),
                 feed_dict=feed_dict
             )
 
@@ -140,6 +141,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
               convergence_criteria="t_test",
               loss_history_size=None,
               stop_at_loss_change=None,
+              train_op=None,
               **kwargs):
         """
         Starts training of the model
@@ -164,6 +166,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_history_size: specifies `N` in `convergence_criteria`.
+        :param train_op: uses this training operation if specified
 
         :returns last value of `loss`
         """
@@ -178,7 +181,11 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             else:
                 stop_at_loss_change = 0.05
 
+        if train_op is None:
+            train_op = self.model.train_op
+
         self._train_to_convergence(
+            train_op=train_op,
             convergence_criteria=convergence_criteria,
             loss_history_size=loss_history_size,
             stop_at_loss_change=stop_at_loss_change,

@@ -35,7 +35,7 @@ ESTIMATOR_PARAMS.update({
 
 class InputData(NegativeBinomialInputData):
 
-    def __init__(self, data, design=None, observation_names=None, feature_names=None,
+    def __init__(self, data, design=None, scaling_factors=None, observation_names=None, feature_names=None,
                  design_key="design", from_store=False):
         super().__init__(data=data, observation_names=observation_names, feature_names=feature_names,
                          from_store=from_store)
@@ -60,6 +60,9 @@ class InputData(NegativeBinomialInputData):
 
         self.data["design"] = design
 
+        if scaling_factors is not None:
+            self.scaling_factors = scaling_factors
+
     @property
     def design(self):
         return self.data["design"]
@@ -69,11 +72,22 @@ class InputData(NegativeBinomialInputData):
         self.data["design"] = data
 
     @property
+    def scaling_factors(self):
+        return self.data.coords.get("scaling_factors")
+
+    @scaling_factors.setter
+    def scaling_factors(self, data):
+        self.data.assign_coords(scaling_factors=data)
+
+    @property
     def num_design_params(self):
         return self.data.dims["design_params"]
 
     def fetch_design(self, idx):
         return self.design[idx]
+
+    def fetch_scaling_factors(self, idx):
+        return self.scaling_factors[idx]
 
     def set_chunk_size(self, cs: int):
         super().set_chunk_size(cs)
@@ -185,7 +199,12 @@ class XArrayModel(Model):
         return self.params['b']
 
     def __str__(self):
-        return "[%s.%s object at %s]: data=%s" % (type(self).__module__, type(self).__name__, hex(id(self)), self.data)
+        return "[%s.%s object at %s]: data=%s" % (
+            type(self).__module__,
+            type(self).__name__,
+            hex(id(self)),
+            self.params
+        )
 
     def __repr__(self):
         return self.__str__()
