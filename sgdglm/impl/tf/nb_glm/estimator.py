@@ -584,7 +584,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 )
 
                 if input_data.scaling_factors is not None:
-                    scaling_factors_tensor = tf.py_func(input_data.fetch_scaling_factors, [idx], tf.float32)
+                    scaling_factors_tensor = tf.log(tf.py_func(input_data.fetch_scaling_factors, [idx], tf.float32))
                     scaling_factors_tensor.set_shape(idx.get_shape())
                 else:
                     scaling_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
