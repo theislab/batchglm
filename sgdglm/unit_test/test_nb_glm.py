@@ -72,6 +72,31 @@ class NB_GLM_Test(unittest.TestCase):
 
         return estimator, sim
 
+    def test_nonconfounded_fit(self):
+        sim = Simulator(num_observations=2000, num_features=100)
+        sim.generate_sample_description(num_conditions=0, num_batches=4)
+        sim.generate()
+
+        print(sim.input_data[2:4, [5, 6, 7]])
+
+        wd = os.path.join(self.working_dir.name, "default_fit")
+        os.makedirs(wd, exist_ok=True)
+
+        estimator = estimate(sim, sim.input_data, wd)
+        print("Disabling training of 'r'; now should not train any more:")
+        estimator.train(train_r=False)
+        self._estims.append(estimator)
+
+        # test finalizing
+        estimator = estimator.finalize()
+        print(estimator.mu.values)
+        print(estimator.gradient.values)
+        print(estimator.hessian_diagonal.values)
+        print(estimator.probs().values)
+        print(estimator.log_probs().values)
+
+        return estimator, sim
+
     def test_anndata(self):
         adata = self.sim.data_to_anndata()
         idata = InputData(adata)

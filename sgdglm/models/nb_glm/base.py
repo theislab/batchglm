@@ -64,7 +64,7 @@ class InputData(NegativeBinomialInputData):
             self.scaling_factors = scaling_factors
 
     @property
-    def design(self):
+    def design(self) -> xr.DataArray:
         return self.data["design"]
 
     @design.setter

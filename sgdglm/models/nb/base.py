@@ -119,7 +119,7 @@ class InputData(BasicInputData):
         # self.fetch_X = fetch_X
 
     @property
-    def X(self):
+    def X(self) -> xr.DataArray:
         return self.data.X
 
     @X.setter

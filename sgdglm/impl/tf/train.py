@@ -231,8 +231,8 @@ class StopAtLossHook(tf.train.SessionRunHook):
 
 
 class MultiTrainer:
-    def __init__(self, loss, variables: List, learning_rate):
-        global_step = tf.train.get_or_create_global_step()
+    def __init__(self, loss, variables: List, learning_rate, global_step=None):
+        # global_step = tf.train.get_or_create_global_step()
 
         gradient = tf.gradients(loss, variables)
         gradient = [(g, v) for g, v in zip(gradient, variables)]

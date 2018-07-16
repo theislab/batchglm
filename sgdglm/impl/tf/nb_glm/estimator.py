@@ -16,6 +16,8 @@ import impl.tf.train as train_utils
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, MonitoredTFEstimator, TFEstimatorGraph
 from .external import nb_utils, tf_linreg
 
+import utils.random as rand_utils
+
 ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
 ESTIMATOR_PARAMS.update({
     "batch_probs": ("batch_observations", "features"),
@@ -169,10 +171,11 @@ class ModelVars:
 
                 if init_b_intercept is None:
                     init_b_intercept = tf.log(init_dist.r)
-                    init_b_intercept = clip_param(init_b_intercept, "a_intercept")
+                    init_b_intercept = clip_param(init_b_intercept, "b_intercept")
                 else:
                     init_b_intercept = tf.convert_to_tensor(init_b_intercept, dtype=X.dtype)
-                assert init_b_intercept.shape == [1, num_features] == init_b_intercept.shape
+
+                assert init_a_intercept.shape == [1, num_features] == init_b_intercept.shape
 
                 if init_a_slopes is None:
                     init_a_slopes = tf.random_uniform(
@@ -389,22 +392,33 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # ### management
             with tf.name_scope("training"):
+                global_step = tf.train.get_or_create_global_step()
+
+                # set up trainers for different selections of variables to train
+                # set up multiple optimization algorithms for each trainer
                 trainers = train_utils.MultiTrainer(
                     loss=loss,
                     variables=tf.trainable_variables(),
-                    learning_rate=learning_rate
+                    learning_rate=learning_rate,
+                    global_step=global_step
                 )
+                trainers_a_only = train_utils.MultiTrainer(
+                    loss=loss,
+                    variables=[batch_vars.a_intercept, batch_vars.a_slope],
+                    learning_rate=learning_rate,
+                    global_step=global_step
+                )
+                trainers_b_only = train_utils.MultiTrainer(
+                    loss=loss,
+                    variables=[batch_vars.b_intercept, batch_vars.b_slope],
+                    learning_rate=learning_rate,
+                    global_step=global_step
+                )
+
                 gradient = trainers.gradient
 
                 aggregated_gradient = tf.add_n(
                     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
-
-                # train only dispersion
-                trainers_b_only = train_utils.MultiTrainer(
-                    loss=loss,
-                    variables=[batch_vars.b_intercept, batch_vars.b_slope],
-                    learning_rate=learning_rate
-                )
 
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
@@ -482,8 +496,9 @@ class EstimatorGraph(TFEstimatorGraph):
         self.loss = loss
 
         self.trainers = trainers
+        self.trainers_a_only = trainers_a_only
         self.trainers_b_only = trainers_b_only
-        self.global_step = trainers.global_step
+        self.global_step = global_step
 
         self.gradient = aggregated_gradient
         self.plain_gradient = gradient
@@ -494,6 +509,8 @@ class EstimatorGraph(TFEstimatorGraph):
         # self.train_op_RMSProp = train_op_RMSProp
         # default train op
         self.train_op = trainers.train_op_GD
+        self.train_op_a = trainers_a_only.train_op_GD
+        self.train_op_b = trainers_b_only.train_op_GD
 
         self.init_ops = []
         self.init_op = init_op
@@ -550,6 +567,9 @@ class EstimatorGraph(TFEstimatorGraph):
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     model: EstimatorGraph
 
+    _train_mu: bool
+    _train_r: bool
+
     @classmethod
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
@@ -570,6 +590,45 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 graph = tf.Graph()
 
             self._input_data = input_data
+
+            if init_a_intercept is init_a_slopes is init_b_intercept is init_b_slopes is None:
+                """
+                Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
+                is not confounded.
+                
+                Idea:
+                $$
+                mu  = exp(a) = exp(I*a) \\
+                    = exp[(design*design^{-1})*a] \\
+                    = exp[design * (design^{-1} * a)] \\
+                    = exp(design * a') = mu
+                $$
+                """
+                try:
+                    unique_design, inverse_idx = np.unique(input_data.design, axis=0, return_inverse=True)
+                    inv_design = np.linalg.inv(unique_design)
+                    X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                    dist = rand_utils.NegativeBinomial.mme(X.groupby("group"))
+
+                    a = np.log(dist.mean)
+                    # a = a * np.eye(np.size(a))
+                    a_prime = np.matmul(inv_design, a)
+                    init_a_intercept = a_prime[[0]]
+                    init_a_slopes = a_prime[1:]
+
+                    b = np.log(dist.r)
+                    # b = b * np.eye(np.size(b))
+                    b_prime = np.matmul(inv_design, b)
+                    init_b_intercept = b_prime[[0]]
+                    init_b_slopes = b_prime[1:]
+
+                    self._train_mu = False
+                    self._train_r = True
+                    logger.info("Using closed-form MLE/MME initialization")
+                    logger.debug("inverse design matrix:\n%s", inv_design)
+                except np.linalg.LinAlgError:
+                    self._train_mu = True
+                    self._train_r = True
 
             # ### prepare fetch_fn:
             def fetch_fn(idx):
@@ -625,9 +684,26 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
               convergence_criteria="t_test",
               loss_history_size=200,
               stop_at_loss_change=0.05,
-              b_only=False,
+              train_mu: bool = None,
+              train_r: bool = None,
               **kwargs):
-        train_op = self.model.trainers_b_only.train_op_GD if b_only else None
+        if train_mu is None:
+            train_mu = self._train_mu
+        if train_r is None:
+            train_r = self._train_r
+
+        if train_mu:
+            if train_r:
+                train_op = self.model.train_op
+            else:
+                train_op = self.model.train_op_a
+        else:
+            if train_r:
+                train_op = self.model.train_op_b
+            else:
+                logger.info("No training necessary; returning")
+                return
+
         super().train(*args,
                       feed_dict={"learning_rate:0": learning_rate},
                       convergence_criteria=convergence_criteria,
