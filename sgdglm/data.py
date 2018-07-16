@@ -70,7 +70,7 @@ def design_matrix_from_xarray(dataset: xr.Dataset,
                               formula_key="formula",
                               design_key="design",
                               as_categorical=True,
-                              append=False):
+                              ):
     """
     Create a design matrix from a given xarray.Dataset and model formula.
     
@@ -100,7 +100,6 @@ def design_matrix_from_xarray(dataset: xr.Dataset,
         is True.
         
         Set to false, if columns should not be changed.
-    :param append: should 'dataset' be changed inplace by appending the design matrix and formula?
     :return:
         if append is False:
             2D design matrix
@@ -114,19 +113,7 @@ def design_matrix_from_xarray(dataset: xr.Dataset,
         # could not find formula; try to construct it from explanatory variables
         raise ValueError("formula could not be found")
 
-    # explanatory_vars = _factors(formula)
-    # explanatory_vars.remove("Intercept")
-    #
-    # # explanatory_vars = set(dataset.variables.keys())
-    # # explanatory_vars = list(explanatory_vars.intersection(factors))
-    #
-    # for i in explanatory_vars:
-    #     if i not in dataset.variables:
-    #         raise ValueError("Unknown variable: %s" % i)
-
     explanatory_vars = [key for key, val in dataset.variables.items() if val.dims == (dim,)]
-
-    dimensions = (dim, "design_params")
 
     if len(explanatory_vars) > 0:
         sample_description = dataset[explanatory_vars].to_dataframe()
@@ -134,18 +121,7 @@ def design_matrix_from_xarray(dataset: xr.Dataset,
         sample_description = pd.DataFrame({"intercept": range(dataset.dims[dim])})
 
     dmat = design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
-
-    if append:
-        dataset[design_key] = (
-            dimensions,
-            dmat
-        )
-
-        dataset.attrs[formula_key] = formula
-
-        return dataset
-    else:
-        return dmat
+    return dmat
 
 
 def design_matrix_from_anndata(dataset: anndata.AnnData,
@@ -153,7 +129,7 @@ def design_matrix_from_anndata(dataset: anndata.AnnData,
                                formula_key="formula",
                                design_key="design",
                                as_categorical=True,
-                               append=False):
+                               ):
     """
     Create a design matrix from a given xarray.Dataset and model formula.
 
@@ -180,7 +156,6 @@ def design_matrix_from_anndata(dataset: anndata.AnnData,
         is True.
 
         Set to false, if columns should not be changed.
-    :param append: should 'dataset' be changed inplace by appending the design matrix and formula?
     :return:
         if append is False:
             2D design matrix
@@ -194,28 +169,10 @@ def design_matrix_from_anndata(dataset: anndata.AnnData,
         # could not find formula; try to construct it from explanatory variables
         raise ValueError("formula could not be found")
 
-    # explanatory_vars = _factors(formula)
-    # explanatory_vars.remove("Intercept")
-    #
-    # # explanatory_vars = set(dataset.obs.keys())
-    # # explanatory_vars = list(explanatory_vars.intersection(factors))
-    #
-    # for i in explanatory_vars:
-    #     if i not in dataset.obs:
-    #         raise ValueError("Unknown variable: %s" % i)
-
     sample_description = dataset.obs
 
     dmat = design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
-
-    if append:
-        dataset.obsm[design_key] = dmat
-
-        dataset.uns[formula_key] = formula
-
-        return dataset
-    else:
-        return dmat
+    return dmat
 
 
 def load_mtx_to_adata(path, cache=True):

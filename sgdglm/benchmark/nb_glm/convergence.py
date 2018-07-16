@@ -199,12 +199,12 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
     print("plotting...")
     val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.params["a"][0], dims=("features",))),
-        np.exp(benchmark_data.a.isel(design_params=0)), axis=[0])
+        np.exp(benchmark_data.a.isel(design_loc_params=0)), axis=[0])
     plot_stat(val, "mapd", "real_mu")
 
     val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.params["b"][0], dims=("features",))),
-        np.exp(benchmark_data.b.isel(design_params=0)), axis=[0])
+        np.exp(benchmark_data.b.isel(design_scale_params=0)), axis=[0])
     plot_stat(val, "mapd", "real_r")
 
     val: xr.DataArray = benchmark_data.loss
@@ -317,7 +317,7 @@ def main():
     action = args.action
     if action == "init":
         sim = Simulator(num_observations=args.num_observations, num_features=args.num_features)
-        sim.generate_sample_description(num_batches=args.num_batches, num_conditions=args.num_conditions)
+        sim.generate_sample_description(num_batches=args.num_batches, num_confounders=args.num_conditions)
         sim.generate()
 
         init_benchmark(

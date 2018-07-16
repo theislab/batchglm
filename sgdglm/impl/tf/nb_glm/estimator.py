@@ -81,20 +81,20 @@ def clip_param(param, name):
 
 class BasicModel:
 
-    def __init__(self, X, design, a, b, scaling_factors=None):
+    def __init__(self, X, design_loc, design_scale, a, b, size_factors=None):
         dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
                                                r=tf.exp(tf.gather(b, 0)),
                                                name="dist_estim")
 
         with tf.name_scope("mu"):
-            log_mu = tf.matmul(design, a, name="log_mu_obs")
-            if scaling_factors is not None:
-                log_mu = log_mu + scaling_factors
+            log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
+            if size_factors is not None:
+                log_mu = log_mu + size_factors
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
         with tf.name_scope("r"):
-            log_r = tf.matmul(design, b, name="log_r_obs")
+            log_r = tf.matmul(design_scale, b, name="log_r_obs")
             log_r = clip_param(log_r, "log_r")
             r = tf.exp(log_r)
 
@@ -109,7 +109,8 @@ class BasicModel:
             log_probs = clip_param(log_probs, "log_probs")
 
         self.X = X
-        self.design = design
+        self.design_loc = design_loc
+        self.design_scale = design_scale
 
         self.dist_estim = dist_estim
         self.mu_estim = dist_estim.mean()
@@ -140,7 +141,8 @@ class ModelVars:
     def __init__(
             self,
             X,
-            design,
+            design_loc,
+            design_scale,
             init_a_intercept=None,
             init_a_slopes=None,
             init_b_intercept=None,
@@ -148,11 +150,13 @@ class ModelVars:
             name="Linear_Batch_Model",
     ):
         with tf.name_scope(name):
-            num_design_params = design.shape[-1]
+            num_design_loc_params = design_loc.shape[-1]
+            num_design_scale_params = design_scale.shape[-1]
             (batch_size, num_features) = X.shape
 
             assert X.shape == [batch_size, num_features]
-            assert design.shape == [batch_size, num_design_params]
+            assert design_loc.shape == [batch_size, num_design_loc_params]
+            assert design_scale.shape == [batch_size, num_design_scale_params]
 
             # ### parameter bounds
             dtype = X.dtype
@@ -179,7 +183,7 @@ class ModelVars:
 
                 if init_a_slopes is None:
                     init_a_slopes = tf.random_uniform(
-                        tf.TensorShape([num_design_params - 1, num_features]),
+                        tf.TensorShape([num_design_loc_params - 1, num_features]),
                         minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
                         maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
                         dtype=dtype
@@ -188,13 +192,19 @@ class ModelVars:
                     init_a_slopes = tf.convert_to_tensor(init_a_slopes, dtype=dtype)
 
                 if init_b_slopes is None:
-                    init_b_slopes = init_a_slopes
+                    init_b_slopes = tf.random_uniform(
+                        tf.TensorShape([num_design_scale_params - 1, num_features]),
+                        minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
+                        maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
+                        dtype=dtype
+                    )
                 else:
                     init_b_slopes = tf.convert_to_tensor(init_b_slopes, dtype=dtype)
 
             a, a_intercept, a_slope = tf_linreg.param_variable(init_a_intercept, init_a_slopes, name="a")
             b, b_intercept, b_slope = tf_linreg.param_variable(init_b_intercept, init_b_slopes, name="b")
-            assert a.shape == (num_design_params, num_features) == b.shape
+            assert a.shape == (num_design_loc_params, num_features)
+            assert b.shape == (num_design_scale_params, num_features)
 
             self.a = a
             self.a_intercept = a_intercept
@@ -209,7 +219,7 @@ class ModelVars:
 #     batch_design = tf.gather(design, indices)
 #     return indices, (batch_X, batch_design)
 
-def feature_wise_hessians(X, design, a, b, scaling_factors=None) -> List[tf.Tensor]:
+def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) -> List[tf.Tensor]:
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
     b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
@@ -220,7 +230,7 @@ def feature_wise_hessians(X, design, a, b, scaling_factors=None) -> List[tf.Tens
         a = tf.transpose(a_t)
         b = tf.transpose(b_t)
 
-        model = BasicModel(X, design, a, b, scaling_factors=scaling_factors)
+        model = BasicModel(X, design_loc, design_scale, a, b, size_factors=size_factors)
 
         hess = tf.hessians(-model.log_likelihood, [a, b])
 
@@ -254,8 +264,8 @@ class FullDataModel:
         batched_data = batched_data.prefetch(1)
 
         def map_model(idx, data) -> BasicModel:
-            X, design, scaling_factors = data
-            model = BasicModel(X, design, a, b, scaling_factors=scaling_factors)
+            X, design_loc, design_scale, size_factors = data
+            model = BasicModel(X, design_loc, design_scale, a, b, size_factors=size_factors)
             return model
 
         super()
@@ -274,8 +284,8 @@ class FullDataModel:
 
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
-                X, design, scaling_factors = data
-                return feature_wise_hessians(X, design, a, b, scaling_factors=scaling_factors)
+                X, design_loc, design_scale, size_factors = data
+                return feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=size_factors)
 
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -289,7 +299,8 @@ class FullDataModel:
             )
 
         self.X = model.X
-        self.design = model.design
+        self.design_loc = model.design_loc
+        self.design_scale = model.design_scale
 
         self.batched_data = batched_data
 
@@ -329,7 +340,8 @@ class EstimatorGraph(TFEstimatorGraph):
             feature_isnonzero,
             num_observations,
             num_features,
-            num_design_params,
+            num_design_loc_params,
+            num_design_scale_params,
             graph: tf.Graph = None,
             batch_size=500,
             init_a_intercept=None,
@@ -341,14 +353,12 @@ class EstimatorGraph(TFEstimatorGraph):
         super().__init__(graph)
         self.num_observations = num_observations
         self.num_features = num_features
-        self.num_design_params = num_design_params
+        self.num_design_loc_params = num_design_loc_params
+        self.num_design_scale_params = num_design_scale_params
         self.batch_size = batch_size
 
         # initial graph elements
         with self.graph.as_default():
-            # design = tf_ops.caching_placeholder(tf.float32,
-            #                                     shape=(num_observations, num_design_params), name="design")
-
             # ### placeholders
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
             # train_steps = tf.placeholder(tf.int32, shape=(), name="training_steps")
@@ -366,7 +376,9 @@ class EstimatorGraph(TFEstimatorGraph):
                 training_data = training_data.prefetch(buffer_size)
 
                 iterator = training_data.make_one_shot_iterator()
-                batch_sample_index, (batch_X, batch_design, batch_scaling_factors) = iterator.get_next()
+
+                batch_sample_index, batch_data = iterator.get_next()
+                (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
             dtype = batch_X.dtype
 
@@ -376,15 +388,16 @@ class EstimatorGraph(TFEstimatorGraph):
             #     Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
             batch_vars = ModelVars(
                 batch_X,
-                batch_design,
+                batch_design_loc,
+                batch_design_scale,
                 init_a_intercept=init_a_intercept,
                 init_a_slopes=init_a_slopes,
                 init_b_intercept=init_b_intercept,
                 init_b_slopes=init_b_slopes,
             )
 
-            batch_model = BasicModel(batch_X, batch_design, batch_vars.a, batch_vars.b,
-                                     scaling_factors=batch_scaling_factors)
+            batch_model = BasicModel(batch_X, batch_design_loc, batch_design_scale, batch_vars.a, batch_vars.b,
+                                     size_factors=batch_size_factors)
 
             # minimize negative log probability (log(1) = 0);
             # use the mean loss to keep a constant learning rate independently of the batch size
@@ -427,30 +440,32 @@ class EstimatorGraph(TFEstimatorGraph):
             #       override all-zero features with lower bound coefficients
             with tf.name_scope("output"):
                 bounds_min, bounds_max = param_bounds(dtype)
-                param_nonzero = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_params, 1])
+
+                param_nonzero_a = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_loc_params, 1])
                 alt_a = tf.concat([
                     tf.tile(
                         tf.reshape(bounds_min["a_intercept"], [1, 1]),
                         [1, num_features]
                     ),
-                    tf.zeros(shape=[num_design_params - 1, num_features], dtype=batch_vars.a.dtype),
+                    tf.zeros(shape=[num_design_loc_params - 1, num_features], dtype=batch_vars.a.dtype),
                 ], axis=0, name="alt_a")
+                a = tf.where(
+                    param_nonzero_a,
+                    batch_vars.a,
+                    alt_a,
+                    name="a"
+                )
+
+                param_nonzero_b = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_loc_params, 1])
                 alt_b = tf.concat([
                     tf.tile(
                         tf.reshape(bounds_max["b_intercept"], [1, 1]),
                         [1, num_features]
                     ),
-                    tf.zeros(shape=[num_design_params - 1, num_features], dtype=batch_vars.a.dtype),
+                    tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=batch_vars.a.dtype),
                 ], axis=0, name="alt_b")
-
-                a = tf.where(
-                    param_nonzero,
-                    batch_vars.a,
-                    alt_a,
-                    name="a"
-                )
                 b = tf.where(
-                    param_nonzero,
+                    param_nonzero_b,
                     batch_vars.b,
                     alt_b,
                     name="b"
@@ -516,13 +531,10 @@ class EstimatorGraph(TFEstimatorGraph):
         self.init_op = init_op
 
         # # ### set up class attributes
-        # self.X = X
-        # self.design = design
-
         self.a = a
         self.b = b
-        assert (self.a.shape == (num_design_params, num_features))
-        assert (self.b.shape == (num_design_params, num_features))
+        assert (self.a.shape == (num_design_loc_params, num_features))
+        assert (self.b.shape == (num_design_scale_params, num_features))
 
         self.mu = mu
         self.r = r
@@ -591,30 +603,43 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             self._input_data = input_data
 
-            if init_a_intercept is init_a_slopes is init_b_intercept is init_b_slopes is None:
-                """
-                Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
-                is not confounded.
-                
-                Idea:
-                $$
-                mu  = exp(a) = exp(I*a) \\
-                    = exp[(design*design^{-1})*a] \\
-                    = exp[design * (design^{-1} * a)] \\
-                    = exp(design * a') = mu
-                $$
-                """
+            """
+            Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
+            is not confounded.
+
+            Idea:
+            $$
+            mu  = exp(a) = exp(I*a) \\
+                = exp[(design*design^{-1})*a] \\
+                = exp[design * (design^{-1} * a)] \\
+                = exp(design * a') = mu
+            $$
+            """
+            if init_a_intercept is None and init_a_slopes is None:
                 try:
-                    unique_design, inverse_idx = np.unique(input_data.design, axis=0, return_inverse=True)
+                    unique_design, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
                     inv_design = np.linalg.inv(unique_design)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
-                    dist = rand_utils.NegativeBinomial.mme(X.groupby("group"))
+                    mean = X.groupby("group").mean(dim="observations")
 
-                    a = np.log(dist.mean)
+                    a = np.log(mean)
                     # a = a * np.eye(np.size(a))
                     a_prime = np.matmul(inv_design, a)
                     init_a_intercept = a_prime[[0]]
                     init_a_slopes = a_prime[1:]
+
+                    self._train_mu = False
+                    logger.info("Using closed-form MLE initialization for mean")
+                    logger.debug("inverse design_loc matrix:\n%s", inv_design)
+                except np.linalg.LinAlgError:
+                    self._train_mu = True
+
+            if init_b_intercept is None and init_b_slopes is None:
+                try:
+                    unique_design, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
+                    inv_design = np.linalg.inv(unique_design)
+                    X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                    dist = rand_utils.NegativeBinomial.mme(X.groupby("group"))
 
                     b = np.log(dist.r)
                     # b = b * np.eye(np.size(b))
@@ -622,12 +647,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_b_intercept = b_prime[[0]]
                     init_b_slopes = b_prime[1:]
 
-                    self._train_mu = False
                     self._train_r = True
-                    logger.info("Using closed-form MLE/MME initialization")
-                    logger.debug("inverse design matrix:\n%s", inv_design)
+                    logger.info("Using closed-form MME initialization for dispersion")
+                    logger.debug("inverse design_scale matrix:\n%s", inv_design)
                 except np.linalg.LinAlgError:
-                    self._train_mu = True
                     self._train_r = True
 
             # ### prepare fetch_fn:
@@ -637,19 +660,23 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     idx.get_shape().as_list() + [input_data.num_features]
                 )
 
-                design_tensor = tf.py_func(input_data.fetch_design, [idx], tf.float32)
-                design_tensor.set_shape(
-                    idx.get_shape().as_list() + [input_data.num_design_params]
+                design_loc_tensor = tf.py_func(input_data.fetch_design_loc, [idx], tf.float32)
+                design_loc_tensor.set_shape(
+                    idx.get_shape().as_list() + [input_data.num_design_loc_params]
+                )
+                design_scale_tensor = tf.py_func(input_data.fetch_design_scale, [idx], tf.float32)
+                design_scale_tensor.set_shape(
+                    idx.get_shape().as_list() + [input_data.num_design_scale_params]
                 )
 
-                if input_data.scaling_factors is not None:
-                    scaling_factors_tensor = tf.log(tf.py_func(input_data.fetch_scaling_factors, [idx], tf.float32))
-                    scaling_factors_tensor.set_shape(idx.get_shape())
+                if input_data.size_factors is not None:
+                    size_factors_tensor = tf.log(tf.py_func(input_data.fetch_size_factors, [idx], tf.float32))
+                    size_factors_tensor.set_shape(idx.get_shape())
                 else:
-                    scaling_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
+                    size_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
 
                 # return idx, data
-                return idx, (X_tensor, design_tensor, scaling_factors_tensor)
+                return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
             with graph.as_default():
                 # create model
@@ -658,7 +685,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     feature_isnonzero=input_data.feature_isnonzero,
                     num_observations=input_data.num_observations,
                     num_features=input_data.num_features,
-                    num_design_params=input_data.num_design_params,
+                    num_design_loc_params=input_data.num_design_loc_params,
+                    num_design_scale_params=input_data.num_design_scale_params,
                     batch_size=batch_size,
                     graph=graph,
                     init_a_intercept=init_a_intercept,

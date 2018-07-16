@@ -74,7 +74,7 @@ class NB_GLM_Test(unittest.TestCase):
 
     def test_nonconfounded_fit(self):
         sim = Simulator(num_observations=2000, num_features=100)
-        sim.generate_sample_description(num_conditions=0, num_batches=4)
+        sim.generate_sample_description(num_confounders=0, num_batches=4)
         sim.generate()
 
         print(sim.input_data[2:4, [5, 6, 7]])

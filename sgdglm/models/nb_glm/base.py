@@ -16,13 +16,15 @@ from models.base import BasicEstimator
 
 INPUT_DATA_PARAMS = NB_INPUT_DATA_PARAMS.copy()
 INPUT_DATA_PARAMS.update({
-    "design": ("observations", "design_params"),
+    "design_loc": ("observations", "design_loc_params"),
+    "design_scale": ("observations", "design_scale_params"),
 })
 
 MODEL_PARAMS = NB_MODEL_PARAMS.copy()
+MODEL_PARAMS.update(INPUT_DATA_PARAMS)
 MODEL_PARAMS.update({
-    "a": ("design_params", "features"),
-    "b": ("design_params", "features"),
+    "a": ("design_loc_params", "features"),
+    "b": ("design_scale_params", "features"),
 })
 
 ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
@@ -35,63 +37,102 @@ ESTIMATOR_PARAMS.update({
 
 class InputData(NegativeBinomialInputData):
 
-    def __init__(self, data, design=None, scaling_factors=None, observation_names=None, feature_names=None,
-                 design_key="design", from_store=False):
+    def __init__(self,
+                 data,
+                 design_loc=None,
+                 design_scale=None,
+                 size_factors=None,
+                 observation_names=None,
+                 feature_names=None,
+                 design_loc_key="design_loc",
+                 design_scale_key="design_scale",
+                 from_store=False):
         super().__init__(data=data, observation_names=observation_names, feature_names=feature_names,
                          from_store=from_store)
         if from_store:
             return
 
-        if design is not None:
-            if isinstance(design, xr.DataArray):
-                self.design = design
-            else:
-                self.design = xr.DataArray(design, dims=INPUT_DATA_PARAMS["design"])
+        if design_loc is not None:
+            if isinstance(design_loc, xr.DataArray):
+                design_loc = xr.DataArray(design_loc, dims=INPUT_DATA_PARAMS["design_loc"])
+            # else:  # nothing to do
+            #     design_loc = design_loc
         elif anndata is not None and isinstance(data, anndata.AnnData):
-            design = data.obsm[design_key]
-            design = xr.DataArray(design, dims=INPUT_DATA_PARAMS["design"])
+            design_loc = data.obsm[design_loc_key]
+            design_loc = xr.DataArray(design_loc, dims=INPUT_DATA_PARAMS["design_loc"])
         elif isinstance(data, xr.Dataset):
-            design: xr.DataArray = data[design_key]
+            design_loc: xr.DataArray = data[design_loc_key]
         else:
-            raise ValueError("Missing design matrix!")
+            raise ValueError("Missing design_loc matrix!")
 
-        design = design.astype("float32")
+        if design_scale is not None:
+            if not isinstance(design_scale, xr.DataArray):
+                design_scale = xr.DataArray(design_scale, dims=INPUT_DATA_PARAMS["design_scale"])
+            # else:  # nothing to do
+            #     design_scale = design_scale
+        elif anndata is not None and isinstance(data, anndata.AnnData):
+            design_scale = data.obsm[design_scale_key]
+            design_scale = xr.DataArray(design_scale, dims=INPUT_DATA_PARAMS["design_scale"])
+        elif isinstance(data, xr.Dataset):
+            design_scale: xr.DataArray = data[design_scale_key]
+        else:
+            raise ValueError("Missing design_scale matrix!")
+
+        design_loc = design_loc.astype("float32")
+        design_scale = design_scale.astype("float32")
         # design = design.chunk({"observations": 1})
 
-        self.data["design"] = design
+        self.design_loc = design_loc
+        self.design_scale = design_scale
 
-        if scaling_factors is not None:
-            self.scaling_factors = scaling_factors
-
-    @property
-    def design(self) -> xr.DataArray:
-        return self.data["design"]
-
-    @design.setter
-    def design(self, data):
-        self.data["design"] = data
+        if size_factors is not None:
+            self.size_factors = size_factors
 
     @property
-    def scaling_factors(self):
-        return self.data.coords.get("scaling_factors")
+    def design_loc(self) -> xr.DataArray:
+        return self.data["design_loc"]
 
-    @scaling_factors.setter
-    def scaling_factors(self, data):
-        self.data.assign_coords(scaling_factors=data)
+    @design_loc.setter
+    def design_loc(self, data):
+        self.data["design_loc"] = data
 
     @property
-    def num_design_params(self):
-        return self.data.dims["design_params"]
+    def design_scale(self) -> xr.DataArray:
+        return self.data["design_scale"]
 
-    def fetch_design(self, idx):
-        return self.design[idx]
+    @design_scale.setter
+    def design_scale(self, data):
+        self.data["design_scale"] = data
 
-    def fetch_scaling_factors(self, idx):
-        return self.scaling_factors[idx]
+    @property
+    def size_factors(self):
+        return self.data.coords.get("size_factors")
+
+    @size_factors.setter
+    def size_factors(self, data):
+        self.data.assign_coords(size_factors=data)
+
+    @property
+    def num_design_loc_params(self):
+        return self.data.dims["design_loc_params"]
+
+    @property
+    def num_design_scale_params(self):
+        return self.data.dims["design_scale_params"]
+
+    def fetch_design_loc(self, idx):
+        return self.design_loc[idx]
+
+    def fetch_design_scale(self, idx):
+        return self.design_scale[idx]
+
+    def fetch_size_factors(self, idx):
+        return self.size_factors[idx]
 
     def set_chunk_size(self, cs: int):
         super().set_chunk_size(cs)
-        self.design = self.design.chunk({"observations": cs})
+        self.design_loc = self.design_loc.chunk({"observations": cs})
+        self.design_scale = self.design_scale.chunk({"observations": cs})
 
 
 class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
@@ -106,8 +147,12 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
         pass
 
     @property
-    def design(self) -> xr.DataArray:
-        return self.input_data.design
+    def design_loc(self) -> xr.DataArray:
+        return self.input_data.design_loc
+
+    @property
+    def design_scale(self) -> xr.DataArray:
+        return self.input_data.design_loc
 
     @property
     @abc.abstractmethod
@@ -121,11 +166,11 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
 
     @property
     def mu(self) -> xr.DataArray:
-        return np.exp(self.design.dot(self.a))
+        return np.exp(self.design_loc.dot(self.a))
 
     @property
     def r(self) -> xr.DataArray:
-        return np.exp(self.design.dot(self.b))
+        return np.exp(self.design_scale.dot(self.b))
 
     def export_params(self, append_to=None, **kwargs):
         if append_to is not None:

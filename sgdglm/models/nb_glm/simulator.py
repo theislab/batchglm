@@ -49,8 +49,8 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)
         Model.__init__(self)
 
-    def generate_sample_description(self, num_batches=4, num_conditions=2):
-        sample_description = generate_sample_description(self.num_observations, num_batches, num_conditions)
+    def generate_sample_description(self, num_batches=4, num_confounders=2):
+        sample_description = generate_sample_description(self.num_observations, num_batches, num_confounders)
         self.data.merge(sample_description, inplace=True)
         self.data.attrs["formula"] = sample_description.attrs["formula"]
 
@@ -71,24 +71,32 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         if "formula" not in self.data.attrs:
             self.generate_sample_description()
 
-        if "design" not in self.data:
-            data_utils.design_matrix_from_xarray(self.data, dim="observations", append=True)
+        if "design_loc" not in self.data:
+            self.data["design_loc"] = (
+                self.param_shapes()["design_loc"],
+                data_utils.design_matrix_from_xarray(self.data, dim="observations")
+            )
+        if "design_scale" not in self.data:
+            self.data["design_scale"] = (
+                self.param_shapes()["design_scale"],
+                data_utils.design_matrix_from_xarray(self.data, dim="observations")
+            )
 
         self.params['a'] = (
-            ("design_params", "features"),
+            self.param_shapes()["a"],
             np.log(
                 np.concatenate([
                     np.expand_dims(self.params["mu"], 0),
-                    np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_features))
+                    np.random.uniform(min_bias, max_bias, (self.data.design_loc.shape[1] - 1, self.num_features))
                 ])
             )
         )
         self.params['b'] = (
-            ("design_params", "features"),
+            self.param_shapes()["b"],
             np.log(
                 np.concatenate([
                     np.expand_dims(self.params["r"], 0),
-                    np.random.uniform(min_bias, max_bias, (self.data.design.shape[1] - 1, self.num_features))
+                    np.random.uniform(min_bias, max_bias, (self.data.design_scale.shape[1] - 1, self.num_features))
                 ])
             )
         )
@@ -105,8 +113,12 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         return self.data["X"]
 
     @property
-    def design(self):
-        return self.data["design"]
+    def design_loc(self):
+        return self.data["design_loc"]
+
+    @property
+    def design_scale(self):
+        return self.data["design_scale"]
 
     @property
     def a(self):
