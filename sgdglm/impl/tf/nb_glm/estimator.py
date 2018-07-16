@@ -687,6 +687,33 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
               train_mu: bool = None,
               train_r: bool = None,
               **kwargs):
+        """
+        Starts training of the model
+
+        :param feed_dict: dict of values which will be feeded each `session.run()`
+
+            See also feed_dict parameter of `session.run()`.
+        :param learning_rate: learning rate used for optimization
+        :param convergence_criteria: criteria after which the training will be interrupted.
+
+            Currently implemented criterias:
+
+            "simple":
+                stop, when `loss(step=i) - loss(step=i-1)` < `stop_at_loss_change`
+            "moving_average":
+                stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stop_at_loss_change`
+            "absolute_moving_average":
+                stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stop_at_loss_change`
+            "t_test" (recommended):
+                Perform t-Test between the last [i-2N..i-N] and [i-N..i] losses.
+                Stop if P("both distributions are equal") > `stop_at_loss_change`.
+        :param stop_at_loss_change: Additional parameter for convergence criteria.
+
+            See parameter `convergence_criteria` for exact meaning
+        :param loss_history_size: specifies `N` in `convergence_criteria`.
+        :param train_mu: Set to True/False in order to enable/disable training of mu
+        :param train_r: Set to True/False in order to enable/disable training of r
+        """
         if train_mu is None:
             train_mu = self._train_mu
         if train_r is None:

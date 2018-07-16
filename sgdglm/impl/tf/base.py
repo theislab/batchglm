@@ -167,8 +167,6 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             See parameter `convergence_criteria` for exact meaning
         :param loss_history_size: specifies `N` in `convergence_criteria`.
         :param train_op: uses this training operation if specified
-
-        :returns last value of `loss`
         """
         # feed_dict = dict() if feed_dict is None else feed_dict.copy()
 
