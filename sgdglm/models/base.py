@@ -17,7 +17,63 @@ class BasicInputData:
     """
     base class for all input data types
     """
-    pass
+    data: xr.Dataset
+
+    @classmethod
+    @abc.abstractmethod
+    def param_shapes(cls) -> dict:
+        """
+        This method should return a dict of {parameter: (dim0_name, dim1_name, ..)} mappings
+        for all parameters of this estimator.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    @abc.abstractmethod
+    def new(cls, *args, **kwargs):
+        pass
+
+    @classmethod
+    def from_file(cls, path, group=""):
+        """
+        Loads pre-sampled data and parameters from specified HDF5 file
+        :param path: the path to the HDF5 file
+        :param group: the group inside the HDF5 file
+        """
+        path = os.path.expanduser(path)
+
+        data = xr.open_dataset(
+            path,
+            group=group,
+            engine=pkg_constants.XARRAY_NETCDF_ENGINE
+        )
+
+        return cls(data)
+
+    def __init__(self, data):
+        self.data = data
+
+    def save(self, path, group="", append=False):
+        """
+        Saves parameters and sampled data to specified file in HDF5 format
+        :param path: the path to the target file where the data will be saved
+        :param group: the group inside the HDF5 file where the data will be saved
+        :param append: if False, existing files under the specified path will be replaced.
+        """
+        path = os.path.expanduser(path)
+        if os.path.exists(path) and not append:
+            os.remove(path)
+
+        mode = "a"
+        if not os.path.exists(path):
+            mode = "w"
+
+        self.data.to_netcdf(
+            path,
+            group=group,
+            mode=mode,
+            engine=pkg_constants.XARRAY_NETCDF_ENGINE
+        )
 
 
 class BasicModel(metaclass=abc.ABCMeta):
@@ -252,7 +308,7 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
         """
         Saves parameters and sampled data to specified file in HDF5 format
         :param path: the path to the target file where the data will be saved
-        :param group: the group+ inside the HDF5 file where the data will be saved
+        :param group: the group inside the HDF5 file where the data will be saved
         :param append: if False, existing files under the specified path will be replaced.
         """
         path = os.path.expanduser(path)

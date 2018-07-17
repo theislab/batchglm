@@ -40,20 +40,11 @@ class InputData(BasicInputData):
     data: xr.Dataset
 
     @classmethod
-    def from_data(cls, *args, from_store=False, **kwargs):
-        return cls(*args, **kwargs, from_store=False)
+    def param_shapes(cls) -> dict:
+        return INPUT_DATA_PARAMS
 
     @classmethod
-    def from_store(cls, *args, from_store=True, **kwargs):
-        return cls(*args, **kwargs, from_store=True)
-
-    def __init__(self, data, observation_names=None, feature_names=None, from_store=False):
-        if from_store:
-            self.data = data
-            return
-
-        # fetch_X = None
-        # all_observations_zero = None
+    def new(cls, data, observation_names=None, feature_names=None):
         if anndata is not None and isinstance(data, anndata.AnnData):
             X = data.X
             # all_observations_zero = ~np.any(data.X, axis=0)
@@ -94,29 +85,22 @@ class InputData(BasicInputData):
         X = X.astype("float32")
         # X = X.chunk({"observations": 1})
 
-        # if all_observations_zero is None:
-        #     all_observations_zero = ~
-        #
-        # if fetch_X is None:
-        #     def fetch_X(idx):
-        #         return X[idx, ~all_observations_zero].values
-
-        self.data = xr.Dataset({
+        retval = cls(xr.Dataset({
             "X": X,
         }, coords={
             "feature_allzero": ~X.any(dim="observations")
-        })
+        }))
         if observation_names is not None:
-            self.data = self.data.assign_coords(observations=observation_names)
-        elif "observations" not in self.data.coords:
-            self.data = self.data.assign_coords(observations=self.data.coords["observations"])
+            retval.observations = observation_names
+        elif "observations" not in retval.data.coords:
+            retval.observations = retval.data.coords["observations"]
 
         if feature_names is not None:
-            self.data = self.data.assign_coords(features=feature_names)
-        elif "features" not in self.data.coords:
-            self.data = self.data.assign_coords(features=self.data.coords["features"])
+            retval.features = feature_names
+        elif "features" not in retval.data.coords:
+            retval.features = retval.data.coords["features"]
 
-        # self.fetch_X = fetch_X
+        return retval
 
     @property
     def X(self) -> xr.DataArray:
@@ -135,6 +119,22 @@ class InputData(BasicInputData):
         return self.data.dims["features"]
 
     @property
+    def observations(self):
+        return self.data.coords["observations"]
+
+    @observations.setter
+    def observations(self, data):
+        self.data.coords["observations"] = data
+
+    @property
+    def features(self):
+        return self.data.coords["features"]
+
+    @features.setter
+    def features(self, data):
+        self.data.coords["features"] = data
+
+    @property
     def feature_isnonzero(self):
         return ~self.feature_isallzero
 
@@ -149,7 +149,7 @@ class InputData(BasicInputData):
         self.X = self.X.chunk({"observations": cs})
 
     def __copy__(self):
-        return self.from_store(self.data)
+        return type(self)(self.data)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -159,7 +159,7 @@ class InputData(BasicInputData):
         else:
             data = self.data.isel(observations=item)
 
-        return self.from_store(data)
+        return type(self)(data)
 
     def __str__(self):
         return "[%s.%s object at %s]: data=%s" % (
@@ -252,7 +252,7 @@ def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], p
     if isinstance(data, Model):
         input_data = data.input_data
     else:
-        input_data = InputData(data)
+        input_data = InputData.new(data)
 
     if params is None:
         if isinstance(data, Model):

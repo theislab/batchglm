@@ -37,20 +37,23 @@ ESTIMATOR_PARAMS.update({
 
 class InputData(NegativeBinomialInputData):
 
-    def __init__(self,
-                 data,
-                 design_loc=None,
-                 design_scale=None,
-                 size_factors=None,
-                 observation_names=None,
-                 feature_names=None,
-                 design_loc_key="design_loc",
-                 design_scale_key="design_scale",
-                 from_store=False):
-        super().__init__(data=data, observation_names=observation_names, feature_names=feature_names,
-                         from_store=from_store)
-        if from_store:
-            return
+    @classmethod
+    def new(
+            cls,
+            data,
+            design_loc=None,
+            design_scale=None,
+            size_factors=None,
+            observation_names=None,
+            feature_names=None,
+            design_loc_key="design_loc",
+            design_scale_key="design_scale",
+    ):
+        retval = super(InputData, cls).new(
+            data=data,
+            observation_names=observation_names,
+            feature_names=feature_names
+        )
 
         if design_loc is not None:
             if isinstance(design_loc, xr.DataArray):
@@ -82,11 +85,13 @@ class InputData(NegativeBinomialInputData):
         design_scale = design_scale.astype("float32")
         # design = design.chunk({"observations": 1})
 
-        self.design_loc = design_loc
-        self.design_scale = design_scale
+        retval.design_loc = design_loc
+        retval.design_scale = design_scale
 
         if size_factors is not None:
-            self.size_factors = size_factors
+            retval.size_factors = size_factors
+
+        return retval
 
     @property
     def design_loc(self) -> xr.DataArray:
@@ -110,7 +115,7 @@ class InputData(NegativeBinomialInputData):
 
     @size_factors.setter
     def size_factors(self, data):
-        self.data.assign_coords(size_factors=data)
+        self.data.coords["size_factors"] = data
 
     @property
     def num_design_loc_params(self):
@@ -194,7 +199,7 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
 
 
 def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], params=None, a=None, b=None):
-    input_data = InputData(data)
+    input_data = InputData.new(data)
 
     if params is None:
         if isinstance(data, Model):

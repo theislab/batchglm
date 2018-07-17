@@ -11,8 +11,8 @@ from api.models.nb_glm import Simulator, Estimator, InputData
 # from utils.config import getConfig
 
 
-def estimate(sim: Simulator, input_data: InputData, working_dir: str):
-    print(sim.data.X)
+def estimate(input_data: InputData, working_dir: str):
+    print(input_data.X)
 
     estimator = Estimator(input_data, batch_size=500)
     estimator.initialize(
@@ -25,7 +25,7 @@ def estimate(sim: Simulator, input_data: InputData, working_dir: str):
         export=["a", "b", "mu", "r", "loss"],
         export_steps=20
     )
-    sim.save(os.path.join(working_dir, "sim_data.h5"))
+    input_data.save(os.path.join(working_dir, "input_data.h5"))
 
     estimator.train(learning_rate=0.5, stop_at_loss_change=0.05)
 
@@ -59,7 +59,7 @@ class NB_GLM_Test(unittest.TestCase):
         wd = os.path.join(self.working_dir.name, "default_fit")
         os.makedirs(wd, exist_ok=True)
 
-        estimator = estimate(sim, sim.input_data, wd)
+        estimator = estimate(sim.input_data, wd)
         self._estims.append(estimator)
 
         # test finalizing
@@ -82,7 +82,7 @@ class NB_GLM_Test(unittest.TestCase):
         wd = os.path.join(self.working_dir.name, "default_fit")
         os.makedirs(wd, exist_ok=True)
 
-        estimator = estimate(sim, sim.input_data, wd)
+        estimator = estimate(sim.input_data, wd)
         print("Disabling training of 'r'; now should not train any more:")
         estimator.train(train_r=False)
         self._estims.append(estimator)
@@ -99,13 +99,13 @@ class NB_GLM_Test(unittest.TestCase):
 
     def test_anndata(self):
         adata = self.sim.data_to_anndata()
-        idata = InputData(adata)
+        idata = InputData.new(adata)
 
         wd = os.path.join(self.working_dir.name, "anndata")
         os.makedirs(wd, exist_ok=True)
 
         print(adata)
-        estimator = estimate(self.sim, idata, wd)
+        estimator = estimate(idata, wd)
         self._estims.append(estimator)
 
         return estimator, adata
@@ -117,7 +117,7 @@ class NB_GLM_Test(unittest.TestCase):
         wd = os.path.join(self.working_dir.name, "zero_variance")
         os.makedirs(wd, exist_ok=True)
 
-        estimator = estimate(sim, sim.input_data, wd)
+        estimator = estimate(sim.input_data, wd)
         self._estims.append(estimator)
 
         return estimator, sim
@@ -129,7 +129,7 @@ class NB_GLM_Test(unittest.TestCase):
         wd = os.path.join(self.working_dir.name, "low_values")
         os.makedirs(wd, exist_ok=True)
 
-        estimator = estimate(sim, sim.input_data, wd)
+        estimator = estimate(sim.input_data, wd)
         self._estims.append(estimator)
 
         return estimator, sim
@@ -142,7 +142,7 @@ class NB_GLM_Test(unittest.TestCase):
         wd = os.path.join(self.working_dir.name, "nonsense_data")
         os.makedirs(wd, exist_ok=True)
 
-        estimator = estimate(sim, sim.input_data, wd)
+        estimator = estimate(sim.input_data, wd)
         self._estims.append(estimator)
 
         return estimator, sim

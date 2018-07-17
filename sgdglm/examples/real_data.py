@@ -96,7 +96,7 @@ if __name__ == '__main__':
     dataset = load_and_preprocess_data()
     data_utils.design_matrix_from_anndata(dataset, formula="~ 1 + batch + condition", append=True)
 
-    input_data = InputData(dataset)
+    input_data = InputData.new(dataset)
     estimator = Estimator(input_data, batch_size=500)
     estimator.initialize()
     estimator.train(learning_rate=0.5)

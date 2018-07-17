@@ -12,7 +12,7 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
 
     @property
     def input_data(self) -> InputData:
-        return InputData(self.data)
+        return InputData.new(self.data)
 
     @property
     def X(self):
