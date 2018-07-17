@@ -202,8 +202,8 @@ class StopAtLossHook(tf.train.SessionRunHook):
         })
 
     def after_run(self, run_context, run_values):
-        global_step = run_values.results["global_step"]
-        loss = run_values.results["loss"]
+        global_step = run_values.summary["global_step"]
+        loss = run_values.summary["loss"]
 
         if global_step >= self._last_step:
             loss_change = self.loss_change

@@ -13,6 +13,7 @@ from models.nb.base import Model as NegativeBinomialModel
 from models.nb.base import MODEL_PARAMS as NB_MODEL_PARAMS
 from models.nb.base import INPUT_DATA_PARAMS as NB_INPUT_DATA_PARAMS
 from models.base import BasicEstimator
+from models.glm import Model as GeneralizedLinearModel
 
 INPUT_DATA_PARAMS = NB_INPUT_DATA_PARAMS.copy()
 INPUT_DATA_PARAMS.update({
@@ -140,7 +141,7 @@ class InputData(NegativeBinomialInputData):
         self.design_scale = self.design_scale.chunk({"observations": cs})
 
 
-class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
+class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta):
 
     @classmethod
     def param_shapes(cls) -> dict:
@@ -176,6 +177,28 @@ class Model(NegativeBinomialModel, metaclass=abc.ABCMeta):
     @property
     def r(self) -> xr.DataArray:
         return np.exp(self.design_scale.dot(self.b))
+
+    @property
+    def link_loc(self):
+        return self.a
+
+    @property
+    def link_scale(self):
+        return self.a
+
+    def link_fn(self, data):
+        return np.log(data)
+
+    def inverse_link_fn(self, data):
+        return np.exp(data)
+
+    @property
+    def location(self):
+        return self.mu
+
+    @property
+    def scale(self):
+        return self.r
 
     def export_params(self, append_to=None, **kwargs):
         if append_to is not None:

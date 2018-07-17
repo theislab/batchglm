@@ -187,7 +187,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
         plot = (pn.ggplot(df)
                 + pn.aes(x="time_elapsed", y=val_name, group="benchmark", color="benchmark")
                 + pn.geom_line()
-                + pn.geom_vline(xintercept=df.loc[[np.argmin(df[val_name])]].time_elapsed.values[0], color="black")
+                + pn.geom_vline(xintercept=df.location[[np.argmin(df[val_name])]].time_elapsed.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df[val_name]), alpha=0.5)
                 )
         if scale_y_log10:
@@ -197,7 +197,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
         plot = (pn.ggplot(df)
                 + pn.aes(x="global_step", y=val_name, group="benchmark", color="benchmark")
                 + pn.geom_line()
-                + pn.geom_vline(xintercept=df.loc[[np.argmin(df[val_name])]].global_step.values[0], color="black")
+                + pn.geom_vline(xintercept=df.location[[np.argmin(df[val_name])]].global_step.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df[val_name]), alpha=0.5)
                 )
         if scale_y_log10:

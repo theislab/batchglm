@@ -189,6 +189,22 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
         return self.input_data.X
 
     @property
+    def num_observations(self):
+        return self.input_data.num_observations
+
+    @property
+    def num_features(self):
+        return self.input_data.num_features
+
+    @property
+    def observations(self):
+        return self.input_data.observations
+
+    @property
+    def features(self):
+        return self.input_data.features
+
+    @property
     def feature_isnonzero(self):
         return self.input_data.feature_isnonzero
 
