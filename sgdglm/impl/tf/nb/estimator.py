@@ -178,11 +178,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def mu_raw(self) -> xr.DataArray:
-        return self.to_xarray("mu_raw")
+        return self.to_xarray("mu_raw", coords=self.input_data.data.coords)
 
     @property
     def r_raw(self) -> xr.DataArray:
-        return self.to_xarray("r_raw")
+        return self.to_xarray("r_raw", coords=self.input_data.data.coords)
 
     @property
     def sigma2_raw(self) -> xr.DataArray:
@@ -212,11 +212,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def gradient(self):
-        return self.to_xarray("gradient")
+        return self.to_xarray("gradient", coords=self.input_data.data.coords)
 
     @property
     def hessian_diagonal(self):
-        return self.to_xarray("hessian_diagonal")
+        return self.to_xarray("hessian_diagonal", coords=self.input_data.data.coords)
 
     def finalize(self):
         store = XArrayEstimatorStore(self)

@@ -7,6 +7,7 @@ except ImportError:
     anndata = None
 import xarray as xr
 import numpy as np
+import pandas as pd
 
 from models.nb.base import InputData as NegativeBinomialInputData
 from models.nb.base import Model as NegativeBinomialModel
@@ -14,6 +15,8 @@ from models.nb.base import MODEL_PARAMS as NB_MODEL_PARAMS
 from models.nb.base import INPUT_DATA_PARAMS as NB_INPUT_DATA_PARAMS
 from models.base import BasicEstimator
 from models.glm import Model as GeneralizedLinearModel
+
+import patsy
 
 INPUT_DATA_PARAMS = NB_INPUT_DATA_PARAMS.copy()
 INPUT_DATA_PARAMS.update({
@@ -36,51 +39,88 @@ ESTIMATOR_PARAMS.update({
 })
 
 
+def _parse_design(data, design, names, design_key, dim="design_params"):
+    if design is not None:
+        if isinstance(design, patsy.design_info.DesignMatrix):
+            dmat = xr.DataArray(design, dims=("observations", dim))
+            dmat.coords[dim] = design.design_info.column_names
+        elif isinstance(design, xr.DataArray):
+            dmat = design
+        elif isinstance(design, pd.DataFrame):
+            dmat = xr.DataArray(np.asarray(design), dims=("observations", dim))
+            dmat.coords[dim] = design.columns
+        else:
+            dmat = xr.DataArray(design, dims=("observations", dim))
+    elif anndata is not None and isinstance(data, anndata.AnnData):
+        dmat = data.obsm[design_key]
+        dmat = xr.DataArray(dmat, dims=("observations", dim))
+    elif isinstance(data, xr.Dataset):
+        dmat: xr.DataArray = data[design_key]
+    else:
+        raise ValueError("Missing design_loc matrix!")
+
+    if names is not None:
+        dmat.coords[dim] = names
+    elif dim not in dmat.coords:
+        dmat.coords[dim] = dmat.coords[dim]
+        # raise ValueError("Could not find names for %s; Please specify them manually." % dim)
+
+    return dmat
+
+
 class InputData(NegativeBinomialInputData):
 
     @classmethod
     def new(
             cls,
-            data,
-            design_loc=None,
-            design_scale=None,
+            data: Union[np.ndarray, anndata.AnnData, xr.DataArray, xr.Dataset],
+            design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
+            design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
+            design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
+            design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
             design_loc_key="design_loc",
             design_scale_key="design_scale",
     ):
+        """
+        Create a new InputData object.
+
+        :param data: Some data object.
+
+        Can be either:
+            - np.ndarray: NumPy array containing the raw data
+            - anndata.AnnData: AnnData object containing the count data and optional the design models
+                stored as data.obsm[design_loc] and data.obsm[design_scale]
+            - xr.DataArray: DataArray of shape ("observations", "features") containing the raw data
+            - xr.Dataset: Dataset containing the raw data as data["X"] and optional the design models
+                stored as data[design_loc] and data[design_scale]
+        :param design_loc: Some matrix containing the location design model.
+            Optional, if already specified in `data`
+        :param design_loc_names: (optional) names of the design_loc parameters.
+            The names might already be included in `design_loc`.
+            Will be used to find identical columns in two models.
+        :param design_scale: Some matrix containing the scale design model.
+            Optional, if already specified in `data`
+        :param design_scale_names: (optional) names of the design_scale parameters.
+            The names might already be included in `design_loc`.
+            Will be used to find identical columns in two models.
+        :param size_factors: Some size factor to scale the raw data in link-space.
+        :param observation_names: (optional) names of the observations.
+        :param feature_names: (optional) names of the features.
+        :param design_loc_key: Where to find `design_loc` if `data` is some anndata.AnnData or xarray.Dataset.
+        :param design_scale_key: Where to find `design_scale` if `data` is some anndata.AnnData or xarray.Dataset.
+        :return: InputData object
+        """
         retval = super(InputData, cls).new(
             data=data,
             observation_names=observation_names,
             feature_names=feature_names
         )
 
-        if design_loc is not None:
-            if isinstance(design_loc, xr.DataArray):
-                design_loc = xr.DataArray(design_loc, dims=INPUT_DATA_PARAMS["design_loc"])
-            # else:  # nothing to do
-            #     design_loc = design_loc
-        elif anndata is not None and isinstance(data, anndata.AnnData):
-            design_loc = data.obsm[design_loc_key]
-            design_loc = xr.DataArray(design_loc, dims=INPUT_DATA_PARAMS["design_loc"])
-        elif isinstance(data, xr.Dataset):
-            design_loc: xr.DataArray = data[design_loc_key]
-        else:
-            raise ValueError("Missing design_loc matrix!")
-
-        if design_scale is not None:
-            if not isinstance(design_scale, xr.DataArray):
-                design_scale = xr.DataArray(design_scale, dims=INPUT_DATA_PARAMS["design_scale"])
-            # else:  # nothing to do
-            #     design_scale = design_scale
-        elif anndata is not None and isinstance(data, anndata.AnnData):
-            design_scale = data.obsm[design_scale_key]
-            design_scale = xr.DataArray(design_scale, dims=INPUT_DATA_PARAMS["design_scale"])
-        elif isinstance(data, xr.Dataset):
-            design_scale: xr.DataArray = data[design_scale_key]
-        else:
-            raise ValueError("Missing design_scale matrix!")
+        design_loc = _parse_design(data, design_loc, design_loc_names, design_loc_key, "design_loc_params")
+        design_scale = _parse_design(data, design_scale, design_scale_names, design_scale_key, "design_scale_params")
 
         design_loc = design_loc.astype("float32")
         design_scale = design_scale.astype("float32")
@@ -103,12 +143,28 @@ class InputData(NegativeBinomialInputData):
         self.data["design_loc"] = data
 
     @property
+    def design_loc_names(self) -> xr.DataArray:
+        return self.data.coords["design_loc_params"]
+
+    @design_loc_names.setter
+    def design_loc_names(self, data):
+        self.data.coords["design_loc_params"] = data
+
+    @property
     def design_scale(self) -> xr.DataArray:
         return self.data["design_scale"]
 
     @design_scale.setter
     def design_scale(self, data):
         self.data["design_scale"] = data
+
+    @property
+    def design_scale_names(self) -> xr.DataArray:
+        return self.data.coords["design_scale_params"]
+
+    @design_scale_names.setter
+    def design_scale_names(self, data):
+        self.data.coords["design_scale_params"] = data
 
     @property
     def size_factors(self):
@@ -158,7 +214,7 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
 
     @property
     def design_scale(self) -> xr.DataArray:
-        return self.input_data.design_loc
+        return self.input_data.design_scale
 
     @property
     @abc.abstractmethod
@@ -179,17 +235,23 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         return np.exp(self.design_scale.dot(self.b))
 
     @property
-    def link_loc(self):
+    def par_link_loc(self):
         return self.a
 
     @property
-    def link_scale(self):
-        return self.a
+    def par_link_scale(self):
+        return self.b
 
-    def link_fn(self, data):
+    def link_loc(self, data):
         return np.log(data)
 
-    def inverse_link_fn(self, data):
+    def inverse_link_loc(self, data):
+        return np.exp(data)
+
+    def link_scale(self, data):
+        return np.log(data)
+
+    def inverse_link_scale(self, data):
         return np.exp(data)
 
     @property
@@ -329,7 +391,7 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
-        params = estim.to_xarray(["a", "b", "loss", "gradient", "hessian_diagonal"])
+        params = estim.to_xarray(["a", "b", "loss", "gradient", "hessian_diagonal"], coords=input_data.data)
 
         XArrayModel.__init__(self, input_data, params)
 

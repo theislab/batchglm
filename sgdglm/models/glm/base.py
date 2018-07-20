@@ -16,27 +16,35 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def link_fn(self, data):
+    def link_loc(self, data):
         pass
 
     @abc.abstractmethod
-    def inverse_link_fn(self, data):
+    def inverse_link_loc(self, data):
         pass
 
     @property
     def location(self):
-        return self.inverse_link_fn(self.design_loc @ self.link_loc)
+        return self.inverse_link_loc(self.design_loc @ self.par_link_loc)
 
     @property
     @abc.abstractmethod
-    def link_loc(self):
+    def par_link_loc(self):
+        pass
+
+    @abc.abstractmethod
+    def link_scale(self, data):
+        pass
+
+    @abc.abstractmethod
+    def inverse_link_scale(self, data):
         pass
 
     @property
     def scale(self):
-        return self.inverse_link_fn(self.design_scale @ self.link_scale)
+        return self.inverse_link_scale(self.design_scale @ self.par_link_scale)
 
     @property
     @abc.abstractmethod
-    def link_scale(self):
+    def par_link_scale(self):
         pass

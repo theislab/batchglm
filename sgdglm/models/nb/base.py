@@ -45,6 +45,22 @@ class InputData(BasicInputData):
 
     @classmethod
     def new(cls, data, observation_names=None, feature_names=None):
+        """
+        Create a new InputData object.
+
+        :param data: Some data object.
+
+        Can be either:
+            - np.ndarray: NumPy array containing the raw data
+            - anndata.AnnData: AnnData object containing the count data and optional the design models
+                stored as data.obsm[design_loc] and data.obsm[design_scale]
+            - xr.DataArray: DataArray of shape ("observations", "features") containing the raw data
+            - xr.Dataset: Dataset containing the raw data as data["X"] and optional the design models
+                stored as data[design_loc] and data[design_scale]
+        :param observation_names: (optional) names of the observations.
+        :param feature_names: (optional) names of the features.
+        :return: InputData object
+        """
         if anndata is not None and isinstance(data, anndata.AnnData):
             X = data.X
             # all_observations_zero = ~np.any(data.X, axis=0)

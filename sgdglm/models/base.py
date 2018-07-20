@@ -241,14 +241,14 @@ class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
 
 
 class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
-    num_observations: int
-    num_features: int
+    _num_observations: int
+    _num_features: int
 
     data: xr.Dataset
     params: xr.Dataset
 
     """
-    Classes implementing `MatrixSimulator` should be able to generate a
+    Classes implementing `BasicSimulator` should be able to generate a
     2D-matrix of sample data, as well as a dict of corresponding parameters.
 
     convention: N features with M observations each => (M, N) matrix
@@ -267,6 +267,22 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
         """
         self.generate_params()
         self.generate_data()
+
+    @property
+    def num_observations(self):
+        return self._num_observations
+
+    @num_observations.setter
+    def num_observations(self, data):
+        self._num_observations = data
+
+    @property
+    def num_features(self):
+        return self._num_features
+
+    @num_features.setter
+    def num_features(self, data):
+        self._num_features = data
 
     @abc.abstractmethod
     def generate_data(self, *args, **kwargs):

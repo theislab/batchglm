@@ -15,6 +15,22 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
         return InputData.new(self.data)
 
     @property
+    def num_observations(self):
+        return self._num_observations
+
+    @num_observations.setter
+    def num_observations(self, data):
+        self._num_observations = data
+
+    @property
+    def num_features(self):
+        return self._num_features
+
+    @num_features.setter
+    def num_features(self, data):
+        self._num_features = data
+
+    @property
     def X(self):
         return self.data["X"]
 
