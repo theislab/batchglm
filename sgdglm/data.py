@@ -15,8 +15,12 @@ except ImportError:
     anndata = None
 
 
-def design_matrix(sample_description: pd.DataFrame, formula: str,
-                  as_categorical: Union[bool, list] = True) -> patsy.design_info.DesignMatrix:
+def design_matrix(
+        sample_description: pd.DataFrame,
+        formula: str,
+        as_categorical: Union[bool, list] = True,
+        return_type: str = "matrix",
+) -> Union[patsy.design_info.DesignMatrix, xr.Dataset, pd.DataFrame]:
     """
     Create a design matrix from some sample description
     
@@ -32,7 +36,12 @@ def design_matrix(sample_description: pd.DataFrame, formula: str,
         is True.
         
         Set to false, if columns should not be changed.
-        
+    :param return_type: type of the returned value.
+
+        - "matrix": return plain patsy.design_info.DesignMatrix object
+        - "dataframe": return pd.DataFrame with observations as rows and params as columns
+        - "xarray": return xr.Dataset with design matrix as ds["design"] and the sample description embedded as
+            one variable per column
     :return: a model design matrix
     """
     sample_description: pd.DataFrame = sample_description.copy()
@@ -45,8 +54,28 @@ def design_matrix(sample_description: pd.DataFrame, formula: str,
             if to_cat:
                 sample_description[col] = sample_description[col].astype("category")
 
-    dmatrix = patsy.highlevel.dmatrix(formula, sample_description)
-    return dmatrix
+    dmat = patsy.highlevel.dmatrix(formula, sample_description)
+
+    if return_type == "dataframe":
+        df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
+        df = pd.concat([df, sample_description], axis=1)
+        df.set_index(list(sample_description.columns), inplace=True)
+
+        return df
+    elif return_type == "xarray":
+        ar = xr.DataArray(dmat, dims=("observations", "design_params"))
+        ar.coords["design_params"] = dmat.design_info.column_names
+
+        ds = xr.Dataset({
+            "design": ar,
+        })
+
+        for col in sample_description:
+            ds[col] = (("observations",), sample_description[col])
+
+        return ds
+    else:
+        return dmat
 
 
 #
@@ -63,14 +92,38 @@ def design_matrix(sample_description: pd.DataFrame, formula: str,
 #     else:
 #         return formula_like.term_names
 
+def sample_description_from_xarray(
+        dataset: xr.Dataset,
+        dim: str,
+):
+    """
+        Create a design matrix from a given xarray.Dataset and model formula.
 
-def design_matrix_from_xarray(dataset: xr.Dataset,
-                              dim: str,
-                              formula=None,
-                              formula_key="formula",
-                              as_categorical=True,
-                              return_type=False,
-                              ):
+        :param dataset: xarray.Dataset containing explanatory variables.
+        :param dim: name of the dimension for which the design matrix should be created.
+
+            The design matrix will be of shape (dim, "design_params").
+        :return: pd.DataFrame
+        """
+
+    explanatory_vars = [key for key, val in dataset.variables.items() if val.dims == (dim,)]
+
+    if len(explanatory_vars) > 0:
+        sample_description = dataset[explanatory_vars].to_dataframe()
+    else:
+        sample_description = pd.DataFrame({"intercept": range(dataset.dims[dim])})
+
+    return sample_description
+
+
+def design_matrix_from_xarray(
+        dataset: xr.Dataset,
+        dim: str,
+        formula=None,
+        formula_key="formula",
+        as_categorical=True,
+        return_type="matrix",
+):
     """
     Create a design matrix from a given xarray.Dataset and model formula.
     
@@ -99,57 +152,48 @@ def design_matrix_from_xarray(dataset: xr.Dataset,
         is True.
         
         Set to false, if columns should not be changed.
-    :param return_type: if True, will return a dataframe instead of a DesignMatrix
-    :return:
-        if append is False:
-            2D design matrix
-        else:
-            xarray.Dataset containing the created design matrix as <retval>[design_key] and the formula as
-            <retval>.attrs[formula_key]
+    :param return_type: type of the returned data; see design_matrix() for details
     """
     if formula is None:
         formula = dataset.attrs.get(formula_key)
     if formula is None:
-        # could not find formula; try to construct it from explanatory variables
         raise ValueError("formula could not be found")
 
-    explanatory_vars = [key for key, val in dataset.variables.items() if val.dims == (dim,)]
+    sample_description = sample_description_from_xarray(
+        dataset=dataset,
+        dim=dim,
+        formula=formula,
+        formula_key=formula_key,
+    )
 
-    if len(explanatory_vars) > 0:
-        sample_description = dataset[explanatory_vars].to_dataframe()
-    else:
-        sample_description = pd.DataFrame({"intercept": range(dataset.dims[dim])})
+    dmat = design_matrix(
+        sample_description=sample_description,
+        formula=formula,
+        as_categorical=as_categorical,
+        return_type=return_type
+    )
 
-    dmat = design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
-
-    if return_type == "dataframe":
-        df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
-        df = pd.concat([df, sample_description], axis=1)
-        df.set_index(list(sample_description.columns), inplace=True)
-
-        return df
-    elif return_type == "xarray":
-        ar = xr.DataArray(dmat, dims=("observations", "design_params"))
-        ar.coords["design_params"] = dmat.design_info.column_names
-
-        ds = xr.Dataset({
-            "design": ar,
-        })
-
-        for col in sample_description:
-            ds[col] = (("observations",), sample_description[col])
-
-        return ds
-    else:
-        return dmat
+    return dmat
 
 
-def design_matrix_from_anndata(dataset: anndata.AnnData,
-                               formula=None,
-                               formula_key="formula",
-                               as_categorical=True,
-                               return_type="matrix",
-                               ):
+def sample_description_from_anndata(dataset: anndata.AnnData):
+    """
+    Create a design matrix from a given xarray.Dataset and model formula.
+
+    :param dataset: anndata.AnnData containing explanatory variables.
+    :return pd.DataFrame
+    """
+
+    return dataset.obs
+
+
+def design_matrix_from_anndata(
+        dataset: anndata.AnnData,
+        formula=None,
+        formula_key="formula",
+        as_categorical=True,
+        return_type="matrix",
+):
     """
     Create a design matrix from a given xarray.Dataset and model formula.
 
@@ -175,13 +219,7 @@ def design_matrix_from_anndata(dataset: anndata.AnnData,
         is True.
 
         Set to false, if columns should not be changed.
-    :param return_type: if True, will return a dataframe instead of a DesignMatrix
-    :return:
-        if append is False:
-            2D design matrix
-        else:
-            anndata.AnnData containing the created design matrix as <retval>.obsm[design_key] and the formula as
-            <retval>.uns[formula_key]
+    :param return_type: type of the returned data; see design_matrix() for details
     """
     if formula is None:
         formula = dataset.uns.get(formula_key)
@@ -189,30 +227,16 @@ def design_matrix_from_anndata(dataset: anndata.AnnData,
         # could not find formula; try to construct it from explanatory variables
         raise ValueError("formula could not be found")
 
-    sample_description = dataset.obs
+    sample_description = sample_description_from_anndata(dataset=dataset)
 
-    dmat = design_matrix(sample_description=sample_description, formula=formula, as_categorical=as_categorical)
+    dmat = design_matrix(
+        sample_description=sample_description,
+        formula=formula,
+        as_categorical=as_categorical,
+        return_type=return_type
+    )
 
-    if return_type == "dataframe":
-        df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
-        df = pd.concat([df, sample_description], axis=1)
-        df.set_index(list(sample_description.columns), inplace=True)
-
-        return df
-    elif return_type == "xarray":
-        ar = xr.DataArray(dmat, dims=("observations", "design_params"))
-        ar.coords["design_params"] = dmat.design_info.column_names
-
-        ds = xr.Dataset({
-            "design": ar,
-        })
-
-        for col in sample_description:
-            ds[col] = (("observations",), sample_description[col])
-
-        return ds
-    else:
-        return dmat
+    return dmat
 
 
 def load_mtx_to_adata(path, cache=True):
