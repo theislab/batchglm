@@ -159,12 +159,7 @@ def design_matrix_from_xarray(
     if formula is None:
         raise ValueError("formula could not be found")
 
-    sample_description = sample_description_from_xarray(
-        dataset=dataset,
-        dim=dim,
-        formula=formula,
-        formula_key=formula_key,
-    )
+    sample_description = sample_description_from_xarray(dataset=dataset, dim=dim)
 
     dmat = design_matrix(
         sample_description=sample_description,
