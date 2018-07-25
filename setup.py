@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 author = 'Florian R. Hölzlwimmer, David S. Fischer'
 
 setup(
-    name='sgdglm',
+    name='batchglm',
     author=author,
     author_email='florian.hoelzlwimmer@helmholtz-muenchen.de',
     packages=find_packages(),
