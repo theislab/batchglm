@@ -1,6 +1,7 @@
 import abc
 from typing import Union, Dict, Tuple, List
 import logging
+from enum import Enum
 
 # import xarray as xr
 import tensorflow as tf
@@ -12,9 +13,7 @@ except ImportError:
     anndata = None
 
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator, TFEstimatorGraph
-from .external import nb_utils, tf_linreg, train_utils, op_utils
-from .external import rand_utils
-
+from .external import nb_utils, tf_linreg, train_utils, op_utils, rand_utils
 
 ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
 ESTIMATOR_PARAMS.update({
@@ -27,9 +26,6 @@ ESTIMATOR_PARAMS.update({
 
 logger = logging.getLogger(__name__)
 
-
-# session / device config
-# CONFIG = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
 
 def param_bounds(dtype):
     if isinstance(dtype, tf.DType):
@@ -577,8 +573,9 @@ class EstimatorGraph(TFEstimatorGraph):
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
-    model: EstimatorGraph
+    TrainingStrategy = MonitoredTFEstimator.TrainingStrategy
 
+    model: EstimatorGraph
     _train_mu: bool
     _train_r: bool
 
@@ -773,7 +770,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def train(self, *args,
               learning_rate=0.5,
               convergence_criteria="t_test",
-              loss_history_size=200,
+              loss_window_size=100,
               stop_at_loss_change=0.05,
               train_mu: bool = None,
               train_r: bool = None,
@@ -801,7 +798,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param stop_at_loss_change: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
-        :param loss_history_size: specifies `N` in `convergence_criteria`.
+        :param loss_window_size: specifies `N` in `convergence_criteria`.
         :param train_mu: Set to True/False in order to enable/disable training of mu
         :param train_r: Set to True/False in order to enable/disable training of r
         """
@@ -825,7 +822,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         super().train(*args,
                       feed_dict={"learning_rate:0": learning_rate},
                       convergence_criteria=convergence_criteria,
-                      loss_history_size=loss_history_size,
+                      loss_window_size=loss_window_size,
                       stop_at_loss_change=stop_at_loss_change,
                       train_op=train_op,
                       **kwargs)
@@ -833,6 +830,24 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def input_data(self):
         return self._input_data
+
+    def train_sequence(self, training_strategy=TrainingStrategy.AUTO):
+        if isinstance(training_strategy, Enum):
+            training_strategy = training_strategy.value
+        elif isinstance(training_strategy, str):
+            training_strategy = self.TrainingStrategy[training_strategy].value
+
+        if training_strategy is None:
+            if not self._train_mu:
+                training_strategy = self.TrainingStrategy.PRE_INITIALIZED.value
+            else:
+                training_strategy = self.TrainingStrategy.DEFAULT.value
+
+        estim_logger = logging.getLogger(str(type(self)))
+        for idx, d in enumerate(training_strategy):
+            estim_logger.info("Beginning with training sequence #%d", idx + 1)
+            self.train(**d)
+            estim_logger.info("Training sequence #%d complete", idx + 1)
 
     # @property
     # def mu(self):

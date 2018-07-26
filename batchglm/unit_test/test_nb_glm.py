@@ -27,7 +27,7 @@ def estimate(input_data: InputData, working_dir: str):
     )
     input_data.save(os.path.join(working_dir, "input_data.h5"))
 
-    estimator.train(learning_rate=0.5, stop_at_loss_change=0.05)
+    estimator.train_sequence()
 
     return estimator
 

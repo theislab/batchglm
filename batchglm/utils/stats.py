@@ -79,7 +79,6 @@ def abs_percentage_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
 
     :param estim: ndarray representing the estimated data
     :param obs: ndarray representing the observed data
-    :param axis: axis to reduce
     :return: mean{|estim - obs| / obs}
     """
     return np.abs(estim - obs) / obs
@@ -117,6 +116,6 @@ def welch_t_test(x1, x2):
     n2 = np.size(x2)
 
     t, df = welch(mu1, mu2, var1, var2, n1, n2)
-    pval = scipy.stats.t(df).cdf(t)
+    pval = 1 - scipy.stats.t(df).cdf(t)
 
     return pval

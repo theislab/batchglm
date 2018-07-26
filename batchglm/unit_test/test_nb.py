@@ -23,7 +23,7 @@ def estimate(sim: Simulator, working_dir: str):
     )
     sim.save(os.path.join(working_dir, "sim_data.h5"))
 
-    estimator.train(learning_rate=0.5)
+    estimator.train_sequence()
 
     return estimator
 
