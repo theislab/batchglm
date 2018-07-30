@@ -35,7 +35,9 @@ First, you have to install bazel (a build tool).
 
 ## Building the documentation
 The documentation is maintained in the `docs/` directory.
-All resulting documentation will 
+
+The built documentation will be saved in `build/docs`. 
+ 
 - `cd docs/`
 - `make html`
 
