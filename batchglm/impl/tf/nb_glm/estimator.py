@@ -236,7 +236,7 @@ def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) 
         fn=hessian,
         elems=(X_t, a_t, b_t),
         dtype=[tf.float32, tf.float32],  # hessians of [a, b]
-        parallel_iterations=np.iinfo(np.int).max
+        # parallel_iterations=np.iinfo(np.int).max
     )
 
     stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
@@ -490,7 +490,7 @@ class EstimatorGraph(TFEstimatorGraph):
                             # elems=tf.transpose(hess, perm=[2, 0, 1]),
                             elems=hess,
                             fn=tf.diag_part,
-                            parallel_iterations=np.iinfo(np.int).max
+                            # parallel_iterations=np.iinfo(np.int).max
                         )
                         for hess in full_data_model.hessians
                     ]
