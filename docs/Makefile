@@ -5,8 +5,8 @@
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 SPHINXPROJ    = batchglm
-SOURCEDIR     = source
-BUILDDIR      = build
+SOURCEDIR     = ./
+BUILDDIR      = ../build/docs
 
 # Put it first so that "make" without argument is like "make help".
 help:
