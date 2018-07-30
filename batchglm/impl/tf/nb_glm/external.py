@@ -9,3 +9,4 @@ import batchglm.impl.tf.linear_regression as tf_linreg
 # from impl.tf.nb import EstimatorGraph as NegativeBinomialEstimatorGraph
 
 import batchglm.utils.random as rand_utils
+from batchglm import pkg_constants

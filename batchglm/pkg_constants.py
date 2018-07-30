@@ -2,9 +2,10 @@ import os
 
 import tensorflow as tf
 
-XARRAY_NETCDF_ENGINE = "h5netcdf"
-
 TF_NUM_THREADS = int(os.environ.get('TF_NUM_THREADS', 1))
+TF_LOOP_PARALLEL_ITERATIONS = int(os.environ.get('TF_NUM_THREADS', 10))
+
+XARRAY_NETCDF_ENGINE = "h5netcdf"
 
 TF_CONFIG_PROTO = tf.ConfigProto()
 TF_CONFIG_PROTO.allow_soft_placement = True
