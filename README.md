@@ -6,7 +6,7 @@
 - CPU-only: <br/>
   `pip install tensorflow`
 - GPU: <br/>
-  `pip install tensorflow`
+  `pip install tensorflow-gpu`
 
 ### Compiling from source: 
 Compiling tensorflow from source can significantly improve the performance,
