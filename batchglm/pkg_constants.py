@@ -3,7 +3,7 @@ import os
 import tensorflow as tf
 
 TF_NUM_THREADS = int(os.environ.get('TF_NUM_THREADS', 1))
-TF_LOOP_PARALLEL_ITERATIONS = int(os.environ.get('TF_NUM_THREADS', 10))
+TF_LOOP_PARALLEL_ITERATIONS = int(os.environ.get('TF_LOOP_PARALLEL_ITERATIONS', 10))
 
 XARRAY_NETCDF_ENGINE = "h5netcdf"
 

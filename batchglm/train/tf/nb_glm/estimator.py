@@ -804,8 +804,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param train_r: Set to True/False in order to enable/disable training of r
         """
         if train_mu is None:
+            # check if mu was initialized with MLE
             train_mu = self._train_mu
         if train_r is None:
+            # check if r was initialized with MLE
             train_r = self._train_r
 
         if train_mu:
@@ -844,11 +846,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             else:
                 training_strategy = self.TrainingStrategy.DEFAULT.value
 
-        estim_logger = logging.getLogger(str(type(self)))
         for idx, d in enumerate(training_strategy):
-            estim_logger.info("Beginning with training sequence #%d", idx + 1)
+            logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
-            estim_logger.info("Training sequence #%d complete", idx + 1)
+            logger.info("Training sequence #%d complete", idx + 1)
 
     # @property
     # def mu(self):

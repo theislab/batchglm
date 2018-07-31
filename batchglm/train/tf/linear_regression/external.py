@@ -1,1 +1,1 @@
-import batchglm.impl.tf.stats as stats
+import batchglm.train.tf.stats as stats

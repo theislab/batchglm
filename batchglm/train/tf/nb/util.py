@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.distributions import NegativeBinomial as TFNegativeBinomial
 
-from batchglm.impl.tf.ops import reduce_weighted_mean
+from batchglm.train.tf.ops import reduce_weighted_mean
 
 
 class NegativeBinomial(TFNegativeBinomial):

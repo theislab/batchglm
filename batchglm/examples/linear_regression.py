@@ -6,7 +6,7 @@ from scipy import polyval, stats
 
 import matplotlib.pyplot as plt
 
-from batchglm.impl.tf.linear_regression import LinearRegression
+from batchglm.train.tf.linear_regression import LinearRegression
 
 
 def plot_iris_fit(fit):

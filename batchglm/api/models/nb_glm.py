@@ -9,4 +9,4 @@ from batchglm.models.nb_glm.base import model_from_params
 from batchglm.models.nb_glm.simulator import Simulator
 
 # use TF as default estimator implementation
-from batchglm.impl.tf.nb_glm.estimator import Estimator
+from batchglm.train.tf.nb_glm.estimator import Estimator

@@ -11,7 +11,7 @@ from ..external import data_utils
 from .base import Model, InputData
 
 
-def generate_sample_description(num_observations, num_batches=4, num_conditions=2) -> xr.Dataset:
+def generate_sample_description(num_observations, num_batches=4, num_confounders=2) -> xr.Dataset:
     ds = {}
     var_list = ["~ 1"]
 
@@ -25,10 +25,10 @@ def generate_sample_description(num_observations, num_batches=4, num_conditions=
         ds["batch"] = ("observations", batches)
         var_list.append("batch")
 
-    if num_conditions > 0:
+    if num_confounders > 0:
         # condition column
-        reps_conditions = math.ceil(num_observations / num_conditions)
-        conditions = np.squeeze(np.tile([np.arange(num_conditions)], reps_conditions))
+        reps_conditions = math.ceil(num_observations / num_confounders)
+        conditions = np.squeeze(np.tile([np.arange(num_confounders)], reps_conditions))
         conditions = conditions[range(num_observations)].astype(str)
 
         ds["condition"] = ("observations", conditions)
