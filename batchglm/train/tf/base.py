@@ -19,7 +19,7 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
     init_op: tf.Tensor
     train_op: tf.Tensor
     global_step: tf.Tensor
-
+    
     def __init__(self, graph=None):
         if graph is None:
             graph = tf.Graph()
@@ -31,24 +31,27 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         AUTO = None
         DEFAULT = [
             {
-                "learning_rate": 0.5,
+                "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.05,
                 "loss_window_size": 200,
+                "optim_algo": "ADAM"
             },
             {
                 "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.25,
                 "loss_window_size": 100,
+                "optim_algo": "GD"
             },
         ]
         EXACT = [
             {
-                "learning_rate": 0.5,
+                "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.05,
                 "loss_window_size": 200,
+                "optim_algo": "ADAM"
             },
             {
                 "learning_rate": 0.05,
@@ -65,35 +68,36 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         ]
         QUICK = [
             {
-                "learning_rate": 0.5,
+                "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.05,
                 "loss_window_size": 200,
+                "optim_algo": "ADAM"
             },
         ]
         PRE_INITIALIZED = [
             {
-                "learning_rate": 0.005,
+                "learning_rate": 0.01,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.25,
                 "loss_window_size": 25,
             },
         ]
-
+    
     model: TFEstimatorGraph
     session: tf.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
-
+    
     def __init__(self, tf_estimator_graph):
         self.model = tf_estimator_graph
         self.session = None
-
+    
     def initialize(self):
         self.close_session()
         self.feed_dict = {}
-
+        
         self.session = tf.Session(config=pkg_constants.TF_CONFIG_PROTO)
-
+    
     def close_session(self):
         if self.session is None:
             return False
@@ -102,17 +106,17 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             return True
         except (tf.errors.OpError, RuntimeError):
             return False
-
+    
     def run(self, tensor):
         return self.session.run(tensor, feed_dict=self.feed_dict)
-
+    
     def _get_unsafe(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
         if isinstance(key, str):
             return self.run(self.model.__getattribute__(key))
         elif isinstance(key, Iterable):
             d = {s: self.model.__getattribute__(s) for s in key}
             return self.run(d)
-
+    
     def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
         """
         Returns the values of the tensor(s) specified by key.
@@ -128,25 +132,25 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                 if k not in self.param_shapes():
                     raise ValueError("Unknown parameter %s" % k)
         return self._get_unsafe(key)
-
+    
     @property
     def global_step(self):
         return self.get("global_step")
-
+    
     @property
     def loss(self):
         return self.get("loss")
-
+    
     def _train_to_convergence(self,
                               train_op,
                               feed_dict,
                               loss_window_size,
                               stop_at_loss_change,
                               convergence_criteria="t_test"):
-
+        
         previous_loss_hist = np.tile(np.inf, loss_window_size)
         loss_hist = np.tile(np.inf, loss_window_size)
-
+        
         def should_stop(step):
             if step % len(loss_hist) == 0 and not np.any(np.isinf(previous_loss_hist)):
                 if convergence_criteria == "simple":
@@ -169,27 +173,27 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                     return not pval < stop_at_loss_change
             else:
                 return False
-
+        
         while True:
             train_step, global_loss, _ = self.session.run(
                 (self.model.global_step, self.model.loss, train_op),
                 feed_dict=feed_dict
             )
-
+            
             tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
-
+            
             # update last_loss every N+1st step:
             if train_step % len(loss_hist) == 1:
                 previous_loss_hist = np.copy(loss_hist)
-
+            
             loss_hist[(train_step - 1) % len(loss_hist)] = global_loss
-
+            
             # check convergence every N steps:
             if should_stop(train_step):
                 break
-
+        
         return np.mean(loss_hist)
-
+    
     def train(self, *args,
               learning_rate=None,
               feed_dict=None,
@@ -224,7 +228,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         :param train_op: uses this training operation if specified
         """
         # feed_dict = dict() if feed_dict is None else feed_dict.copy()
-
+        
         # default values:
         if loss_window_size is None:
             loss_window_size = 100
@@ -233,10 +237,10 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                 stop_at_loss_change = 1e-5
             else:
                 stop_at_loss_change = 0.05
-
+        
         if train_op is None:
             train_op = self.model.train_op
-
+        
         self._train_to_convergence(
             train_op=train_op,
             convergence_criteria=convergence_criteria,
@@ -249,17 +253,17 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
     session: tf.train.MonitoredSession
     working_dir: str
-
+    
     def __init__(self, tf_estimator_graph: TFEstimatorGraph):
         super().__init__(tf_estimator_graph)
-
+        
         self.working_dir = None
-
+    
     def run(self, tensor, feed_dict=None):
         if feed_dict is None:
             feed_dict = self.feed_dict
         return self.session._tf_sess().run(tensor, feed_dict=feed_dict)
-
+    
     @abc.abstractmethod
     def _scaffold(self) -> tf.train.Scaffold:
         """
@@ -268,7 +272,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         :return: tf.train.Scaffold object
         """
         pass
-
+    
     def initialize(
             self,
             working_dir: str = None,
@@ -311,11 +315,11 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         :param export_secs: time period after which the parameters specified in `export` will be exported
         :param export_compression: Enable compression for exported data. Defaults to `True`.
         """
-
+        
         self.close_session()
         self.feed_dict = {}
         self.working_dir = working_dir
-
+        
         if working_dir is None and not all(val is None for val in [
             save_checkpoint_steps,
             save_checkpoint_secs,
@@ -325,11 +329,11 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             export_secs
         ]):
             raise ValueError("No working_dir provided but actions saving data requested")
-
+        
         with self.model.graph.as_default():
             # set up session parameters
             scaffold = self._scaffold()
-
+            
             hooks = [tf.train.NanTensorHook(self.model.loss), ]
             if export_secs is not None or export_steps is not None:
                 hooks.append(TimedRunHook(
@@ -347,7 +351,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                     min_loss_change=stop_below_loss_change,
                     loss_averaging_steps=loss_averaging_steps
                 ))
-
+            
             # create session
             self.session = tf.train.MonitoredTrainingSession(
                 config=pkg_constants.TF_CONFIG_PROTO,
@@ -358,9 +362,9 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                 save_checkpoint_secs=save_checkpoint_secs,
                 save_summaries_steps=save_summaries_steps,
                 save_summaries_secs=save_summaries_secs,
-
+            
             )
-
+    
     def _save_timestep(self, step: int, time_measures: List[float], data: dict, compression=True):
         """
         Saves one time step. Special method for TimedRunHook
@@ -372,29 +376,29 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         """
         # get shape of params
         shapes = self.param_shapes()
-
+        
         # create mapping: {key: (dimensions, data)}
         xarray = {key: (shapes[key], data) for (key, data) in data.items()}
-
+        
         xarray = xr.Dataset(xarray)
         xarray.coords["global_step"] = (), step
         xarray.coords["current_time"] = (), datetime.datetime.now()
         xarray.coords["time_elapsed"] = (), (np.sum(time_measures) if len(time_measures) > 0 else 0)
-
+        
         encoding = None
         if compression:
             opts = dict()
             opts["zlib"] = True
-
+            
             encoding = {var: opts for var in xarray.data_vars if xarray[var].shape != ()}
-
+        
         path = os.path.join(self.working_dir, "estimation-%d.h5" % step)
         tf.logging.info("Exporting data to %s" % path)
         xarray.to_netcdf(path=path,
                          engine=pkg_constants.XARRAY_NETCDF_ENGINE,
                          encoding=encoding)
         tf.logging.info("Exporting to %s finished" % path)
-
+    
     def train(self, *args,
               use_stop_hooks=False,
               **kwargs):
@@ -413,7 +417,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                     (self.model.global_step, self.model.loss, self.model.train_op),
                     feed_dict=kwargs.get("feed_dict", None)
                 )
-
+                
                 tf.logging.info("Step: %d\tloss: %f" % (train_step, loss_res))
         else:
             super().train(*args, **kwargs)

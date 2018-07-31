@@ -775,6 +775,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
               stop_at_loss_change=0.05,
               train_mu: bool = None,
               train_r: bool = None,
+              optim_algo="gradient_descent",
               **kwargs):
         """
         Starts training of the model
@@ -784,24 +785,31 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             See also feed_dict parameter of `session.run()`.
         :param learning_rate: learning rate used for optimization
         :param convergence_criteria: criteria after which the training will be interrupted.
-
             Currently implemented criterias:
 
-            "simple":
-                stop, when `loss(step=i) - loss(step=i-1)` < `stop_at_loss_change`
-            "moving_average":
-                stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stop_at_loss_change`
-            "absolute_moving_average":
-                stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stop_at_loss_change`
-            "t_test" (recommended):
-                Perform t-Test between the last [i-2N..i-N] and [i-N..i] losses.
-                Stop if P("both distributions are equal") > `stop_at_loss_change`.
+            - "simple":
+              stop, when `loss(step=i) - loss(step=i-1)` < `stop_at_loss_change`
+            - "moving_average":
+              stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stop_at_loss_change`
+            - "absolute_moving_average":
+              stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stop_at_loss_change`
+            - "t_test" (recommended):
+              Perform t-Test between the last [i-2N..i-N] and [i-N..i] losses.
+              Stop if P("both distributions are equal") > `stop_at_loss_change`.
         :param stop_at_loss_change: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_window_size: specifies `N` in `convergence_criteria`.
         :param train_mu: Set to True/False in order to enable/disable training of mu
         :param train_r: Set to True/False in order to enable/disable training of r
+        :param optim_algo: name of the requested train op. Can be:
+        
+            - "Adam"
+            - "Adagrad"
+            - "RMSprop"
+            - "GradientDescent" or "GD"
+            
+            See :func:train_utils.MultiTrainer.train_op_by_name for further details.
         """
         if train_mu is None:
             # check if mu was initialized with MLE
@@ -812,12 +820,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         if train_mu:
             if train_r:
-                train_op = self.model.train_op
+                train_op = self.model.trainers.train_op_by_name(optim_algo)
             else:
-                train_op = self.model.train_op_a
+                train_op = self.model.trainers_a_only.train_op_by_name(optim_algo)
         else:
             if train_r:
-                train_op = self.model.train_op_b
+                train_op = self.model.trainers_b_only.train_op_by_name(optim_algo)
             else:
                 logger.info("No training necessary; returning")
                 return
