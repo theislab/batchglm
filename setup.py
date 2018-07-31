@@ -41,7 +41,14 @@ setup(
         'examples': [
             'sklearn',
             'mlxtend',
-        ]
+        ],
+        'docs': [
+            'sphinx',
+            'sphinx-autodoc-typehints',
+            'sphinx_rtd_theme',
+            'jinja2',
+            'docutils',
+        ],
     }
 
 )
