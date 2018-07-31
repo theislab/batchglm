@@ -48,5 +48,6 @@ The documentation is maintained in the `docs/` directory.
 
 The built documentation will be saved in `build/docs`. 
  
-- `cd docs/`
-- `make html`
+1. Make sure sphinx is installed (install via pip for example). 
+2. `cd docs/`
+3. `make html`
