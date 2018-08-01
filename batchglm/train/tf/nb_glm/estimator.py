@@ -39,10 +39,8 @@ def param_bounds(dtype):
     
     sf = dtype(2.5)
     bounds_min = {
-        "a_intercept": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "a_slope": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "b_intercept": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "b_slope": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "mu": np.nextafter(0, np.inf, dtype=dtype),
@@ -51,10 +49,8 @@ def param_bounds(dtype):
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
     bounds_max = {
-        "a_intercept": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "a_slope": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b_intercept": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b_slope": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "log_r": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
@@ -127,21 +123,17 @@ class BasicModelGraph:
 
 class ModelVars:
     a: tf.Tensor
-    a_intercept: tf.Variable
-    a_slope: tf.Variable
     b: tf.Tensor
-    b_intercept: tf.Variable
-    b_slope: tf.Variable
+    a_var: tf.Variable
+    b_var: tf.Variable
     
     def __init__(
             self,
             X,
             design_loc,
             design_scale,
-            init_a_intercept=None,
-            init_a_slopes=None,
-            init_b_intercept=None,
-            init_b_slopes=None,
+            init_a=None,
+            init_b=None,
             name="Linear_Batch_Model",
     ):
         with tf.name_scope(name):
@@ -162,59 +154,52 @@ class ModelVars:
                 init_dist = nb_utils.fit(X, axis=-2)
                 assert init_dist.r.shape == [1, num_features]
                 
-                if init_a_intercept is None:
-                    init_a_intercept = tf.log(init_dist.mean())
-                else:
-                    init_a_intercept = tf.convert_to_tensor(init_a_intercept, dtype=X.dtype)
-                init_a_intercept = clip_param(init_a_intercept, "a_intercept")
-                
-                if init_b_intercept is None:
-                    init_b_intercept = tf.log(init_dist.r)
-                else:
-                    init_b_intercept = tf.convert_to_tensor(init_b_intercept, dtype=X.dtype)
-                init_b_intercept = clip_param(init_b_intercept, "b_intercept")
-                
-                assert init_a_intercept.shape == [1, num_features] == init_b_intercept.shape
-                
-                if init_a_slopes is None:
-                    init_a_slopes = tf.random_uniform(
+                if init_a is None:
+                    intercept = tf.log(init_dist.mean())
+                    slope = tf.random_uniform(
                         tf.TensorShape([num_design_loc_params - 1, num_features]),
                         minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
                         maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
                         dtype=dtype
                     )
+                    init_a = tf.concat([
+                        intercept,
+                        slope,
+                    ], axis=-2)
                 else:
-                    init_a_slopes = tf.convert_to_tensor(init_a_slopes, dtype=dtype)
-                init_a_slopes = clip_param(init_a_slopes, "a_slope")
+                    init_a = tf.convert_to_tensor(init_a, dtype=dtype)
                 
-                if init_b_slopes is None:
-                    init_b_slopes = tf.random_uniform(
+                if init_b is None:
+                    intercept = tf.log(init_dist.r)
+                    slope = tf.random_uniform(
                         tf.TensorShape([num_design_scale_params - 1, num_features]),
                         minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
                         maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
                         dtype=dtype
                     )
+                    init_b = tf.concat([
+                        intercept,
+                        slope,
+                    ], axis=-2)
                 else:
-                    init_b_slopes = tf.convert_to_tensor(init_b_slopes, dtype=dtype)
-                init_b_slopes = clip_param(init_b_slopes, "b_slope")
+                    init_b = tf.convert_to_tensor(init_b, dtype=dtype)
+                
+                init_a = clip_param(init_a, "a")
+                init_b = clip_param(init_b, "b")
             
-            a, a_intercept, a_slope = tf_linreg.param_variable(init_a_intercept, init_a_slopes, name="a")
-            b, b_intercept, b_slope = tf_linreg.param_variable(init_b_intercept, init_b_slopes, name="b")
-            assert a.shape == (num_design_loc_params, num_features)
-            assert b.shape == (num_design_scale_params, num_features)
+            a_var = tf.Variable(init_a, name="a")
+            b_var = tf.Variable(init_b, name="b")
+            assert a_var.shape == (num_design_loc_params, num_features)
+            assert b_var.shape == (num_design_scale_params, num_features)
             
-            self.a = a
-            self.a_intercept = a_intercept
-            self.a_slope = a_slope
-            self.b = b
-            self.b_intercept = b_intercept
-            self.b_slope = b_slope
+            a_clipped = clip_param(a_var, "a")
+            b_clipped = clip_param(b_var, "b")
+            
+            self.a = a_clipped
+            self.b = b_clipped
+            self.a_var = a_var
+            self.b_var = b_var
 
-
-# def fetch_batch(indices, X, design):
-#     batch_X = tf.gather(X, indices)
-#     batch_design = tf.gather(design, indices)
-#     return indices, (batch_X, batch_design)
 
 def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) -> List[tf.Tensor]:
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
@@ -341,10 +326,8 @@ class EstimatorGraph(TFEstimatorGraph):
             num_design_scale_params,
             graph: tf.Graph = None,
             batch_size=500,
-            init_a_intercept=None,
-            init_a_slopes=None,
-            init_b_intercept=None,
-            init_b_slopes=None,
+            init_a=None,
+            init_b=None,
             extended_summary=False,
     ):
         super().__init__(graph)
@@ -387,10 +370,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 batch_X,
                 batch_design_loc,
                 batch_design_scale,
-                init_a_intercept=init_a_intercept,
-                init_a_slopes=init_a_slopes,
-                init_b_intercept=init_b_intercept,
-                init_b_slopes=init_b_slopes,
+                init_a=init_a,
+                init_b=init_b,
             )
             
             batch_model = BasicModelGraph(batch_X, batch_design_loc, batch_design_scale, batch_vars.a, batch_vars.b,
@@ -414,13 +395,13 @@ class EstimatorGraph(TFEstimatorGraph):
                 )
                 trainers_a_only = train_utils.MultiTrainer(
                     loss=loss,
-                    variables=[batch_vars.a_intercept, batch_vars.a_slope],
+                    variables=[batch_vars.a_var],
                     learning_rate=learning_rate,
                     global_step=global_step
                 )
                 trainers_b_only = train_utils.MultiTrainer(
                     loss=loss,
-                    variables=[batch_vars.b_intercept, batch_vars.b_slope],
+                    variables=[batch_vars.b_var],
                     learning_rate=learning_rate,
                     global_step=global_step
                 )
@@ -438,12 +419,11 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("output"):
                 bounds_min, bounds_max = param_bounds(dtype)
                 
-                param_nonzero_a = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_loc_params, 1])
+                param_nonzero_a = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
                 alt_a = tf.concat([
-                    tf.tile(
-                        tf.reshape(bounds_min["a_intercept"], [1, 1]),
-                        [1, num_features]
-                    ),
+                    # intercept
+                    tf.broadcast_to(bounds_min["a"], [1, num_features]),
+                    # slope
                     tf.zeros(shape=[num_design_loc_params - 1, num_features], dtype=batch_vars.a.dtype),
                 ], axis=0, name="alt_a")
                 a = tf.where(
@@ -453,12 +433,11 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="a"
                 )
                 
-                param_nonzero_b = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_loc_params, 1])
+                param_nonzero_b = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
                 alt_b = tf.concat([
-                    tf.tile(
-                        tf.reshape(bounds_max["b_intercept"], [1, 1]),
-                        [1, num_features]
-                    ),
+                    # intercept
+                    tf.broadcast_to(bounds_max["b"], [1, num_features]),
+                    # slope
                     tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=batch_vars.a.dtype),
                 ], axis=0, name="alt_b")
                 b = tf.where(
@@ -549,10 +528,8 @@ class EstimatorGraph(TFEstimatorGraph):
         self.hessian_diagonal = hessian_diagonal
         
         with tf.name_scope('summaries'):
-            tf.summary.histogram('a_intercept', batch_vars.a_intercept)
-            tf.summary.histogram('b_intercept', batch_vars.b_intercept)
-            tf.summary.histogram('a_slope', batch_vars.a_slope)
-            tf.summary.histogram('b_slope', batch_vars.b_slope)
+            tf.summary.histogram('a', batch_vars.a)
+            tf.summary.histogram('b', batch_vars.b)
             tf.summary.scalar('loss', loss)
             tf.summary.scalar('learning_rate', learning_rate)
             
@@ -589,10 +566,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                  batch_size: int = 500,
                  init_model: Model = None,
                  graph: tf.Graph = None,
-                 init_a_intercept=None,
-                 init_a_slopes=None,
-                 init_b_intercept=None,
-                 init_b_slopes=None,
+                 init_a=None,
+                 init_b=None,
                  model: EstimatorGraph = None,
                  extended_summary=False,
                  ):
@@ -604,18 +579,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             Defaults to '500'
         :param graph: (optional) tf.Graph
         :param init_model: (optional) If provided, this model will be used to initialize this Estimator.
-        :param init_a_intercept: (Optional) Low-level initial values for the a intercept
-        :param init_a_slopes: (Optional) Low-level initial values for the a slopes
-        :param init_b_intercept: (Optional) Low-level initial values for the b intercept
-        :param init_b_slopes: (Optional) Low-level initial values for the b slopes
+        :param init_a: (Optional) Low-level initial values for a
+        :param init_b: (Optional) Low-level initial values for b
         :param model: (optional) EstimatorGraph to use. Basically for debugging.
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
         """
-        if np.any(input_data.design_loc[:, 0] != 1):
-            raise ValueError("First column in design_loc has to be the interceptand therefore == '1'")
-        if np.any(input_data.design_scale[:, 0] != 1):
-            raise ValueError("First column in design_scale has to be the interceptand therefore == '1'")
+        # if np.any(input_data.design_loc[:, 0] != 1):
+        #     raise ValueError("First column in design_loc has to be the interceptand therefore == '1'")
+        # if np.any(input_data.design_scale[:, 0] != 1):
+        #     raise ValueError("First column in design_scale has to be the interceptand therefore == '1'")
         
         # ### initialization
         if model is None:
@@ -638,7 +611,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 = exp(design * a') = mu
             $$
             """
-            if init_a_intercept is None and init_a_slopes is None:
+            if init_a is None:
                 try:
                     unique_design, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
                     inv_design = np.linalg.inv(unique_design)
@@ -648,8 +621,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     a = np.log(mean)
                     # a = a * np.eye(np.size(a))
                     a_prime = np.matmul(inv_design, a)
-                    init_a_intercept = a_prime[[0]]
-                    init_a_slopes = a_prime[1:]
+                    init_a = a_prime
                     
                     self._train_mu = False
                     logger.info("Using closed-form MLE initialization for mean")
@@ -657,7 +629,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 except np.linalg.LinAlgError:
                     pass
             
-            if init_b_intercept is None and init_b_slopes is None:
+            if init_b is None:
                 try:
                     unique_design, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
                     inv_design = np.linalg.inv(unique_design)
@@ -667,8 +639,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     b = np.log(dist.r)
                     # b = b * np.eye(np.size(b))
                     b_prime = np.matmul(inv_design, b)
-                    init_b_intercept = b_prime[[0]]
-                    init_b_slopes = b_prime[1:]
+                    init_b = b_prime
                     
                     self._train_r = True
                     logger.info("Using closed-form MME initialization for dispersion")
@@ -677,7 +648,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     pass
             
             if init_model is not None:
-                if init_a_intercept is None or init_a_slopes is None:
+                if init_a is None:
                     # location
                     my_loc_names = set(input_data.design_loc_names.values)
                     my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
@@ -692,12 +663,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         my_idx = np.where(input_data.design_loc_names == parm)
                         init_loc[my_idx] = init_model.par_link_loc[init_idx]
                     
-                    if init_a_intercept is None:
-                        init_a_intercept = init_loc[[0]]
-                    if init_a_slopes is None:
-                        init_a_slopes = init_loc[1:]
+                    init_a = init_loc
                 
-                if init_b_intercept is None or init_b_slopes is None:
+                if init_b is None:
                     # scale
                     my_scale_names = set(input_data.design_scale_names.values)
                     my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
@@ -712,10 +680,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         my_idx = np.where(input_data.design_scale_names == parm)
                         init_scale[my_idx] = init_model.par_link_scale[init_idx]
                     
-                    if init_b_intercept is None:
-                        init_b_intercept = init_scale[[0]]
-                    if init_b_slopes is None:
-                        init_b_slopes = init_scale[1:]
+                    init_b = init_scale
         
         # ### prepare fetch_fn:
         def fetch_fn(idx):
@@ -753,10 +718,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 num_design_scale_params=input_data.num_design_scale_params,
                 batch_size=batch_size,
                 graph=graph,
-                init_a_intercept=init_a_intercept,
-                init_a_slopes=init_a_slopes,
-                init_b_intercept=init_b_intercept,
-                init_b_slopes=init_b_slopes,
+                init_a=init_a,
+                init_b=init_b,
                 extended_summary=extended_summary
             )
         

@@ -6,43 +6,43 @@ import numpy as np
 from .external import stats
 
 
-def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="param_weight") -> \
-        Tuple[tf.Tensor, tf.Variable, tf.Variable]:
-    """
-    This method creates a weight variable from an initial intercept and slope.
-
-    If there are more than two dimensions, these additional dimensions can be set to size `1` for `init_slopes`.
-    This will introduce a dependency for all weights to be equal along the dimensions of size `1`.
-
-    :param init_intercept: Tensor of shape ([...], 1, N)
-    :param init_slopes: Tensor of shape ([...], M-1, N)
-    :param name: name of this variable
-    :return: Weight tensor of shape ([...], M, N),
-        Intercept variable of shape ([...], 1, N),
-        Slope variable of shape ([...], M-1, N)
-    """
-    with tf.name_scope(name):
-        intercept = tf.Variable(init_intercept, name='intercept')
-        slope = tf.Variable(init_slopes, name='slope')
-
-        # broadcast slope if necessary; need `tf.broadcast_to`... TODO!!!
-        tile_shape = tf.TensorShape(np.concatenate(
-            [
-                np.where(intercept.shape[:-2] != slope.shape[:-2], intercept.shape[:-2],
-                         np.ones_like(intercept.shape[:-2])),
-                [1],
-                [1]
-            ]
-        ))
-        if tile_shape.num_elements() != 1:
-            slope = tf.tile(slope, tile_shape, name="constraint")
-
-        weight = tf.concat([
-            intercept,
-            slope
-        ], axis=-2)
-
-    return weight, intercept, slope
+# def param_variable(init_intercept: tf.Tensor, init_slopes: tf.Tensor, name="param_weight") -> \
+#         Tuple[tf.Tensor, tf.Variable, tf.Variable]:
+#     """
+#     This method creates a weight variable from an initial intercept and slope.
+#
+#     If there are more than two dimensions, these additional dimensions can be set to size `1` for `init_slopes`.
+#     This will introduce a dependency for all weights to be equal along the dimensions of size `1`.
+#
+#     :param init_intercept: Tensor of shape ([...], 1, N)
+#     :param init_slopes: Tensor of shape ([...], M-1, N)
+#     :param name: name of this variable
+#     :return: Weight tensor of shape ([...], M, N),
+#         Intercept variable of shape ([...], 1, N),
+#         Slope variable of shape ([...], M-1, N)
+#     """
+#     with tf.name_scope(name):
+#         intercept = tf.Variable(init_intercept, name='intercept')
+#         slope = tf.Variable(init_slopes, name='slope')
+#
+#         # broadcast slope if necessary; need `tf.broadcast_to`... TODO!!!
+#         tile_shape = tf.TensorShape(np.concatenate(
+#             [
+#                 np.where(intercept.shape[:-2] != slope.shape[:-2], intercept.shape[:-2],
+#                          np.ones_like(intercept.shape[:-2])),
+#                 [1],
+#                 [1]
+#             ]
+#         ))
+#         if tile_shape.num_elements() != 1:
+#             slope = tf.tile(slope, tile_shape, name="constraint")
+#
+#         weight = tf.concat([
+#             intercept,
+#             slope
+#         ], axis=-2)
+#
+#     return weight, intercept, slope
 
 
 class LinearRegression:
