@@ -626,44 +626,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._train_mu = True
             self._train_r = True
             
-            if init_model is not None:
-                # location
-                my_loc_names = set(input_data.design_loc_names.values)
-                my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
-                
-                init_loc = np.random.uniform(
-                    low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                    high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                    size=(input_data.num_design_loc_params, input_data.num_features)
-                )
-                for parm in my_loc_names:
-                    init_idx = np.where(init_model.input_data.design_loc_names == parm)
-                    my_idx = np.where(input_data.design_loc_names == parm)
-                    init_loc[my_idx] = init_model.par_link_loc[init_idx]
-                
-                # scale
-                my_scale_names = set(input_data.design_scale_names.values)
-                my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
-                
-                init_scale = np.random.uniform(
-                    low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                    high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                    size=(input_data.num_design_scale_params, input_data.num_features)
-                )
-                for parm in my_scale_names:
-                    init_idx = np.where(init_model.input_data.design_scale_names == parm)
-                    my_idx = np.where(input_data.design_scale_names == parm)
-                    init_scale[my_idx] = init_model.par_link_scale[init_idx]
-                
-                if init_a_intercept is None:
-                    init_a_intercept = init_loc[[0]]
-                if init_a_slopes is None:
-                    init_a_slopes = init_loc[1:]
-                if init_b_intercept is None:
-                    init_b_intercept = init_scale[[0]]
-                if init_b_slopes is None:
-                    init_b_slopes = init_scale[1:]
-            
             """
             Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
             is not confounded.
@@ -713,6 +675,47 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     logger.debug("inverse design_scale matrix:\n%s", inv_design)
                 except np.linalg.LinAlgError:
                     pass
+            
+            if init_model is not None:
+                if init_a_intercept is None or init_a_slopes is None:
+                    # location
+                    my_loc_names = set(input_data.design_loc_names.values)
+                    my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
+                    
+                    init_loc = np.random.uniform(
+                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
+                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
+                        size=(input_data.num_design_loc_params, input_data.num_features)
+                    )
+                    for parm in my_loc_names:
+                        init_idx = np.where(init_model.input_data.design_loc_names == parm)
+                        my_idx = np.where(input_data.design_loc_names == parm)
+                        init_loc[my_idx] = init_model.par_link_loc[init_idx]
+                    
+                    if init_a_intercept is None:
+                        init_a_intercept = init_loc[[0]]
+                    if init_a_slopes is None:
+                        init_a_slopes = init_loc[1:]
+                
+                if init_b_intercept is None or init_b_slopes is None:
+                    # scale
+                    my_scale_names = set(input_data.design_scale_names.values)
+                    my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
+                    
+                    init_scale = np.random.uniform(
+                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
+                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
+                        size=(input_data.num_design_scale_params, input_data.num_features)
+                    )
+                    for parm in my_scale_names:
+                        init_idx = np.where(init_model.input_data.design_scale_names == parm)
+                        my_idx = np.where(input_data.design_scale_names == parm)
+                        init_scale[my_idx] = init_model.par_link_scale[init_idx]
+                    
+                    if init_b_intercept is None:
+                        init_b_intercept = init_scale[[0]]
+                    if init_b_slopes is None:
+                        init_b_slopes = init_scale[1:]
         
         # ### prepare fetch_fn:
         def fetch_fn(idx):
