@@ -36,7 +36,7 @@ def param_bounds(dtype):
     else:
         min = np.finfo(dtype).min
         max = np.finfo(dtype).max
-
+    
     sf = dtype(2.5)
     bounds_min = {
         "a_intercept": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
@@ -75,52 +75,52 @@ def clip_param(param, name):
 
 
 class BasicModelGraph:
-
+    
     def __init__(self, X, design_loc, design_scale, a, b, size_factors=None):
         dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
                                                r=tf.exp(tf.gather(b, 0)),
                                                name="dist_estim")
-
+        
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
             if size_factors is not None:
                 log_mu = log_mu + size_factors
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
-
+        
         with tf.name_scope("r"):
             log_r = tf.matmul(design_scale, b, name="log_r_obs")
             log_r = clip_param(log_r, "log_r")
             r = tf.exp(log_r)
-
+        
         dist_obs = nb_utils.NegativeBinomial(mean=mu, r=r, name="dist_obs")
-
+        
         with tf.name_scope("probs"):
             probs = dist_obs.prob(X)
             probs = clip_param(probs, "probs")
-
+        
         with tf.name_scope("log_probs"):
             log_probs = dist_obs.log_prob(X)
             log_probs = clip_param(log_probs, "log_probs")
-
+        
         self.X = X
         self.design_loc = design_loc
         self.design_scale = design_scale
-
+        
         self.dist_estim = dist_estim
         self.mu_estim = dist_estim.mean()
         self.r_estim = dist_estim.r
         self.sigma2_estim = dist_estim.variance()
-
+        
         self.dist_obs = dist_obs
         self.mu = mu
         self.r = r
         self.sigma2 = dist_obs.variance()
-
+        
         self.probs = probs
         self.log_probs = log_probs
         self.log_likelihood = tf.reduce_sum(self.log_probs, name="log_likelihood")
-
+        
         with tf.name_scope("loss"):
             self.loss = -tf.reduce_mean(self.log_probs)
 
@@ -132,7 +132,7 @@ class ModelVars:
     b: tf.Tensor
     b_intercept: tf.Variable
     b_slope: tf.Variable
-
+    
     def __init__(
             self,
             X,
@@ -148,34 +148,34 @@ class ModelVars:
             num_design_loc_params = design_loc.shape[-1]
             num_design_scale_params = design_scale.shape[-1]
             (batch_size, num_features) = X.shape
-
+            
             assert X.shape == [batch_size, num_features]
             assert design_loc.shape == [batch_size, num_design_loc_params]
             assert design_scale.shape == [batch_size, num_design_scale_params]
-
+            
             # ### parameter bounds
             dtype = X.dtype
-
+            
             with tf.name_scope("initialization"):
                 # implicit broadcasting of X and initial_mixture_probs to
                 #   shape (num_mixtures, num_observations, num_features)
                 init_dist = nb_utils.fit(X, axis=-2)
                 assert init_dist.r.shape == [1, num_features]
-
+                
                 if init_a_intercept is None:
                     init_a_intercept = tf.log(init_dist.mean())
                 else:
                     init_a_intercept = tf.convert_to_tensor(init_a_intercept, dtype=X.dtype)
                 init_a_intercept = clip_param(init_a_intercept, "a_intercept")
-
+                
                 if init_b_intercept is None:
                     init_b_intercept = tf.log(init_dist.r)
                 else:
                     init_b_intercept = tf.convert_to_tensor(init_b_intercept, dtype=X.dtype)
                 init_b_intercept = clip_param(init_b_intercept, "b_intercept")
-
+                
                 assert init_a_intercept.shape == [1, num_features] == init_b_intercept.shape
-
+                
                 if init_a_slopes is None:
                     init_a_slopes = tf.random_uniform(
                         tf.TensorShape([num_design_loc_params - 1, num_features]),
@@ -186,7 +186,7 @@ class ModelVars:
                 else:
                     init_a_slopes = tf.convert_to_tensor(init_a_slopes, dtype=dtype)
                 init_a_slopes = clip_param(init_a_slopes, "a_slope")
-
+                
                 if init_b_slopes is None:
                     init_b_slopes = tf.random_uniform(
                         tf.TensorShape([num_design_scale_params - 1, num_features]),
@@ -197,12 +197,12 @@ class ModelVars:
                 else:
                     init_b_slopes = tf.convert_to_tensor(init_b_slopes, dtype=dtype)
                 init_b_slopes = clip_param(init_b_slopes, "b_slope")
-
+            
             a, a_intercept, a_slope = tf_linreg.param_variable(init_a_intercept, init_a_slopes, name="a")
             b, b_intercept, b_slope = tf_linreg.param_variable(init_b_intercept, init_b_slopes, name="b")
             assert a.shape == (num_design_loc_params, num_features)
             assert b.shape == (num_design_scale_params, num_features)
-
+            
             self.a = a
             self.a_intercept = a_intercept
             self.a_slope = a_slope
@@ -220,28 +220,28 @@ def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) 
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
     b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
-
+    
     def hessian(data):  # data is tuple (X_t, a_t, b_t)
         X_t, a_t, b_t = data
         X = tf.transpose(X_t)
         a = tf.transpose(a_t)
         b = tf.transpose(b_t)
-
+        
         model = BasicModelGraph(X, design_loc, design_scale, a, b, size_factors=size_factors)
-
+        
         hess = tf.hessians(-model.log_likelihood, [a, b])
-
+        
         return hess
-
+    
     hessians = tf.map_fn(
         fn=hessian,
         elems=(X_t, a_t, b_t),
         dtype=[tf.float32, tf.float32],  # hessians of [a, b]
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
-
+    
     stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
-
+    
     return stacked
 
 
@@ -255,19 +255,19 @@ class FullDataModelGraph:
             b: tf.Tensor
     ):
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
-
+        
         batched_data = dataset.batch(batch_size)
         batched_data = batched_data.map(fetch_fn)
         batched_data = batched_data.prefetch(1)
-
+        
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
             model = BasicModelGraph(X, design_loc, design_scale, a, b, size_factors=size_factors)
             return model
-
+        
         super()
         model = map_model(*fetch_fn(sample_indices))
-
+        
         with tf.name_scope("log_likelihood"):
             log_likelihood = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
@@ -275,18 +275,18 @@ class FullDataModelGraph:
                 map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
                 parallel_iterations=1,
             )
-
+        
         with tf.name_scope("loss"):
             loss = -log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
-
+        
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
                 X, design_loc, design_scale, size_factors = data
                 return feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=size_factors)
-
+            
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
-
+            
             hessians = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
@@ -294,43 +294,43 @@ class FullDataModelGraph:
                 reduce_fn=hessian_red,
                 parallel_iterations=1,
             )
-
+        
         self.X = model.X
         self.design_loc = model.design_loc
         self.design_scale = model.design_scale
-
+        
         self.batched_data = batched_data
-
+        
         self.dist_estim = model.dist_estim
         self.mu_estim = model.mu_estim
         self.r_estim = model.r_estim
         self.sigma2_estim = model.sigma2_estim
-
+        
         self.dist_obs = model.dist_obs
         self.mu = model.mu
         self.r = model.r
         self.sigma2 = model.sigma2
-
+        
         self.probs = model.probs
         self.log_probs = model.log_probs
-
+        
         # custom
         self.sample_indices = sample_indices
-
+        
         self.log_likelihood = log_likelihood
         self.loss = loss
-
+        
         self.hessians = hessians
 
 
 class EstimatorGraph(TFEstimatorGraph):
     X: tf.Tensor
-
+    
     mu: tf.Tensor
     sigma2: tf.Tensor
     a: tf.Tensor
     b: tf.Tensor
-
+    
     def __init__(
             self,
             fetch_fn,
@@ -353,16 +353,16 @@ class EstimatorGraph(TFEstimatorGraph):
         self.num_design_loc_params = num_design_loc_params
         self.num_design_scale_params = num_design_scale_params
         self.batch_size = batch_size
-
+        
         # initial graph elements
         with self.graph.as_default():
             # ### placeholders
             learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
             # train_steps = tf.placeholder(tf.int32, shape=(), name="training_steps")
-
+            
             # ### performance related settings
             buffer_size = 4
-
+            
             with tf.name_scope("input_pipeline"):
                 data_indices = tf.data.Dataset.from_tensor_slices((
                     tf.range(num_observations, name="sample_index")
@@ -371,14 +371,14 @@ class EstimatorGraph(TFEstimatorGraph):
                 training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
                 training_data = training_data.map(fetch_fn)
                 training_data = training_data.prefetch(buffer_size)
-
+                
                 iterator = training_data.make_one_shot_iterator()
-
+                
                 batch_sample_index, batch_data = iterator.get_next()
                 (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
-
+            
             dtype = batch_X.dtype
-
+            
             # Batch model:
             #     only `batch_size` observations will be used;
             #     All per-sample variables have to be passed via `data`.
@@ -392,18 +392,18 @@ class EstimatorGraph(TFEstimatorGraph):
                 init_b_intercept=init_b_intercept,
                 init_b_slopes=init_b_slopes,
             )
-
+            
             batch_model = BasicModelGraph(batch_X, batch_design_loc, batch_design_scale, batch_vars.a, batch_vars.b,
                                           size_factors=batch_size_factors)
-
+            
             # minimize negative log probability (log(1) = 0);
             # use the mean loss to keep a constant learning rate independently of the batch size
             loss = -tf.reduce_mean(batch_model.log_probs, name="loss")
-
+            
             # ### management
             with tf.name_scope("training"):
                 global_step = tf.train.get_or_create_global_step()
-
+                
                 # set up trainers for different selections of variables to train
                 # set up multiple optimization algorithms for each trainer
                 trainers = train_utils.MultiTrainer(
@@ -424,20 +424,20 @@ class EstimatorGraph(TFEstimatorGraph):
                     learning_rate=learning_rate,
                     global_step=global_step
                 )
-
+                
                 gradient = trainers.gradient
-
+                
                 aggregated_gradient = tf.add_n(
                     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
-
+            
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
-
+            
             # ### output values:
             #       override all-zero features with lower bound coefficients
             with tf.name_scope("output"):
                 bounds_min, bounds_max = param_bounds(dtype)
-
+                
                 param_nonzero_a = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_loc_params, 1])
                 alt_a = tf.concat([
                     tf.tile(
@@ -452,7 +452,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     alt_a,
                     name="a"
                 )
-
+                
                 param_nonzero_b = tf.tile(tf.expand_dims(feature_isnonzero, 0), [num_design_loc_params, 1])
                 alt_b = tf.concat([
                     tf.tile(
@@ -467,7 +467,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     alt_b,
                     name="b"
                 )
-
+                
                 # ### alternative definitions for custom observations:
                 sample_selection = tf.placeholder_with_default(tf.range(num_observations),
                                                                shape=(None,),
@@ -484,7 +484,7 @@ class EstimatorGraph(TFEstimatorGraph):
                         tf.reduce_sum(tf.abs(full_gradient_a), axis=0) +
                         tf.reduce_sum(tf.abs(full_gradient_b), axis=0)
                 )
-
+                
                 with tf.name_scope("hessian_diagonal"):
                     hessian_diagonal = [
                         tf.map_fn(
@@ -496,25 +496,25 @@ class EstimatorGraph(TFEstimatorGraph):
                         for hess in full_data_model.hessians
                     ]
                     hessian_diagonal = tf.concat(hessian_diagonal, axis=-1)
-
+                
                 mu = full_data_model.mu
                 r = full_data_model.r
                 sigma2 = full_data_model.sigma2
-
+        
         self.fetch_fn = fetch_fn
         self.batch_vars = batch_vars
         self.batch_model = batch_model
-
+        
         self.loss = loss
-
+        
         self.trainers = trainers
         self.trainers_a_only = trainers_a_only
         self.trainers_b_only = trainers_b_only
         self.global_step = global_step
-
+        
         self.gradient = aggregated_gradient
         self.plain_gradient = gradient
-
+        
         # self.train_op_GD = train_op_GD
         # self.train_op_Adam = train_op_Adam
         # self.train_op_Adagrad = train_op_Adagrad
@@ -523,31 +523,31 @@ class EstimatorGraph(TFEstimatorGraph):
         self.train_op = trainers.train_op_GD
         self.train_op_a = trainers_a_only.train_op_GD
         self.train_op_b = trainers_b_only.train_op_GD
-
+        
         self.init_ops = []
         self.init_op = init_op
-
+        
         # # ### set up class attributes
         self.a = a
         self.b = b
         assert (self.a.shape == (num_design_loc_params, num_features))
         assert (self.b.shape == (num_design_scale_params, num_features))
-
+        
         self.mu = mu
         self.r = r
         self.sigma2 = sigma2
-
+        
         self.batch_probs = batch_model.probs
         self.batch_log_probs = batch_model.log_probs
         self.batch_log_likelihood = batch_model.log_likelihood
-
+        
         self.sample_selection = sample_selection
         self.full_data_model = full_data_model
-
+        
         self.full_gradient = full_gradient
         self.full_loss = full_data_model.loss
         self.hessian_diagonal = hessian_diagonal
-
+        
         with tf.name_scope('summaries'):
             tf.summary.histogram('a_intercept', batch_vars.a_intercept)
             tf.summary.histogram('b_intercept', batch_vars.b_intercept)
@@ -555,7 +555,7 @@ class EstimatorGraph(TFEstimatorGraph):
             tf.summary.histogram('b_slope', batch_vars.b_slope)
             tf.summary.scalar('loss', loss)
             tf.summary.scalar('learning_rate', learning_rate)
-
+            
             if extended_summary:
                 tf.summary.scalar('median_ll',
                                   tf.contrib.distributions.percentile(
@@ -568,22 +568,22 @@ class EstimatorGraph(TFEstimatorGraph):
                 tf.summary.scalar("full_gradient_median",
                                   tf.contrib.distributions.percentile(full_gradient, 50.))
                 tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
-
+        
         self.saver = tf.train.Saver()
         self.merged_summary = tf.summary.merge_all()
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     TrainingStrategy = MonitoredTFEstimator.TrainingStrategy
-
+    
     model: EstimatorGraph
     _train_mu: bool
     _train_r: bool
-
+    
     @classmethod
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
-
+    
     def __init__(self,
                  input_data: InputData,
                  batch_size: int = 500,
@@ -616,21 +616,21 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             raise ValueError("First column in design_loc has to be the interceptand therefore == '1'")
         if np.any(input_data.design_scale[:, 0] != 1):
             raise ValueError("First column in design_scale has to be the interceptand therefore == '1'")
-
+        
         # ### initialization
         if model is None:
             if graph is None:
                 graph = tf.Graph()
-
+            
             self._input_data = input_data
             self._train_mu = True
             self._train_r = True
-
+            
             if init_model is not None:
                 # location
                 my_loc_names = set(input_data.design_loc_names.values)
                 my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
-
+                
                 init_loc = np.random.uniform(
                     low=np.nextafter(0, 1, dtype=input_data.X.dtype),
                     high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
@@ -640,11 +640,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_idx = np.where(init_model.input_data.design_loc_names == parm)
                     my_idx = np.where(input_data.design_loc_names == parm)
                     init_loc[my_idx] = init_model.par_link_loc[init_idx]
-
+                
                 # scale
                 my_scale_names = set(input_data.design_scale_names.values)
                 my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
-
+                
                 init_scale = np.random.uniform(
                     low=np.nextafter(0, 1, dtype=input_data.X.dtype),
                     high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
@@ -653,8 +653,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 for parm in my_scale_names:
                     init_idx = np.where(init_model.input_data.design_scale_names == parm)
                     my_idx = np.where(input_data.design_scale_names == parm)
-                    init_scale[my_idx] = init_model.par_link_loc[init_idx]
-
+                    init_scale[my_idx] = init_model.par_link_scale[init_idx]
+                
                 if init_a_intercept is None:
                     init_a_intercept = init_loc[[0]]
                 if init_a_slopes is None:
@@ -663,7 +663,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_b_intercept = init_scale[[0]]
                 if init_b_slopes is None:
                     init_b_slopes = init_scale[1:]
-
+            
             """
             Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
             is not confounded.
@@ -682,45 +682,45 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     inv_design = np.linalg.inv(unique_design)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                     mean = X.groupby("group").mean(dim="observations")
-
+                    
                     a = np.log(mean)
                     # a = a * np.eye(np.size(a))
                     a_prime = np.matmul(inv_design, a)
                     init_a_intercept = a_prime[[0]]
                     init_a_slopes = a_prime[1:]
-
+                    
                     self._train_mu = False
                     logger.info("Using closed-form MLE initialization for mean")
                     logger.debug("inverse design_loc matrix:\n%s", inv_design)
                 except np.linalg.LinAlgError:
                     pass
-
+            
             if init_b_intercept is None and init_b_slopes is None:
                 try:
                     unique_design, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
                     inv_design = np.linalg.inv(unique_design)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                     dist = rand_utils.NegativeBinomial.mme(X.groupby("group"))
-
+                    
                     b = np.log(dist.r)
                     # b = b * np.eye(np.size(b))
                     b_prime = np.matmul(inv_design, b)
                     init_b_intercept = b_prime[[0]]
                     init_b_slopes = b_prime[1:]
-
+                    
                     self._train_r = True
                     logger.info("Using closed-form MME initialization for dispersion")
                     logger.debug("inverse design_scale matrix:\n%s", inv_design)
                 except np.linalg.LinAlgError:
                     pass
-
+        
         # ### prepare fetch_fn:
         def fetch_fn(idx):
             X_tensor = tf.py_func(input_data.fetch_X, [idx], tf.float32)
             X_tensor.set_shape(
                 idx.get_shape().as_list() + [input_data.num_features]
             )
-
+            
             design_loc_tensor = tf.py_func(input_data.fetch_design_loc, [idx], tf.float32)
             design_loc_tensor.set_shape(
                 idx.get_shape().as_list() + [input_data.num_design_loc_params]
@@ -729,16 +729,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             design_scale_tensor.set_shape(
                 idx.get_shape().as_list() + [input_data.num_design_scale_params]
             )
-
+            
             if input_data.size_factors is not None:
                 size_factors_tensor = tf.log(tf.py_func(input_data.fetch_size_factors, [idx], tf.float32))
                 size_factors_tensor.set_shape(idx.get_shape())
             else:
                 size_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
-
+            
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
-
+        
         with graph.as_default():
             # create model
             model = EstimatorGraph(
@@ -756,9 +756,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 init_b_slopes=init_b_slopes,
                 extended_summary=extended_summary
             )
-
+        
         MonitoredTFEstimator.__init__(self, model)
-
+    
     def _scaffold(self):
         with self.model.graph.as_default():
             scaffold = tf.train.Scaffold(
@@ -767,7 +767,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 saver=self.model.saver,
             )
         return scaffold
-
+    
     def train(self, *args,
               learning_rate=0.5,
               convergence_criteria="t_test",
@@ -817,7 +817,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         if train_r is None:
             # check if r was initialized with MLE
             train_r = self._train_r
-
+        
         if train_mu:
             if train_r:
                 train_op = self.model.trainers.train_op_by_name(optim_algo)
@@ -829,7 +829,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             else:
                 logger.info("No training necessary; returning")
                 return
-
+        
         super().train(*args,
                       feed_dict={"learning_rate:0": learning_rate},
                       convergence_criteria=convergence_criteria,
@@ -837,28 +837,30 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       stop_at_loss_change=stop_at_loss_change,
                       train_op=train_op,
                       **kwargs)
-
+    
     @property
     def input_data(self):
         return self._input_data
-
+    
     def train_sequence(self, training_strategy=TrainingStrategy.AUTO):
         if isinstance(training_strategy, Enum):
             training_strategy = training_strategy.value
         elif isinstance(training_strategy, str):
             training_strategy = self.TrainingStrategy[training_strategy].value
-
+        
         if training_strategy is None:
             if not self._train_mu:
                 training_strategy = self.TrainingStrategy.PRE_INITIALIZED.value
             else:
                 training_strategy = self.TrainingStrategy.DEFAULT.value
-
+        
+        logger.info("training strategy: %s", str(training_strategy))
+        
         for idx, d in enumerate(training_strategy):
             logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
             logger.info("Training sequence #%d complete", idx + 1)
-
+    
     # @property
     # def mu(self):
     #     return self.to_xarray("mu")
@@ -870,35 +872,35 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     # @property
     # def sigma2(self):
     #     return self.to_xarray("sigma2")
-
+    
     @property
     def a(self):
         return self.to_xarray("a", coords=self.input_data.data.coords)
-
+    
     @property
     def b(self):
         return self.to_xarray("b", coords=self.input_data.data.coords)
-
+    
     @property
     def batch_loss(self):
         return self.to_xarray("loss")
-
+    
     @property
     def batch_gradient(self):
         return self.to_xarray("gradient", coords=self.input_data.data.coords)
-
+    
     @property
     def loss(self):
         return self.to_xarray("full_loss")
-
+    
     @property
     def gradient(self):
         return self.to_xarray("full_gradient", coords=self.input_data.data.coords)
-
+    
     @property
     def hessian_diagonal(self):
         return self.to_xarray("hessian_diagonal", coords=self.input_data.data.coords)
-
+    
     def finalize(self):
         store = XArrayEstimatorStore(self)
         self.close_session()

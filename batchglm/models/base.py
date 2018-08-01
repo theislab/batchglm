@@ -253,6 +253,8 @@ class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
         if training_strategy is None:
             training_strategy = self.TrainingStrategy.DEFAULT.value
         
+        logger.info("training strategy: %s", str(training_strategy))
+        
         for idx, d in enumerate(training_strategy):
             logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
