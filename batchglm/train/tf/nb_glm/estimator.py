@@ -715,6 +715,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                     mean = X.groupby("group").mean(dim="observations")
                     
+                    [X[inverse_idx==i].mean(dim="observations").values for i in np.unique(inv_design)]
                     a = np.log(mean)
                     # a = a * np.eye(np.size(a))
                     a_prime = np.matmul(inv_design, a)

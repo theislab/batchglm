@@ -1,9 +1,11 @@
+from typing import List
+
 import os
 import unittest
 import tempfile
 
 import numpy as np
-from typing import List
+import scipy.sparse
 
 import batchglm.data as data_utils
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
@@ -104,6 +106,7 @@ class NB_GLM_Test(unittest.TestCase):
     
     def test_anndata(self):
         adata = self.sim.data_to_anndata()
+        adata.X = scipy.sparse.csr_matrix(adata.X)
         idata = InputData.new(adata)
         
         wd = os.path.join(self.working_dir.name, "anndata")
