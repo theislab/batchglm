@@ -106,6 +106,19 @@ class NB_GLM_Test(unittest.TestCase):
     
     def test_anndata(self):
         adata = self.sim.data_to_anndata()
+        idata = InputData.new(adata)
+        
+        wd = os.path.join(self.working_dir.name, "anndata")
+        os.makedirs(wd, exist_ok=True)
+        
+        print(adata)
+        estimator = estimate(idata, wd)
+        self._estims.append(estimator)
+        
+        return estimator, adata
+    
+    def test_anndata_sparse(self):
+        adata = self.sim.data_to_anndata()
         adata.X = scipy.sparse.csr_matrix(adata.X)
         idata = InputData.new(adata)
         

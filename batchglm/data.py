@@ -7,6 +7,7 @@ import zipfile as zf
 import patsy
 import pandas as pd
 import numpy as np
+import scipy.sparse
 import xarray as xr
 import dask
 import dask.array
@@ -30,39 +31,46 @@ def xarray_from_data(
     :return: xr.DataArray of shape `dims`
     """
     if anndata is not None and isinstance(data, anndata.AnnData):
-        num_features = data.n_vars
-        num_observations = data.n_obs
-        
-        def fetch_X(idx):
-            idx = np.asarray(idx).reshape(-1)
-            retval = data.chunk_X(idx)  # [:, ~all_observations_zero]
+        if scipy.sparse.issparse(data.X):
+            num_features = data.n_vars
+            num_observations = data.n_obs
             
-            if idx.size == 1:
-                retval = np.squeeze(retval, axis=0)
+            def fetch_X(idx):
+                idx = np.asarray(idx).reshape(-1)
+                retval = data.chunk_X(idx)  # [:, ~all_observations_zero]
+                
+                if idx.size == 1:
+                    retval = np.squeeze(retval, axis=0)
+                
+                return retval.astype(np.float32)
             
-            return retval.astype(np.float32)
-        
-        delayed_fetch = dask.delayed(fetch_X, pure=True)
-        X = [
-            dask.array.from_delayed(
-                delayed_fetch(idx),
-                shape=(num_features,),
-                dtype=np.float32
-            ) for idx in range(num_observations)
-        ]
-        # currently broken:
-        # X = data.X
-        # X = dask.array.from_array(X, X.shape)
-        #
-        # X = xr.DataArray(X, dims=INPUT_DATA_PARAMS["X"], coords={
-        #     "observations": data.obs_names,
-        #     "features": data.var_names,
-        # })
-        
-        X = xr.DataArray(dask.array.stack(X), dims=dims, coords={
-            dims[0]: data.obs_names,
-            dims[1]: data.var_names,
-        })
+            delayed_fetch = dask.delayed(fetch_X, pure=True)
+            X = [
+                dask.array.from_delayed(
+                    delayed_fetch(idx),
+                    shape=(num_features,),
+                    dtype=np.float32
+                ) for idx in range(num_observations)
+            ]
+            X = xr.DataArray(dask.array.stack(X), dims=dims, coords={
+                dims[0]: data.obs_names,
+                dims[1]: data.var_names,
+            })
+            
+            # currently broken:
+            # X = data.X
+            # X = dask.array.from_array(X, X.shape)
+            #
+            # X = xr.DataArray(X, dims=INPUT_DATA_PARAMS["X"], coords={
+            #     "observations": data.obs_names,
+            #     "features": data.var_names,
+            # })
+        else:
+            X = data.X
+            X = xr.DataArray(X, dims=dims, coords={
+                dims[0]: data.obs_names,
+                dims[1]: data.var_names,
+            })
     elif isinstance(data, xr.Dataset):
         X: xr.DataArray = data["X"]
     elif isinstance(data, xr.DataArray):
