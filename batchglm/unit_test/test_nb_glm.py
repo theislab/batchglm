@@ -75,6 +75,24 @@ class NB_GLM_Test(unittest.TestCase):
         
         return estimator, sim
     
+    def test_sparse_fit(self):
+        X = scipy.sparse.csr_matrix(self.sim.X)
+        design_loc = self.sim.design_loc
+        design_scale = self.sim.design_scale
+        idata = InputData.new(
+            data=X,
+            design_loc=design_loc,
+            design_scale=design_scale,
+        )
+        
+        wd = os.path.join(self.working_dir.name, "anndata")
+        os.makedirs(wd, exist_ok=True)
+        
+        estimator = estimate(idata, wd)
+        self._estims.append(estimator)
+        
+        return estimator, idata
+    
     def test_nonconfounded_fit(self):
         sim = Simulator(num_observations=2000, num_features=100)
         sim.generate_sample_description(num_confounders=0, num_batches=4)
