@@ -13,7 +13,7 @@ except ImportError:
     anndata = None
 
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator, TFEstimatorGraph
-from .external import nb_utils, tf_linreg, train_utils, op_utils, rand_utils
+from .external import nb_utils, train_utils, op_utils, rand_utils
 from .external import pkg_constants
 
 ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
@@ -129,30 +129,21 @@ class ModelVars:
     
     def __init__(
             self,
-            X,
-            design_loc,
-            design_scale,
+            init_dist: nb_utils.NegativeBinomial,
+            dtype,
+            num_design_loc_params,
+            num_design_scale_params,
+            num_features,
             init_a=None,
             init_b=None,
-            name="Linear_Batch_Model",
+            name="ModelVars",
     ):
         with tf.name_scope(name):
-            num_design_loc_params = design_loc.shape[-1]
-            num_design_scale_params = design_scale.shape[-1]
-            (batch_size, num_features) = X.shape
-            
-            assert X.shape == [batch_size, num_features]
-            assert design_loc.shape == [batch_size, num_design_loc_params]
-            assert design_scale.shape == [batch_size, num_design_scale_params]
-            
-            # ### parameter bounds
-            dtype = X.dtype
-            
             with tf.name_scope("initialization"):
                 # implicit broadcasting of X and initial_mixture_probs to
                 #   shape (num_mixtures, num_observations, num_features)
-                init_dist = nb_utils.fit(X, axis=-2)
-                assert init_dist.r.shape == [1, num_features]
+                # init_dist = nb_utils.fit(X, axis=-2)
+                # assert init_dist.r.shape == [1, num_features]
                 
                 if init_a is None:
                     intercept = tf.log(init_dist.mean())
@@ -239,6 +230,7 @@ class FullDataModelGraph:
             a: tf.Tensor,
             b: tf.Tensor
     ):
+        num_features = a.shape[-1]
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
         
         batched_data = dataset.batch(batch_size)
@@ -262,7 +254,7 @@ class FullDataModelGraph:
             )
         
         with tf.name_scope("loss"):
-            loss = -log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
+            loss = -log_likelihood / tf.cast(tf.size(sample_indices) * num_features, dtype=log_likelihood.dtype)
         
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
@@ -362,91 +354,34 @@ class EstimatorGraph(TFEstimatorGraph):
             
             dtype = batch_X.dtype
             
-            # Batch model:
-            #     only `batch_size` observations will be used;
-            #     All per-sample variables have to be passed via `data`.
-            #     Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
-            batch_vars = ModelVars(
-                batch_X,
-                batch_design_loc,
-                batch_design_scale,
+            # implicit broadcasting of X and initial_mixture_probs to
+            #   shape (num_mixtures, num_observations, num_features)
+            init_dist = nb_utils.fit(batch_X, axis=-2)
+            assert init_dist.r.shape == [1, num_features]
+            
+            model_vars = ModelVars(
+                init_dist=init_dist,
+                dtype=dtype,
+                num_design_loc_params=num_design_loc_params,
+                num_design_scale_params=num_design_scale_params,
+                num_features=num_features,
                 init_a=init_a,
                 init_b=init_b,
             )
             
-            batch_model = BasicModelGraph(batch_X, batch_design_loc, batch_design_scale, batch_vars.a, batch_vars.b,
-                                          size_factors=batch_size_factors)
+            with tf.name_scope("batch"):
+                # Batch model:
+                #     only `batch_size` observations will be used;
+                #     All per-sample variables have to be passed via `data`.
+                #     Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
+                batch_model = BasicModelGraph(batch_X, batch_design_loc, batch_design_scale, model_vars.a, model_vars.b,
+                                              size_factors=batch_size_factors)
+                
+                # minimize negative log probability (log(1) = 0);
+                # use the mean loss to keep a constant learning rate independently of the batch size
+                batch_loss = batch_model.loss
             
-            # minimize negative log probability (log(1) = 0);
-            # use the mean loss to keep a constant learning rate independently of the batch size
-            loss = -tf.reduce_mean(batch_model.log_probs, name="loss")
-            
-            # ### management
-            with tf.name_scope("training"):
-                global_step = tf.train.get_or_create_global_step()
-                
-                # set up trainers for different selections of variables to train
-                # set up multiple optimization algorithms for each trainer
-                trainers = train_utils.MultiTrainer(
-                    loss=loss,
-                    variables=tf.trainable_variables(),
-                    learning_rate=learning_rate,
-                    global_step=global_step
-                )
-                trainers_a_only = train_utils.MultiTrainer(
-                    loss=loss,
-                    variables=[batch_vars.a_var],
-                    learning_rate=learning_rate,
-                    global_step=global_step
-                )
-                trainers_b_only = train_utils.MultiTrainer(
-                    loss=loss,
-                    variables=[batch_vars.b_var],
-                    learning_rate=learning_rate,
-                    global_step=global_step
-                )
-                
-                gradient = trainers.gradient
-                
-                aggregated_gradient = tf.add_n(
-                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])
-            
-            with tf.name_scope("init_op"):
-                init_op = tf.global_variables_initializer()
-            
-            # ### output values:
-            #       override all-zero features with lower bound coefficients
-            with tf.name_scope("output"):
-                bounds_min, bounds_max = param_bounds(dtype)
-                
-                param_nonzero_a = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
-                alt_a = tf.concat([
-                    # intercept
-                    tf.broadcast_to(bounds_min["a"], [1, num_features]),
-                    # slope
-                    tf.zeros(shape=[num_design_loc_params - 1, num_features], dtype=batch_vars.a.dtype),
-                ], axis=0, name="alt_a")
-                a = tf.where(
-                    param_nonzero_a,
-                    batch_vars.a,
-                    alt_a,
-                    name="a"
-                )
-                
-                param_nonzero_b = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
-                alt_b = tf.concat([
-                    # intercept
-                    tf.broadcast_to(bounds_max["b"], [1, num_features]),
-                    # slope
-                    tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=batch_vars.a.dtype),
-                ], axis=0, name="alt_b")
-                b = tf.where(
-                    param_nonzero_b,
-                    batch_vars.b,
-                    alt_b,
-                    name="b"
-                )
-                
+            with tf.name_scope("full_data"):
                 # ### alternative definitions for custom observations:
                 sample_selection = tf.placeholder_with_default(tf.range(num_observations),
                                                                shape=(None,),
@@ -455,14 +390,10 @@ class EstimatorGraph(TFEstimatorGraph):
                     sample_indices=sample_selection,
                     fetch_fn=fetch_fn,
                     batch_size=batch_size * buffer_size,
-                    a=a,
-                    b=b,
+                    a=model_vars.a,
+                    b=model_vars.b,
                 )
-                full_gradient_a, full_gradient_b = tf.gradients(full_data_model.loss, (batch_vars.a, batch_vars.b))
-                full_gradient = (
-                        tf.reduce_sum(tf.abs(full_gradient_a), axis=0) +
-                        tf.reduce_sum(tf.abs(full_gradient_b), axis=0)
-                )
+                full_data_loss = full_data_model.loss
                 
                 with tf.name_scope("hessian_diagonal"):
                     hessian_diagonal = [
@@ -479,29 +410,119 @@ class EstimatorGraph(TFEstimatorGraph):
                 mu = full_data_model.mu
                 r = full_data_model.r
                 sigma2 = full_data_model.sigma2
+            
+            # ### management
+            with tf.name_scope("training"):
+                global_step = tf.train.get_or_create_global_step()
+                
+                # set up trainers for different selections of variables to train
+                # set up multiple optimization algorithms for each trainer
+                batch_trainers = train_utils.MultiTrainer(
+                    loss=batch_loss,
+                    variables=[model_vars.a_var, model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="batch_trainers"
+                )
+                batch_trainers_a_only = train_utils.MultiTrainer(
+                    loss=batch_loss,
+                    variables=[model_vars.a_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="batch_trainers_a_only"
+                )
+                batch_trainers_b_only = train_utils.MultiTrainer(
+                    loss=batch_loss,
+                    variables=[model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="batch_trainers_b_only"
+                )
+                
+                batch_gradient_a, batch_gradient_b = batch_trainers.gradient
+                batch_gradient = tf.add_n(
+                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
+                
+                full_data_trainers = train_utils.MultiTrainer(
+                    loss=full_data_loss,
+                    variables=[model_vars.a_var, model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="full_data_trainers"
+                )
+                full_data_trainers_a_only = train_utils.MultiTrainer(
+                    loss=full_data_loss,
+                    variables=[model_vars.a_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="full_data_trainers_a_only"
+                )
+                full_data_trainers_b_only = train_utils.MultiTrainer(
+                    loss=full_data_loss,
+                    variables=[model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="full_data_trainers_b_only"
+                )
+                full_gradient_a, full_gradient_b = full_data_trainers.gradient
+                full_gradient = tf.add_n(
+                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
+            
+            with tf.name_scope("init_op"):
+                init_op = tf.global_variables_initializer()
+            
+            # ### output values:
+            #       override all-zero features with lower bound coefficients
+            with tf.name_scope("output"):
+                bounds_min, bounds_max = param_bounds(dtype)
+                
+                param_nonzero_a = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
+                alt_a = tf.concat([
+                    # intercept
+                    tf.broadcast_to(bounds_min["a"], [1, num_features]),
+                    # slope
+                    tf.zeros(shape=[num_design_loc_params - 1, num_features], dtype=model_vars.a.dtype),
+                ], axis=0, name="alt_a")
+                a = tf.where(
+                    param_nonzero_a,
+                    model_vars.a,
+                    alt_a,
+                    name="a"
+                )
+                
+                param_nonzero_b = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
+                alt_b = tf.concat([
+                    # intercept
+                    tf.broadcast_to(bounds_max["b"], [1, num_features]),
+                    # slope
+                    tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=model_vars.a.dtype),
+                ], axis=0, name="alt_b")
+                b = tf.where(
+                    param_nonzero_b,
+                    model_vars.b,
+                    alt_b,
+                    name="b"
+                )
         
         self.fetch_fn = fetch_fn
-        self.batch_vars = batch_vars
+        self.model_vars = model_vars
         self.batch_model = batch_model
         
-        self.loss = loss
+        self.loss = batch_loss
         
-        self.trainers = trainers
-        self.trainers_a_only = trainers_a_only
-        self.trainers_b_only = trainers_b_only
+        self.batch_trainers = batch_trainers
+        self.batch_trainers_a_only = batch_trainers_a_only
+        self.batch_trainers_b_only = batch_trainers_b_only
+        self.full_data_trainers = full_data_trainers
+        self.full_data_trainers_a_only = full_data_trainers_a_only
+        self.full_data_trainers_b_only = full_data_trainers_b_only
         self.global_step = global_step
         
-        self.gradient = aggregated_gradient
-        self.plain_gradient = gradient
+        self.gradient = batch_gradient
+        self.gradient_a = batch_gradient_a
+        self.gradient_b = batch_gradient_b
         
-        # self.train_op_GD = train_op_GD
-        # self.train_op_Adam = train_op_Adam
-        # self.train_op_Adagrad = train_op_Adagrad
-        # self.train_op_RMSProp = train_op_RMSProp
-        # default train op
-        self.train_op = trainers.train_op_GD
-        self.train_op_a = trainers_a_only.train_op_GD
-        self.train_op_b = trainers_b_only.train_op_GD
+        self.train_op = batch_trainers.train_op_GD
         
         self.init_ops = []
         self.init_op = init_op
@@ -524,13 +545,15 @@ class EstimatorGraph(TFEstimatorGraph):
         self.full_data_model = full_data_model
         
         self.full_gradient = full_gradient
+        self.full_gradient_a = full_gradient_a
+        self.full_gradient_b = full_gradient_b
         self.full_loss = full_data_model.loss
         self.hessian_diagonal = hessian_diagonal
         
         with tf.name_scope('summaries'):
-            tf.summary.histogram('a', batch_vars.a)
-            tf.summary.histogram('b', batch_vars.b)
-            tf.summary.scalar('loss', loss)
+            tf.summary.histogram('a', model_vars.a)
+            tf.summary.histogram('b', model_vars.b)
+            tf.summary.scalar('loss', batch_loss)
             tf.summary.scalar('learning_rate', learning_rate)
             
             if extended_summary:
@@ -539,8 +562,8 @@ class EstimatorGraph(TFEstimatorGraph):
                                       tf.reduce_sum(batch_model.log_probs, axis=1),
                                       50.)
                                   )
-                tf.summary.histogram('gradient_a', tf.gradients(loss, batch_vars.a))
-                tf.summary.histogram('gradient_b', tf.gradients(loss, batch_vars.b))
+                tf.summary.histogram('gradient_a', tf.gradients(batch_loss, model_vars.a))
+                tf.summary.histogram('gradient_b', tf.gradients(batch_loss, model_vars.b))
                 tf.summary.histogram("full_gradient", full_gradient)
                 tf.summary.scalar("full_gradient_median",
                                   tf.contrib.distributions.percentile(full_gradient, 50.))
@@ -551,7 +574,72 @@ class EstimatorGraph(TFEstimatorGraph):
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
-    TrainingStrategy = MonitoredTFEstimator.TrainingStrategy
+    class TrainingStrategy(Enum):
+        AUTO = None
+        DEFAULT = [
+            {
+                "learning_rate": 0.1,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.05,
+                "loss_window_size": 100,
+                "use_batching": True,
+                "optim_algo": "ADAM",
+            },
+            {
+                "learning_rate": 0.05,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.05,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "GD",
+            },
+        ]
+        EXACT = [
+            {
+                "learning_rate": 0.1,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.05,
+                "loss_window_size": 100,
+                "use_batching": True,
+                "optim_algo": "ADAM",
+            },
+            {
+                "learning_rate": 0.05,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.05,
+                "loss_window_size": 100,
+                "use_batching": True,
+                "optim_algo": "ADAM",
+            },
+            {
+                "learning_rate": 0.005,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.25,
+                "loss_window_size": 25,
+                "use_batching": False,
+                "optim_algo": "GD",
+            },
+        ]
+        QUICK = [
+            {
+                "learning_rate": 0.1,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.05,
+                "loss_window_size": 100,
+                "use_batching": True,
+                "optim_algo": "ADAM",
+            },
+        ]
+        PRE_INITIALIZED = [
+            {
+                "learning_rate": 0.01,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.25,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "GD",
+            },
+        ]
     
     model: EstimatorGraph
     _train_mu: bool
@@ -741,6 +829,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
               stop_at_loss_change=0.05,
               train_mu: bool = None,
               train_r: bool = None,
+              use_batching=True,
               optim_algo="gradient_descent",
               **kwargs):
         """
@@ -768,6 +857,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param loss_window_size: specifies `N` in `convergence_criteria`.
         :param train_mu: Set to True/False in order to enable/disable training of mu
         :param train_r: Set to True/False in order to enable/disable training of r
+        :param use_batching: If True, will use mini-batches with the batch size defined in the constructor.
+            Otherwise, the gradient of the full dataset will be used.
         :param optim_algo: name of the requested train op. Can be:
         
             - "Adam"
@@ -784,17 +875,30 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # check if r was initialized with MLE
             train_r = self._train_r
         
-        if train_mu:
-            if train_r:
-                train_op = self.model.trainers.train_op_by_name(optim_algo)
+        if use_batching:
+            if train_mu:
+                if train_r:
+                    train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
+                else:
+                    train_op = self.model.batch_trainers_a_only.train_op_by_name(optim_algo)
             else:
-                train_op = self.model.trainers_a_only.train_op_by_name(optim_algo)
+                if train_r:
+                    train_op = self.model.batch_trainers_b_only.train_op_by_name(optim_algo)
+                else:
+                    logger.info("No training necessary; returning")
+                    return
         else:
-            if train_r:
-                train_op = self.model.trainers_b_only.train_op_by_name(optim_algo)
+            if train_mu:
+                if train_r:
+                    train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
+                else:
+                    train_op = self.model.full_data_trainers_a_only.train_op_by_name(optim_algo)
             else:
-                logger.info("No training necessary; returning")
-                return
+                if train_r:
+                    train_op = self.model.full_data_trainers_b_only.train_op_by_name(optim_algo)
+                else:
+                    logger.info("No training necessary; returning")
+                    return
         
         super().train(*args,
                       feed_dict={"learning_rate:0": learning_rate},
