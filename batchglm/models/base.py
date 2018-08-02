@@ -278,11 +278,6 @@ class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gradient(self):
         pass
-    
-    @property
-    @abc.abstractmethod
-    def hessian_diagonal(self):
-        return
 
 
 class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):

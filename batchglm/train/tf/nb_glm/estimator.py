@@ -405,7 +405,7 @@ class EstimatorGraph(TFEstimatorGraph):
                         )
                         for hess in full_data_model.hessians
                     ]
-                    hessian_diagonal = tf.concat(hessian_diagonal, axis=-1)
+                    fisher_a, fisher_b = hessian_diagonal
                 
                 mu = full_data_model.mu
                 r = full_data_model.r
@@ -544,11 +544,20 @@ class EstimatorGraph(TFEstimatorGraph):
         self.sample_selection = sample_selection
         self.full_data_model = full_data_model
         
+        self.full_loss = full_data_model.loss
+        
         self.full_gradient = full_gradient
         self.full_gradient_a = full_gradient_a
         self.full_gradient_b = full_gradient_b
-        self.full_loss = full_data_model.loss
-        self.hessian_diagonal = hessian_diagonal
+        
+        # we are minimizing the negative LL instead of maximizing the LL
+        # => invert hessians
+        self.hessian_diagonal = - tf.concat([
+            fisher_a,
+            fisher_b,
+        ], axis=-1)
+        self.fisher_loc = tf.transpose(fisher_a, name="fisher_loc")
+        self.fisher_scale = tf.transpose(fisher_b, name="fisher_scale")
         
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -970,6 +979,14 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def hessian_diagonal(self):
         return self.to_xarray("hessian_diagonal", coords=self.input_data.data.coords)
+    
+    @property
+    def fisher_loc(self):
+        return self.to_xarray("fisher_loc", coords=self.input_data.data.coords)
+    
+    @property
+    def fisher_scale(self):
+        return self.to_xarray("fisher_scale", coords=self.input_data.data.coords)
     
     def finalize(self):
         store = XArrayEstimatorStore(self)
