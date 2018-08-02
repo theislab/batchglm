@@ -490,12 +490,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="a"
                 )
                 
-                param_nonzero_b = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
+                param_nonzero_b = tf.broadcast_to(feature_isnonzero, [num_design_scale_params, num_features])
                 alt_b = tf.concat([
                     # intercept
                     tf.broadcast_to(bounds_max["b"], [1, num_features]),
                     # slope
-                    tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=model_vars.a.dtype),
+                    tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=model_vars.b.dtype),
                 ], axis=0, name="alt_b")
                 b = tf.where(
                     param_nonzero_b,
