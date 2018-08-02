@@ -406,6 +406,10 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
         return self.params["loss"]
     
     @property
+    def gradient(self):
+        return self.params["loss"]
+    
+    @property
     def fisher_loc(self):
         return self.params["fisher_loc"]
     
