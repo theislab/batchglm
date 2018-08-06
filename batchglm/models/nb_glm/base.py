@@ -35,9 +35,8 @@ ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
 ESTIMATOR_PARAMS.update({
     "loss": (),
     "gradient": ("features",),
-    "hessian_diagonal": ("features", "variables",),
-    "fisher_loc": ("design_loc_params", "features"),
-    "fisher_scale": ("design_scale_params", "features"),
+    "hessians": ("features", "delta_var0", "delta_var1"),
+    "fisher_inv": ("features", "delta_var0", "delta_var1"),
 })
 
 
@@ -393,7 +392,7 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
     
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
-        params = estim.to_xarray(["a", "b", "loss", "gradient", "fisher_loc", "fisher_scale"], coords=input_data.data)
+        params = estim.to_xarray(["a", "b", "loss", "gradient", "hessians", "fisher_inv"], coords=input_data.data)
         
         XArrayModel.__init__(self, input_data, params)
     
@@ -410,9 +409,9 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
         return self.params["loss"]
     
     @property
-    def fisher_loc(self):
-        return self.params["fisher_loc"]
+    def hessians(self):
+        return self.params["hessians"]
     
     @property
-    def fisher_scale(self):
-        return self.params["fisher_scale"]
+    def fisher_inv(self):
+        return self.params["fisher_inv"]

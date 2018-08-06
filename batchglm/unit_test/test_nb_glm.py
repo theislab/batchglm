@@ -30,7 +30,7 @@ def estimate(input_data: InputData, working_dir: str):
     )
     input_data.save(os.path.join(working_dir, "input_data.h5"))
     
-    estimator.train_sequence()
+    estimator.train_sequence(training_strategy="QUICK")
     
     return estimator
 
@@ -69,7 +69,7 @@ class NB_GLM_Test(unittest.TestCase):
         estimator = estimator.finalize()
         print(estimator.mu.values)
         print(estimator.gradient.values)
-        print(estimator.hessian_diagonal.values)
+        print(estimator.hessians.values)
         print(estimator.probs().values)
         print(estimator.log_probs().values)
         
@@ -116,7 +116,8 @@ class NB_GLM_Test(unittest.TestCase):
         estimator = estimator.finalize()
         print(estimator.mu.values)
         print(estimator.gradient.values)
-        print(estimator.hessian_diagonal.values)
+        print(estimator.hessians.values)
+        print(estimator.fisher_inv.values)
         print(estimator.probs().values)
         print(estimator.log_probs().values)
         

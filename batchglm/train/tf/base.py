@@ -13,6 +13,25 @@ from .external import BasicEstimator, pkg_constants, stat_utils
 from .train import StopAtLossHook, TimedRunHook
 
 
+# def model_param(f: callable, key: str, param_dict):
+#     """
+#     Special decorator for TFEstimator's model params.
+#
+#     :param f: the function to decorate
+#     :param key: the name of the data item to fetch
+#     :param param_dict: the dict where to add the function
+#     :return: decorated function without the "data" parameter
+#     """
+#
+#     def wrap_fn(self, *args, **kwargs):
+#         data = self._get_unsafe(key)
+#         return f(self, data, *args, **kwargs)
+#
+#     param_dict[key] = wrap_fn
+#
+#     return wrap_fn
+
+
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
     graph: tf.Graph
     loss: tf.Tensor
@@ -88,9 +107,13 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
     session: tf.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
     
+    _param_decorators: Dict[str, callable]
+    
     def __init__(self, tf_estimator_graph):
         self.model = tf_estimator_graph
         self.session = None
+        
+        self._param_decorators = dict()
     
     def initialize(self):
         self.close_session()
@@ -135,11 +158,11 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
     
     @property
     def global_step(self):
-        return self.get("global_step")
+        return self._get_unsafe("global_step")
     
     @property
     def loss(self):
-        return self.get("loss")
+        return self._get_unsafe("loss")
     
     def _train_to_convergence(self,
                               train_op,

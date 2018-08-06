@@ -54,7 +54,7 @@ class NegativeBinomialTest(unittest.TestCase):
         estimator = estimator.finalize()
         print(estimator.mu.values)
         print(estimator.gradient.values)
-        print(estimator.hessian_diagonal.values)
+        print(estimator.hessians.values)
         print(estimator.probs().values)
         print(estimator.log_probs().values)
 

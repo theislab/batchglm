@@ -199,20 +199,24 @@ def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) 
     
     def hessian(data):  # data is tuple (X_t, a_t, b_t)
         X_t, a_t, b_t = data
-        X = tf.transpose(X_t)
-        a = tf.transpose(a_t)
-        b = tf.transpose(b_t)
+        X = tf.transpose(X_t)  # observations x features
+        a = tf.transpose(a_t)  # design_loc_params x features
+        b = tf.transpose(b_t)  # design_scale_params x features
         
-        model = BasicModelGraph(X, design_loc, design_scale, a, b, size_factors=size_factors)
+        # cheat Tensorflow to get also dX^2/(da,db)
+        param_vec = tf.concat([a, b], axis=0, name="param_vec")
+        a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
         
-        hess = tf.hessians(-model.log_likelihood, [a, b])
+        model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
+        
+        hess = tf.hessians(-model.log_likelihood, param_vec)
         
         return hess
     
     hessians = tf.map_fn(
         fn=hessian,
         elems=(X_t, a_t, b_t),
-        dtype=[tf.float32, tf.float32],  # hessians of [a, b]
+        dtype=[tf.float32],  # hessians of [a, b]
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
     
@@ -271,6 +275,7 @@ class FullDataModelGraph:
                 reduce_fn=hessian_red,
                 parallel_iterations=1,
             )
+            hessians = hessians[0]
         
         self.X = model.X
         self.design_loc = model.design_loc
@@ -395,17 +400,17 @@ class EstimatorGraph(TFEstimatorGraph):
                 )
                 full_data_loss = full_data_model.loss
                 
-                with tf.name_scope("hessian_diagonal"):
-                    hessian_diagonal = [
-                        tf.map_fn(
-                            # elems=tf.transpose(hess, perm=[2, 0, 1]),
-                            elems=hess,
-                            fn=tf.diag_part,
-                            parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-                        )
-                        for hess in full_data_model.hessians
-                    ]
-                    fisher_a, fisher_b = hessian_diagonal
+                # with tf.name_scope("hessian_diagonal"):
+                #     hessian_diagonal = [
+                #         tf.map_fn(
+                #             # elems=tf.transpose(hess, perm=[2, 0, 1]),
+                #             elems=hess,
+                #             fn=tf.diag_part,
+                #             parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
+                #         )
+                #         for hess in full_data_model.hessians
+                #     ]
+                #     fisher_a, fisher_b = hessian_diagonal
                 
                 mu = full_data_model.mu
                 r = full_data_model.r
@@ -552,12 +557,8 @@ class EstimatorGraph(TFEstimatorGraph):
         
         # we are minimizing the negative LL instead of maximizing the LL
         # => invert hessians
-        self.hessian_diagonal = - tf.concat([
-            fisher_a,
-            fisher_b,
-        ], axis=-1)
-        self.fisher_loc = tf.transpose(fisher_a, name="fisher_loc")
-        self.fisher_scale = tf.transpose(fisher_b, name="fisher_scale")
+        self.hessians = - full_data_model.hessians
+        self.fisher_inv = tf.matrix_inverse(full_data_model.hessians)
         
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -715,7 +716,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                     mean = X.groupby("group").mean(dim="observations")
                     
-                    [X[inverse_idx==i].mean(dim="observations").values for i in np.unique(inv_design)]
+                    [X[inverse_idx == i].mean(dim="observations").values for i in np.unique(inv_design)]
                     a = np.log(mean)
                     # a = a * np.eye(np.size(a))
                     a_prime = np.matmul(inv_design, a)
@@ -978,16 +979,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return self.to_xarray("full_gradient", coords=self.input_data.data.coords)
     
     @property
-    def hessian_diagonal(self):
-        return self.to_xarray("hessian_diagonal", coords=self.input_data.data.coords)
+    def hessians(self):
+        return self.to_xarray("hessians", coords=self.input_data.data.coords)
     
     @property
-    def fisher_loc(self):
-        return self.to_xarray("fisher_loc", coords=self.input_data.data.coords)
-    
-    @property
-    def fisher_scale(self):
-        return self.to_xarray("fisher_scale", coords=self.input_data.data.coords)
+    def fisher_inv(self):
+        return self.to_xarray("fisher_inv", coords=self.input_data.data.coords)
     
     def finalize(self):
         store = XArrayEstimatorStore(self)
