@@ -165,6 +165,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         return self._get_unsafe("loss")
     
     def _train_to_convergence(self,
+                              loss,
                               train_op,
                               feed_dict,
                               loss_window_size,
@@ -199,7 +200,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         
         while True:
             train_step, global_loss, _ = self.session.run(
-                (self.model.global_step, self.model.loss, train_op),
+                (self.model.global_step, loss, train_op),
                 feed_dict=feed_dict
             )
             
@@ -223,6 +224,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
               convergence_criteria="t_test",
               loss_window_size=None,
               stop_at_loss_change=None,
+              loss=None,
               train_op=None,
               **kwargs):
         """
@@ -248,6 +250,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_window_size: specifies `N` in `convergence_criteria`.
+        :param loss: uses this loss tensor if specified
         :param train_op: uses this training operation if specified
         """
         # feed_dict = dict() if feed_dict is None else feed_dict.copy()
@@ -260,11 +263,15 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                 stop_at_loss_change = 1e-5
             else:
                 stop_at_loss_change = 0.05
-        
+
+        if loss is None:
+            loss = self.model.loss
+
         if train_op is None:
             train_op = self.model.train_op
         
         self._train_to_convergence(
+            loss=loss,
             train_op=train_op,
             convergence_criteria=convergence_criteria,
             loss_window_size=loss_window_size,
