@@ -34,6 +34,7 @@ First, you have to install bazel (a build tool).
     https://docs.bazel.build/versions/master/install.html
   
 #### Compilation
+This does not work yet.
 1. Get newest TensorFlow repo from github via git clone:<br/>
     `git clone https://github.com/tensorflow/tensorflow.git`
 2. `cd tensorflow/`
