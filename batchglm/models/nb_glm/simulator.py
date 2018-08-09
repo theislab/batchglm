@@ -72,15 +72,15 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
 
         del self.data["intercept"]
 
-    def generate_params(self, *args, min_bias=0.5, max_bias=2, **kwargs):
+    def generate_params(self, *args, rand_fn=lambda shape: np.random.uniform(0.5, 2, shape), **kwargs):
         """
         
         :param min_mean: minimum mean value
         :param max_mean: maximum mean value
         :param min_r: minimum r value
         :param max_r: maximum r value
-        :param min_bias: minimum bias factor of design parameters
-        :param max_bias: maximum bias factor of design parameters
+        :param rand_fn: random function taking one argument `shape`.
+            default: rand_fn = lambda shape: np.random.uniform(0.5, 2, shape)
         """
         super().generate_params(*args, **kwargs)
 
@@ -103,7 +103,7 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
             data=np.log(
                 np.concatenate([
                     np.expand_dims(self.params["mu"], 0),
-                    np.random.uniform(min_bias, max_bias, (self.data.design_loc.shape[1] - 1, self.num_features))
+                    rand_fn((self.data.design_loc.shape[1] - 1, self.num_features))
                 ])
             ),
             coords={"design_loc_params": self.data.design_loc_params}
@@ -113,7 +113,7 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
             data=np.log(
                 np.concatenate([
                     np.expand_dims(self.params["r"], 0),
-                    np.random.uniform(min_bias, max_bias, (self.data.design_scale.shape[1] - 1, self.num_features))
+                    rand_fn((self.data.design_scale.shape[1] - 1, self.num_features))
                 ])
             ),
             coords={"design_scale_params": self.data.design_scale_params}
