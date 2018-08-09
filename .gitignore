@@ -10,6 +10,7 @@ playground/*
 venv/*
 resources/*
 **/__pycache__
+**/.DS_Store
 
 !**/.gitignore
 
