@@ -4,7 +4,7 @@
 batchglm was developed in the context of diffxpy to allow fast model fitting for differential expression analysis for single-cell RNA-seq data. However, one can use batchglm or its concepts in other scenarios where over-determined GLMs are encountered. batchglm is based on TensorFlow 
 
 # Installation
-1. Install tensorflow, see below.
+1. Install tensorflow, see below. Please use the pip installation if you are unsure.
 2. Clone the GitHub repository of batchglm.
 3. cd into the clone.
 4. pip install -e .
@@ -16,9 +16,9 @@ Tensorflow can be installed like any other package or can be compiled from sourc
 You can install tensorflow via pip or via conda, both are also documented here: https://www.tensorflow.org/install/ .
 #### pip
 - CPU-only: <br/>
-  `pip install tensorflow`
+  `pip install tf-nightly`
 - GPU: <br/>
-  `pip install tensorflow-gpu`
+  `pip install tf-nightly-gpu`
   
 ### Hardware-optimized tensorflow installation (compiling from source)
 Please refer to https://www.tensorflow.org/install/ .
@@ -34,6 +34,7 @@ First, you have to install bazel (a build tool).
     https://docs.bazel.build/versions/master/install.html
   
 #### Compilation
+This does not work yet.
 1. Get newest TensorFlow repo from github via git clone:<br/>
     `git clone https://github.com/tensorflow/tensorflow.git`
 2. `cd tensorflow/`
