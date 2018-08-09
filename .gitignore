@@ -11,6 +11,7 @@ venv/*
 resources/*
 **/__pycache__
 **/.DS_Store
+batchglm.egg-info
 
 !**/.gitignore
 
