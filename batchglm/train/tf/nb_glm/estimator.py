@@ -665,8 +665,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                  batch_size: int = 500,
                  init_model: Model = None,
                  graph: tf.Graph = None,
-                 init_a=None,
-                 init_b=None,
+                 init_a: Union[np.ndarray, str] = "AUTO",
+                 init_b: Union[np.ndarray, str] = "AUTO",
                  model: EstimatorGraph = None,
                  extended_summary=False,
                  ):
@@ -678,8 +678,24 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             Defaults to '500'
         :param graph: (optional) tf.Graph
         :param init_model: (optional) If provided, this model will be used to initialize this Estimator.
-        :param init_a: (Optional) Low-level initial values for a
+        :param init_a: (Optional) Low-level initial values for a.
+            Can be:
+
+            - str:
+                * "auto": automatically choose best initialization
+                * "random": initialize with random values
+                * "init_model": initialize with another model (see `ìnit_model` parameter)
+                * "closed_form": try to initialize with closed form
+            - np.ndarray: direct initialization of 'a'
         :param init_b: (Optional) Low-level initial values for b
+            Can be:
+
+            - str:
+                * "auto": automatically choose best initialization
+                * "random": initialize with random values
+                * "init_model": initialize with another model (see `ìnit_model` parameter)
+                * "closed_form": try to initialize with closed form
+            - np.ndarray: direct initialization of 'b'
         :param model: (optional) EstimatorGraph to use. Basically for debugging.
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
@@ -710,7 +726,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 = exp(design * a') = mu
             $$
             """
-            if init_a is None:
+            if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "closed_form"):
                 try:
                     unique_design, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
                     inv_design = np.linalg.inv(unique_design)
@@ -729,7 +745,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 except np.linalg.LinAlgError:
                     pass
 
-            if init_b is None:
+            if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "closed_form"):
                 try:
                     unique_design, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
                     inv_design = np.linalg.inv(unique_design)
@@ -748,7 +764,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     pass
 
             if init_model is not None:
-                if init_a is None:
+                if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
                     # location
                     my_loc_names = set(input_data.design_loc_names.values)
                     my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
@@ -765,7 +781,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     init_a = init_loc
 
-                if init_b is None:
+                if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
                     # scale
                     my_scale_names = set(input_data.design_scale_names.values)
                     my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
@@ -806,6 +822,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
+
+        if isinstance(init_a, str):
+            init_a = None
+        if isinstance(init_b, str):
+            init_b = None
 
         with graph.as_default():
             # create model
