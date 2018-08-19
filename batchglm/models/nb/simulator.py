@@ -48,7 +48,7 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
         retval = retval.isel(observations=np.repeat(0, self.num_observations))
         return retval
 
-    def generate_params(self, *args, min_mean=200, max_mean=100000, min_r=10, max_r=100, **kwargs):
+    def generate_params(self, *args, min_mean=1, max_mean=10000, min_r=1, max_r=10, **kwargs):
         """
         
         :param min_mean: minimum mean value

@@ -72,7 +72,13 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
 
         del self.data["intercept"]
 
-    def generate_params(self, *args, rand_fn=lambda shape: np.random.uniform(0.5, 2, shape), **kwargs):
+    def generate_params(
+            self,
+            *args,
+            rand_fn=lambda shape: np.random.uniform(0.5, 2, shape),
+            rand_fn_loc=None,
+            rand_fn_scale=None,
+            **kwargs):
         """
         
         :param min_mean: minimum mean value
@@ -81,8 +87,17 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         :param max_r: maximum r value
         :param rand_fn: random function taking one argument `shape`.
             default: rand_fn = lambda shape: np.random.uniform(0.5, 2, shape)
+        :param rand_fn_loc: random function taking one argument `shape`.
+            If not provided, will use `rand_fn` instead.
+        :param rand_fn_scale: random function taking one argument `shape`.
+            If not provided, will use `rand_fn` instead.
         """
         super().generate_params(*args, **kwargs)
+
+        if rand_fn_loc is None:
+            rand_fn_loc = rand_fn
+        if rand_fn_scale is None:
+            rand_fn_scale = rand_fn
 
         if "formula" not in self.data.attrs:
             self.generate_sample_description()
@@ -103,7 +118,7 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
             data=np.log(
                 np.concatenate([
                     np.expand_dims(self.params["mu"], 0),
-                    rand_fn((self.data.design_loc.shape[1] - 1, self.num_features))
+                    rand_fn_loc((self.data.design_loc.shape[1] - 1, self.num_features))
                 ])
             ),
             coords={"design_loc_params": self.data.design_loc_params}
@@ -113,7 +128,7 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
             data=np.log(
                 np.concatenate([
                     np.expand_dims(self.params["r"], 0),
-                    rand_fn((self.data.design_scale.shape[1] - 1, self.num_features))
+                    rand_fn_scale((self.data.design_scale.shape[1] - 1, self.num_features))
                 ])
             ),
             coords={"design_scale_params": self.data.design_scale_params}
