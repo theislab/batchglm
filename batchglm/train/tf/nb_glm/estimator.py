@@ -115,10 +115,12 @@ class BasicModelGraph:
 
         self.probs = probs
         self.log_probs = log_probs
-        self.log_likelihood = tf.reduce_sum(self.log_probs, name="log_likelihood")
+        self.log_likelihood = tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
+        self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
+        self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
         with tf.name_scope("loss"):
-            self.loss = -tf.reduce_mean(self.log_probs)
+            self.loss = tf.reduce_mean(self.norm_neg_log_likelihood)
 
 
 class ModelVars:
@@ -209,7 +211,7 @@ def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) 
 
         model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
 
-        hess = tf.hessians(-model.log_likelihood, param_vec)
+        hess = tf.hessians(model.norm_neg_log_likelihood, param_vec)
 
         return hess
 
@@ -256,9 +258,11 @@ class FullDataModelGraph:
                 map_fn=lambda idx, data: map_model(idx, data).log_likelihood,
                 parallel_iterations=1,
             )
+            norm_log_likelihood = log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
+            norm_neg_log_likelihood = - norm_log_likelihood
 
         with tf.name_scope("loss"):
-            loss = -log_likelihood / tf.cast(tf.size(sample_indices) * num_features, dtype=log_likelihood.dtype)
+            loss = tf.reduce_mean(norm_neg_log_likelihood)
 
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
@@ -300,6 +304,8 @@ class FullDataModelGraph:
         self.sample_indices = sample_indices
 
         self.log_likelihood = log_likelihood
+        self.norm_log_likelihood = norm_log_likelihood
+        self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
 
         self.hessians = hessians
@@ -423,21 +429,21 @@ class EstimatorGraph(TFEstimatorGraph):
                 # set up trainers for different selections of variables to train
                 # set up multiple optimization algorithms for each trainer
                 batch_trainers = train_utils.MultiTrainer(
-                    loss=batch_loss,
+                    loss=batch_model.norm_neg_log_likelihood,
                     variables=[model_vars.a_var, model_vars.b_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
-                    loss=batch_loss,
+                    loss=batch_model.norm_neg_log_likelihood,
                     variables=[model_vars.a_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
-                    loss=batch_loss,
+                    loss=batch_model.norm_neg_log_likelihood,
                     variables=[model_vars.b_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
@@ -449,21 +455,21 @@ class EstimatorGraph(TFEstimatorGraph):
                     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
 
                 full_data_trainers = train_utils.MultiTrainer(
-                    loss=full_data_loss,
+                    loss=full_data_model.norm_neg_log_likelihood,
                     variables=[model_vars.a_var, model_vars.b_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
-                    loss=full_data_loss,
+                    loss=full_data_model.norm_neg_log_likelihood,
                     variables=[model_vars.a_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
-                    loss=full_data_loss,
+                    loss=full_data_model.norm_neg_log_likelihood,
                     variables=[model_vars.b_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
@@ -545,7 +551,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
         self.batch_probs = batch_model.probs
         self.batch_log_probs = batch_model.log_probs
-        self.batch_log_likelihood = batch_model.log_likelihood
+        self.batch_log_likelihood = batch_model.norm_log_likelihood
 
         self.sample_selection = sample_selection
         self.full_data_model = full_data_model
