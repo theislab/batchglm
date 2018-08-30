@@ -70,18 +70,29 @@ def mapd(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray:
     :param axis: axis to reduce
     :return: mean{|estim - obs| / obs}
     """
-    return np.mean(abs_percentage_deviation(estim, obs), axis=axis)
+    return np.mean(abs_percentage_deviation(estim, obs), axis=axis) * 100
 
 
 def abs_percentage_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
-    """
+    r"""
     Calculate the absolute percentage deviation between the estimated and the observed data
 
     :param estim: ndarray representing the estimated data
     :param obs: ndarray representing the observed data
-    :return: mean{|estim - obs| / obs}
+    :return: $\mean{|estim - obs| / |obs|} * 100$
     """
-    return np.abs(estim - obs) / obs
+    return abs_proportional_deviation(estim, obs)
+
+
+def abs_proportional_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
+    r"""
+    Calculate the absolute proportional deviation between the estimated and the observed data
+
+    :param estim: ndarray representing the estimated data
+    :param obs: ndarray representing the observed data
+    :return: mean{|estim - obs| / |obs|}
+    """
+    return np.abs(estim - obs) / np.abs(obs)
 
 
 def welch(mu1, mu2, var1, var2, n1, n2):
