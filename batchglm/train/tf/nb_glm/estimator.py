@@ -706,10 +706,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
         """
-        # if np.any(input_data.design_loc[:, 0] != 1):
-        #     raise ValueError("First column in design_loc has to be the interceptand therefore == '1'")
-        # if np.any(input_data.design_scale[:, 0] != 1):
-        #     raise ValueError("First column in design_scale has to be the interceptand therefore == '1'")
+        # validate design matrix:
+        if np.linalg.matrix_rank(input_data.design_loc) != np.linalg.matrix_rank(input_data.design_loc.T):
+            raise ValueError("design_loc matrix is not full rank")
+        if np.linalg.matrix_rank(input_data.design_scale) != np.linalg.matrix_rank(input_data.design_scale.T):
+            raise ValueError("design_scale matrix is not full rank")
 
         # ### initialization
         if model is None:
@@ -720,22 +721,23 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._train_mu = True
             self._train_r = True
 
-            """
+            r"""
             Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
             is not confounded.
 
             Idea:
             $$
-            mu  = exp(a) = exp(I*a) \\
-                = exp[(design*design^{-1})*a] \\
-                = exp[design * (design^{-1} * a)] \\
-                = exp(design * a') = mu
+                \theta &= f(x) \\
+                \Rightarrow f^{-1}(\theta) &= x \\
+                    &= (D \cdot D^{+}) \cdot x \\
+                    &= D \cdot (D^{+} \cdot x) \\
+                    &= D \cdot x' = f^{-1}(\theta)
             $$
             """
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "closed_form"):
                 try:
                     unique_design, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
-                    inv_design = np.linalg.inv(unique_design)
+                    inv_design = np.linalg.pinv(unique_design)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                     mean = X.groupby("group").mean(dim="observations")
 
@@ -744,7 +746,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     a_prime = np.matmul(inv_design, a)
                     init_a = a_prime
 
-                    self._train_mu = False
+                    self._train_mu = not np.allclose(unique_design @ a_prime, a)
                     logger.info("Using closed-form MLE initialization for mean")
                     logger.debug("inverse design_loc matrix:\n%s", inv_design)
                 except np.linalg.LinAlgError:
