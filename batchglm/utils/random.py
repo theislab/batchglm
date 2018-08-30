@@ -1,7 +1,7 @@
 import numpy as np
 # import scipy.stats
 # import scipy.special
-from scipy.special import binom, gammaln, xlog1py
+from scipy.special import gammaln
 
 
 class NegativeBinomial:
@@ -97,4 +97,4 @@ class NegativeBinomial:
 
         # return scipy.stats.nbinom(n=r, p=1 - p).logpmf(X)
         coeff = gammaln(r + X) - gammaln(X + 1) - gammaln(r)
-        return coeff + r * np.log(1 - p) + xlog1py(X, p - 1)
+        return coeff + r * np.log(1 - p) + X * np.log1p(p - 1)
