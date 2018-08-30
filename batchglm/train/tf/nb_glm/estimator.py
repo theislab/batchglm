@@ -211,7 +211,7 @@ def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) 
 
         model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
 
-        hess = tf.hessians(model.norm_neg_log_likelihood, param_vec)
+        hess = tf.hessians(- model.log_likelihood, param_vec)
 
         return hess
 
