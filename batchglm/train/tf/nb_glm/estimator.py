@@ -3,7 +3,6 @@ from typing import Union, Dict, Tuple, List
 import logging
 from enum import Enum
 
-# import xarray as xr
 import tensorflow as tf
 import numpy as np
 
@@ -736,37 +735,50 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             """
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "closed_form"):
                 try:
-                    unique_design, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
-                    inv_design = np.linalg.pinv(unique_design)
+                    unique_design_loc, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
+                    # inv_design = np.linalg.pinv(unique_design_loc)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+
                     mean = X.groupby("group").mean(dim="observations")
 
                     a = np.log(mean)
-                    # a = a * np.eye(np.size(a))
-                    a_prime = np.matmul(inv_design, a)
-                    init_a = a_prime
+                    # a_prime = np.matmul(inv_design, a)
+                    a_prime = np.linalg.lstsq(unique_design_loc, a)
+                    init_a = a_prime[0]
+                    # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
 
-                    self._train_mu = not np.allclose(unique_design @ a_prime, a)
+                    self._train_mu = not np.all(a_prime[1] == 0)
                     logger.info("Using closed-form MLE initialization for mean")
-                    logger.debug("inverse design_loc matrix:\n%s", inv_design)
+                    logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
                 except np.linalg.LinAlgError:
                     pass
 
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "closed_form"):
                 try:
-                    unique_design, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
-                    inv_design = np.linalg.inv(unique_design)
-                    X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
-                    dist = rand_utils.NegativeBinomial.mme(X.groupby("group"))
+                    unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
+                    # inv_design = np.linalg.inv(unique_design_scale)
 
-                    b = np.log(dist.r)
-                    # b = b * np.eye(np.size(b))
-                    b_prime = np.matmul(inv_design, b)
-                    init_b = b_prime
+                    X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                    Xdiff = X - np.exp(input_data.design_loc @ init_a)
+                    variance = np.square(Xdiff).groupby("group").mean(dim="observations")
+
+                    group_mean = X.groupby("group").mean(dim="observations")
+                    r = np.square(group_mean) / (variance - group_mean)
+
+                    # unique_init_mean = np.exp(input_data.design_loc @ init_a)
+                    # dist = rand_utils.NegativeBinomial(
+                    #     mean=unique_init_mean,
+                    #     variance=
+                    # )
+
+                    b = np.log(r)
+                    # b_prime = np.matmul(inv_design, b)
+                    b_prime = np.linalg.lstsq(unique_design_scale, b)
+                    init_b = b_prime[0]
 
                     self._train_r = True
                     logger.info("Using closed-form MME initialization for dispersion")
-                    logger.debug("inverse design_scale matrix:\n%s", inv_design)
+                    logger.debug("RMSE of closed_form dispersion:\n%s", b_prime[1])
                 except np.linalg.LinAlgError:
                     pass
 
@@ -900,12 +912,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param use_batching: If True, will use mini-batches with the batch size defined in the constructor.
             Otherwise, the gradient of the full dataset will be used.
         :param optim_algo: name of the requested train op. Can be:
-        
+
             - "Adam"
             - "Adagrad"
             - "RMSprop"
             - "GradientDescent" or "GD"
-            
+
             See :func:train_utils.MultiTrainer.train_op_by_name for further details.
         """
         if train_mu is None:
