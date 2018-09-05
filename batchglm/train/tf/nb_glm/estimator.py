@@ -424,7 +424,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     tf.range(num_observations, name="sample_index")
                 ))
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-                training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+                # training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+                training_data = training_data.batch(batch_size, drop_remainder=True)
                 training_data = training_data.map(fetch_fn)
                 training_data = training_data.prefetch(buffer_size)
 
@@ -763,9 +764,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "learning_rate": 0.005,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.25,
-                "loss_window_size": 25,
+                "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "GD",
+                "optim_algo": "Newton-Raphson",
             },
         ]
         QUICK = [
@@ -797,16 +798,18 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
-    def __init__(self,
-                 input_data: InputData,
-                 batch_size: int = 500,
-                 init_model: Model = None,
-                 graph: tf.Graph = None,
-                 init_a: Union[np.ndarray, str] = "AUTO",
-                 init_b: Union[np.ndarray, str] = "AUTO",
-                 model: EstimatorGraph = None,
-                 extended_summary=False,
-                 ):
+    def __init__(
+            self,
+            input_data: InputData,
+            batch_size: int = 500,
+            init_model: Model = None,
+            graph: tf.Graph = None,
+            init_a: Union[np.ndarray, str] = "AUTO",
+            init_b: Union[np.ndarray, str] = "AUTO",
+            quick_scale=False,
+            model: EstimatorGraph = None,
+            extended_summary=False,
+    ):
         """
         Create a new Estimator
 
@@ -834,6 +837,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'b'
         :param model: (optional) EstimatorGraph to use. Basically for debugging.
+        :param quick_scale: `scale` will be fitted faster and maybe less accurate.
+
+        Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
         """
@@ -853,8 +859,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._train_r = True
 
             r"""
-            Initialize with Maximum Likelihood / Maximum of Momentum estimators, if the design matrix
-            is not confounded.
+            Initialize with Maximum Likelihood / Maximum of Momentum estimators
 
             Idea:
             $$
@@ -874,7 +879,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     mean = X.groupby("group").mean(dim="observations")
 
                     a = np.log(mean)
-                    # a_prime = np.matmul(inv_design, a)
+                    # a_prime = np.matmul(inv_design, a) # NOTE: this is numerically inaccurate!
                     a_prime = np.linalg.lstsq(unique_design_loc, a)
                     init_a = a_prime[0]
                     # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
@@ -897,20 +902,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     group_mean = X.groupby("group").mean(dim="observations")
                     r = np.square(group_mean) / (variance - group_mean)
 
-                    # unique_init_mean = np.exp(input_data.design_loc @ init_a)
-                    # dist = rand_utils.NegativeBinomial(
-                    #     mean=unique_init_mean,
-                    #     variance=
-                    # )
-
                     b = np.log(r)
-                    # b_prime = np.matmul(inv_design, b)
+                    # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
                     b_prime = np.linalg.lstsq(unique_design_scale, b)
                     init_b = b_prime[0]
 
-                    self._train_r = True
+                    # train r, if quick_scale is False or the closed-form solution is inaccurate
+                    self._train_r = True if not quick_scale else not np.all(b_prime[1] == 0)
+
                     logger.info("Using closed-form MME initialization for dispersion")
-                    logger.debug("RMSE of closed_form dispersion:\n%s", b_prime[1])
+                    logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
                 except np.linalg.LinAlgError:
                     pass
 
