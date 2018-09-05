@@ -2,7 +2,7 @@ from typing import Union, Tuple
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.distributions import NegativeBinomial as TFNegativeBinomial
+from tensorflow_probability.python.distributions.negative_binomial import NegativeBinomial as TFNegativeBinomial
 
 from batchglm.train.tf.ops import reduce_weighted_mean
 

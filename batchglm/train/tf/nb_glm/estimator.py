@@ -4,6 +4,8 @@ import logging
 from enum import Enum
 
 import tensorflow as tf
+import tensorflow_probability as tfp
+
 import numpy as np
 
 try:
@@ -179,8 +181,16 @@ class ModelVars:
                 init_a = clip_param(init_a, "a")
                 init_b = clip_param(init_b, "b")
 
-            a_var = tf.Variable(init_a, name="a")
-            b_var = tf.Variable(init_b, name="b")
+            params = tf.Variable(tf.concat(
+                [
+                    init_a,
+                    init_b,
+                ],
+                axis=0
+            ), name="params")
+            a_var = params[0:init_a.shape[0]]
+            b_var = params[init_a.shape[0]:]
+
             assert a_var.shape == (num_design_loc_params, num_features)
             assert b_var.shape == (num_design_scale_params, num_features)
 
@@ -191,32 +201,38 @@ class ModelVars:
             self.b = b_clipped
             self.a_var = a_var
             self.b_var = b_var
+            self.params = params
 
 
-def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) -> List[tf.Tensor]:
+def feature_wise_hessians(
+        X,
+        design_loc,
+        design_scale,
+        params,
+        p_shape_a,
+        p_shape_b,
+        size_factors=None
+) -> List[tf.Tensor]:
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
-    a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
-    b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
+    params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
 
     def hessian(data):  # data is tuple (X_t, a_t, b_t)
-        X_t, a_t, b_t = data
+        X_t, params_t = data
         X = tf.transpose(X_t)  # observations x features
-        a = tf.transpose(a_t)  # design_loc_params x features
-        b = tf.transpose(b_t)  # design_scale_params x features
+        params = tf.transpose(params_t)  # design_params x features
 
         # cheat Tensorflow to get also dX^2/(da,db)
-        param_vec = tf.concat([a, b], axis=0, name="param_vec")
-        a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+        a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
         model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
 
-        hess = tf.hessians(- model.log_likelihood, param_vec)
+        hess = tf.hessians(- model.log_likelihood, params)
 
         return hess
 
     hessians = tf.map_fn(
         fn=hessian,
-        elems=(X_t, a_t, b_t),
+        elems=(X_t, params_t),
         dtype=[tf.float32],  # hessians of [a, b]
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
@@ -226,16 +242,64 @@ def feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=None) 
     return stacked
 
 
+# def feature_wise_bfgs(X, design_loc, design_scale, a, b, size_factors=None) -> List[tf.Tensor]:
+#     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
+#     a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
+#     b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
+#
+#     def bfgs(data):  # data is tuple (X_t, a_t, b_t)
+#         X_t, a_t, b_t = data
+#         X = tf.transpose(X_t)  # observations x features
+#         a = tf.transpose(a_t)  # design_loc_params x features
+#         b = tf.transpose(b_t)  # design_scale_params x features
+#
+#         # cheat Tensorflow to get also dX^2/(da,db)
+#         param_vec = tf.concat([a, b], axis=0, name="param_vec")
+#         a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+#
+#         model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
+#
+#         hess = tf.hessians(model.loss, param_vec)
+#
+#         def loss_fn(param_vec):
+#             a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+#
+#             model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
+#
+#             return model.loss
+#
+#         def value_and_grad_fn(param_vec):
+#             a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+#
+#             model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
+#
+#             return model.loss, tf.gradients(model.loss, param_vec)[0]
+#
+#         bfgs_res = bfgs_minimize(value_and_grad_fn, param_vec, initial_inv_hessian=hess[0])
+#
+#         return bfgs_res
+#
+#     bfgs_loop = tf.map_fn(
+#         fn=bfgs,
+#         elems=(X_t, a_t, b_t),
+#         dtype=[tf.float32],
+#         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
+#     )
+#
+#     stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in bfgs_loop]
+#
+#     return stacked
+
+
 class FullDataModelGraph:
     def __init__(
             self,
             sample_indices: tf.Tensor,
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
-            a: tf.Tensor,
-            b: tf.Tensor
+            model_vars,
     ):
-        num_features = a.shape[-1]
+        num_features = model_vars.a.shape[-1]
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
 
         batched_data = dataset.batch(batch_size)
@@ -244,7 +308,7 @@ class FullDataModelGraph:
 
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
-            model = BasicModelGraph(X, design_loc, design_scale, a, b, size_factors=size_factors)
+            model = BasicModelGraph(X, design_loc, design_scale, model_vars.a, model_vars.b, size_factors=size_factors)
             return model
 
         super()
@@ -266,7 +330,14 @@ class FullDataModelGraph:
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
                 X, design_loc, design_scale, size_factors = data
-                return feature_wise_hessians(X, design_loc, design_scale, a, b, size_factors=size_factors)
+                return feature_wise_hessians(
+                    X,
+                    design_loc,
+                    design_scale,
+                    model_vars.params,
+                    model_vars.a.shape[0],
+                    model_vars.b.shape[0],
+                    size_factors=size_factors)
 
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -400,10 +471,10 @@ class EstimatorGraph(TFEstimatorGraph):
                     sample_indices=sample_selection,
                     fetch_fn=fetch_fn,
                     batch_size=batch_size * buffer_size,
-                    a=model_vars.a,
-                    b=model_vars.b,
+                    model_vars=model_vars,
                 )
                 full_data_loss = full_data_model.loss
+                fisher_inv = tf.matrix_inverse(full_data_model.hessians)
 
                 # with tf.name_scope("hessian_diagonal"):
                 #     hessian_diagonal = [
@@ -425,58 +496,117 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("training"):
                 global_step = tf.train.get_or_create_global_step()
 
+                a_only_constr = [
+                    lambda grad: tf.concat([
+                        grad[0:model_vars.a.shape[0]],
+                        tf.zeros_like(grad)[model_vars.a.shape[0]:],
+                    ], axis=0)
+                ]
+                b_only_constr = [
+                    lambda grad: tf.concat([
+                        tf.zeros_like(grad)[0:model_vars.a.shape[0]],
+                        grad[model_vars.a.shape[0]:],
+                    ], axis=0)
+                ]
+
                 # set up trainers for different selections of variables to train
                 # set up multiple optimization algorithms for each trainer
                 batch_trainers = train_utils.MultiTrainer(
                     loss=batch_model.norm_neg_log_likelihood,
-                    variables=[model_vars.a_var, model_vars.b_var],
+                    variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
                     loss=batch_model.norm_neg_log_likelihood,
-                    variables=[model_vars.a_var],
+                    # variables=[model_vars.a_var],
+                    variables=[model_vars.params],
+                    grad_constr=a_only_constr,
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
                     loss=batch_model.norm_neg_log_likelihood,
-                    variables=[model_vars.b_var],
+                    # variables=[model_vars.b_var],
+                    variables=[model_vars.params],
+                    grad_constr=b_only_constr,
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_b_only"
                 )
 
-                batch_gradient_a, batch_gradient_b = batch_trainers.gradient
-                batch_gradient = tf.add_n(
-                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
+                with tf.name_scope("full_gradient"):
+                    batch_gradient = batch_trainers.gradient[0][0]
+                    batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
+
+                    # batch_gradient = tf.add_n(
+                    #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
 
                 full_data_trainers = train_utils.MultiTrainer(
                     loss=full_data_model.norm_neg_log_likelihood,
-                    variables=[model_vars.a_var, model_vars.b_var],
+                    variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
                     loss=full_data_model.norm_neg_log_likelihood,
-                    variables=[model_vars.a_var],
+                    # variables=[model_vars.a_var],
+                    variables=[model_vars.params],
+                    grad_constr=a_only_constr,
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
                     loss=full_data_model.norm_neg_log_likelihood,
-                    variables=[model_vars.b_var],
+                    # variables=[model_vars.b_var],
+                    variables=[model_vars.params],
+                    grad_constr=b_only_constr,
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_b_only"
                 )
-                full_gradient_a, full_gradient_b = full_data_trainers.gradient
-                full_gradient = tf.add_n(
-                    [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
+                with tf.name_scope("full_gradient"):
+                    full_gradient = full_data_trainers.gradient[0][0]
+                    full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
+                    # full_gradient = tf.add_n(
+                    #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
+
+                with tf.name_scope("newton-raphson"):
+                    # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
+                    param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
+                    param_grad_vec_t = tf.transpose(param_grad_vec)
+
+                    delta_t = tf.squeeze(tf.matrix_solve(
+                        # full_data_model.hessians,
+                        (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,
+                        tf.expand_dims(param_grad_vec_t, axis=-1)
+                    ), axis=-1)
+                    delta = tf.transpose(delta_t)
+                    nr_update = model_vars.params - learning_rate * delta
+                    # nr_update = model_vars.params - delta
+                    newton_raphson_op = tf.group(
+                        tf.assign(model_vars.params, nr_update),
+                        tf.assign_add(global_step, 1)
+                    )
+
+                # # ### BFGS implementation using SciPy L-BFGS
+                # with tf.name_scope("bfgs"):
+                #     feature_idx = tf.placeholder(dtype="int64", shape=())
+                #
+                #     X_s = tf.gather(X, feature_idx, axis=1)
+                #     a_s = tf.gather(a, feature_idx, axis=1)
+                #     b_s = tf.gather(b, feature_idx, axis=1)
+                #
+                #     model = BasicModelGraph(X_s, design_loc, design_scale, a_s, b_s, size_factors=size_factors)
+                #
+                #     trainer = tf.contrib.opt.ScipyOptimizerInterface(
+                #         model.loss,
+                #         method='L-BFGS-B',
+                #         options={'maxiter': maxiter})
 
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
@@ -530,8 +660,8 @@ class EstimatorGraph(TFEstimatorGraph):
         self.global_step = global_step
 
         self.gradient = batch_gradient
-        self.gradient_a = batch_gradient_a
-        self.gradient_b = batch_gradient_b
+        # self.gradient_a = batch_gradient_a
+        # self.gradient_b = batch_gradient_b
 
         self.train_op = batch_trainers.train_op_GD
 
@@ -555,16 +685,18 @@ class EstimatorGraph(TFEstimatorGraph):
         self.sample_selection = sample_selection
         self.full_data_model = full_data_model
 
-        self.full_loss = full_data_model.loss
+        self.full_loss = full_data_loss
 
         self.full_gradient = full_gradient
-        self.full_gradient_a = full_gradient_a
-        self.full_gradient_b = full_gradient_b
+        # self.full_gradient_a = full_gradient_a
+        # self.full_gradient_b = full_gradient_b
 
         # we are minimizing the negative LL instead of maximizing the LL
         # => invert hessians
         self.hessians = - full_data_model.hessians
-        self.fisher_inv = tf.matrix_inverse(full_data_model.hessians)
+        self.fisher_inv = fisher_inv
+
+        self.newton_raphson_op = newton_raphson_op
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -927,7 +1059,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # check if r was initialized with MLE
             train_r = self._train_r
 
-        if use_batching:
+        if optim_algo.lower() == "newton-raphson" or \
+                optim_algo.lower() == "newton_raphson" or \
+                optim_algo.lower() == "nr":
+            loss = self.model.full_loss
+            train_op = self.model.newton_raphson_op
+        elif use_batching:
             loss = self.model.loss
             if train_mu:
                 if train_r:

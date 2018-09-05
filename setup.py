@@ -9,6 +9,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'tensorflow',
+        'tensorflow-probability',
         'numpy',
         'scipy',
         'pandas',
@@ -33,6 +34,10 @@ setup(
         #     "plotnine",
         #     "seaborn"
         # ],
+        'tensorflow_gpu': [
+            "tensorflow-gpu",
+            "tensorflow-probability-gpu",
+        ],
         'benchmarks': [
             'yaml',
             "plotnine",
