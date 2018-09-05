@@ -887,6 +887,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     self._train_mu = not np.all(a_prime[1] == 0)
                     logger.info("Using closed-form MLE initialization for mean")
                     logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
+                    logger.debug("Should train mu:\t%s", self._train_mu)
                 except np.linalg.LinAlgError:
                     pass
 
@@ -912,6 +913,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     logger.info("Using closed-form MME initialization for dispersion")
                     logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
+                    logger.debug("Should train r:\t%s", self._train_r)
                 except np.linalg.LinAlgError:
                     pass
 
