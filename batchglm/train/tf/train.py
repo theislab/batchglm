@@ -236,9 +236,13 @@ class MultiTrainer:
         """
         
         :param loss:
-        :param variables:
+        :param variables: list of variables which will be trained
         :param learning_rate:
         :param global_step:
+        :param grad_constr: list of gradient constraints; has to be of the same length as `variables`.
+
+        Each element in this list has to be a function taking a `gradient` tensor of the same shape as its corresponding
+        variable.
         :param name: optional name scope
         """
         with contextlib.ExitStack() as stack:
