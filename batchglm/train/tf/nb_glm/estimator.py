@@ -35,6 +35,7 @@ def param_bounds(dtype):
         max = dtype.max
         dtype = dtype.as_numpy_dtype
     else:
+        dtype = np.dtype(dtype)
         min = np.finfo(dtype).min
         max = np.finfo(dtype).max
 
@@ -916,11 +917,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
                     group_mean = X.groupby("group").mean(dim="observations")
-                    denominator = variance - group_mean
+                    denominator = np.fmax(variance - group_mean, 0)
                     denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
                                                dtype=denominator.dtype)
                     r = np.square(group_mean) / denominator
                     r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
+                    r = np.fmax(variance - group_mean, np.finfo(r.dtype).max)
 
                     b = np.log(r)
                     # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
