@@ -488,7 +488,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     model_vars=model_vars,
                 )
                 full_data_loss = full_data_model.loss
-                fisher_inv = tf.matrix_inverse(full_data_model.hessians)
+                fisher_inv = op_utils.pinv(full_data_model.hessians)
 
                 # with tf.name_scope("hessian_diagonal"):
                 #     hessian_diagonal = [
@@ -594,7 +594,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
                     param_grad_vec_t = tf.transpose(param_grad_vec)
 
-                    delta_t = tf.squeeze(tf.matrix_solve(
+                    delta_t = tf.squeeze(tf.matrix_solve_ls(
                         # full_data_model.hessians,
                         (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,
                         tf.expand_dims(param_grad_vec_t, axis=-1)
@@ -922,7 +922,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                                                dtype=denominator.dtype)
                     r = np.square(group_mean) / denominator
                     r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
-                    r = np.fmax(variance - group_mean, np.finfo(r.dtype).max)
+                    r = np.fmin(r, np.finfo(r.dtype).max)
 
                     b = np.log(r)
                     # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
