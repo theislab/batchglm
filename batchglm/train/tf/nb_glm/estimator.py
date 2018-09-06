@@ -877,6 +877,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
 
                     mean = X.groupby("group").mean(dim="observations")
+                    mean[:] = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
 
                     a = np.log(mean)
                     # a_prime = np.matmul(inv_design, a) # NOTE: this is numerically inaccurate!
@@ -884,7 +885,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_a = a_prime[0]
                     # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
 
+                    # train mu, if the closed-form solution is inaccurate
                     self._train_mu = not np.all(a_prime[1] == 0)
+
                     logger.info("Using closed-form MLE initialization for mean")
                     logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
                     logger.debug("Should train mu:\t%s", self._train_mu)
@@ -901,7 +904,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
                     group_mean = X.groupby("group").mean(dim="observations")
-                    r = np.square(group_mean) / (variance - group_mean)
+                    denominator = variance - group_mean
+                    denominator[:] = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
+                                                  dtype=denominator.dtype)
+                    r = np.square(group_mean) / denominator
+                    r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
 
                     b = np.log(r)
                     # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
