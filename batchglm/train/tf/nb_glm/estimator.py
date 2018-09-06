@@ -438,7 +438,19 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # implicit broadcasting of X and initial_mixture_probs to
             #   shape (num_mixtures, num_observations, num_features)
-            init_dist = nb_utils.fit(batch_X, axis=-2)
+            # init_dist = nb_utils.fit(batch_X, axis=-2)
+            init_dist = nb_utils.NegativeBinomial(
+                mean=tf.random_uniform(
+                    minval=10,
+                    maxval=1000,
+                    shape=[1, num_features],
+                ),
+                r=tf.random_uniform(
+                    minval=1,
+                    maxval=10,
+                    shape=[1, num_features],
+                ),
+            )
             assert init_dist.r.shape == [1, num_features]
 
             model_vars = ModelVars(
@@ -453,9 +465,9 @@ class EstimatorGraph(TFEstimatorGraph):
 
             with tf.name_scope("batch"):
                 # Batch model:
-                #     only `batch_size` observations will be used;
-                #     All per-sample variables have to be passed via `data`.
-                #     Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
+                #   only `batch_size` observations will be used;
+                #   All per-sample variables have to be passed via `data`.
+                #   Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
                 batch_model = BasicModelGraph(batch_X, batch_design_loc, batch_design_scale, model_vars.a, model_vars.b,
                                               size_factors=batch_size_factors)
 
@@ -730,12 +742,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.05,
-                "loss_window_size": 100,
+                "loss_window_size": 25,
                 "use_batching": True,
                 "optim_algo": "ADAM",
             },
             {
-                "learning_rate": 0.05,
+                "learning_rate": 0.005,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.05,
                 "loss_window_size": 10,
@@ -748,23 +760,23 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
-                "loss_window_size": 100,
+                "loss_window_size": 25,
                 "use_batching": True,
                 "optim_algo": "ADAM",
             },
             {
                 "learning_rate": 0.005,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.25,
+                "stop_at_loss_change": 0.05,
                 "loss_window_size": 10,
+                "use_batching": True,
+                "optim_algo": "GD",
+            },
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 0.25,
+                "loss_window_size": 2,
                 "use_batching": False,
                 "optim_algo": "Newton-Raphson",
             },
@@ -781,12 +793,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         ]
         PRE_INITIALIZED = [
             {
-                "learning_rate": 0.01,
+                "learning_rate": 1,
                 "convergence_criteria": "t_test",
                 "stop_at_loss_change": 0.25,
-                "loss_window_size": 10,
+                "loss_window_size": 2,
                 "use_batching": False,
-                "optim_algo": "GD",
+                "optim_algo": "Newton-Raphson",
             },
         ]
 
@@ -877,7 +889,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
 
                     mean = X.groupby("group").mean(dim="observations")
-                    mean[:] = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
+                    mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
 
                     a = np.log(mean)
                     # a_prime = np.matmul(inv_design, a) # NOTE: this is numerically inaccurate!
@@ -905,8 +917,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     group_mean = X.groupby("group").mean(dim="observations")
                     denominator = variance - group_mean
-                    denominator[:] = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
-                                                  dtype=denominator.dtype)
+                    denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
+                                               dtype=denominator.dtype)
                     r = np.square(group_mean) / denominator
                     r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
 
