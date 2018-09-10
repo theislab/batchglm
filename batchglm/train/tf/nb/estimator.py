@@ -56,6 +56,7 @@ def clip_param(param, name):
         bounds_max[name]
     )
 
+
 class EstimatorGraph(TFEstimatorGraph):
     X: tf.Tensor
 
@@ -136,6 +137,9 @@ class EstimatorGraph(TFEstimatorGraph):
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
+    """
+    Estimator for negative binomial distributed data.
+    """
     model: EstimatorGraph
 
     @classmethod

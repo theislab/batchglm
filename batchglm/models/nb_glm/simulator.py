@@ -44,6 +44,10 @@ def generate_sample_description(num_observations, num_batches=4, num_confounders
 
 
 class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
+    """
+    Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
+    Uses the natural logarithm as linker function.
+    """
 
     def __init__(self, *args, **kwargs):
         NegativeBinomialSimulator.__init__(self, *args, **kwargs)

@@ -214,6 +214,8 @@ def feature_wise_hessians(
         p_shape_b,
         size_factors=None
 ) -> List[tf.Tensor]:
+    dtype = X.dtype
+
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
 
@@ -233,7 +235,7 @@ def feature_wise_hessians(
     hessians = tf.map_fn(
         fn=hessian,
         elems=(X_t, params_t),
-        dtype=[tf.float32],  # hessians of [a, b]
+        dtype=[dtype],  # hessians of [a, b]
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
 
@@ -406,6 +408,7 @@ class EstimatorGraph(TFEstimatorGraph):
             init_a=None,
             init_b=None,
             extended_summary=False,
+            dtype="float32"
     ):
         super().__init__(graph)
         self.num_observations = num_observations
@@ -417,7 +420,7 @@ class EstimatorGraph(TFEstimatorGraph):
         # initial graph elements
         with self.graph.as_default():
             # ### placeholders
-            learning_rate = tf.placeholder(tf.float32, shape=(), name="learning_rate")
+            learning_rate = tf.placeholder(dtype, shape=(), name="learning_rate")
             # train_steps = tf.placeholder(tf.int32, shape=(), name="training_steps")
 
             # ### performance related settings
@@ -448,11 +451,13 @@ class EstimatorGraph(TFEstimatorGraph):
                     minval=10,
                     maxval=1000,
                     shape=[1, num_features],
+                    dtype=dtype
                 ),
                 r=tf.random_uniform(
                     minval=1,
                     maxval=10,
                     shape=[1, num_features],
+                    dtype=dtype
                 ),
             )
             assert init_dist.r.shape == [1, num_features]
@@ -740,6 +745,11 @@ class EstimatorGraph(TFEstimatorGraph):
 
 
 class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
+    """
+    Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
+    Uses the natural logarithm as linker function.
+    """
+
     class TrainingStrategy(Enum):
         AUTO = None
         DEFAULT = [
@@ -860,6 +870,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
         """
+        dtype = input_data.X.dtype
+
         # validate design matrix:
         if np.linalg.matrix_rank(input_data.design_loc) != np.linalg.matrix_rank(input_data.design_loc.T):
             raise ValueError("design_loc matrix is not full rank")
@@ -979,22 +991,22 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
-            X_tensor = tf.py_func(input_data.fetch_X, [idx], tf.float32)
+            X_tensor = tf.py_func(input_data.fetch_X, [idx], dtype)
             X_tensor.set_shape(
                 idx.get_shape().as_list() + [input_data.num_features]
             )
 
-            design_loc_tensor = tf.py_func(input_data.fetch_design_loc, [idx], tf.float32)
+            design_loc_tensor = tf.py_func(input_data.fetch_design_loc, [idx], dtype)
             design_loc_tensor.set_shape(
                 idx.get_shape().as_list() + [input_data.num_design_loc_params]
             )
-            design_scale_tensor = tf.py_func(input_data.fetch_design_scale, [idx], tf.float32)
+            design_scale_tensor = tf.py_func(input_data.fetch_design_scale, [idx], dtype)
             design_scale_tensor.set_shape(
                 idx.get_shape().as_list() + [input_data.num_design_scale_params]
             )
 
             if input_data.size_factors is not None:
-                size_factors_tensor = tf.log(tf.py_func(input_data.fetch_size_factors, [idx], tf.float32))
+                size_factors_tensor = tf.log(tf.py_func(input_data.fetch_size_factors, [idx], dtype))
                 size_factors_tensor.set_shape(idx.get_shape())
             else:
                 size_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
@@ -1020,7 +1032,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                extended_summary=extended_summary
+                extended_summary=extended_summary,
+                dtype=dtype
             )
 
         MonitoredTFEstimator.__init__(self, model)

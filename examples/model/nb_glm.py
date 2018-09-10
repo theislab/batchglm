@@ -3,8 +3,8 @@ import datetime
 
 from batchglm.api.models.nb_glm import Simulator, Estimator
 
-from batchglm.examples.util import stat_frame
-from batchglm.examples.model import simulate
+from examples import stat_frame
+from examples import simulate
 
 
 def estimate(sim: Simulator, wd):

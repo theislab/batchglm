@@ -202,7 +202,7 @@ def design_matrix_from_xarray(
         2) from dataset[formula_key]
 
     The resulting design matrix as well as the formula and explanatory variables will be stored at the corresponding
-    '*_key' keys in the returned dataset.
+    '\*_key' keys in the returned dataset.
 
     :param dim: name of the dimension for which the design matrix should be created.
 
@@ -246,6 +246,7 @@ def sample_description_from_anndata(dataset: anndata.AnnData):
     Create a design matrix from a given xarray.Dataset and model formula.
 
     :param dataset: anndata.AnnData containing explanatory variables.
+
     :return pd.DataFrame
     """
 
@@ -259,7 +260,7 @@ def design_matrix_from_anndata(
         as_categorical=True,
         return_type="matrix",
 ):
-    """
+    r"""
     Create a design matrix from a given xarray.Dataset and model formula.
 
     The formula will be chosen by the following order:
@@ -267,7 +268,7 @@ def design_matrix_from_anndata(
         2) from dataset.uns[formula_key]
 
     The resulting design matrix as well as the formula and explanatory variables will be stored at the corresponding
-    '*_key' keys in the returned dataset.
+    '\*_key' keys in the returned dataset.
 
     :param dataset: anndata.AnnData containing explanatory variables.
     :param formula: model formula as string, describing the relations of the explanatory variables.

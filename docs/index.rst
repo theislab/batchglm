@@ -12,11 +12,10 @@ Welcome to batchglm's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   installation
+   tutorials
    api/index
-..   examples
-..   basic_usage
-..   installation
-..   references
+   references
 
 
 Indices and tables

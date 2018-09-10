@@ -4,6 +4,13 @@ from ..base import BasicModel
 
 
 class Model(BasicModel, metaclass=abc.ABCMeta):
+    """
+    Generalized Linear Model base class.
+
+    Every GLM has the parameters `link_loc` and `link_scale` and model-specific
+    matrices `design_loc` and `design_scale`.
+    They are linked to `location` and `scale` by a linker function, e.g. `location = exp(design_loc * link_loc)`.
+    """
 
     @property
     @abc.abstractmethod

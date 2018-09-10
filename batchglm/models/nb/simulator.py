@@ -9,6 +9,9 @@ from .base import Model, InputData
 
 
 class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
+    """
+    Simulator for negative binomial data
+    """
 
     @property
     def input_data(self) -> InputData:
