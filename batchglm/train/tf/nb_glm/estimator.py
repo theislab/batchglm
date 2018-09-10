@@ -122,7 +122,7 @@ class BasicModelGraph:
         self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
         with tf.name_scope("loss"):
-            self.loss = tf.reduce_mean(self.norm_neg_log_likelihood)
+            self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
 
 
 class ModelVars:
@@ -222,7 +222,6 @@ def feature_wise_hessians(
         X = tf.transpose(X_t)  # observations x features
         params = tf.transpose(params_t)  # design_params x features
 
-        # cheat Tensorflow to get also dX^2/(da,db)
         a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
         model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
@@ -243,34 +242,38 @@ def feature_wise_hessians(
     return stacked
 
 
-# def feature_wise_bfgs(X, design_loc, design_scale, a, b, size_factors=None) -> List[tf.Tensor]:
+# def feature_wise_bfgs(
+#         X,
+#         design_loc,
+#         design_scale,
+#         params,
+#         p_shape_a,
+#         p_shape_b,
+#         size_factors=None
+# ) -> List[tf.Tensor]:
 #     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
-#     a_t = tf.transpose(tf.expand_dims(a, axis=0), perm=[2, 0, 1])
-#     b_t = tf.transpose(tf.expand_dims(b, axis=0), perm=[2, 0, 1])
+#     params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
 #
 #     def bfgs(data):  # data is tuple (X_t, a_t, b_t)
 #         X_t, a_t, b_t = data
 #         X = tf.transpose(X_t)  # observations x features
-#         a = tf.transpose(a_t)  # design_loc_params x features
-#         b = tf.transpose(b_t)  # design_scale_params x features
+#         params = tf.transpose(params_t)  # design_params x features
 #
-#         # cheat Tensorflow to get also dX^2/(da,db)
-#         param_vec = tf.concat([a, b], axis=0, name="param_vec")
-#         a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+#         a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 #
 #         model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
 #
-#         hess = tf.hessians(model.loss, param_vec)
+#         hess = tf.hessians(model.loss, params)
 #
 #         def loss_fn(param_vec):
-#             a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+#             a_split, b_split = tf.split(param_vec, tf.TensorShape([p_shape_a, p_shape_b]))
 #
 #             model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
 #
 #             return model.loss
 #
 #         def value_and_grad_fn(param_vec):
-#             a_split, b_split = tf.split(param_vec, tf.TensorShape([a.shape[0], b.shape[0]]))
+#             a_split, b_split = tf.split(param_vec, tf.TensorShape([p_shape_a, p_shape_b]))
 #
 #             model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
 #
@@ -282,7 +285,7 @@ def feature_wise_hessians(
 #
 #     bfgs_loop = tf.map_fn(
 #         fn=bfgs,
-#         elems=(X_t, a_t, b_t),
+#         elems=(X_t, params_t),
 #         dtype=[tf.float32],
 #         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
 #     )
@@ -326,7 +329,7 @@ class FullDataModelGraph:
             norm_neg_log_likelihood = - norm_log_likelihood
 
         with tf.name_scope("loss"):
-            loss = tf.reduce_mean(norm_neg_log_likelihood)
+            loss = tf.reduce_sum(norm_neg_log_likelihood)
 
         with tf.name_scope("hessians"):
             def hessian_map(idx, data):
@@ -597,7 +600,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
                         # full_data_model.hessians,
                         (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,
-                        tf.expand_dims(param_grad_vec_t, axis=-1)
+                        tf.expand_dims(param_grad_vec_t, axis=-1),
+                        fast=False
                     ), axis=-1)
                     delta = tf.transpose(delta_t)
                     nr_update = model_vars.params - learning_rate * delta
