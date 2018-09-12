@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+import versioneer
 
 author = 'Florian R. Hölzlwimmer, David S. Fischer'
 
@@ -54,6 +55,7 @@ setup(
             'jinja2',
             'docutils',
         ],
-    }
-
+    },
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
 )
