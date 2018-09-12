@@ -1,6 +1,7 @@
 import abc
 from typing import Union, Dict, Tuple, List
 import logging
+import pprint
 from enum import Enum
 
 import tensorflow as tf
@@ -1157,7 +1158,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             else:
                 training_strategy = self.TrainingStrategy.DEFAULT.value
 
-        logger.info("training strategy: %s", str(training_strategy))
+        logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
 
         for idx, d in enumerate(training_strategy):
             logger.info("Beginning with training sequence #%d", idx + 1)

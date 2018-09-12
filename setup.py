@@ -43,7 +43,7 @@ setup(
             "plotnine",
             "matplotlib",
         ],
-        'examples': [
+        'tutorials': [
             'sklearn',
             'mlxtend',
         ],
