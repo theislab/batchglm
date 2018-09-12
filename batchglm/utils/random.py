@@ -5,6 +5,12 @@ from scipy.special import gammaln
 
 
 class NegativeBinomial:
+    r"""
+    Negative binomial distribution.
+    This class supports re-parameterising, sampling and calculation of
+    probabilities of negative binomial distributed data.
+    """
+
     mean: np.ndarray
     # variance: np.ndarray
     # p: np.ndarray
@@ -12,6 +18,15 @@ class NegativeBinomial:
 
     @classmethod
     def mme(cls, data, axis=0):
+        r"""
+        Fit a Negative Binomial distribution to `data`.
+        Uses the closed-form Method-of-Moments to estimate the dispersion.
+
+        :param data: The data
+        :param axis: Axis along which the distributions are provided
+        :return: `NegativeBinomial` object
+
+        """
         mean = np.mean(data, axis=axis)
         variance = np.mean(np.square(data - mean), axis=axis)
 
@@ -75,6 +90,12 @@ class NegativeBinomial:
         return self.mean / (self.r + self.mean)
 
     def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
         # numpy uses an alternative parametrization
         # see also https://en.wikipedia.org/wiki/Negative_binomial_distribution#Alternative_formulations
         random_data = np.random.negative_binomial(
@@ -85,6 +106,13 @@ class NegativeBinomial:
         return random_data
 
     def prob(self, X):
+        """
+        Calculate the probability of each value in `X` given this distribution
+
+        :param X: The data
+        :return: numpy array of probabilitites
+
+        """
         # p = self.p
         # r = self.r
         # return scipy.stats.nbinom(n=r, p=1 - p).pmf(X)
@@ -92,6 +120,13 @@ class NegativeBinomial:
         return np.exp(self.log_prob(X))
 
     def log_prob(self, X):
+        """
+        Calculate the log-probability of each value in `X` given this distribution
+
+        :param X: The data
+        :return: numpy array of log-probabilitites
+
+        """
         p = self.p
         r = self.r
 

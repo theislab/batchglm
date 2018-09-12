@@ -4,11 +4,12 @@ import scipy.stats
 
 def normalize(measure: np.ndarray, data: np.ndarray) -> np.ndarray:
     r"""
-    Normalize measure (e.g. `RMSD` or `MAE`) with the range of `data`
+    Normalize measure (e.g. :math:`RMSD` or :math:`MAE`) with the range of :math:`data`
 
     :param measure: the measure which should be normalized
     :param data: Tensor representing the data by which the measure should be normalized
-    :return: \frac{RMSD}{max(data) - min(data)}
+    :return: :math:`\frac{RMSD}{\text{max}(\text{data}) - \text{min}(\text{data})}`
+
     r"""
     return measure / (np.max(data) - np.min(data))
 
@@ -20,19 +21,21 @@ def rmsd(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray:
     :param estim: Tensor representing the estimated data
     :param obs: Tensor representing the observed data
     :param axis: axis to reduce
-    :return: \sqrt{mean{(estim - obs)^2}}
+    :return: :math:`\sqrt{\text{mean}{(\text{estim} - \text{obs})^2}}`
+
     r"""
     return np.sqrt(np.mean(np.square(estim - obs), axis=axis))
 
 
 def mae(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray:
     r"""
-    Calculate the mean absolute error between the estimated weights `b` and the true `b`
+    Calculate the mean absolute error between the estimated weights :math:`b` and the true :math:`b`
 
     :param estim: Tensor representing the estimated data
     :param obs: Tensor representing the observed data
     :param axis: axis to reduce
-    :return: mean{|estim - obs|}
+    :return: :math:`\text{mean}{|\text{estim} - \text{obs}|}`
+
     r"""
     return np.mean(np.abs(estim - obs), axis=axis)
 
@@ -44,7 +47,8 @@ def normalized_rmsd(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray
     :param estim: Tensor representing the estimated data
     :param obs: Tensor representing the observed data
     :param axis: axis to reduce
-    :return: \frac{RMSD}{max(obs) - min(obs)}
+    :return: :math:`\frac{RMSD}{\text{max}(\text{obs}) - \text{min}(\text{obs})}`
+
     r"""
     return normalize(rmsd(estim, obs, axis=axis), obs)
 
@@ -56,7 +60,8 @@ def normalized_mae(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray:
     :param estim: Tensor representing the estimated data
     :param obs: Tensor representing the observed data
     :param axis: axis to reduce
-    :return: \frac{MAE}{max(obs) - min(obs)}
+    :return: :math:`\frac{MAE}{\text{max}(\text{obs}) - \text{min}(\text{obs})}`
+
     r"""
     return normalize(mae(estim, obs, axis=axis), obs)
 
@@ -68,7 +73,8 @@ def mapd(estim: np.ndarray, obs: np.ndarray, axis=None) -> np.ndarray:
     :param estim: ndarray representing the estimated data
     :param obs: ndarray representing the observed data
     :param axis: axis to reduce
-    :return: mean{|estim - obs| / obs}
+    :return: :math:`\text{mean}(|\text{estim} - \text{obs}| / |\text{obs}|)`
+
     r"""
     return np.mean(abs_percentage_deviation(estim, obs), axis=axis) * 100
 
@@ -79,7 +85,8 @@ def abs_percentage_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray:
 
     :param estim: ndarray representing the estimated data
     :param obs: ndarray representing the observed data
-    :return: $\mean{|estim - obs| / |obs|} * 100$
+    :return: :math:`\text{mean}(|\text{estim} - \text{obs}| / | \text{obs}|) * 100`
+
     r"""
     return abs_proportional_deviation(estim, obs)
 
@@ -90,7 +97,8 @@ def abs_proportional_deviation(estim: np.ndarray, obs: np.ndarray) -> np.ndarray
 
     :param estim: ndarray representing the estimated data
     :param obs: ndarray representing the observed data
-    :return: mean{|estim - obs| / |obs|}
+    :return: :math:`\text{mean}{|\text{estim} - \text{obs}| / |\text{obs}|}`
+
     r"""
     return np.abs(estim - obs) / np.abs(obs)
 
@@ -121,6 +129,7 @@ def welch_t_test(x1, x2):
     :param x1: first sample
     :param x2: second sample
     :return: p-value
+
     r"""
     mu1 = np.mean(x1)
     var1 = np.var(x1)

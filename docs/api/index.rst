@@ -65,3 +65,38 @@ General Linearized Model with negative binomial noise
    models.nb_glm.Simulator
    models.nb_glm.Estimator
 
+
+
+Utilities
+-----------------------------------
+
+
+:mod:`batchglm.api.utils.random`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This module contains random distributions:
+
+.. autosummary::
+   :toctree: .
+
+   utils.random.NegativeBinomial
+
+
+:mod:`batchglm.api.utils.stats`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This module contains utilities for calculating summary statistics:
+
+.. autosummary::
+   :toctree: .
+
+   utils.stats.normalize
+   utils.stats.rmsd
+   utils.stats.mae
+   utils.stats.normalized_rmsd
+   utils.stats.normalized_mae
+   utils.stats.mapd
+   utils.stats.abs_percentage_deviation
+   utils.stats.abs_proportional_deviation
+   utils.stats.welch_t_test
+
