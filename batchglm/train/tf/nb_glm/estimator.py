@@ -310,7 +310,7 @@ class FullDataModelGraph:
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
 
         batched_data = dataset.batch(batch_size)
-        batched_data = batched_data.map(fetch_fn)
+        batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         batched_data = batched_data.prefetch(1)
 
         def map_model(idx, data) -> BasicModelGraph:
@@ -434,7 +434,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
                 # training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
                 training_data = training_data.batch(batch_size, drop_remainder=True)
-                training_data = training_data.map(fetch_fn)
+                training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
                 training_data = training_data.prefetch(buffer_size)
 
                 iterator = training_data.make_one_shot_iterator()
@@ -768,7 +768,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "stop_at_loss_change": 0.05,
                 "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "GD",
+                "optim_algo": "ADAM",
             },
         ]
         EXACT = [
@@ -814,7 +814,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "stop_at_loss_change": 0.25,
                 "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "GD",
+                "optim_algo": "ADAM",
             },
         ]
 
@@ -837,6 +837,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             quick_scale=False,
             model: EstimatorGraph = None,
             extended_summary=False,
+            dtype="float64",
     ):
         """
         Create a new Estimator
@@ -871,8 +872,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
         """
-        dtype = input_data.X.dtype
-
         # validate design matrix:
         if np.linalg.matrix_rank(input_data.design_loc) != np.linalg.matrix_rank(input_data.design_loc.T):
             raise ValueError("design_loc matrix is not full rank")
@@ -920,9 +919,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     logger.info("Using closed-form MLE initialization for mean")
                     logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
-                    logger.debug("Should train mu:\t%s", self._train_mu)
+                    logger.info("Should train mu: %s", self._train_mu)
                 except np.linalg.LinAlgError:
-                    pass
+                    logger.warning("Closed form initialization failed!")
 
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "closed_form"):
                 try:
@@ -951,9 +950,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     logger.info("Using closed-form MME initialization for dispersion")
                     logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
-                    logger.debug("Should train r:\t%s", self._train_r)
+                    logger.info("Should train r: %s", self._train_r)
                 except np.linalg.LinAlgError:
-                    pass
+                    logger.warning("Closed form initialization failed!")
 
             if init_model is not None:
                 if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
@@ -992,33 +991,56 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
-            X_tensor = tf.py_func(input_data.fetch_X, [idx], dtype)
-            X_tensor.set_shape(
-                idx.get_shape().as_list() + [input_data.num_features]
+            X_tensor = tf.py_func(
+                func=input_data.fetch_X,
+                inp=[idx],
+                Tout=input_data.X.dtype,
+                stateful=False
             )
+            X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
+            X_tensor = tf.cast(X_tensor, dtype=dtype)
 
-            design_loc_tensor = tf.py_func(input_data.fetch_design_loc, [idx], dtype)
-            design_loc_tensor.set_shape(
-                idx.get_shape().as_list() + [input_data.num_design_loc_params]
+            design_loc_tensor = tf.py_func(
+                func=input_data.fetch_design_loc,
+                inp=[idx],
+                Tout=input_data.design_loc.dtype,
+                stateful=False
             )
-            design_scale_tensor = tf.py_func(input_data.fetch_design_scale, [idx], dtype)
-            design_scale_tensor.set_shape(
-                idx.get_shape().as_list() + [input_data.num_design_scale_params]
+            design_loc_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_loc_params])
+            design_loc_tensor = tf.cast(design_loc_tensor, dtype=dtype)
+
+            design_scale_tensor = tf.py_func(
+                func=input_data.fetch_design_scale,
+                inp=[idx],
+                Tout=input_data.design_scale.dtype,
+                stateful=False
             )
+            design_scale_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_scale_params])
+            design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None:
-                size_factors_tensor = tf.log(tf.py_func(input_data.fetch_size_factors, [idx], dtype))
+                size_factors_tensor = tf.log(tf.py_func(
+                    func=input_data.fetch_size_factors,
+                    inp=[idx],
+                    Tout=input_data.size_factors.dtype,
+                    stateful=False
+                ))
                 size_factors_tensor.set_shape(idx.get_shape())
+                size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                size_factors_tensor = tf.constant(0, shape=(), dtype=X_tensor.dtype)
+                size_factors_tensor = tf.constant(0, shape=(), dtype=dtype)
 
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
         if isinstance(init_a, str):
             init_a = None
+        else:
+            init_a = init_a.astype(dtype)
         if isinstance(init_b, str):
             init_b = None
+        else:
+            init_b = init_b.astype(dtype)
 
         with graph.as_default():
             # create model

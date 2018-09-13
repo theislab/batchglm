@@ -47,7 +47,7 @@ class InputData(BasicInputData):
         return INPUT_DATA_PARAMS
 
     @classmethod
-    def new(cls, data, observation_names=None, feature_names=None, dtype="float32"):
+    def new(cls, data, observation_names=None, feature_names=None, cast_dtype=None):
         """
         Create a new InputData object.
 
@@ -62,12 +62,14 @@ class InputData(BasicInputData):
                 stored as data[design_loc] and data[design_scale]
         :param observation_names: (optional) names of the observations.
         :param feature_names: (optional) names of the features.
-        :param dtype: data type of all data; should be either float32 or float64
+        :param cast_dtype: data type of all data; should be either float32 or float64
         :return: InputData object
         """
         X = data_utils.xarray_from_data(data)
-        X = X.astype(dtype)
-        # X = X.chunk({"observations": 1})
+
+        if cast_dtype is not None:
+            X = X.astype(cast_dtype)
+            # X = X.chunk({"observations": 1})
 
         retval = cls(xr.Dataset({
             "X": X,

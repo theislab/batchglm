@@ -87,7 +87,7 @@ class InputData(NegativeBinomialInputData):
             feature_names=None,
             design_loc_key="design_loc",
             design_scale_key="design_scale",
-            dtype="float32"
+            cast_dtype=None
     ):
         """
         Create a new InputData object.
@@ -116,22 +116,23 @@ class InputData(NegativeBinomialInputData):
         :param feature_names: (optional) names of the features.
         :param design_loc_key: Where to find `design_loc` if `data` is some anndata.AnnData or xarray.Dataset.
         :param design_scale_key: Where to find `design_scale` if `data` is some anndata.AnnData or xarray.Dataset.
-        :param dtype: data type of all data; should be either float32 or float64
+        :param cast_dtype: If this option is set, all provided data will be casted to this data type.
         :return: InputData object
         """
         retval = super(InputData, cls).new(
             data=data,
             observation_names=observation_names,
             feature_names=feature_names,
-            dtype=dtype
+            cast_dtype=cast_dtype
         )
 
         design_loc = _parse_design(data, design_loc, design_loc_names, design_loc_key, "design_loc_params")
         design_scale = _parse_design(data, design_scale, design_scale_names, design_scale_key, "design_scale_params")
 
-        design_loc = design_loc.astype(dtype)
-        design_scale = design_scale.astype(dtype)
-        # design = design.chunk({"observations": 1})
+        if cast_dtype is not None:
+            design_loc = design_loc.astype(cast_dtype)
+            design_scale = design_scale.astype(cast_dtype)
+            # design = design.chunk({"observations": 1})
 
         retval.design_loc = design_loc
         retval.design_scale = design_scale
