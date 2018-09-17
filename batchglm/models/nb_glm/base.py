@@ -306,8 +306,8 @@ def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], p
             })
         elif anndata is not None and isinstance(data, anndata.AnnData):
             params = xr.Dataset({
-                "a": (MODEL_PARAMS["a"], data.obsm["a"]),
-                "b": (MODEL_PARAMS["b"], data.obsm["b"]),
+                "a": (MODEL_PARAMS["a"], np.transpose(data.varm["a"])),
+                "b": (MODEL_PARAMS["b"], np.transpose(data.varm["b"])),
             })
         elif isinstance(data, xr.Dataset):
             params = data
