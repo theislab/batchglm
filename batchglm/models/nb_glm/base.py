@@ -417,7 +417,7 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     @property
     def gradient(self):
-        return self.params["loss"]
+        return self.params["gradient"]
 
     @property
     def hessians(self):
