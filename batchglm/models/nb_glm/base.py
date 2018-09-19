@@ -82,6 +82,8 @@ class InputData(NegativeBinomialInputData):
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
+            constraints_loc = None,
+            constraints_scale = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
@@ -111,6 +113,14 @@ class InputData(NegativeBinomialInputData):
         :param design_scale_names: (optional) names of the design_scale parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
+        :param contrainsts_loc: Constraint matrix with same number of columns as design matrix.
+            Each row is a constraint that defines a sum on variables which have to add to one.
+            Each row contains one -1 which is the variable which will be dependent and otherwise 
+            0s or 1s.
+        :param contrainsts_scale: Constraint matrix with same number of columns as design matrix.
+            Each row is a constraint that defines a sum on variables which have to add to one.
+            Each row contains one -1 which is the variable which will be dependent and otherwise 
+            0s or 1s.
         :param size_factors: Some size factor to scale the raw data in link-space.
         :param observation_names: (optional) names of the observations.
         :param feature_names: (optional) names of the features.
@@ -137,6 +147,9 @@ class InputData(NegativeBinomialInputData):
         retval.design_loc = design_loc
         retval.design_scale = design_scale
 
+        retval.constraints_loc = constraints_loc
+        retval.constraints_scale = constraints_scale
+
         if size_factors is not None:
             retval.size_factors = size_factors
 
@@ -149,6 +162,14 @@ class InputData(NegativeBinomialInputData):
     @design_loc.setter
     def design_loc(self, data):
         self.data["design_loc"] = data
+
+    @property
+    def constraints_loc(self) -> xr.DataArray:
+        return self.data["constraints_loc"]
+
+    @design_loc.setter
+    def constraints_loc(self, data):
+        self.data["constraints_loc"] = data
 
     @property
     def design_loc_names(self) -> xr.DataArray:
@@ -165,6 +186,14 @@ class InputData(NegativeBinomialInputData):
     @design_scale.setter
     def design_scale(self, data):
         self.data["design_scale"] = data
+
+    @property
+    def constraints_scale(self) -> xr.DataArray:
+        return self.data["constraints_scale"]
+
+    @design_loc.setter
+    def constraints_scale(self, data):
+        self.data["constraints_scale"] = data
 
     @property
     def design_scale_names(self) -> xr.DataArray:
