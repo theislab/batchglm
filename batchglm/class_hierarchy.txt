@@ -1,0 +1,76 @@
+This file gives an overview of the classes and inheritance relations in batchglm. Classes are listed by directory and file. Refer to the documenation on details on the classes. Used name_scopes are listed here.
+
+- models
+    - base.py
+        - BasicInputData
+        - BasicModel
+        - BasicEstimator <- .BasicModel
+        - BasicSimulator <- .BasicModel
+
+    - nb
+        - base.py
+            - InputData <- .base.BasicInputData
+            - Model <- .base.BasicModel
+            - XArrayModel <- .Model
+            - AbstractEstimator <- .Model
+            - XArrayEstimatorStore <- .AbstractEstimator
+        - simulator.py:
+            - Simulator <- .base.BasicSimulator
+
+    - glm
+        - base.py
+            - Model <- BasicModel
+            
+    - nbglm
+        - base.py
+            - InputData <- .nb.InputData
+            - Model <- .nb.Model, .glm.Model
+            - XArrayModel <- .Model
+            - AbstractEstimator <- .Model
+            - XArrayEstimatorStore <- .nb.AbstractEstimator, .nb.XArrayModel
+            - simulator.py:
+            - Simulator <- .nb.Simulator
+
+- train
+    - tf
+        - base.py
+            - TFEstimatorGraph
+            - TFEstimator <- models.base.BasicEstimator, .train.MonitoredTFEstimator
+                - TrainingStrategy
+
+        - train.py
+            - MonitoredTFEstimator
+            - TimedRunHook <- tf.train.SessionRunHook
+            - StopAtLossHook <- tf.train.SessionRunHook
+            - MultiTrainer
+
+        - nbglm
+            - estimator.py
+                - ESTIMATOR_PARAMS
+                - ModelVars
+                - BasicModelGraph
+                    - tf.name_scopes
+                        - mu
+                        - r
+                        - probs
+                        - log_probs
+                        - loss
+                - FullDataModelGraph
+                    - tf.name_scopes
+                        - log_likelihood
+                        - loss
+                        - hessians
+                - EstimatorGraph <- .base.TFEstimatorGraph
+                    - uses .ModelVars, .BasicModelGraph, .FullDataModelGraph, .train.MultiTrainer
+                    - tf.name_scopes
+                        - input_pipeline
+                        - batch
+                        - full_data
+                        - training
+                            - full_gradient
+                            - newton-raphson
+                        - init_op
+                        - output
+                        - summaries
+                - Estimator <- models.nbglm.AbstractEstimator, train.
+                    - TrainingStrategy
