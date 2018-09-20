@@ -189,60 +189,56 @@ class ModelVars:
                 init_b = clip_param(init_b, "b")
 
             if constraints_loc is None:
-                a_var = tf.Variable(init_a)
-            else:
                 # Find all dependent variables.
                 a_deps = np.any(constraints_loc==-1, axis=0)
                 # Define reduced variable set which is stucturally identifiable.
-                a_var = tf.Variable(init_a[np.where(a_deps==False)[0]], name="params")
-                # Define modified constraint matrix which is the linear model
-                # matrix that builds the dependent model parameters from the
-                # vector of idnependent variables:
-                constraints_loc_model = tf.convert_to_tensor(constraints_loc[:, np.where(a_deps==False)[0]], dtype=dtype)
-                # Define first layer of computation graph on identifiable variables
-                # to yield dependent set of parameters of model.
-                a_dep_op = tf.matmul(constraints_loc_model, a_var)
-                a_idx_var = np.concatenate([
-                    np.where(a_deps==True)[0],
-                    np.where(a_deps==False)[0]])
-                a_op = tf.concat([a_var, a_dep_op])[a_idx_var] # does this work?
+                init_a = init_a[np.where(a_deps==False)[0]]
                 
-            if constraints_scale is None:
-                b_var = tf.Variable(init_b)
-            else:
+            if constraints_scale is not None:
                 # Find all dependent variables.
                 b_deps = np.any(constraints_scale==-1, axis=0)
                 # Define reduced variable set which is stucturally identifiable.
-                b_var = tf.Variable(init_b[np.where(b_deps==False)[0]], name="params")
+                init_b = init_b[np.where(b_deps==False)[0]]
+
+            # Param is the only tf.Variable in the graph. 
+            # a_var and b_var have to be slices of params.
+            params = tf.Variable(tf.concat(
+                [
+                    init_a,
+                    init_b,
+                ],
+                axis=0
+            ))
+
+            a_var = params[0:init_a.shape[0]]
+            b_var = params[init_a.shape[0]:]
+
+            # Define first layer of computation graph on identifiable variables
+            # to yield dependent set of parameters of model.
+            if constraints_loc is not None:
                 # Define modified constraint matrix which is the linear model
                 # matrix that builds the dependent model parameters from the
-                # vector of idnependent variables:
+                # vector of independent variables:
+                constraints_loc_model = tf.convert_to_tensor(constraints_loc[:, np.where(a_deps==False)[0]], dtype=dtype)
+                a_dep = tf.matmul(constraints_loc_model, a_var)
+                a_idx_var = np.concatenate([
+                    np.where(a_deps==True)[0],
+                    np.where(a_deps==False)[0]])
+                a = tf.concat([a_var, a_dep])[a_idx_var]
+                
+            if constraints_scale is not None:
+                # Define modified constraint matrix which is the linear model
+                # matrix that builds the dependent model parameters from the
+                # vector of independent variables:
                 constraints_scale_model = tf.convert_to_tensor(constraints_scale[:, np.where(b_deps==False)[0]], dtype=dtype)
-                # Define first layer of computation graph on identifiable variables
-                # to yield dependent set of parameters of model.
-                b_dep_op = tf.matmul(constraints_scale_model, b_var)
+                b_dep = tf.matmul(constraints_scale_model, b_var)
                 b_idx_var = np.concatenate([
                     np.where(b_deps==True)[0],
                     np.where(b_deps==False)[0]])
-                b_op = tf.concat([b_var, b_dep_op])[b_idx_var] # does this work?
+                b = tf.concat([b_var, b_dep])[b_idx_var] 
 
-            # what do we need params for? do we need the parameter vector
-            # here or the variables that are optimized over?
-            params = tf.concat(
-                [
-                    a_var,
-                    b_var,
-                ],
-                axis=0
-            )
-
-            # we can now use b_op and a_op as graphs that yield the parameter vectors.
-            # i think those have to passed to *_clipped?
-            # a_var and b_var are the variables that are optimized and do not include
-            # the dependent model parameters.
-            
-            a_clipped = clip_param(a_op, "a")
-            b_clipped = clip_param(b_op, "b")
+            a_clipped = clip_param(a, "a")
+            b_clipped = clip_param(b, "b")
 
             self.a = a_clipped
             self.b = b_clipped
