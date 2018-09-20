@@ -131,6 +131,17 @@ class ModelVars:
     b: tf.Tensor
     a_var: tf.Variable
     b_var: tf.Variable
+    params: tf.Variable
+    """ Build tf.Variables to be optimzed and their constraints.
+
+    a_var and b_var slices of the tf.Variable params which contains
+    all parameters to be optimzed during model estimation. 
+    Params is defined across both location and scale model so that 
+    the hessian can be computed for the entire model.
+    a and b are the clipped parameter values which also contain
+    constraints and constrained dependent coefficients which are not
+    directrly optimzed.
+    """
 
     def __init__(
             self,
@@ -141,6 +152,8 @@ class ModelVars:
             num_features,
             init_a=None,
             init_b=None,
+            constraints_loc=None,
+            constraints_scale=None,
             name="ModelVars",
     ):
         with tf.name_scope(name):
@@ -151,6 +164,7 @@ class ModelVars:
                 # assert init_dist.r.shape == [1, num_features]
 
                 if init_a is None:
+                    # TODO: fine to ignore constraints here?
                     intercept = tf.log(init_dist.mean())
                     slope = tf.random_uniform(
                         tf.TensorShape([num_design_loc_params - 1, num_features]),
@@ -166,6 +180,7 @@ class ModelVars:
                     init_a = tf.convert_to_tensor(init_a, dtype=dtype)
 
                 if init_b is None:
+                    # TODO: fine to ignore constraints here?
                     intercept = tf.log(init_dist.r)
                     slope = tf.random_uniform(
                         tf.TensorShape([num_design_scale_params - 1, num_features]),
@@ -183,6 +198,20 @@ class ModelVars:
                 init_a = clip_param(init_a, "a")
                 init_b = clip_param(init_b, "b")
 
+            if constraints_loc is None:
+                # Find all dependent variables.
+                a_deps = np.any(constraints_loc==-1, axis=0)
+                # Define reduced variable set which is stucturally identifiable.
+                init_a = init_a[np.where(a_deps==False)[0]]
+                
+            if constraints_scale is not None:
+                # Find all dependent variables.
+                b_deps = np.any(constraints_scale==-1, axis=0)
+                # Define reduced variable set which is stucturally identifiable.
+                init_b = init_b[np.where(b_deps==False)[0]]
+
+            # Param is the only tf.Variable in the graph. 
+            # a_var and b_var have to be slices of params.
             params = tf.Variable(tf.concat(
                 [
                     init_a,
@@ -190,14 +219,48 @@ class ModelVars:
                 ],
                 axis=0
             ), name="params")
+
             a_var = params[0:init_a.shape[0]]
             b_var = params[init_a.shape[0]:]
 
-            assert a_var.shape == (num_design_loc_params, num_features)
-            assert b_var.shape == (num_design_scale_params, num_features)
+            # Define first layer of computation graph on identifiable variables
+            # to yield dependent set of parameters of model for each location
+            # and scale model.
 
-            a_clipped = clip_param(a_var, "a")
-            b_clipped = clip_param(b_var, "b")
+            if constraints_loc is not None:
+                # Define modified constraint matrix which is the linear model
+                # matrix that builds the dependent model parameters from the
+                # vector of independent variables:
+                constraints_loc_model = tf.convert_to_tensor(
+                    constraints_loc[:, np.where(a_deps==False)[0]], dtype=dtype)
+                a_dep = tf.matmul(constraints_loc_model, tf.transpose(a_var))
+                a_idx_var = np.vstack([
+                    np.where(a_deps==True)[0],
+                    np.where(a_deps==False)[0]
+                ])
+                a = tf.gather(tf.concat([
+                    a_var, 
+                    a_dep
+                ], axis=0), indices=b_idx_var, axis=0)
+                
+            if constraints_scale is not None:
+                # Define modified constraint matrix which is the linear model
+                # matrix that builds the dependent model parameters from the
+                # vector of independent variables:
+                constraints_scale_model = tf.convert_to_tensor(
+                    constraints_scale[:, np.where(b_deps==False)[0]], dtype=dtype)
+                b_dep = tf.matmul(constraints_scale_model, tf.transpose(b_var))
+                b_idx_var = np.vstack([
+                    np.where(b_deps==True)[0],
+                    np.where(b_deps==False)[0]
+                ])
+                b = tf.gather(tf.concat([
+                    b_var, 
+                    b_dep
+                ], axis=0), indices=b_idx_var, axis=0)
+
+            a_clipped = clip_param(a, "a")
+            b_clipped = clip_param(b, "b")
 
             self.a = a_clipped
             self.b = b_clipped
@@ -408,6 +471,8 @@ class EstimatorGraph(TFEstimatorGraph):
             batch_size=500,
             init_a=None,
             init_b=None,
+            constraints_loc=None,
+            constraints_scale=None,
             extended_summary=False,
             dtype="float32"
     ):
@@ -471,6 +536,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 num_features=num_features,
                 init_a=init_a,
                 init_b=init_b,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale
             )
 
             with tf.name_scope("batch"):
@@ -902,6 +969,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "closed_form"):
                 try:
                     unique_design_loc, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
+                    if input_data.constraints_loc is not None:
+                        unique_design_loc_constraints = input_data.constraints_loc
+                        # Add constraints into design matrix to remove structural unidentifiability.
+                        unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
                     # inv_design = np.linalg.pinv(unique_design_loc)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
 
@@ -909,9 +980,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
 
                     a = np.log(mean)
+                    if input_data.constraints_loc is not None:
+                        a_constraints = np.zeros([unique_design_loc_constraints.shape[0]])  
+                        # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
+                        a = np.concatenate([a, a_constraints])
                     # a_prime = np.matmul(inv_design, a) # NOTE: this is numerically inaccurate!
                     a_prime = np.linalg.lstsq(unique_design_loc, a)
-                    init_a = a_prime[0]
+                    init_a = a_prime[0][:a_features.shape[0]]
                     # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
 
                     # train mu, if the closed-form solution is inaccurate
@@ -926,6 +1001,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "closed_form"):
                 try:
                     unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
+                    if input_data.constraints_scale is not None:
+                        unique_design_scale_constraints = input_data.constraints_scale
+                        # Add constraints into design matrix to remove structural unidentifiability.
+                        unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
                     # inv_design = np.linalg.inv(unique_design_scale)
 
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
@@ -941,6 +1020,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     r = np.fmin(r, np.finfo(r.dtype).max)
 
                     b = np.log(r)
+                    if input_data.constraints_scale is not None:
+                        b_constraints = np.zeros([unique_design_scale_constraints.shape[0]])
+                        # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
+                        b = np.concatenate([b, b_constraints])
                     # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
                     b_prime = np.linalg.lstsq(unique_design_scale, b)
                     init_b = b_prime[0]
@@ -955,6 +1038,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     logger.warning("Closed form initialization failed!")
 
             if init_model is not None:
+                #  TODO: is it necessary to add contraints here? initialized close to zero anyways.
                 if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
                     # location
                     my_loc_names = set(input_data.design_loc_names.values)
@@ -1055,6 +1139,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
+                constraints_loc=input_data.constraints_loc,
+                constraints_scale=input_data.constraints_scale,
                 extended_summary=extended_summary,
                 dtype=dtype
             )
