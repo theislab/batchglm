@@ -8,6 +8,7 @@ import tensorflow as tf
 # import tensorflow_probability as tfp
 
 import numpy as np
+from numpy.linalg import matrix_rank
 
 try:
     import anndata
@@ -1051,6 +1052,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         unique_design_loc_constraints = input_data.constraints_loc
                         # Add constraints into design matrix to remove structural unidentifiability.
                         unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
+                    if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
+                        logger.warning("Location model is not full rank!")
                     # inv_design = np.linalg.pinv(unique_design_loc)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
 
@@ -1083,6 +1086,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         unique_design_scale_constraints = input_data.constraints_scale
                         # Add constraints into design matrix to remove structural unidentifiability.
                         unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
+                    if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
+                        logger.warning("Scale model is not full rank!")
                     # inv_design = np.linalg.inv(unique_design_scale)
 
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
