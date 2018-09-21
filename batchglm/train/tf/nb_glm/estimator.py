@@ -86,7 +86,12 @@ def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
     # Find all independent variables:
     idx_indep = np.where(np.any(constraints==-1, axis=0)==False)[0]
     # Relate constraints to dependent variables:
-    idx_dep = np.array([np.where(constr==-1)[0][0] for constr in constraints])
+    idx_dep = np.array([np.where(constr==-1)[0] for constr in constraints])
+    # Only chose dependent variable which was not already defined above:
+    idx_dep = np.concatenate([
+        x[[xx not in np.concatenate(idx_dep[:i]) for xx in x]] if i>0 else x 
+        for i,x in enumerate(idx_dep)
+    ])
     
     # Add column with dependent parameters successfully to
     # the right side of the parameter tensor x. The parameter
@@ -97,11 +102,10 @@ def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
     for i in range(constraints.shape[0]):
         idx_var_i = np.concatenate([idx_indep, idx_dep[:i]])
         constraint_model = constraints[[i],:][:,idx_var_i]
-        constraint_model[constraint_model==-1] = 0
-        constraint_model = tf.convert_to_tensor(constraint_model, dtype=dtype)
+        constraint_model = tf.convert_to_tensor(-constraint_model, dtype=dtype)
         # Compute new dependent variable based on current constrained
         # and add to parameter tensor:
-        x = tf.concat([x, -tf.matmul(constraint_model, x)], axis=0)
+        x = tf.concat([x, tf.matmul(constraint_model, x)], axis=0)
 
     # Rearrange parameter matrix to follow parameter ordering
     # in design matrix.
@@ -1054,7 +1058,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
                     if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
                         logger.warning("Location model is not full rank!")
-                    # inv_design = np.linalg.pinv(unique_design_loc)
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
 
                     mean = X.groupby("group").mean(dim="observations")
@@ -1065,7 +1068,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])  
                         # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
                         a = np.vstack([a, a_constraints])
-                    # a_prime = np.matmul(inv_design, a) # NOTE: this is numerically inaccurate!
+                    #inv_design = np.linalg.pinv(unique_design_loc) # NOTE: this is numerically inaccurate based on pinv!
+                    #inv_design = np.linalg.inv(unique_design_loc) # NOTE: this is exact if full rank!
+                    #init_a = np.matmul(inv_design, a) 
                     a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
                     init_a = a_prime[0]
                     # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
@@ -1088,8 +1093,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
                     if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
                         logger.warning("Scale model is not full rank!")
-                    # inv_design = np.linalg.inv(unique_design_scale)
-
+                    
                     X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                     Xdiff = X - np.exp(input_data.design_loc @ init_a)
                     variance = np.square(Xdiff).groupby("group").mean(dim="observations")
@@ -1107,7 +1111,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         b_constraints = np.zeros([input_data.constraints_scale.shape[0], b.shape[1]])
                         # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
                         b = np.vstack([b, b_constraints])
-                    # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
+                    #inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate based on pinv!
+                    #inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
+                    #init_b = np.matmul(inv_design, b)
                     b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
                     init_b = b_prime[0]
 
