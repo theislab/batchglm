@@ -82,8 +82,6 @@ class InputData(NegativeBinomialInputData):
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
-            constraints_loc = None,
-            constraints_scale = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
@@ -147,9 +145,6 @@ class InputData(NegativeBinomialInputData):
         retval.design_loc = design_loc
         retval.design_scale = design_scale
 
-        retval.constraints_loc = constraints_loc
-        retval.constraints_scale = constraints_scale
-
         if size_factors is not None:
             retval.size_factors = size_factors
 
@@ -164,12 +159,12 @@ class InputData(NegativeBinomialInputData):
         self.data["design_loc"] = data
 
     @property
-    def constraints_loc(self) -> xr.DataArray:
-        return self.data["constraints_loc"]
+    def constraints_loc(self) -> np.ndarray:
+        return self._constraints_loc
 
-    @design_loc.setter
-    def constraints_loc(self, data):
-        self.data["constraints_loc"] = data
+    @constraints_loc.setter
+    def constraints_loc(self, data: np.ndarray):
+        self._constraints_loc = data
 
     @property
     def design_loc_names(self) -> xr.DataArray:
@@ -188,12 +183,12 @@ class InputData(NegativeBinomialInputData):
         self.data["design_scale"] = data
 
     @property
-    def constraints_scale(self) -> xr.DataArray:
-        return self.data["constraints_scale"]
+    def constraints_scale(self) -> np.ndarray:
+        return self._constraints_scale
 
-    @design_loc.setter
-    def constraints_scale(self, data):
-        self.data["constraints_scale"] = data
+    @constraints_scale.setter
+    def constraints_scale(self, data: np.ndarray):
+        self._constraints_scale = data
 
     @property
     def design_scale_names(self) -> xr.DataArray:

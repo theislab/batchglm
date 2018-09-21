@@ -72,13 +72,73 @@ def clip_param(param, name):
         bounds_max[name]
     )
 
+def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
+    """ Iteratively build depend variables from other variables via constraints
+
+    :param constraints: Array with constraints in rows and model parameters in columns.
+    :param var: Variable tensor features x independent parameters.
+    :param dtype: Precision used in tensorflow.
+
+    :return: Full model parameter matrix with dependent parameters.
+    """
+    
+    # Find all independent variables:
+    idx_indep = np.where(np.any(constraints==-1, axis=0)==False)[0]
+    # Relate constraints to dependent variables:
+    idx_dep = np.array([np.where(constr==-1)[0][0] for constr in constraints])
+    
+    # Add column with dependent parameters successfully to
+    # the right side of the parameter tensor x. The parameter
+    # tensor is initialised with the independent variables var
+    # and is grown by one varibale in each iteration until
+    # all variables are there.
+    x = var
+    for i in range(constraints.shape[0]):
+        idx_var_i = np.concatenate([idx_indep, idx_dep[:i]])
+        constraint_model = constraints[[i],:][:,idx_var_i]
+        constraint_model[constraint_model==-1] = 0
+        constraint_model = tf.convert_to_tensor(constraint_model, dtype=dtype)
+        # Compute new dependent variable based on current constrained
+        # and add to parameter tensor:
+        x = tf.concat([x, -tf.matmul(constraint_model, x)], axis=0)
+
+    # Rearrange parameter matrix to follow parameter ordering
+    # in design matrix.
+
+    # Assemble index reordering vector:
+    idx_var = np.argsort(np.concatenate([idx_indep, idx_dep]))
+    # Reorder parameter tensor:
+    x = tf.gather(x, indices=idx_var, axis=0)
+        
+    return x
 
 class BasicModelGraph:
 
-    def __init__(self, X, design_loc, design_scale, a, b, size_factors=None):
+    def __init__(
+        self, 
+        X, 
+        design_loc, 
+        design_scale, 
+        constraints_loc, 
+        constraints_scale, 
+        a, 
+        b, 
+        dtype,
+        size_factors=None
+    ):
         dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
                                                r=tf.exp(tf.gather(b, 0)),
                                                name="dist_estim")
+
+        # Define first layer of computation graph on identifiable variables
+        # to yield dependent set of parameters of model for each location
+        # and scale model.
+
+        if constraints_loc is not None:
+            a = apply_constraints(constraints_loc, a, dtype=dtype)
+            
+        if constraints_scale is not None: 
+            b = apply_constraints(constraints_scale, b, dtype=dtype)
 
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
@@ -198,17 +258,17 @@ class ModelVars:
                 init_a = clip_param(init_a, "a")
                 init_b = clip_param(init_b, "b")
 
-            if constraints_loc is None:
+            if constraints_loc is not None:
                 # Find all dependent variables.
-                a_deps = np.any(constraints_loc==-1, axis=0)
+                a_is_dep = np.any(constraints_loc==-1, axis=0)
                 # Define reduced variable set which is stucturally identifiable.
-                init_a = init_a[np.where(a_deps==False)[0]]
+                init_a = tf.gather(init_a, indices=np.where(a_is_dep==False)[0], axis=0)
                 
             if constraints_scale is not None:
                 # Find all dependent variables.
-                b_deps = np.any(constraints_scale==-1, axis=0)
+                b_is_dep = np.any(constraints_scale==-1, axis=0)
                 # Define reduced variable set which is stucturally identifiable.
-                init_b = init_b[np.where(b_deps==False)[0]]
+                init_b = tf.gather(init_b, indices=np.where(b_is_dep==False)[0], axis=0)
 
             # Param is the only tf.Variable in the graph. 
             # a_var and b_var have to be slices of params.
@@ -228,36 +288,10 @@ class ModelVars:
             # and scale model.
 
             if constraints_loc is not None:
-                # Define modified constraint matrix which is the linear model
-                # matrix that builds the dependent model parameters from the
-                # vector of independent variables:
-                constraints_loc_model = tf.convert_to_tensor(
-                    constraints_loc[:, np.where(a_deps==False)[0]], dtype=dtype)
-                a_dep = tf.matmul(constraints_loc_model, tf.transpose(a_var))
-                a_idx_var = np.vstack([
-                    np.where(a_deps==True)[0],
-                    np.where(a_deps==False)[0]
-                ])
-                a = tf.gather(tf.concat([
-                    a_var, 
-                    a_dep
-                ], axis=0), indices=b_idx_var, axis=0)
+                a = apply_constraints(constraints_loc, a_var, dtype=dtype)
                 
             if constraints_scale is not None:
-                # Define modified constraint matrix which is the linear model
-                # matrix that builds the dependent model parameters from the
-                # vector of independent variables:
-                constraints_scale_model = tf.convert_to_tensor(
-                    constraints_scale[:, np.where(b_deps==False)[0]], dtype=dtype)
-                b_dep = tf.matmul(constraints_scale_model, tf.transpose(b_var))
-                b_idx_var = np.vstack([
-                    np.where(b_deps==True)[0],
-                    np.where(b_deps==False)[0]
-                ])
-                b = tf.gather(tf.concat([
-                    b_var, 
-                    b_dep
-                ], axis=0), indices=b_idx_var, axis=0)
+                b = apply_constraints(constraints_scale, b_var, dtype=dtype)
 
             a_clipped = clip_param(a, "a")
             b_clipped = clip_param(b, "b")
@@ -273,9 +307,12 @@ def feature_wise_hessians(
         X,
         design_loc,
         design_scale,
+        constraints_loc,
+        constraints_scale,
         params,
         p_shape_a,
         p_shape_b,
+        dtype,
         size_factors=None
 ) -> List[tf.Tensor]:
     dtype = X.dtype
@@ -290,7 +327,17 @@ def feature_wise_hessians(
 
         a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
-        model = BasicModelGraph(X, design_loc, design_scale, a_split, b_split, size_factors=size_factors)
+        model = BasicModelGraph(
+            X=X, 
+            design_loc=design_loc, 
+            design_scale=design_scale, 
+            constraints_loc=constraints_loc, 
+            constraints_scale=constraints_scale,
+            a=a_split, 
+            b=b_split, 
+            dtype=dtype,
+            size_factors=size_factors
+        )
 
         hess = tf.hessians(- model.log_likelihood, params)
 
@@ -368,6 +415,9 @@ class FullDataModelGraph:
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
             model_vars,
+            constraints_loc,
+            constraints_scale,
+            dtype
     ):
         num_features = model_vars.a.shape[-1]
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
@@ -378,7 +428,16 @@ class FullDataModelGraph:
 
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
-            model = BasicModelGraph(X, design_loc, design_scale, model_vars.a, model_vars.b, size_factors=size_factors)
+            model = BasicModelGraph(
+                X=X, 
+                design_loc=design_loc, 
+                design_scale=design_scale, 
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                a=model_vars.a_var, 
+                b=model_vars.b_var, 
+                dtype=dtype,
+                size_factors=size_factors)
             return model
 
         super()
@@ -401,12 +460,15 @@ class FullDataModelGraph:
             def hessian_map(idx, data):
                 X, design_loc, design_scale, size_factors = data
                 return feature_wise_hessians(
-                    X,
-                    design_loc,
-                    design_scale,
-                    model_vars.params,
-                    model_vars.a.shape[0],
-                    model_vars.b.shape[0],
+                    X=X,
+                    design_loc=design_loc,
+                    design_scale=design_scale,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    params=model_vars.params,
+                    p_shape_a=model_vars.a_var.shape[0],
+                    p_shape_b=model_vars.b_var.shape[0],
+                    dtype=dtype,
                     size_factors=size_factors)
 
             def hessian_red(prev, cur):
@@ -545,8 +607,17 @@ class EstimatorGraph(TFEstimatorGraph):
                 #   only `batch_size` observations will be used;
                 #   All per-sample variables have to be passed via `data`.
                 #   Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
-                batch_model = BasicModelGraph(batch_X, batch_design_loc, batch_design_scale, model_vars.a, model_vars.b,
-                                              size_factors=batch_size_factors)
+                batch_model = BasicModelGraph(
+                    X=batch_X, 
+                    design_loc=batch_design_loc, 
+                    design_scale=batch_design_scale, 
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    a=model_vars.a_var, 
+                    b=model_vars.b_var,
+                    dtype=dtype,
+                    size_factors=batch_size_factors
+                )
 
                 # minimize negative log probability (log(1) = 0);
                 # use the mean loss to keep a constant learning rate independently of the batch size
@@ -562,6 +633,9 @@ class EstimatorGraph(TFEstimatorGraph):
                     fetch_fn=fetch_fn,
                     batch_size=batch_size * buffer_size,
                     model_vars=model_vars,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    dtype=dtype,
                 )
                 full_data_loss = full_data_model.loss
                 fisher_inv = op_utils.pinv(full_data_model.hessians)
@@ -981,12 +1055,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     a = np.log(mean)
                     if input_data.constraints_loc is not None:
-                        a_constraints = np.zeros([unique_design_loc_constraints.shape[0]])  
+                        a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])  
                         # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-                        a = np.concatenate([a, a_constraints])
+                        a = np.vstack([a, a_constraints])
                     # a_prime = np.matmul(inv_design, a) # NOTE: this is numerically inaccurate!
-                    a_prime = np.linalg.lstsq(unique_design_loc, a)
-                    init_a = a_prime[0][:a_features.shape[0]]
+                    a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
+                    init_a = a_prime[0]
                     # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
 
                     # train mu, if the closed-form solution is inaccurate
@@ -1021,11 +1095,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     b = np.log(r)
                     if input_data.constraints_scale is not None:
-                        b_constraints = np.zeros([unique_design_scale_constraints.shape[0]])
+                        b_constraints = np.zeros([input_data.constraints_scale.shape[0], b.shape[1]])
                         # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-                        b = np.concatenate([b, b_constraints])
+                        b = np.vstack([b, b_constraints])
                     # b_prime = np.matmul(inv_design, b) # NOTE: this is numerically inaccurate!
-                    b_prime = np.linalg.lstsq(unique_design_scale, b)
+                    b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
                     init_b = b_prime[0]
 
                     # train r, if quick_scale is False or the closed-form solution is inaccurate
