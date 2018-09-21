@@ -145,6 +145,9 @@ class InputData(NegativeBinomialInputData):
         retval.design_loc = design_loc
         retval.design_scale = design_scale
 
+        retval._constraints_loc = None
+        retval._constraints_scale = None
+
         if size_factors is not None:
             retval.size_factors = size_factors
 

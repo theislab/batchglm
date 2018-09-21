@@ -289,9 +289,13 @@ class ModelVars:
 
             if constraints_loc is not None:
                 a = apply_constraints(constraints_loc, a_var, dtype=dtype)
+            else:
+                a = a_var
                 
             if constraints_scale is not None:
                 b = apply_constraints(constraints_scale, b_var, dtype=dtype)
+            else:
+                b = b_var
 
             a_clipped = clip_param(a, "a")
             b_clipped = clip_param(b, "b")
