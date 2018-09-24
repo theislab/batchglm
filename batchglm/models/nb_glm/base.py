@@ -180,7 +180,13 @@ class InputData(NegativeBinomialInputData):
 
     @size_factors.setter
     def size_factors(self, data):
-        self.data.coords["size_factors"] = data
+        if data is None and "size_factors" in self.data.coords:
+            del self.data.coords["size_factors"]
+        else:
+            self.data.coords["size_factors"] = xr.DataArray(
+                dims=("observations",),
+                data=np.broadcast_to(data, [self.num_observations, ])
+            )
 
     @property
     def num_design_loc_params(self):
@@ -229,6 +235,10 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         return self.input_data.design_scale
 
     @property
+    def size_factors(self):
+        return self.input_data.size_factors
+
+    @property
     @abc.abstractmethod
     def a(self) -> xr.DataArray:
         pass
@@ -240,11 +250,27 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
 
     @property
     def mu(self) -> xr.DataArray:
-        return np.exp(self.design_loc.dot(self.a))
+        # exp(design * a + sf)
+        # Depend on xarray and use xr.DataArray.dot() for matrix multiplication
+        # Also, make sure that the right order of dimensions get returned => use xr.DataArray.transpose()
+        log_retval = self.design_loc.dot(self.a, dims="design_loc_params").transpose(*self.param_shapes()["mu"])
+
+        if self.size_factors is not None:
+            log_retval += self.size_factors
+
+        return np.exp(log_retval)
 
     @property
     def r(self) -> xr.DataArray:
-        return np.exp(self.design_scale.dot(self.b))
+        # exp(design * b + sf)
+        # Depend on xarray and use xr.DataArray.dot() for matrix multiplication
+        # Also, make sure that the right order of dimensions get returned => use xr.DataArray.transpose()
+        log_retval = self.design_scale.dot(self.b, dims="design_scale_params").transpose(*self.param_shapes()["r"])
+
+        if self.size_factors is not None:
+            log_retval += self.size_factors
+
+        return np.exp(log_retval)
 
     @property
     def par_link_loc(self):

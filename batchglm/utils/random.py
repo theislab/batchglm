@@ -3,6 +3,11 @@ import numpy as np
 # import scipy.special
 from scipy.special import gammaln
 
+try:
+    import xarray as xr
+except ImportError:
+    xr = None
+
 
 class NegativeBinomial:
     r"""
@@ -129,6 +134,12 @@ class NegativeBinomial:
         """
         p = self.p
         r = self.r
+
+        # broadcasting
+        if xr != None and isinstance(p, xr.DataArray) and isinstance(r, xr.DataArray) and isinstance(X, xr.DataArray):
+            p, r, X = xr.align(p, r, X)
+        else:
+            p, r, X = np.broadcast_arrays(p, r, X)
 
         # return scipy.stats.nbinom(n=r, p=1 - p).logpmf(X)
         coeff = gammaln(r + X) - gammaln(X + 1) - gammaln(r)
