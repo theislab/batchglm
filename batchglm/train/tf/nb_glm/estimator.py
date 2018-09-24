@@ -1053,7 +1053,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 try:
                     unique_design_loc, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
                     if input_data.constraints_loc is not None:
-                        unique_design_loc_constraints = input_data.constraints_loc
+                        unique_design_loc_constraints = input_data.constraints_loc.copy()
+                        # -1 in the constraint matrix is used to indicate which variable
+                        # is made dependent so that the constrained is fullfilled.
+                        # This has to be rewritten here so that the design matrix is full rank
+                        # which is necessary so that it can be inverted for parameter
+                        # initialisation.
+                        unique_design_loc_constraints[unique_design_loc_constraints==-1] = 1
                         # Add constraints into design matrix to remove structural unidentifiability.
                         unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
                     if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
@@ -1068,7 +1074,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])  
                         # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
                         a = np.vstack([a, a_constraints])
-                    #inv_design = np.linalg.pinv(unique_design_loc) # NOTE: this is numerically inaccurate based on pinv!
+                    #inv_design = np.linalg.pinv(unique_design_loc) # NOTE: this is numerically inaccurate!
                     #inv_design = np.linalg.inv(unique_design_loc) # NOTE: this is exact if full rank!
                     #init_a = np.matmul(inv_design, a) 
                     a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
@@ -1088,7 +1094,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 try:
                     unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
                     if input_data.constraints_scale is not None:
-                        unique_design_scale_constraints = input_data.constraints_scale
+                        unique_design_scale_constraints = input_data.constraints_scale.copy()
+                        # -1 in the constraint matrix is used to indicate which variable
+                        # is made dependent so that the constrained is fullfilled.
+                        # This has to be rewritten here so that the design matrix is full rank
+                        # which is necessary so that it can be inverted for parameter
+                        # initialisation.
+                        unique_design_scale_constraints[unique_design_scale_constraints==-1] = 1
                         # Add constraints into design matrix to remove structural unidentifiability.
                         unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
                     if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
@@ -1111,7 +1123,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         b_constraints = np.zeros([input_data.constraints_scale.shape[0], b.shape[1]])
                         # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
                         b = np.vstack([b, b_constraints])
-                    #inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate based on pinv!
+                    #inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate!
                     #inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
                     #init_b = np.matmul(inv_design, b)
                     b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
