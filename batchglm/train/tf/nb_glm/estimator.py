@@ -1137,7 +1137,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     logger.warning("Closed form initialization failed!")
 
             if init_model is not None:
-                #  TODO: is it necessary to add contraints here? initialized close to zero anyways.
                 if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
                     # location
                     my_loc_names = set(input_data.design_loc_names.values)
