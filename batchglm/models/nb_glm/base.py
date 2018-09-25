@@ -82,6 +82,8 @@ class InputData(NegativeBinomialInputData):
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
+            contraints_loc:  np.ndarray = None,
+            contraints_scale:  np.ndarray = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
@@ -111,14 +113,24 @@ class InputData(NegativeBinomialInputData):
         :param design_scale_names: (optional) names of the design_scale parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
-        :param contrainsts_loc: Constraint matrix with same number of columns as design matrix.
-            Each row is a constraint that defines a sum on variables which have to add to one.
-            Each row contains one -1 which is the variable which will be dependent and otherwise 
-            0s or 1s.
-        :param contrainsts_scale: Constraint matrix with same number of columns as design matrix.
-            Each row is a constraint that defines a sum on variables which have to add to one.
-            Each row contains one -1 which is the variable which will be dependent and otherwise 
-            0s or 1s.
+        :param contrainsts_loc: : Constraints for location model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that 
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param contrainsts_scale: : Constraints for scale model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that 
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
         :param size_factors: Some size factor to scale the raw data in link-space.
         :param observation_names: (optional) names of the observations.
         :param feature_names: (optional) names of the features.
@@ -145,8 +157,8 @@ class InputData(NegativeBinomialInputData):
         retval.design_loc = design_loc
         retval.design_scale = design_scale
 
-        retval._constraints_loc = None
-        retval._constraints_scale = None
+        retval.constraints_loc = constraints_loc
+        retval.constraints_scale = constraints_scale
 
         if size_factors is not None:
             retval.size_factors = size_factors
