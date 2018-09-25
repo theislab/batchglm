@@ -78,6 +78,13 @@ def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
     """ Iteratively build depend variables from other variables via constraints
 
     :param constraints: Array with constraints in rows and model parameters in columns.
+        Each constraint contains non-zero entries for the a of parameters that 
+        has to sum to zero. This constraint is enforced by binding one parameter
+        to the negative sum of the other parameters, effectively representing that
+        parameter as a function of the other parameters. This dependent
+        parameter is indicated by a -1 in this array, the independent parameters
+        of that constraint (which may be dependent at an earlier constraint)
+        are indicated by a 1.
     :param var: Variable tensor features x independent parameters.
     :param dtype: Precision used in tensorflow.
 
