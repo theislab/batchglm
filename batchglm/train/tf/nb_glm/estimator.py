@@ -1088,6 +1088,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                     # train mu, if the closed-form solution is inaccurate
                     self._train_mu = not np.all(a_prime[1] == 0)
+                    # Temporal fix: train mu if size factors are given as closed form may be differen:
+                    if input_data.size_factors is not None:
+                        self._train_mu = True
 
                     logger.info("Using closed-form MLE initialization for mean")
                     logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
