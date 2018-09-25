@@ -157,7 +157,7 @@ class BasicModelGraph:
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
             if size_factors is not None:
-                log_mu = log_mu + size_factors
+                log_mu = tf.transpose(tf.add(tf.transpose(log_mu), size_factors))
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
