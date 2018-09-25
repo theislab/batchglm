@@ -63,6 +63,10 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
     if names is not None:
         dmat.coords[dim] = names
     elif dim not in dmat.coords:
+        # ### add dmat.coords[dim] = 0..len(dim) if dmat.coords[dim] is non-existent and `names` was not provided.
+        # Note that `dmat.coords[dim]` returns a corresponding index array although dmat.coords[dim] is not set.
+        # However, other ways accessing this coordinates will raise errors instead;
+        # therefore, it is necessary to set this index explicitly
         dmat.coords[dim] = dmat.coords[dim]
         # raise ValueError("Could not find names for %s; Please specify them manually." % dim)
 
