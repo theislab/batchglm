@@ -47,6 +47,10 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
             dmat.coords[dim] = design.design_info.column_names
         elif isinstance(design, xr.DataArray):
             dmat = design
+            dmat = dmat.rename({
+                design.dims[0]: "observations",
+                design.dims[1]: dim,
+            })
         elif isinstance(design, pd.DataFrame):
             dmat = xr.DataArray(np.asarray(design), dims=("observations", dim))
             dmat.coords[dim] = design.columns
@@ -57,6 +61,10 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
         dmat = xr.DataArray(dmat, dims=("observations", dim))
     elif isinstance(data, xr.Dataset):
         dmat: xr.DataArray = data[design_key]
+        dmat = dmat.rename({
+            design.dims[0]: "observations",
+            design.dims[1]: dim,
+        })
     else:
         raise ValueError("Missing design_loc matrix!")
 
@@ -86,8 +94,8 @@ class InputData(NegativeBinomialInputData):
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
-            constraints_loc:  np.ndarray = None,
-            constraints_scale:  np.ndarray = None,
+            constraints_loc: np.ndarray = None,
+            constraints_scale: np.ndarray = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
