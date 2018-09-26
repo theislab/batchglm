@@ -157,7 +157,7 @@ class BasicModelGraph:
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
             if size_factors is not None:
-                log_mu = tf.transpose(tf.add(tf.transpose(log_mu), size_factors))
+                log_mu = tf.add(log_mu, size_factors) 
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
@@ -1211,6 +1211,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
+            """
+            Documentation of tensorflow coding style in this function:
+            tf.py_func defines a python function (the getters of the InputData object slots)
+            as a tensorflow operation. Here, the shape of the tensor is lost and
+            has to be set with set_shape. For size factors, we use explicit broadcasting
+            as explained below.
+            """
             X_tensor = tf.py_func(
                 func=input_data.fetch_X,
                 inp=[idx],
@@ -1246,6 +1253,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     stateful=False
                 ))
                 size_factors_tensor.set_shape(idx.get_shape())
+                # Here, we broadcast the size_factor tensor to the batch size,
+                # note that this should not consum any more memory than
+                # keeping the 1D array and performing implicit broadcasting in 
+                # the arithmetic operations in the graph.
+                size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
+                size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
+                    shape=[tf.size(idx), input_data.num_features])
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
                 size_factors_tensor = tf.constant(0, shape=(), dtype=dtype)
