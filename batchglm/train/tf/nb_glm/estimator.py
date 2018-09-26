@@ -1043,6 +1043,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._train_r = True
 
             r"""
+            standard:
+            Only initialise intercept and keep other coefficients as zero.
+
+            closed-form:
             Initialize with Maximum Likelihood / Maximum of Momentum estimators
 
             Idea:
@@ -1054,97 +1058,121 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     &= D \cdot x' = f^{-1}(\theta)
             $$
             """
-            if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "closed_form"):
-                try:
-                    unique_design_loc, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
-                    if input_data.constraints_loc is not None:
-                        unique_design_loc_constraints = input_data.constraints_loc.copy()
-                        # -1 in the constraint matrix is used to indicate which variable
-                        # is made dependent so that the constrained is fullfilled.
-                        # This has to be rewritten here so that the design matrix is full rank
-                        # which is necessary so that it can be inverted for parameter
-                        # initialisation.
-                        unique_design_loc_constraints[unique_design_loc_constraints == -1] = 1
-                        # Add constraints into design matrix to remove structural unidentifiability.
-                        unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
-                    if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
-                        logger.warning("Location model is not full rank!")
-                    X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+            if isinstance(init_a, str):
+                # Chose option if auto was chosen
+                if init_a.lower() == "auto":
+                    init_a = "closed_form"
 
-                    mean = X.groupby("group").mean(dim="observations")
+                if init_a.lower() == "closed_form":
+                    try:
+                        unique_design_loc, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
+                        if input_data.constraints_loc is not None:
+                            unique_design_loc_constraints = input_data.constraints_loc.copy()
+                            # -1 in the constraint matrix is used to indicate which variable
+                            # is made dependent so that the constrained is fullfilled.
+                            # This has to be rewritten here so that the design matrix is full rank
+                            # which is necessary so that it can be inverted for parameter
+                            # initialisation.
+                            unique_design_loc_constraints[unique_design_loc_constraints == -1] = 1
+                            # Add constraints into design matrix to remove structural unidentifiability.
+                            unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
+                        if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
+                            logger.warning("Location model is not full rank!")
+                        X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+
+                        mean = X.groupby("group").mean(dim="observations")
+                        mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
+
+                        a = np.log(mean)
+                        if input_data.constraints_loc is not None:
+                            a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])
+                            # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
+                            a = np.vstack([a, a_constraints])
+                        # inv_design = np.linalg.pinv(unique_design_loc) # NOTE: this is numerically inaccurate!
+                        # inv_design = np.linalg.inv(unique_design_loc) # NOTE: this is exact if full rank!
+                        # init_a = np.matmul(inv_design, a)
+                        a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
+                        init_a = a_prime[0]
+                        # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
+
+                        # train mu, if the closed-form solution is inaccurate
+                        self._train_mu = not np.all(a_prime[1] == 0)
+                        # Temporal fix: train mu if size factors are given as closed form may be differen:
+                        if input_data.size_factors is not None:
+                            self._train_mu = True
+
+                        logger.info("Using closed-form MLE initialization for mean")
+                        logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
+                        logger.info("Should train mu: %s", self._train_mu)
+                    except np.linalg.LinAlgError:
+                        logger.warning("Closed form initialization failed!")
+                elif init_a.lower() == "standard":
+                    mean = np.mean(input_data.X, axis=0)
                     mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
-
-                    a = np.log(mean)
-                    if input_data.constraints_loc is not None:
-                        a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])
-                        # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-                        a = np.vstack([a, a_constraints])
-                    # inv_design = np.linalg.pinv(unique_design_loc) # NOTE: this is numerically inaccurate!
-                    # inv_design = np.linalg.inv(unique_design_loc) # NOTE: this is exact if full rank!
-                    # init_a = np.matmul(inv_design, a)
-                    a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
-                    init_a = a_prime[0]
-                    # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
-
-                    # train mu, if the closed-form solution is inaccurate
-                    self._train_mu = not np.all(a_prime[1] == 0)
-                    # Temporal fix: train mu if size factors are given as closed form may be differen:
-                    if input_data.size_factors is not None:
-                        self._train_mu = True
-
-                    logger.info("Using closed-form MLE initialization for mean")
-                    logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
+                    init_a = np.zeros([input_data.design_loc.shape[1], input_data.X.shape[1]])
+                    init_a[0,:] = np.log(mean)
+                    self._train_mu = True
+                    
+                    logger.info("Using standard initialization for mean")
                     logger.info("Should train mu: %s", self._train_mu)
-                except np.linalg.LinAlgError:
-                    logger.warning("Closed form initialization failed!")
 
-            if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "closed_form"):
-                try:
-                    unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
-                    if input_data.constraints_scale is not None:
-                        unique_design_scale_constraints = input_data.constraints_scale.copy()
-                        # -1 in the constraint matrix is used to indicate which variable
-                        # is made dependent so that the constrained is fullfilled.
-                        # This has to be rewritten here so that the design matrix is full rank
-                        # which is necessary so that it can be inverted for parameter
-                        # initialisation.
-                        unique_design_scale_constraints[unique_design_scale_constraints == -1] = 1
-                        # Add constraints into design matrix to remove structural unidentifiability.
-                        unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
-                    if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
-                        logger.warning("Scale model is not full rank!")
+            if isinstance(init_b, str):
+                if init_b.lower() == "auto":
+                    init_b = "closed_form"
 
-                    X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
-                    Xdiff = X - np.exp(input_data.design_loc @ init_a)
-                    variance = np.square(Xdiff).groupby("group").mean(dim="observations")
+                if init_b.lower() == "closed_form":
+                    try:
+                        unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
+                        if input_data.constraints_scale is not None:
+                            unique_design_scale_constraints = input_data.constraints_scale.copy()
+                            # -1 in the constraint matrix is used to indicate which variable
+                            # is made dependent so that the constrained is fullfilled.
+                            # This has to be rewritten here so that the design matrix is full rank
+                            # which is necessary so that it can be inverted for parameter
+                            # initialisation.
+                            unique_design_scale_constraints[unique_design_scale_constraints == -1] = 1
+                            # Add constraints into design matrix to remove structural unidentifiability.
+                            unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
+                        if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
+                            logger.warning("Scale model is not full rank!")
 
-                    group_mean = X.groupby("group").mean(dim="observations")
-                    denominator = np.fmax(variance - group_mean, 0)
-                    denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
-                                               dtype=denominator.dtype)
-                    r = np.square(group_mean) / denominator
-                    r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
-                    r = np.fmin(r, np.finfo(r.dtype).max)
+                        X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                        Xdiff = X - np.exp(input_data.design_loc @ init_a)
+                        variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
-                    b = np.log(r)
-                    if input_data.constraints_scale is not None:
-                        b_constraints = np.zeros([input_data.constraints_scale.shape[0], b.shape[1]])
-                        # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-                        b = np.vstack([b, b_constraints])
-                    # inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate!
-                    # inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
-                    # init_b = np.matmul(inv_design, b)
-                    b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
-                    init_b = b_prime[0]
+                        group_mean = X.groupby("group").mean(dim="observations")
+                        denominator = np.fmax(variance - group_mean, 0)
+                        denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
+                                                   dtype=denominator.dtype)
+                        r = np.square(group_mean) / denominator
+                        r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
+                        r = np.fmin(r, np.finfo(r.dtype).max)
 
-                    # train r, if quick_scale is False or the closed-form solution is inaccurate
-                    self._train_r = True if not quick_scale else not np.all(b_prime[1] == 0)
+                        b = np.log(r)
+                        if input_data.constraints_scale is not None:
+                            b_constraints = np.zeros([input_data.constraints_scale.shape[0], b.shape[1]])
+                            # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
+                            b = np.vstack([b, b_constraints])
+                        # inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate!
+                        # inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
+                        # init_b = np.matmul(inv_design, b)
+                        b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
+                        init_b = b_prime[0]
 
-                    logger.info("Using closed-form MME initialization for dispersion")
-                    logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
+                        # train r, if quick_scale is False or the closed-form solution is inaccurate
+                        self._train_r = True if not quick_scale else not np.all(b_prime[1] == 0)
+
+                        logger.info("Using closed-form MME initialization for dispersion")
+                        logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
+                        logger.info("Should train r: %s", self._train_r)
+                    except np.linalg.LinAlgError:
+                        logger.warning("Closed form initialization failed!")
+                elif init_b.lower() == "standard":
+                    init_b = np.zeros([input_data.design_scale.shape[1], input_data.X.shape[1]])
+                    self._train_r = True
+                    
+                    logger.info("Using standard initialization for dispersion")
                     logger.info("Should train r: %s", self._train_r)
-                except np.linalg.LinAlgError:
-                    logger.warning("Closed form initialization failed!")
 
             if init_model is not None:
                 if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
