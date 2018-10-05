@@ -42,14 +42,16 @@ def param_bounds(dtype):
         max = np.finfo(dtype).max
 
     sf = dtype(2.5)
-    min_r = dtype(1e-10)
-    max_r = dtype(1e10)
+    min_mu = dtype(1e-10)
+    max_mu = dtype(1e10)
+    min_r = dtype(1e-5)
+    max_r = dtype(1e5)
     bounds_min = {
         "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_mu": np.log(min_mu),#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "log_r": np.log(min_r),
-        "mu": np.nextafter(0, np.inf, dtype=dtype),
+        "mu": min_mu,#np.nextafter(0, np.inf, dtype=dtype),
         "r": min_r,
         "probs": dtype(0),
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
@@ -57,9 +59,9 @@ def param_bounds(dtype):
     bounds_max = {
         "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.log(max_mu),#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "log_r": np.log(max_r),
-        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "mu": max_mu,#np.nextafter(max, -np.inf, dtype=dtype) / sf,
         "r": max_r,
         "probs": dtype(1),
         "log_probs": dtype(0),
