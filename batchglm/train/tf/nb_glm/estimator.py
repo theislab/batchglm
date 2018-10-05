@@ -1159,8 +1159,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
                         init_b = b_prime[0]
 
-                        # train r, if quick_scale is False or the closed-form solution is inaccurate
-                        self._train_r = True if not quick_scale else not np.all(b_prime[1] == 0)
+                        # Train r if quick_scale is False as the initialisation 
+                        # is the method of moments estimator and not the MLE.
+                        self._train_r = False if quick_scale else True
 
                         logger.info("Using closed-form MME initialization for dispersion")
                         logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
