@@ -1040,7 +1040,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             self._input_data = input_data
             self._train_mu = True
-            self._train_r = True
+            self._train_r = False if quick_scale==True else True
 
             r"""
             standard:
@@ -1158,10 +1158,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # init_b = np.matmul(inv_design, b)
                         b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
                         init_b = b_prime[0]
-
-                        # Train r if quick_scale is False as the initialisation 
-                        # is the method of moments estimator and not the MLE.
-                        self._train_r = False if quick_scale else True
 
                         logger.info("Using closed-form MME initialization for dispersion")
                         logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
