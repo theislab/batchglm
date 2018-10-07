@@ -333,18 +333,34 @@ def feature_wise_hessians(
         dtype,
         size_factors=None
 ) -> List[tf.Tensor]:
+    """ Compute hessians via tf.hessian for all gene-wise models separately.
+    """
     dtype = X.dtype
 
+    # Hessian computation will be mapped across genes/features.
+    # The map function maps across dimension zero, the slices have to 
+    # be 2D tensors to fit into BasicModelGraph, accordingly,
+    # X, size_factors and params have to be reshaped to have genes in the first dimension
+    # and cells or parameters with an extra padding dimension in the second
+    # and third dimension. Note that size_factors is not a 1xobservations array
+    # but is implicitly broadcasted to observations x features in Estimator.
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
+    size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
     params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
-
+        
     def hessian(data):  # data is tuple (X_t, a_t, b_t)
-        X_t, params_t = data
+        """ Helper function that computes hessian for a given gene.
+        """
+        # Extract input data:
+        X_t, size_factors_t, params_t = data
+        size_factors = tf.transpose(size_factors_t)  # observations x features
         X = tf.transpose(X_t)  # observations x features
         params = tf.transpose(params_t)  # design_params x features
-
+        
         a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
+        # Define the model graph based on which the likelihood is evaluated
+        # which which the hessian is computed:
         model = BasicModelGraph(
             X=X,
             design_loc=design_loc,
@@ -357,19 +373,20 @@ def feature_wise_hessians(
             size_factors=size_factors
         )
 
+        # Compute the hessian of the model of the given gene:
         hess = tf.hessians(- model.log_likelihood, params)
-
         return hess
 
+    # Map hessian computation across genes
     hessians = tf.map_fn(
         fn=hessian,
-        elems=(X_t, params_t),
+        elems=(X_t, size_factors_t, params_t),
         dtype=[dtype],  # hessians of [a, b]
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
-
+    
     stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
-
+    
     return stacked
 
 
