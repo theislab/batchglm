@@ -1010,7 +1010,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             graph: tf.Graph = None,
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
-            quick_scale=False,
+            quick_scale: bool = False,
             model: EstimatorGraph = None,
             extended_summary=False,
             dtype="float64",
@@ -1062,7 +1062,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._input_data = input_data
             self._train_mu = True
             self._train_r = False if quick_scale==True else True
-
+            
             r"""
             standard:
             Only initialise intercept and keep other coefficients as zero.
@@ -1187,7 +1187,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         logger.warning("Closed form initialization failed!")
                 elif init_b.lower() == "standard":
                     init_b = np.zeros([input_data.design_scale.shape[1], input_data.X.shape[1]])
-                    self._train_r = True
                     
                     logger.info("Using standard initialization for dispersion")
                     logger.info("Should train r: %s", self._train_r)
