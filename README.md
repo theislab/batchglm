@@ -50,6 +50,6 @@ The documentation is maintained in the `docs/` directory.
 
 The built documentation will be saved in `build/docs`. 
  
-1. Make sure sphinx is installed (install via pip for example). 
+1. Make sure `sphinx`, `sphinx-autodoc-typehints` and `sphinx_rtd_theme` packages are installed (install via pip for example). 
 2. `cd docs/`
 3. `make html`
