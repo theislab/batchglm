@@ -454,6 +454,9 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
+        # to_xarray triggers the get function of these properties and thereby
+        # causes evaluation of the properties that have not been computed during
+        # training, such as the hessian.
         params = estim.to_xarray(["a", "b", "loss", "gradient", "hessians", "fisher_inv"], coords=input_data.data)
 
         XArrayModel.__init__(self, input_data, params)

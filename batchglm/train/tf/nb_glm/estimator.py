@@ -42,13 +42,17 @@ def param_bounds(dtype):
         max = np.finfo(dtype).max
 
     sf = dtype(2.5)
+    min_a = dtype(1e-10)
+    max_a = dtype(1e10)
+    min_b = dtype(1e-5)
+    max_b = dtype(1e5)
     min_mu = dtype(1e-10)
     max_mu = dtype(1e10)
     min_r = dtype(1e-5)
     max_r = dtype(1e5)
     bounds_min = {
-        "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "a": min_a,#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b": min_b,#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "log_mu": np.log(min_mu),#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "log_r": np.log(min_r),
         "mu": min_mu,#np.nextafter(0, np.inf, dtype=dtype),
@@ -57,8 +61,8 @@ def param_bounds(dtype):
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
     bounds_max = {
-        "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "a": max_a,#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "b": max_b,#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "log_mu": np.log(max_mu),#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
         "log_r": np.log(max_r),
         "mu": max_mu,#np.nextafter(max, -np.inf, dtype=dtype) / sf,
@@ -347,7 +351,7 @@ def feature_wise_hessians(
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
     params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
-        
+    
     def hessian(data):  # data is tuple (X_t, a_t, b_t)
         """ Helper function that computes hessian for a given gene.
         """
@@ -1279,7 +1283,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     shape=[tf.size(idx), input_data.num_features])
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                size_factors_tensor = tf.constant(0, shape=(), dtype=dtype)
+                size_factors_tensor = tf.constant(0, shape=[1,1], dtype=dtype)
+                size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
+                    shape=[tf.size(idx), input_data.num_features])
 
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
@@ -1485,6 +1491,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return self.to_xarray("fisher_inv", coords=self.input_data.data.coords)
 
     def finalize(self):
+        logger.debug("Collect and compute ouptut")
         store = XArrayEstimatorStore(self)
+        logger.debug("Closing session")
         self.close_session()
         return store
