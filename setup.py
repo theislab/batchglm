@@ -11,7 +11,7 @@ setup(
     install_requires=[
         'tensorflow',
         'tensorflow-probability',
-        'numpy',
+        'numpy>=1.14.0',
         'scipy',
         'pandas',
         'xarray',

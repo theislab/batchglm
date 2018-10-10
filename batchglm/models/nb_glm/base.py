@@ -47,6 +47,10 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
             dmat.coords[dim] = design.design_info.column_names
         elif isinstance(design, xr.DataArray):
             dmat = design
+            dmat = dmat.rename({
+                design.dims[0]: "observations",
+                design.dims[1]: dim,
+            })
         elif isinstance(design, pd.DataFrame):
             dmat = xr.DataArray(np.asarray(design), dims=("observations", dim))
             dmat.coords[dim] = design.columns
@@ -57,12 +61,20 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
         dmat = xr.DataArray(dmat, dims=("observations", dim))
     elif isinstance(data, xr.Dataset):
         dmat: xr.DataArray = data[design_key]
+        dmat = dmat.rename({
+            design.dims[0]: "observations",
+            design.dims[1]: dim,
+        })
     else:
         raise ValueError("Missing design_loc matrix!")
 
     if names is not None:
         dmat.coords[dim] = names
     elif dim not in dmat.coords:
+        # ### add dmat.coords[dim] = 0..len(dim) if dmat.coords[dim] is non-existent and `names` was not provided.
+        # Note that `dmat.coords[dim]` returns a corresponding index array although dmat.coords[dim] is not set.
+        # However, other ways accessing this coordinates will raise errors instead;
+        # therefore, it is necessary to set this index explicitly
         dmat.coords[dim] = dmat.coords[dim]
         # raise ValueError("Could not find names for %s; Please specify them manually." % dim)
 
@@ -82,6 +94,8 @@ class InputData(NegativeBinomialInputData):
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
+            constraints_loc: np.ndarray = None,
+            constraints_scale: np.ndarray = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
@@ -111,6 +125,24 @@ class InputData(NegativeBinomialInputData):
         :param design_scale_names: (optional) names of the design_scale parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
+        :param constraints_loc: : Constraints for location model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that 
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param constraints_scale: : Constraints for scale model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that 
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
         :param size_factors: Some size factor to scale the raw data in link-space.
         :param observation_names: (optional) names of the observations.
         :param feature_names: (optional) names of the features.
@@ -137,6 +169,9 @@ class InputData(NegativeBinomialInputData):
         retval.design_loc = design_loc
         retval.design_scale = design_scale
 
+        retval.constraints_loc = constraints_loc
+        retval.constraints_scale = constraints_scale
+
         if size_factors is not None:
             retval.size_factors = size_factors
 
@@ -149,6 +184,14 @@ class InputData(NegativeBinomialInputData):
     @design_loc.setter
     def design_loc(self, data):
         self.data["design_loc"] = data
+
+    @property
+    def constraints_loc(self) -> np.ndarray:
+        return self._constraints_loc
+
+    @constraints_loc.setter
+    def constraints_loc(self, data: np.ndarray):
+        self._constraints_loc = data
 
     @property
     def design_loc_names(self) -> xr.DataArray:
@@ -165,6 +208,14 @@ class InputData(NegativeBinomialInputData):
     @design_scale.setter
     def design_scale(self, data):
         self.data["design_scale"] = data
+
+    @property
+    def constraints_scale(self) -> np.ndarray:
+        return self._constraints_scale
+
+    @constraints_scale.setter
+    def constraints_scale(self, data: np.ndarray):
+        self._constraints_scale = data
 
     @property
     def design_scale_names(self) -> xr.DataArray:
@@ -429,6 +480,9 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
+        # to_xarray triggers the get function of these properties and thereby
+        # causes evaluation of the properties that have not been computed during
+        # training, such as the hessian.
         params = estim.to_xarray(["a", "b", "loss", "gradient", "hessians", "fisher_inv"], coords=input_data.data)
 
         XArrayModel.__init__(self, input_data, params)
