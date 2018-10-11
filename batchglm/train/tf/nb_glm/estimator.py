@@ -41,35 +41,27 @@ def param_bounds(dtype):
         min = np.finfo(dtype).min
         max = np.finfo(dtype).max
 
-    sf = dtype(2.5)
-    min_a = dtype(1e-10)
-    max_a = dtype(1e10)
-    min_b = dtype(1e-5)
-    max_b = dtype(1e5)
-    min_mu = dtype(1e-10)
-    max_mu = dtype(1e10)
-    min_r = dtype(1e-5)
-    max_r = dtype(1e5)
+    sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
     bounds_min = {
-        "a": min_a,#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "b": min_b,#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_mu": np.log(min_mu),#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_r": np.log(min_r),
-        "mu": min_mu,#np.nextafter(0, np.inf, dtype=dtype),
-        "r": min_r,
+        "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "mu": np.nextafter(0, np.inf, dtype=dtype),
+        "r": np.nextafter(0, np.inf, dtype=dtype),
         "probs": dtype(0),
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
     bounds_max = {
-        "a": max_a,#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b": max_b,#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_mu": np.log(max_mu),#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_r": np.log(max_r),
-        "mu": max_mu,#np.nextafter(max, -np.inf, dtype=dtype) / sf,
-        "r": max_r,
+        "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_r": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
         "probs": dtype(1),
         "log_probs": dtype(0),
-    }
+}
     return bounds_min, bounds_max
 
 
@@ -508,7 +500,8 @@ class FullDataModelGraph:
                     p_shape_a=model_vars.a_var.shape[0],
                     p_shape_b=model_vars.b_var.shape[0],
                     dtype=dtype,
-                    size_factors=size_factors)
+                    size_factors=size_factors
+                    )
 
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -1279,14 +1272,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 # keeping the 1D array and performing implicit broadcasting in 
                 # the arithmetic operations in the graph.
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
-                size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
-                    shape=[tf.size(idx), input_data.num_features])
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
                 size_factors_tensor = tf.constant(0, shape=[1,1], dtype=dtype)
-                size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
+            size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
                     shape=[tf.size(idx), input_data.num_features])
-
+                
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
