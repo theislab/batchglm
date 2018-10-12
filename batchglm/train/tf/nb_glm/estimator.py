@@ -1077,9 +1077,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             $$
             """
             if input_data.size_factors is not None:
+                size_factors_init = np.expand_dims(input_data.size_factors, axis=1)
                 size_factors_init = np.broadcast_to(
-                    array = input_data.size_factors, 
-                    shape=[input_data.size_factors.shape[0], input_data.num_features]
+                    array = size_factors_init, 
+                    shape = [input_data.size_factors.shape[0], input_data.num_features]
                     )
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
@@ -1164,7 +1165,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                         if input_data.size_factors is not None:
                             X = np.divide(X, size_factors_init)
-                            
+
                         Xdiff = X - np.exp(input_data.design_loc @ init_a)
                         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
