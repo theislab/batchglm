@@ -1076,6 +1076,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     &= D \cdot x' = f^{-1}(\theta)
             $$
             """
+            if input_data.size_factors is not None:
+                size_factors_init = np.broadcast_to(
+                    array = input_data.size_factors, 
+                    shape=[input_data.size_factors.shape[0], input_data.num_features]
+                    )
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -1097,6 +1102,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
                             logger.warning("Location model is not full rank!")
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                        if input_data.size_factors is not None:
+                            X = np.divide(X, size_factors_init)
 
                         mean = X.groupby("group").mean(dim="observations")
                         mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
@@ -1155,6 +1162,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             logger.warning("Scale model is not full rank!")
 
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                        if input_data.size_factors is not None:
+                            X = np.divide(X, size_factors_init)
+                            
                         Xdiff = X - np.exp(input_data.design_loc @ init_a)
                         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
