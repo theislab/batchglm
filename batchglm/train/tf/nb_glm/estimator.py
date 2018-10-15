@@ -61,7 +61,7 @@ def param_bounds(dtype):
         "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
         "probs": dtype(1),
         "log_probs": dtype(0),
-}
+    }
     return bounds_min, bounds_max
 
 
