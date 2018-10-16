@@ -9,7 +9,7 @@ setup(
     author_email='florian.hoelzlwimmer@helmholtz-muenchen.de',
     packages=find_packages(),
     install_requires=[
-        'tensorflow',
+        'tensorflow=1.10.0',
         'tensorflow-probability',
         'numpy>=1.14.0',
         'scipy',
