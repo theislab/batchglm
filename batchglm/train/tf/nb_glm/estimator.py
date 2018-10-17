@@ -1065,7 +1065,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             self._input_data = input_data
             self._train_mu = True
-            self._train_r = False if quick_scale==True else True
+            self._train_r = not quick_scale
             
             r"""
             standard:
