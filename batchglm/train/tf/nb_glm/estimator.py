@@ -41,32 +41,24 @@ def param_bounds(dtype):
         min = np.finfo(dtype).min
         max = np.finfo(dtype).max
 
-    sf = dtype(2.5)
-    min_a = dtype(1e-10)
-    max_a = dtype(1e10)
-    min_b = dtype(1e-5)
-    max_b = dtype(1e5)
-    min_mu = dtype(1e-10)
-    max_mu = dtype(1e10)
-    min_r = dtype(1e-5)
-    max_r = dtype(1e5)
+    sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
     bounds_min = {
-        "a": min_a,#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "b": min_b,#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_mu": np.log(min_mu),#np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_r": np.log(min_r),
-        "mu": min_mu,#np.nextafter(0, np.inf, dtype=dtype),
-        "r": min_r,
+        "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "mu": np.nextafter(0, np.inf, dtype=dtype),
+        "r": np.nextafter(0, np.inf, dtype=dtype),
         "probs": dtype(0),
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
     bounds_max = {
-        "a": max_a,#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b": max_b,#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_mu": np.log(max_mu),#np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_r": np.log(max_r),
-        "mu": max_mu,#np.nextafter(max, -np.inf, dtype=dtype) / sf,
-        "r": max_r,
+        "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "log_r": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
+        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
         "probs": dtype(1),
         "log_probs": dtype(0),
     }
@@ -508,7 +500,8 @@ class FullDataModelGraph:
                     p_shape_a=model_vars.a_var.shape[0],
                     p_shape_b=model_vars.b_var.shape[0],
                     dtype=dtype,
-                    size_factors=size_factors)
+                    size_factors=size_factors
+                    )
 
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -1083,6 +1076,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     &= D \cdot x' = f^{-1}(\theta)
             $$
             """
+            if input_data.size_factors is not None:
+                size_factors_init = np.expand_dims(input_data.size_factors, axis=1)
+                size_factors_init = np.broadcast_to(
+                    array = size_factors_init, 
+                    shape = [input_data.size_factors.shape[0], input_data.num_features]
+                    )
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -1104,6 +1103,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
                             logger.warning("Location model is not full rank!")
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                        if input_data.size_factors is not None:
+                            X = np.divide(X, size_factors_init)
 
                         mean = X.groupby("group").mean(dim="observations")
                         mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
@@ -1162,6 +1163,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             logger.warning("Scale model is not full rank!")
 
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
+                        if input_data.size_factors is not None:
+                            X = np.divide(X, size_factors_init)
+
                         Xdiff = X - np.exp(input_data.design_loc @ init_a)
                         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
@@ -1279,14 +1283,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 # keeping the 1D array and performing implicit broadcasting in 
                 # the arithmetic operations in the graph.
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
-                size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
-                    shape=[tf.size(idx), input_data.num_features])
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
                 size_factors_tensor = tf.constant(0, shape=[1,1], dtype=dtype)
-                size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
+            size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
                     shape=[tf.size(idx), input_data.num_features])
-
+                
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
