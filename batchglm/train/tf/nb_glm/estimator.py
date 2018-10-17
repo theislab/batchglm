@@ -18,6 +18,7 @@ except ImportError:
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator, TFEstimatorGraph
 from .external import nb_utils, train_utils, op_utils, rand_utils
 from .external import pkg_constants
+from .hessians import hessian_nb_glm
 
 ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
 ESTIMATOR_PARAMS.update({
@@ -315,7 +316,7 @@ class ModelVars:
             self.a_var = a_var
             self.b_var = b_var
             self.params = params
-
+            
 
 def feature_wise_hessians(
         X,
@@ -344,8 +345,10 @@ def feature_wise_hessians(
     size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
     params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
     
-    def hessian(data):  # data is tuple (X_t, a_t, b_t)
+    def hessian(data): 
         """ Helper function that computes hessian for a given gene.
+
+        :param data: tuple (X_t, size_factors_t, params_t)
         """
         # Extract input data:
         X_t, size_factors_t, params_t = data
