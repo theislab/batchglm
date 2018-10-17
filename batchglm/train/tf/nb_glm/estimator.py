@@ -157,7 +157,7 @@ class BasicModelGraph:
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
             if size_factors is not None:
-                log_mu = tf.add(log_mu, size_factors) 
+                log_mu = tf.add(log_mu, size_factors)
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
@@ -195,6 +195,7 @@ class BasicModelGraph:
         self.log_likelihood = tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
         self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
         self.norm_neg_log_likelihood = - self.norm_log_likelihood
+
 
         with tf.name_scope("loss"):
             self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
@@ -312,8 +313,8 @@ class ModelVars:
 
             self.a = a_clipped
             self.b = b_clipped
-            self.a_var = a_var
-            self.b_var = b_var
+            # self.a_var = a_var
+            # self.b_var = b_var
             self.params = params
 
 
@@ -343,7 +344,7 @@ def feature_wise_hessians(
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
     params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
-    
+
     def hessian(data):  # data is tuple (X_t, a_t, b_t)
         """ Helper function that computes hessian for a given gene.
         """
@@ -352,7 +353,7 @@ def feature_wise_hessians(
         size_factors = tf.transpose(size_factors_t)  # observations x features
         X = tf.transpose(X_t)  # observations x features
         params = tf.transpose(params_t)  # design_params x features
-        
+
         a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
         # Define the model graph based on which the likelihood is evaluated
@@ -380,9 +381,9 @@ def feature_wise_hessians(
         dtype=[dtype],  # hessians of [a, b]
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
-    
+
     stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
-    
+
     return stacked
 
 
@@ -465,8 +466,8 @@ class FullDataModelGraph:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=model_vars.a_var,
-                b=model_vars.b_var,
+                a=model_vars.a,
+                b=model_vars.b,
                 dtype=dtype,
                 size_factors=size_factors)
             return model
@@ -497,11 +498,11 @@ class FullDataModelGraph:
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     params=model_vars.params,
-                    p_shape_a=model_vars.a_var.shape[0],
-                    p_shape_b=model_vars.b_var.shape[0],
+                    p_shape_a=model_vars.a.shape[0],
+                    p_shape_b=model_vars.b.shape[0],
                     dtype=dtype,
                     size_factors=size_factors
-                    )
+                )
 
             def hessian_red(prev, cur):
                 return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -645,8 +646,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     design_scale=batch_design_scale,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
-                    a=model_vars.a_var,
-                    b=model_vars.b_var,
+                    a=model_vars.a,
+                    b=model_vars.b,
                     dtype=dtype,
                     size_factors=batch_size_factors
                 )
@@ -692,19 +693,6 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("training"):
                 global_step = tf.train.get_or_create_global_step()
 
-                a_only_constr = [
-                    lambda grad: tf.concat([
-                        grad[0:model_vars.a.shape[0]],
-                        tf.zeros_like(grad)[model_vars.a.shape[0]:],
-                    ], axis=0)
-                ]
-                b_only_constr = [
-                    lambda grad: tf.concat([
-                        tf.zeros_like(grad)[0:model_vars.a.shape[0]],
-                        grad[model_vars.a.shape[0]:],
-                    ], axis=0)
-                ]
-
                 # set up trainers for different selections of variables to train
                 # set up multiple optimization algorithms for each trainer
                 batch_trainers = train_utils.MultiTrainer(
@@ -715,19 +703,29 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
-                    loss=batch_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.a_var],
-                    variables=[model_vars.params],
-                    grad_constr=a_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.a)[0],
+                                tf.zeros_like(model_vars.b),
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
-                    loss=batch_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.b_var],
-                    variables=[model_vars.params],
-                    grad_constr=b_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.zeros_like(model_vars.a),
+                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.b)[0],
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_b_only"
@@ -748,19 +746,29 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.a_var],
-                    variables=[model_vars.params],
-                    grad_constr=a_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.a)[0],
+                                tf.zeros_like(model_vars.b),
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.b_var],
-                    variables=[model_vars.params],
-                    grad_constr=b_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.zeros_like(model_vars.a),
+                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.b)[0],
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_b_only"
@@ -1059,7 +1067,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._input_data = input_data
             self._train_mu = True
             self._train_r = not quick_scale
-            
+
             r"""
             standard:
             Only initialise intercept and keep other coefficients as zero.
@@ -1079,9 +1087,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if input_data.size_factors is not None:
                 size_factors_init = np.expand_dims(input_data.size_factors, axis=1)
                 size_factors_init = np.broadcast_to(
-                    array = size_factors_init, 
-                    shape = [input_data.size_factors.shape[0], input_data.num_features]
-                    )
+                    array=size_factors_init,
+                    shape=[input_data.size_factors.shape[0], input_data.num_features]
+                )
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -1136,9 +1144,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     mean = np.mean(input_data.X, axis=0)
                     mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
                     init_a = np.zeros([input_data.design_loc.shape[1], input_data.X.shape[1]])
-                    init_a[0,:] = np.log(mean)
+                    init_a[0, :] = np.log(mean)
                     self._train_mu = True
-                    
+
                     logger.info("Using standard initialization for mean")
                     logger.info("Should train mu: %s", self._train_mu)
 
@@ -1148,7 +1156,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_b.lower() == "closed_form":
                     try:
-                        unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
+                        unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0,
+                                                                     return_inverse=True)
                         if input_data.constraints_scale is not None:
                             unique_design_scale_constraints = input_data.constraints_scale.copy()
                             # -1 in the constraint matrix is used to indicate which variable
@@ -1195,7 +1204,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         logger.warning("Closed form initialization failed!")
                 elif init_b.lower() == "standard":
                     init_b = np.zeros([input_data.design_scale.shape[1], input_data.X.shape[1]])
-                    
+
                     logger.info("Using standard initialization for dispersion")
                     logger.info("Should train r: %s", self._train_r)
 
@@ -1285,10 +1294,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                size_factors_tensor = tf.constant(0, shape=[1,1], dtype=dtype)
-            size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
-                    shape=[tf.size(idx), input_data.num_features])
-                
+                size_factors_tensor = tf.constant(0, shape=[1, 1], dtype=dtype)
+            size_factors_tensor = tf.broadcast_to(size_factors_tensor,
+                                                  shape=[tf.size(idx), input_data.num_features])
+
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 

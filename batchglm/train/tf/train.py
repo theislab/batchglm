@@ -232,41 +232,40 @@ class StopAtLossHook(tf.train.SessionRunHook):
 
 
 class MultiTrainer:
-    def __init__(self, loss, variables: List, learning_rate, global_step=None, grad_constr: list = None, name=None):
-        """
-        
-        :param loss:
-        :param variables: list of variables which will be trained
-        :param learning_rate:
-        :param global_step:
-        :param grad_constr: list of gradient constraints; has to be of the same length as `variables`.
+    def __init__(self, learning_rate, loss = None, variables: List = None, gradients: list = None, global_step=None,
+                 name=None):
+        r"""
 
-        Each element in this list has to be a function taking a `gradient` tensor of the same shape as its corresponding
-        variable.
+        :param learning_rate: learning rate used for training
+        :param loss: loss which should be minimized
+        :param variables: list of variables which will be trained
+        :param gradients: list of (gradient, variable) tuples; alternative to specifying variables and loss
+        :param global_step: global step counter
         :param name: optional name scope
         """
         with contextlib.ExitStack() as stack:
             if name is not None:
                 gs = stack.enter_context(tf.name_scope(name))
 
-            gradient = tf.gradients(loss, variables)
-            if grad_constr is None:
-                gradient = [(g, v) for g, v in zip(gradient, variables)]
-            else:
-                gradient = [(c(g), v) for g, c, v in zip(gradient, grad_constr, variables)]
+            if gradients is None:
+                if variables is None:
+                    raise ValueError("Either variables and loss or gradients have to be specified")
+
+                gradients = tf.gradients(loss, variables)
+                gradients = [(g, v) for g, v in zip(gradients, variables)]
 
             optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
             optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
             optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
             optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
 
-            train_op_GD = optim_GD.apply_gradients(gradient, global_step=global_step)
-            train_op_Adam = optim_Adam.apply_gradients(gradient, global_step=global_step)
-            train_op_Adagrad = optim_Adagrad.apply_gradients(gradient, global_step=global_step)
-            train_op_RMSProp = optim_RMSProp.apply_gradients(gradient, global_step=global_step)
+            train_op_GD = optim_GD.apply_gradients(gradients, global_step=global_step)
+            train_op_Adam = optim_Adam.apply_gradients(gradients, global_step=global_step)
+            train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
+            train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
 
             self.global_step = global_step
-            self.gradient = gradient
+            self.gradient = gradients
 
             self.optim_GD = optim_GD
             self.optim_Adam = optim_Adam
