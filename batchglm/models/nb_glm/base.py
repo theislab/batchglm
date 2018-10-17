@@ -48,8 +48,8 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
         elif isinstance(design, xr.DataArray):
             dmat = design
             dmat = dmat.rename({
-                design.dims[0]: "observations",
-                design.dims[1]: dim,
+                dmat.dims[0]: "observations",
+                dmat.dims[1]: dim,
             })
         elif isinstance(design, pd.DataFrame):
             dmat = xr.DataArray(np.asarray(design), dims=("observations", dim))
@@ -62,8 +62,8 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
     elif isinstance(data, xr.Dataset):
         dmat: xr.DataArray = data[design_key]
         dmat = dmat.rename({
-            design.dims[0]: "observations",
-            design.dims[1]: dim,
+            dmat.dims[0]: "observations",
+            dmat.dims[1]: dim,
         })
     else:
         raise ValueError("Missing design_loc matrix!")
