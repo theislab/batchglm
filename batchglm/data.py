@@ -23,7 +23,7 @@ def _sparse_to_xarray(data, dims):
 
     def fetch_X(idx):
         idx = np.asarray(idx).reshape(-1)
-        retval = np.asarray(data[idx].todense())
+        retval = data[idx].toarray()
 
         if idx.size == 1:
             retval = np.squeeze(retval, axis=0)
