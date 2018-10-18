@@ -32,13 +32,11 @@ ESTIMATOR_PARAMS.update({
 logger = logging.getLogger(__name__)
 
 
-
-
 def _hessian_nb_glm_aa_coef_invariant(
-    X,
-    mu,
-    r,
-    dtype
+        X,
+        mu,
+        r,
+        dtype
 ):
     """
     Compute the coefficient index invariant part of the
@@ -65,20 +63,21 @@ def _hessian_nb_glm_aa_coef_invariant(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_one = tf.constant(1, shape=[1,1], dtype=dtype)
-    const = tf.negative(tf.multiply(mu, # [observations x features]
-        tf.divide(
-            tf.divide(X,r)+scalar_one,
-            tf.square(scalar_one+tf.divide(mu,r))
-            )
-        ))
+    scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+    const = tf.negative(tf.multiply(mu,  # [observations x features]
+                                    tf.divide(
+                                        tf.divide(X, r) + scalar_one,
+                                        tf.square(scalar_one + tf.divide(mu, r))
+                                    )
+                                    ))
     return const
 
+
 def _hessian_nb_glm_bb_coef_invariant(
-    X,
-    mu,
-    r,
-    dtype
+        X,
+        mu,
+        r,
+        dtype
 ):
     """
     Compute the coefficient index invariant part of the
@@ -110,37 +109,38 @@ def _hessian_nb_glm_bb_coef_invariant(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_one = tf.constant(1, shape=[1,1], dtype=dtype)
-    scalar_two = tf.constant(2, shape=[1,1], dtype=dtype)
-    const1 = tf.add( # [observations, features]
-        tf.math.polygamma(a=scalar_one, x=tf.add(r,X)),
+    scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+    scalar_two = tf.constant(2, shape=[1, 1], dtype=dtype)
+    const1 = tf.add(  # [observations, features]
+        tf.math.polygamma(a=scalar_one, x=tf.add(r, X)),
         tf.add(
             tf.math.polygamma(a=scalar_one, x=r),
             tf.add(
-                tf.math.polygamma(a=scalar_two, x=tf.add(r,X)),
+                tf.math.polygamma(a=scalar_two, x=tf.add(r, X)),
                 tf.math.polygamma(a=scalar_two, x=r)
-                )
             )
         )
-    const2 = tf.multiply( # [observations, features]
-        tf.divide(mu,tf.square(tf.add(r,mu))),
-        tf.add(r,X)
-        )
-    const3 = tf.add( # [observations, features]
-        tf.divide(tf.subtract(mu,r), tf.add(mu,r)),
+    )
+    const2 = tf.multiply(  # [observations, features]
+        tf.divide(mu, tf.square(tf.add(r, mu))),
+        tf.add(r, X)
+    )
+    const3 = tf.add(  # [observations, features]
+        tf.divide(tf.subtract(mu, r), tf.add(mu, r)),
         tf.subtract(
             tf.add(tf.log(r), scalar_one),
-            tf.log(tf.add(r,mu))
-            )
+            tf.log(tf.add(r, mu))
         )
-    const = tf.multiply(tf.multiply(const1, const2), const3) # [observations, features]
+    )
+    const = tf.multiply(tf.multiply(const1, const2), const3)  # [observations, features]
     return const
 
+
 def _hessian_nb_glm_ab_coef_invariant(
-    X,
-    mu,
-    r,
-    dtype
+        X,
+        mu,
+        r,
+        dtype
 ):
     """
     Compute the coefficient index invariant part of the
@@ -173,23 +173,23 @@ def _hessian_nb_glm_ab_coef_invariant(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_one = tf.constant(1, shape=[1,1], dtype=dtype)
-    const = tf.multiply(mu, # [observations, features]
-        tf.divide(
-            X-mu,
-            tf.square(scalar_one+tf.divide(mu,r))
-            )
-        )
+    scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+    const = tf.multiply(mu,  # [observations, features]
+                        tf.divide(
+                            X - mu,
+                            tf.square(scalar_one + tf.divide(mu, r))
+                        )
+                        )
     return const
 
 
 def _hessian_nb_glm_byobs(
-    data,
-    sample_indices,
-    constraints_loc,
-    constraints_scale,
-    model_vars,
-    dtype
+        data,
+        sample_indices,
+        constraints_loc,
+        constraints_scale,
+        model_vars,
+        dtype
 ):
     """
     Compute the closed-form of the nb_glm model hessian 
@@ -211,22 +211,21 @@ def _hessian_nb_glm_byobs(
         :param r: tf.tensor observations x features
             Value of dispersion model by observation and feature.
         """
-        scalar_one = tf.constant(1, shape=[1,1], dtype=dtype)
-        const = _hessian_nb_glm_aa_coef_invariant( # [observations=1 x features]
+        scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+        const = _hessian_nb_glm_aa_coef_invariant(  # [observations=1 x features]
             X=X,
             mu=mu,
             r=r,
             dtype=dtype
         )
-        nonconst = tf.matmul(tf.transpose(design_loc), design_loc) # [coefficients, coefficients]
-        nonconst = tf.expand_dims(nonconst, axis=-1) # [coefficients, coefficients, observations=1]
-        Hblock = tf.transpose(tf.tensordot( # [features, coefficients, coefficients]
-            a=nonconst, # [coefficients, coefficients, observations=1]
-            b=const, # [observations=1 x features]
-            axes=1 # collapse last dimension of a and first dimension of b
+        nonconst = tf.matmul(tf.transpose(design_loc), design_loc)  # [coefficients, coefficients]
+        nonconst = tf.expand_dims(nonconst, axis=-1)  # [coefficients, coefficients, observations=1]
+        Hblock = tf.transpose(tf.tensordot(  # [features, coefficients, coefficients]
+            a=nonconst,  # [coefficients, coefficients, observations=1]
+            b=const,  # [observations=1 x features]
+            axes=1  # collapse last dimension of a and first dimension of b
         ))
         return Hblock
-
 
     def _hessian_nb_glm_bb_byobs(X, design_loc, design_scale, mu, r):
         """
@@ -240,21 +239,21 @@ def _hessian_nb_glm_byobs(
         :param r: tf.tensor observations x features
             Value of dispersion model by observation and feature.
         """
-        const = _hessian_nb_glm_bb_coef_invariant( # [observations=1 x features]
+        const = _hessian_nb_glm_bb_coef_invariant(  # [observations=1 x features]
             X=X,
             mu=mu,
             r=r,
             dtype=dtype
         )
-        nonconst = tf.matmul(tf.transpose(design_scale), design_scale) # [coefficients, coefficients]
-        nonconst = tf.expand_dims(nonconst, axis=-1) # [coefficients, coefficients, observations=1]
-        Hblock = tf.transpose(tf.tensordot( # [features, coefficients, coefficients]
-            a=nonconst, # [coefficients, coefficients, observations=1]
-            b=const, # [observations=1 x features]
-            axes=1 # collapse last dimension of a and first dimension of b
+        nonconst = tf.matmul(tf.transpose(design_scale), design_scale)  # [coefficients, coefficients]
+        nonconst = tf.expand_dims(nonconst, axis=-1)  # [coefficients, coefficients, observations=1]
+        Hblock = tf.transpose(tf.tensordot(  # [features, coefficients, coefficients]
+            a=nonconst,  # [coefficients, coefficients, observations=1]
+            b=const,  # [observations=1 x features]
+            axes=1  # collapse last dimension of a and first dimension of b
         ))
         return Hblock
-        
+
     def _hessian_nb_glm_ab_byobs(X, design_loc, design_scale, mu, r):
         """
         Compute the mean-dispersion model off-diagonal block of the 
@@ -271,18 +270,18 @@ def _hessian_nb_glm_byobs(
         :param r: tf.tensor observations x features
             Value of dispersion model by observation and feature.
         """
-        const = _hessian_nb_glm_ab_coef_invariant( # [observations=1 x features]
+        const = _hessian_nb_glm_ab_coef_invariant(  # [observations=1 x features]
             X=X,
             mu=mu,
             r=r,
             dtype=dtype
         )
-        nonconst = tf.matmul(tf.transpose(design_loc), design_scale) # [coefficient_loc, coefficients_scale]
-        nonconst = tf.expand_dims(nonconst, axis=-1) # [coefficient_loc, coefficients_scale, observations=1]
-        Hblock = tf.transpose(tf.tensordot( # [features, coefficient_loc, coefficients_scale]
-            a=nonconst, # [coefficient_loc, coefficients_scale, observations=1]
-            b=const, # [observations=1 x features]
-            axes=1 # collapse last dimension of a and first dimension of b
+        nonconst = tf.matmul(tf.transpose(design_loc), design_scale)  # [coefficient_loc, coefficients_scale]
+        nonconst = tf.expand_dims(nonconst, axis=-1)  # [coefficient_loc, coefficients_scale, observations=1]
+        Hblock = tf.transpose(tf.tensordot(  # [features, coefficient_loc, coefficients_scale]
+            a=nonconst,  # [coefficient_loc, coefficients_scale, observations=1]
+            b=const,  # [observations=1 x features]
+            axes=1  # collapse last dimension of a and first dimension of b
         ))
         return Hblock
 
@@ -322,14 +321,14 @@ def _hessian_nb_glm_byobs(
         )
         mu = model.mu
         r = model.r
-        
+
         H_aa = _hessian_nb_glm_aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
         H_bb = _hessian_nb_glm_bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
         H_ab = _hessian_nb_glm_ab_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
         H_ba = tf.transpose(H_ab, perm=[0, 2, 1])
         H = tf.concat(
             [tf.concat([H_aa, H_ab], axis=1),
-             tf.concat([H_ba, H_bb], axis=1)], 
+             tf.concat([H_ba, H_bb], axis=1)],
             axis=2
         )
         return H
@@ -345,9 +344,9 @@ def _hessian_nb_glm_byobs(
         """
         return tf.add(prev, cur)
 
-    params=model_vars.params
-    p_shape_a=model_vars.a_var.shape[0]
-    p_shape_b=model_vars.b_var.shape[0]
+    params = model_vars.params
+    p_shape_a = model_vars.a_var.shape[0]
+    p_shape_b = model_vars.b_var.shape[0]
 
     H = op_utils.map_reduce(
         last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
@@ -360,12 +359,12 @@ def _hessian_nb_glm_byobs(
 
 
 def _hessian_nb_glm_byfeature(
-    data,
-    sample_indices,
-    constraints_loc,
-    constraints_scale,
-    model_vars,
-    dtype
+        data,
+        sample_indices,
+        constraints_loc,
+        constraints_scale,
+        model_vars,
+        dtype
 ):
     """
     Compute the closed-form of the nb_glm model hessian 
@@ -389,8 +388,8 @@ def _hessian_nb_glm_byfeature(
             Value of dispersion model by observation and feature.
         :param dtype: dtype
         """
-        scalar_one = tf.constant(1, shape=[1,1], dtype=dtype)
-        const = _hessian_nb_glm_aa_coef_invariant( # [observations x features=1]
+        scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+        const = _hessian_nb_glm_aa_coef_invariant(  # [observations x features=1]
             X=X,
             mu=mu,
             r=r,
@@ -398,15 +397,14 @@ def _hessian_nb_glm_byfeature(
         )
         # The second dimension of const is only one element long,
         # this was a feature before but is no recycled into coefficients.
-        const = tf.broadcast_to(const, shape=design_scale.T.shape) # [observations, coefficients]
-        Hblock = tf.matmul( # [coefficients, coefficients]
-            tf.transpose(design_loc), # [coefficients, observations]
-            tf.multiply(design_loc, const) # [observations, coefficients]
+        const = tf.broadcast_to(const, shape=design_scale.T.shape)  # [observations, coefficients]
+        Hblock = tf.matmul(  # [coefficients, coefficients]
+            tf.transpose(design_loc),  # [coefficients, observations]
+            tf.multiply(design_loc, const)  # [observations, coefficients]
         )
         # Prepare stacking across first dimension (features):
-        Hblock = tf.expand_dims(Hblock, axis=0) # [features=1, coefficients, coefficients]
+        Hblock = tf.expand_dims(Hblock, axis=0)  # [features=1, coefficients, coefficients]
         return Hblock
-
 
     def _hessian_nb_glm_bb_byfeature(X, mu, r):
         """
@@ -422,7 +420,7 @@ def _hessian_nb_glm_byfeature(
             Value of dispersion model by observation and feature.
         :param dtype: dtype
         """
-        const = _hessian_nb_glm_bb_coef_invariant( # [observations x features=1]
+        const = _hessian_nb_glm_bb_coef_invariant(  # [observations x features=1]
             X=X,
             mu=mu,
             r=r,
@@ -430,13 +428,13 @@ def _hessian_nb_glm_byfeature(
         )
         # The second dimension of const is only one element long,
         # this was a feature before but is no recycled into coefficients.
-        const = tf.broadcast_to(const, shape=design_scale.T.shape) # [observations, coefficients]
-        Hblock = tf.matmul( # [coefficients, coefficients]
-            tf.transpose(design_scale), # [coefficients, observations]
-            tf.multiply(design_scale, const) # [observations, coefficients]
+        const = tf.broadcast_to(const, shape=design_scale.T.shape)  # [observations, coefficients]
+        Hblock = tf.matmul(  # [coefficients, coefficients]
+            tf.transpose(design_scale),  # [coefficients, observations]
+            tf.multiply(design_scale, const)  # [observations, coefficients]
         )
         # Prepare stacking across first dimension (features):
-        Hblock = tf.expand_dims(Hblock, axis=0) # [features=1, coefficients, coefficients]
+        Hblock = tf.expand_dims(Hblock, axis=0)  # [features=1, coefficients, coefficients]
         return Hblock
 
     def _hessian_nb_glm_ab_byfeature(X, mu, r):
@@ -456,7 +454,7 @@ def _hessian_nb_glm_byfeature(
             Value of dispersion model by observation and feature.
         :param dtype: dtype
         """
-        const = _hessian_nb_glm_ab_coef_invariant( # [observations x features=1]
+        const = _hessian_nb_glm_ab_coef_invariant(  # [observations x features=1]
             X=X,
             mu=mu,
             r=r,
@@ -464,13 +462,13 @@ def _hessian_nb_glm_byfeature(
         )
         # The second dimension of const is only one element long,
         # this was a feature before but is no recycled into coefficients_scale.
-        const = tf.broadcast_to(const, shape=design_scale.T.shape) # [observations, coefficients_scale]
-        Hblock = tf.matmul( # [coefficients_loc, coefficients_scale]
-            tf.transpost(design_loc), # [coefficients_loc, observations]
-            tf.multiply(design_scale, const) # [observations, coefficients_scale]
+        const = tf.broadcast_to(const, shape=design_scale.T.shape)  # [observations, coefficients_scale]
+        Hblock = tf.matmul(  # [coefficients_loc, coefficients_scale]
+            tf.transpost(design_loc),  # [coefficients_loc, observations]
+            tf.multiply(design_scale, const)  # [observations, coefficients_scale]
         )
         # Prepare stacking across first dimension (features):
-        Hblock = tf.expand_dims(Hblock, axis=0) # [features=1, coefficients_loc, coefficients_scale]
+        Hblock = tf.expand_dims(Hblock, axis=0)  # [features=1, coefficients_loc, coefficients_scale]
         return Hblock
 
     def _hessian_nb_glm_assemble_byfeature(data):
@@ -505,21 +503,21 @@ def _hessian_nb_glm_byfeature(
         )
         mu = model.mu
         r = model.r
-        
+
         H_aa = _hessian_nb_glm_aa_byfeature(X=X, mu=mu, r=r)
         H_bb = _hessian_nb_glm_bb_byfeature(X=X, mu=mu, r=r)
         H_ab = _hessian_nb_glm_bb_byfeature(X=X, mu=mu, r=r)
         H = tf.concat(
             [tf.concat([H_aa, H_ab], axis=1),
-            tf.concat([tf.transpose(H_ab), H_bb], axis=1)], 
+             tf.concat([tf.transpose(H_ab), H_bb], axis=1)],
             axis=2
         )
         return H
 
     X, design_loc, design_scale, size_factors = data
-    params=model_vars.params
-    p_shape_a=model_vars.a_var.shape[0]
-    p_shape_b=model_vars.b_var.shape[0]
+    params = model_vars.params
+    p_shape_a = model_vars.a_var.shape[0]
+    p_shape_b = model_vars.b_var.shape[0]
 
     X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
     size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
@@ -528,19 +526,19 @@ def _hessian_nb_glm_byfeature(
     H = tf.map_fn(
         fn=_hessian_nb_glm_assemble_byfeature,
         elems=(X_t, size_factors_t, params_t),
-        dtype=[dtype],  
+        dtype=[dtype],
         parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
     )
     return H
 
 
 def _numeric_hessian_nb_glm_byfeature(
-    data,
-    sample_indices,
-    constraints_loc,
-    constraints_scale,
-    model_vars,
-    dtype
+        data,
+        sample_indices,
+        constraints_loc,
+        constraints_scale,
+        model_vars,
+        dtype
 ) -> List[tf.Tensor]:
     """ 
     Compute hessians via tf.hessian for all gene-wise models separately.
@@ -559,16 +557,16 @@ def _numeric_hessian_nb_glm_byfeature(
     """
 
     def feature_wise_hessians_batch(
-        X,
-        design_loc,
-        design_scale,
-        constraints_loc,
-        constraints_scale,
-        params,
-        p_shape_a,
-        p_shape_b,
-        dtype,
-        size_factors=None
+            X,
+            design_loc,
+            design_scale,
+            constraints_loc,
+            constraints_scale,
+            params,
+            p_shape_a,
+            p_shape_b,
+            dtype,
+            size_factors=None
     ) -> List[tf.Tensor]:
         """ 
         Compute hessians via tf.hessian for all gene-wise models separately
@@ -586,8 +584,8 @@ def _numeric_hessian_nb_glm_byfeature(
         X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
         size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
         params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
-        
-        def hessian(data): 
+
+        def hessian(data):
             """ Helper function that computes hessian for a given gene.
 
             :param data: tuple (X_t, size_factors_t, params_t)
@@ -597,7 +595,7 @@ def _numeric_hessian_nb_glm_byfeature(
             size_factors = tf.transpose(size_factors_t)  # observations x features
             X = tf.transpose(X_t)  # observations x features
             params = tf.transpose(params_t)  # design_params x features
-            
+
             a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
             # Define the model graph based on which the likelihood is evaluated
@@ -625,9 +623,9 @@ def _numeric_hessian_nb_glm_byfeature(
             dtype=[dtype],  # hessians of [a, b]
             parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
         )
-        
+
         stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
-        
+
         return stacked
 
     def _hessian_map(idx, data):
@@ -643,7 +641,7 @@ def _numeric_hessian_nb_glm_byfeature(
             p_shape_b=model_vars.b_var.shape[0],
             dtype=dtype,
             size_factors=size_factors
-            )
+        )
 
     def _hessian_red(prev, cur):
         return [tf.add(p, c) for p, c in zip(prev, cur)]
@@ -659,13 +657,13 @@ def _numeric_hessian_nb_glm_byfeature(
 
 
 def hessian_nb_glm(
-    data: tf.data.Dataset,
-    sample_indices: tf.Tensor,
-    constraints_loc,
-    constraints_scale,
-    model_vars,
-    dtype,
-    mode="obs"
+        data: tf.data.Dataset,
+        sample_indices: tf.Tensor,
+        constraints_loc,
+        constraints_scale,
+        model_vars,
+        dtype,
+        mode="obs"
 ):
     """
     Compute the nb_glm model hessian.
@@ -700,12 +698,12 @@ def hessian_nb_glm(
         evaluation of the hessian via the tf.hessian function,
         which is done by feature for implementation reasons.
     """
-    if constraints_loc!=None and mode!="tf":
+    if constraints_loc != None and mode != "tf":
         raise ValueError("closed form hessian does not work if constraints_loc is not None")
-    if constraints_scale!=None and mode!="tf":
+    if constraints_scale != None and mode != "tf":
         raise ValueError("closed form hessian does not work if constraints_scale is not None")
 
-    if mode=="obs":
+    if mode == "obs":
         H = _hessian_nb_glm_byobs(
             data=data,
             sample_indices=sample_indices,
@@ -714,7 +712,7 @@ def hessian_nb_glm(
             model_vars=model_vars,
             dtype=dtype
         )
-    elif mode=="feature":
+    elif mode == "feature":
         H = _hessian_nb_glm_byfeature(
             data=data,
             sample_indices=sample_indices,
@@ -723,7 +721,7 @@ def hessian_nb_glm(
             model_vars=model_vars,
             dtype=dtype
         )
-    elif mode=="tf":
+    elif mode == "tf":
         H = _numeric_hessian_nb_glm_byfeature(
             data=data,
             sample_indices=sample_indices,
@@ -733,7 +731,7 @@ def hessian_nb_glm(
             dtype=dtype
         )
     else:
-        raise ValueError("mode not recognized in hessian_nb_glm: "+mode)
+        raise ValueError("mode not recognized in hessian_nb_glm: " + mode)
 
     print(H.shape)
     return H
@@ -865,7 +863,7 @@ class BasicModelGraph:
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
             if size_factors is not None:
-                log_mu = tf.add(log_mu, size_factors) 
+                log_mu = tf.add(log_mu, size_factors)
             log_mu = clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
@@ -1023,7 +1021,7 @@ class ModelVars:
             self.a_var = a_var
             self.b_var = b_var
             self.params = params
-            
+
 
 # def feature_wise_bfgs(
 #         X,
@@ -1096,6 +1094,10 @@ class FullDataModelGraph:
         batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         batched_data = batched_data.prefetch(1)
 
+        singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+        singleobs_data = singleobs_data.prefetch(1)
+
+
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
             model = BasicModelGraph(
@@ -1128,7 +1130,7 @@ class FullDataModelGraph:
 
         with tf.name_scope("hessians"):
             hessians = hessian_nb_glm(
-                data=batched_data,
+                data=singleobs_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
@@ -1680,8 +1682,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             self._input_data = input_data
             self._train_mu = True
-            self._train_r = False if quick_scale==True else True
-            
+            self._train_r = False if quick_scale == True else True
+
             r"""
             standard:
             Only initialise intercept and keep other coefficients as zero.
@@ -1701,9 +1703,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if input_data.size_factors is not None:
                 size_factors_init = np.expand_dims(input_data.size_factors, axis=1)
                 size_factors_init = np.broadcast_to(
-                    array = size_factors_init, 
-                    shape = [input_data.size_factors.shape[0], input_data.num_features]
-                    )
+                    array=size_factors_init,
+                    shape=[input_data.size_factors.shape[0], input_data.num_features]
+                )
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -1758,9 +1760,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     mean = np.mean(input_data.X, axis=0)
                     mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
                     init_a = np.zeros([input_data.design_loc.shape[1], input_data.X.shape[1]])
-                    init_a[0,:] = np.log(mean)
+                    init_a[0, :] = np.log(mean)
                     self._train_mu = True
-                    
+
                     logger.info("Using standard initialization for mean")
                     logger.info("Should train mu: %s", self._train_mu)
 
@@ -1770,7 +1772,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_b.lower() == "closed_form":
                     try:
-                        unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0, return_inverse=True)
+                        unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0,
+                                                                     return_inverse=True)
                         if input_data.constraints_scale is not None:
                             unique_design_scale_constraints = input_data.constraints_scale.copy()
                             # -1 in the constraint matrix is used to indicate which variable
@@ -1817,7 +1820,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         logger.warning("Closed form initialization failed!")
                 elif init_b.lower() == "standard":
                     init_b = np.zeros([input_data.design_scale.shape[1], input_data.X.shape[1]])
-                    
+
                     logger.info("Using standard initialization for dispersion")
                     logger.info("Should train r: %s", self._train_r)
 
@@ -1907,10 +1910,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                size_factors_tensor = tf.constant(0, shape=[1,1], dtype=dtype)
-            size_factors_tensor = tf.broadcast_to(size_factors_tensor, 
-                    shape=[tf.size(idx), input_data.num_features])
-                
+                size_factors_tensor = tf.constant(0, shape=[1, 1], dtype=dtype)
+            size_factors_tensor = tf.broadcast_to(size_factors_tensor,
+                                                  shape=[tf.size(idx), input_data.num_features])
+
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 

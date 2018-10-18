@@ -17,7 +17,7 @@ import batchglm.pkg_constants as pkg_constants
 
 
 def estimate(input_data: InputData):
-    estimator = Estimator(input_data, batch_size=None)
+    estimator = Estimator(input_data)
     estimator.initialize()
     estimator.train_sequence(training_strategy="QUICK")
     return estimator
@@ -28,18 +28,25 @@ class NB_GLM_hessian_Test(unittest.TestCase):
     estimator_fw: Estimator
     estimator_ow: Estimator
     estimator_tf: Estimator
-    H_fw
-    H_ow
-    H_tf
-    t_fw
-    t_ow
-    t_tf
-    
+    estimator: Estimator
+
+    # H_fw
+    # H_ow
+    # H_tf
+    # t_fw
+    # t_ow
+    # t_tf
+    def setUp(self):
+        pass
+
     def tearDown(self):
-        self.estimator.close_session()
+        # self.estimator.close_session()
+        pass
 
+    def test_compute_hessians(self):
+        num_observations = 500
+        num_conditions = 2
 
-    def compute_hessians(self, num_observations=500, num_conditions=2):
         sim = Simulator(num_observations=num_observations, num_features=100)
         sim.generate_sample_description(num_conditions=num_conditions, num_batches=0)
         sim.generate()
@@ -49,14 +56,6 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
         input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
-        
-        pkg_constants.HESSIAN_MODE = "feature"
-        self.estimator_fw = estimate(input_data)
-        t0_fw = time.time()
-        self.H_fw = self.estimator_fw.hessians
-        t1_fw = time.time()
-        self.estimator_fw.close_session()
-        self.t_fw = t1_fw - t0_fw
 
         pkg_constants.HESSIAN_MODE = "obs"
         self.estimator_ow = estimate(input_data)
@@ -66,6 +65,14 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         self.estimator_ow.close_session()
         self.t_ow = t1_ow - t0_ow
 
+        pkg_constants.HESSIAN_MODE = "feature"
+        self.estimator_fw = estimate(input_data)
+        t0_fw = time.time()
+        self.H_fw = self.estimator_fw.hessians
+        t1_fw = time.time()
+        self.estimator_fw.close_session()
+        self.t_fw = t1_fw - t0_fw
+
         pkg_constants.HESSIAN_MODE = "tf"
         self.estimator_tf = estimate(input_data)
         t0_tf = time.time()
@@ -74,14 +81,15 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         self.estimator_tf.close_session()
         self.t_tf = t1_tf - t0_tf
 
-    def compare_hessians(self, i):
+        # def compare_hessians(self, i):
+        i = 0
         # test finalizing
-        print("analytic feature-wise hessian in "+str(self.t_fw))
-        print(H_fw[i,:,:])
-        print("analytic observation-wise hessian in "+str(self.t_ow))
-        print(H_ow[i,:,:])
-        print("tensorflow feature-wise hessian in "+str(self.t_tf))
-        print(H_tf[i,:,:])
+        print("analytic feature-wise hessian in " + str(self.t_fw))
+        print(self.H_fw[i, :, :])
+        print("analytic observation-wise hessian in " + str(self.t_ow))
+        print(self.H_ow[i, :, :])
+        print("tensorflow feature-wise hessian in " + str(self.t_tf))
+        print(self.H_tf[i, :, :])
 
 
 if __name__ == '__main__':
