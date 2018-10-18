@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 
 def _hessian_nb_glm_aa_coef_invariant(
-        X,
-        mu,
-        r,
-        dtype
+    X,
+    mu,
+    r,
+    dtype
 ):
     """
     Compute the coefficient index invariant part of the
@@ -64,20 +64,21 @@ def _hessian_nb_glm_aa_coef_invariant(
         given observations and features.
     """
     scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
-    const = tf.negative(tf.multiply(mu,  # [observations x features]
-                                    tf.divide(
-                                        tf.divide(X, r) + scalar_one,
-                                        tf.square(scalar_one + tf.divide(mu, r))
-                                    )
-                                    ))
+    const = tf.negative(tf.multiply(
+        mu,  # [observations x features]
+        tf.divide(
+            tf.divide(X, r) + scalar_one,
+            tf.square(scalar_one + tf.divide(mu, r))
+        )
+    ))
     return const
 
 
 def _hessian_nb_glm_bb_coef_invariant(
-        X,
-        mu,
-        r,
-        dtype
+    X,
+    mu,
+    r,
+    dtype
 ):
     """
     Compute the coefficient index invariant part of the
@@ -92,10 +93,10 @@ def _hessian_nb_glm_bb_coef_invariant(
         H^{r,r}_{i,j}&= X^r_i*X^r_j \\
             &*r*\bigg(psi_0(r+Y)+\psi_0(r)+r*psi_1(r+Y)+r*psi_1(r) \\
             &-\frac{mu}{(r+mu)^2}*(r+Y) \\
-            &+\frac{mu-r}{r+mu}+\log(r)+1-\log(r+m) \bigg) \\
+            &+\frac{mu-r}{r+mu}+\log(r)+1-\log(r+mu) \bigg) \\
         const = r*\bigg(psi_0(r+Y)+\psi_0(r)+r*psi_1(r+Y)+r*psi_1(r) \\
             &-\frac{mu}{(r+mu)^2}*(r+Y) \\
-            &+\frac{mu-r}{r+mu}+\log(r)+1-\log(r+m) \bigg) \\
+            &+\frac{mu-r}{r+mu}+\log(r)+1-\log(r+mu) \bigg) \\
         H^{r,r}_{i,j}&= X^r_i*X^r_j * const \\
     
     :param X: tf.tensor observations x features
@@ -109,15 +110,15 @@ def _hessian_nb_glm_bb_coef_invariant(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
+    scalar_zero = tf.constant(0, shape=[1, 1], dtype=dtype)
     scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
-    scalar_two = tf.constant(2, shape=[1, 1], dtype=dtype)
     const1 = tf.add(  # [observations, features]
-        tf.math.polygamma(a=scalar_one, x=tf.add(r, X)),
+        tf.math.polygamma(a=scalar_zero, x=tf.add(r, X)),
         tf.add(
-            tf.math.polygamma(a=scalar_one, x=r),
+            tf.math.polygamma(a=scalar_zero, x=r),
             tf.add(
-                tf.math.polygamma(a=scalar_two, x=tf.add(r, X)),
-                tf.math.polygamma(a=scalar_two, x=r)
+                tf.multiply(r, tf.math.polygamma(a=scalar_one, x=tf.add(r, X))),
+                tf.multiply(r, tf.math.polygamma(a=scalar_one, x=r))
             )
         )
     )
@@ -132,15 +133,16 @@ def _hessian_nb_glm_bb_coef_invariant(
             tf.log(tf.add(r, mu))
         )
     )
-    const = tf.multiply(tf.multiply(const1, const2), const3)  # [observations, features]
+    const = tf.add(tf.add(const1, const2), const3)  # [observations, features]
+    const = tf.multiply(r, const)
     return const
 
 
 def _hessian_nb_glm_ab_coef_invariant(
-        X,
-        mu,
-        r,
-        dtype
+    X,
+    mu,
+    r,
+    dtype
 ):
     """
     Compute the coefficient index invariant part of the
@@ -157,8 +159,8 @@ def _hessian_nb_glm_ab_coef_invariant(
     .. math::
 
         &H^{m,r}_{i,j} = X^m_i*X^r_j*mu*\frac{Y-mu}{(1+mu/r)^2} \\
-        &H^{r,m}_{i,j} = X^m_i*X^r_j*mu*\frac{Y-mu}{(1+mu/r)^2} \\
-        &const = mu*\frac{Y-mu}{(1+mu/r)^2} \\
+        &H^{r,m}_{i,j} = X^m_i*X^r_j*r*mu*\frac{Y-mu}{(mu+r)^2} \\
+        &const = r*mu*\frac{Y-mu}{(mu+r)^2} \\
         &H^{m,r}_{i,j} = X^m_i*X^r_j*const \\
         &H^{r,m}_{i,j} = X^m_i*X^r_j*const \\
     
@@ -173,13 +175,13 @@ def _hessian_nb_glm_ab_coef_invariant(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
-    const = tf.multiply(mu,  # [observations, features]
-                        tf.divide(
-                            X - mu,
-                            tf.square(scalar_one + tf.divide(mu, r))
-                        )
-                        )
+    const = tf.multiply(
+        tf.multiply(mu, r),  # [observations, features]
+        tf.divide(
+            X - mu, # [observations, features]
+            tf.square(tf.add(mu, r))
+        )
+    )
     return const
 
 
@@ -197,6 +199,8 @@ def _hessian_nb_glm_byobs(
 
     Has three subfunctions which built the specific blocks of the hessian
     and one subfunction which concatenates the blocks into a full hessian.
+
+    TODO: compute in obs batches by using matmul across 3rd dim
     """
 
     def _hessian_nb_glm_aa_byobs(X, design_loc, design_scale, mu, r):
