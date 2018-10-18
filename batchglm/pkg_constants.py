@@ -5,7 +5,9 @@ import tensorflow as tf
 
 TF_NUM_THREADS = int(os.environ.get('TF_NUM_THREADS', 0))
 TF_LOOP_PARALLEL_ITERATIONS = int(os.environ.get('TF_LOOP_PARALLEL_ITERATIONS', 10))
+
 ACCURACY_MARGIN_RELATIVE_TO_LIMIT = float(os.environ.get('BATCHGLM_ACCURACY_MARGIN', 10))
+HESSIAN_MODE = str(os.environ.get('HESSIAN_MODE', "obs"))
 
 XARRAY_NETCDF_ENGINE = "h5netcdf"
 

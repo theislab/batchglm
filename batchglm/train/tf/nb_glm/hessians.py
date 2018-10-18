@@ -507,51 +507,197 @@ def _hessian_nb_glm_byfeature(
     return H
 
 
-def hessian_nb_glm(
-    X,
-    design_loc,
-    design_scale,
+def _numeric_hessian_nb_glm_byfeature(
+    data,
+    sample_indices,
     constraints_loc,
     constraints_scale,
-    a,
-    b,
-    dtype,
-    size_factors,
+    model_vars,
+) -> List[tf.Tensor]:
+     """ 
+    Compute hessians via tf.hessian for all gene-wise models separately.
+
+    Contains three functions:
+
+        - feature_wise_hessians_batch():
+        a function that computes all hessians for a given batch
+        of data by distributing the computation across features. 
+        - hessian_map():
+        a function that unpacks the data from the iterator to run
+        feature_wise_hessians_batch.
+        - hessian_red():
+        a function that performs the reduction of the hessians across hessians
+        into a single hessian during the iteration over batches.
+    """
+    def feature_wise_hessians_batch(
+        X,
+        design_loc,
+        design_scale,
+        constraints_loc,
+        constraints_scale,
+        params,
+        p_shape_a,
+        p_shape_b,
+        dtype,
+        size_factors=None
+    ) -> List[tf.Tensor]:
+        """ 
+        Compute hessians via tf.hessian for all gene-wise models separately
+        for a given batch of data.
+        """
+        dtype = X.dtype
+
+        # Hessian computation will be mapped across genes/features.
+        # The map function maps across dimension zero, the slices have to 
+        # be 2D tensors to fit into BasicModelGraph, accordingly,
+        # X, size_factors and params have to be reshaped to have genes in the first dimension
+        # and cells or parameters with an extra padding dimension in the second
+        # and third dimension. Note that size_factors is not a 1xobservations array
+        # but is implicitly broadcasted to observations x features in Estimator.
+        X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
+        size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
+        params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
+        
+        def hessian(data): 
+            """ Helper function that computes hessian for a given gene.
+
+            :param data: tuple (X_t, size_factors_t, params_t)
+            """
+            # Extract input data:
+            X_t, size_factors_t, params_t = data
+            size_factors = tf.transpose(size_factors_t)  # observations x features
+            X = tf.transpose(X_t)  # observations x features
+            params = tf.transpose(params_t)  # design_params x features
+            
+            a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
+
+            # Define the model graph based on which the likelihood is evaluated
+            # which which the hessian is computed:
+            model = BasicModelGraph(
+                X=X,
+                design_loc=design_loc,
+                design_scale=design_scale,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                a=a_split,
+                b=b_split,
+                dtype=dtype,
+                size_factors=size_factors
+            )
+
+            # Compute the hessian of the model of the given gene:
+            hess = tf.hessians(- model.log_likelihood, params)
+            return hess
+
+        # Map hessian computation across genes
+        hessians = tf.map_fn(
+            fn=hessian,
+            elems=(X_t, size_factors_t, params_t),
+            dtype=[dtype],  # hessians of [a, b]
+            parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
+        )
+        
+        stacked = [tf.squeeze(tf.squeeze(tf.stack(t), axis=2), axis=3) for t in hessians]
+        
+        return stacked
+
+    def hessian_map(idx, data):
+        X, design_loc, design_scale, size_factors = data
+        return feature_wise_hessians_batch(
+            X=X,
+            design_loc=design_loc,
+            design_scale=design_scale,
+            constraints_loc=constraints_loc,
+            constraints_scale=constraints_scale,
+            params=model_vars.params,
+            p_shape_a=model_vars.a_var.shape[0],
+            p_shape_b=model_vars.b_var.shape[0],
+            dtype=dtype,
+            size_factors=size_factors
+            )
+
+    def hessian_red(prev, cur):
+        return [tf.add(p, c) for p, c in zip(prev, cur)]
+
+    H = op_utils.map_reduce(
+        last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
+        data=batched_data,
+        map_fn=hessian_map,
+        reduce_fn=hessian_red,
+        parallel_iterations=1,
+    )
+    return H[0]
+
+
+def hessian_nb_glm(
+    data: tf.data.Dataset,
+    sample_indices: tf.Tensor,
+    constraints_loc,
+    constraints_scale,
+    model_vars,
     mode="obs"
 ):
     """
-    Compute the closed-form of the nb_glm model hessian.
+    Compute the nb_glm model hessian.
 
+    :param data: Dataset iterator.
+    :param sample_indices: Indices of samples to be used.
+    :param constraints_loc: Constraints for location model.
+        Array with constraints in rows and model parameters in columns.
+        Each constraint contains non-zero entries for the a of parameters that 
+        has to sum to zero. This constraint is enforced by binding one parameter
+        to the negative sum of the other parameters, effectively representing that
+        parameter as a function of the other parameters. This dependent
+        parameter is indicated by a -1 in this array, the independent parameters
+        of that constraint (which may be dependent at an earlier constraint)
+        are indicated by a 1.
+    :param constraints_scale: Constraints for scale model.
+        Array with constraints in rows and model parameters in columns.
+        Each constraint contains non-zero entries for the a of parameters that 
+        has to sum to zero. This constraint is enforced by binding one parameter
+        to the negative sum of the other parameters, effectively representing that
+        parameter as a function of the other parameters. This dependent
+        parameter is indicated by a -1 in this array, the independent parameters
+        of that constraint (which may be dependent at an earlier constraint)
+        are indicated by a 1.
     :param mode: str
-        Mode by with which hessian is to be evaluated, either by
+        Mode by with which hessian is to be evaluated, 
+        for analytic solutions of the hessian one can either chose by
         "feature" or by "obs" (observation). Note that sparse
         observation matrices X are often csr, ie. slicing is 
         faster by row/observation, so that hessian evaluation
-        by observation is much faster.
+        by observation is much faster. "tf" allows for
+        evaluation of the hessian via the tf.hessian function,
+        which is done by feature for implementation reasons.
     """
-    if obs=="obs"
+    if constraints_loc!=None and mode!="tf":
+        raise ValueError("closed form hessian does not work if constraints_loc is not None")
+    if constraints_scale!=None and mode!="tf":
+        raise ValueError("closed form hessian does not work if constraints_scale is not None")
+
+    if mode=="obs"
         H = _hessian_nb_glm_byobs(
-            X=X,
-            design_loc=design_loc,
-            design_scale=design_scale,
+            data=data,
+            sample_indices=sample_indices,
             constraints_loc=constraints_loc,
             constraints_scale=constraints_scale,
-            a=a_split,
-            b=b_split,
-            dtype=dtype,
-            size_factors=size_factors
+            model_vars=model_vars
         )
-    elif obs=="feature"
-        H = _hessian_nb_glm_assemble_byfeature(
-            X=X,
-            design_loc=design_loc,
-            design_scale=design_scale,
+    elif mode=="feature"
+        H = _hessian_nb_glm_byfeature(
+            data=data,
+            sample_indices=sample_indices,
             constraints_loc=constraints_loc,
             constraints_scale=constraints_scale,
-            a=a_split,
-            b=b_split,
-            dtype=dtype,
-            size_factors=size_factors
+            model_vars=model_vars
+        )
+    elif mode=="tf"
+        H = _numeric_hessian_nb_glm_byfeature(
+            data=data,
+            sample_indices=sample_indices,
+            constraints_loc=constraints_loc,
+            constraints_scale=constraints_scale,
+            model_vars=model_vars
         )
     else:
         raise ValueError("mode not recognized in hessian_nb_glm: "+mode)

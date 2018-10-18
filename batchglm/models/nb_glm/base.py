@@ -125,7 +125,7 @@ class InputData(NegativeBinomialInputData):
         :param design_scale_names: (optional) names of the design_scale parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
-        :param constraints_loc: : Constraints for location model.
+        :param constraints_loc: Constraints for location model.
             Array with constraints in rows and model parameters in columns.
             Each constraint contains non-zero entries for the a of parameters that 
             has to sum to zero. This constraint is enforced by binding one parameter
@@ -134,7 +134,7 @@ class InputData(NegativeBinomialInputData):
             parameter is indicated by a -1 in this array, the independent parameters
             of that constraint (which may be dependent at an earlier constraint)
             are indicated by a 1.
-        :param constraints_scale: : Constraints for scale model.
+        :param constraints_scale: Constraints for scale model.
             Array with constraints in rows and model parameters in columns.
             Each constraint contains non-zero entries for the a of parameters that 
             has to sum to zero. This constraint is enforced by binding one parameter
