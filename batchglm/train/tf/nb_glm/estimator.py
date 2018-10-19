@@ -67,8 +67,8 @@ def _hessian_nb_glm_aa_coef_invariant(
     const = tf.negative(tf.multiply(
         mu,  # [observations x features]
         tf.divide(
-            tf.divide(X, r) + scalar_one,
-            tf.square(scalar_one + tf.divide(mu, r))
+            tf.add(tf.divide(X, r), scalar_one),
+            tf.square(tf.add(tf.divide(mu, r), scalar_one))
         )
     ))
     return const
@@ -91,12 +91,14 @@ def _hessian_nb_glm_bb_coef_invariant(
     .. math::
 
         H^{r,r}_{i,j}&= X^r_i*X^r_j \\
-            &*r*\bigg(psi_0(r+Y)+\psi_0(r)+r*psi_1(r+Y)+r*psi_1(r) \\
-            &-\frac{mu}{(r+mu)^2}*(r+Y) \\
-            &+\frac{mu-r}{r+mu}+\log(r)+1-\log(r+mu) \bigg) \\
-        const = r*\bigg(psi_0(r+Y)+\psi_0(r)+r*psi_1(r+Y)+r*psi_1(r) \\
-            &-\frac{mu}{(r+mu)^2}*(r+Y) \\
-            &+\frac{mu-r}{r+mu}+\log(r)+1-\log(r+mu) \bigg) \\
+            &*r*\bigg(psi_0(r+Y)+r*psi_1(r+Y) \\
+            &+psi_0(r)+r*psi_1(r) \\
+            &-\frac{mu*(r+X)+2*r*(r+m)}{(r+mu)^2} \\
+            &+log(r)+1-log(r+mu) \bigg) \\
+        const = r*\bigg(psi_0(r+Y)+r*psi_1(r+Y) \\ const1
+            &+psi_0(r)+r*psi_1(r) \\ const2
+            &-\frac{mu*(r+X)+2*r*(r+m)}{(r+mu)^2} \\ const3
+            &+log(r)+1-log(r+mu) \bigg) \\ const4
         H^{r,r}_{i,j}&= X^r_i*X^r_j * const \\
     
     :param X: tf.tensor observations x features
@@ -110,30 +112,36 @@ def _hessian_nb_glm_bb_coef_invariant(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_zero = tf.constant(0, shape=[1, 1], dtype=dtype)
     scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+    scalar_two = tf.constant(2, shape=[1, 1], dtype=dtype)
+    # Pre-define sub-graphs that are used multiple times:
+    r_plus_mu = tf.add(r, mu)
+    r_plus_x = tf.add(r, X)
+    # Define graphs for individual terms of constant term of hessian:
     const1 = tf.add(  # [observations, features]
-        tf.math.polygamma(a=scalar_zero, x=tf.add(r, X)),
+        tf.math.digamma(x=r_plus_x),
+        tf.multiply(r, tf.math.polygamma(a=scalar_one, x=r_plus_x))
+    )
+    const2 = tf.negative(tf.add(  # [observations, features]
+        tf.math.digamma(x=r),
+        tf.multiply(r, tf.math.polygamma(a=scalar_one, x=r))
+    ))
+    const3 = tf.negative(tf.divide(
         tf.add(
-            tf.math.polygamma(a=scalar_zero, x=r),
-            tf.add(
-                tf.multiply(r, tf.math.polygamma(a=scalar_one, x=tf.add(r, X))),
-                tf.multiply(r, tf.math.polygamma(a=scalar_one, x=r))
-            )
-        )
-    )
-    const2 = tf.multiply(  # [observations, features]
-        tf.divide(mu, tf.square(tf.add(r, mu))),
-        tf.add(r, X)
-    )
-    const3 = tf.add(  # [observations, features]
-        tf.divide(tf.subtract(mu, r), tf.add(mu, r)),
+            tf.multiply(mu, r_plus_x),
+            tf.multiply(tf.multiply(scalar_two, r), r_plus_mu)
+        ),
+        tf.square(r_plus_mu)
+    ))
+    const4 = tf.add(  # [observations, features]
+        tf.log(r),
         tf.subtract(
-            tf.add(tf.log(r), scalar_one),
-            tf.log(tf.add(r, mu))
+            scalar_two,
+            tf.log(r_plus_mu)
         )
     )
-    const = tf.add(tf.add(const1, const2), const3)  # [observations, features]
+    const = tf.add(tf.add(tf.add(
+        const1, const2), const3), const4)  # [observations, features]
     const = tf.multiply(r, const)
     return const
 

@@ -35,7 +35,6 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         pass
 
     def tearDown(self):
-        # self.estimator.close_session()
         pass
 
     def test_compute_hessians(self):
@@ -81,20 +80,12 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         self.estimator_ow.close_session()
         self.t_ow = t1_ow - t0_ow
 
-        # def compare_hessians(self, i):
-        i = 0
-        # test finalizing
+        i = 1
         print("\n")
-        print("analytic feature-wise hessian in " + str(self.t_fw))
-        print(np.round(self.H_fw.values[i, :, :], 3))
-        print("analytic observation-wise hessian in " + str(self.t_ow))
-        print(np.round(self.H_ow.values[i, :, :], 3))
-        print("tensorflow feature-wise hessian in " + str(self.t_tf))
-        print(np.round(self.H_tf.values[i, :, :], 3))
-        print("difference tensorflow feature-wise hessian to analytic feature-wise hessian:")
-        print(self.H_tf.values[i, :, :] - self.H_fw.values[i, :, :])
-        print("difference tensorflow feature-wise hessian to analytic observation-wise hessian:")
-        print(self.H_tf.values[i, :, :] - self.H_ow.values[i, :, :])
+        print("ratio of analytic feature-wise hessian to analytic observation-wise hessian:")
+        print(self.H_fw.values[i, :, :] / self.H_ow.values[i, :, :])
+        print("ratio of tensorflow feature-wise hessian to analytic observation-wise hessian:")
+        print(self.H_tf.values[i, :, :] / self.H_ow.values[i, :, :])
 
 
 if __name__ == '__main__':
