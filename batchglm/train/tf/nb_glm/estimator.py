@@ -87,6 +87,8 @@ class Hessians:
             raise ValueError("closed form hessian does not work if constraints_scale is not None")
 
         if mode == "obs":
+            logger.info("Performance warning for hessian mode: "+
+                        "obs_batched is strongly recommended as an alternative to obs.")
             self.H = self.byobs(
                 batched_data=singleobs_data,
                 sample_indices=sample_indices,
@@ -1199,8 +1201,12 @@ class FullDataModelGraph:
         batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         batched_data = batched_data.prefetch(1)
 
-        singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-        singleobs_data = singleobs_data.prefetch(1)
+        if pkg_constants.HESSIAN_MODE=="obs":
+            # Only need iterator that yields single observations for hessian mode obs:
+            singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            singleobs_data = singleobs_data.prefetch(1)
+        else:
+            singleobs_data = None
 
 
         def map_model(idx, data) -> BasicModelGraph:
