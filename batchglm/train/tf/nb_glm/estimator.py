@@ -93,6 +93,17 @@ class Hessians:
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
+                batched=False,
+                dtype=dtype
+            )
+        elif mode == "obs_batched":
+            self.H = self.byobs(
+                batched_data=batched_data,
+                sample_indices=sample_indices,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                model_vars=model_vars,
+                batched=True,
                 dtype=dtype
             )
         elif mode == "feature":
@@ -287,6 +298,7 @@ class Hessians:
         constraints_loc,
         constraints_scale,
         model_vars,
+        batched,
         dtype
     ):
         """
@@ -296,7 +308,16 @@ class Hessians:
         Has three subfunctions which built the specific blocks of the hessian
         and one subfunction which concatenates the blocks into a full hessian.
 
-        TODO: compute in obs batches by using matmul across 3rd dim
+        Note that two different groups of functions compute the hessian
+        block either with standard matrix multiplication for a single observation
+        at a time which expect the output of an iterator which only yields one
+        observation at a time. The behaviour of these functions is save in terms
+        of memory usage. There is a second set of functions (*batched) which
+        use the einsum to compute the hessian block on a batch of observations
+        in a single go. This requires the handling of a latent 4D tensor which
+        potentially large memory usage, depending on the einsum behaviour. In
+        principle the latter can be fast though as they relace iterations which
+        larger tensor operations.
         """
 
         def _aa_byobs(X, design_loc, design_scale, mu, r):
@@ -319,12 +340,12 @@ class Hessians:
                 dtype=dtype
             )
             nonconst = tf.matmul(tf.transpose(design_loc), design_loc)  # [coefficients, coefficients]
-            nonconst = tf.expand_dims(nonconst, axis=-1)  # [coefficients, coefficients, observations=1]
-            Hblock = tf.transpose(tf.tensordot(  # [features, coefficients, coefficients]
-                a=nonconst,  # [coefficients, coefficients, observations=1]
-                b=const,  # [observations=1 x features]
+            nonconst = tf.expand_dims(nonconst, axis=0)  # [observations=1, coefficients, coefficients]
+            Hblock = tf.tensordot(  # [features, coefficients, coefficients]
+                a=tf.transpose(const),  # [features, observations=1]
+                b=nonconst,  # [observations=1, coefficients, coefficients]
                 axes=1  # collapse last dimension of a and first dimension of b
-            ))
+            )
             return Hblock
 
         def _bb_byobs(X, design_loc, design_scale, mu, r):
@@ -339,12 +360,12 @@ class Hessians:
                 dtype=dtype
             )
             nonconst = tf.matmul(tf.transpose(design_scale), design_scale)  # [coefficients, coefficients]
-            nonconst = tf.expand_dims(nonconst, axis=-1)  # [coefficients, coefficients, observations=1]
-            Hblock = tf.transpose(tf.tensordot(  # [features, coefficients, coefficients]
-                a=nonconst,  # [coefficients, coefficients, observations=1]
-                b=const,  # [observations=1 x features]
+            nonconst = tf.expand_dims(nonconst, axis=0)  # [observations=1, coefficients, coefficients]
+            Hblock = tf.tensordot(  # [features, coefficients, coefficients]
+                a=tf.transpose(const),  # [features, observations=1]
+                b=nonconst,  # [observations=1, coefficients, coefficients]
                 axes=1  # collapse last dimension of a and first dimension of b
-            ))
+            )
             return Hblock
 
         def _ab_byobs(X, design_loc, design_scale, mu, r):
@@ -363,12 +384,91 @@ class Hessians:
                 dtype=dtype
             )
             nonconst = tf.matmul(tf.transpose(design_loc), design_scale)  # [coefficient_loc, coefficients_scale]
-            nonconst = tf.expand_dims(nonconst, axis=-1)  # [coefficient_loc, coefficients_scale, observations=1]
-            Hblock = tf.transpose(tf.tensordot(  # [features, coefficient_loc, coefficients_scale]
-                a=nonconst,  # [coefficient_loc, coefficients_scale, observations=1]
-                b=const,  # [observations=1 x features]
+            nonconst = tf.expand_dims(nonconst, axis=0)  # [observations=1, coefficient_loc, coefficients_scale]
+            Hblock = tf.tensordot(  # [features, coefficient_loc, coefficients_scale]
+                a=tf.transpose(const),  # [features, observations=1]
+                b=nonconst,  # [observations=1, coefficient_loc, coefficients_scale]
                 axes=1  # collapse last dimension of a and first dimension of b
-            ))
+            )
+            return Hblock
+
+        def _aa_byobs_batched(X, design_loc, design_scale, mu, r):
+            """
+            Compute the mean model diagonal block of the
+            closed form hessian of nb_glm model by observation across features
+            for a batch of observations.
+
+            :param X: tf.tensor observations x features
+                Observation by observation and feature.
+            :param mu: tf.tensor observations x features
+                Value of mean model by observation and feature.
+            :param r: tf.tensor observations x features
+                Value of dispersion model by observation and feature.
+            """
+            scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
+            const = self._coef_invariant_aa(  # [observations x features]
+                X=X,
+                mu=mu,
+                r=r,
+                dtype=dtype
+            )
+            # The computation of the hessian block requires two outer products between
+            # feature-wise constants and the coefficient wise design matrix entries, for each observation.
+            # The resulting tensor is observations x features x coefficients x coefficients which
+            # is too large too store in memory in most cases. However, the full 4D tensor is never
+            # actually needed but only its marginal across features, the final hessian block shape.
+            # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
+            Hblock = tf.einsum('ofc,od->fcd',
+                               tf.einsum('of,oc->ofc', const, design_loc),
+                               design_loc)
+            return Hblock
+
+        def _bb_byobs_batched(X, design_loc, design_scale, mu, r):
+            """
+            Compute the dispersion model diagonal block of the
+            closed form hessian of nb_glm model by observation across features.
+            """
+            const = self._coef_invariant_bb(  # [observations=1 x features]
+                X=X,
+                mu=mu,
+                r=r,
+                dtype=dtype
+            )
+            # The computation of the hessian block requires two outer products between
+            # feature-wise constants and the coefficient wise design matrix entries, for each observation.
+            # The resulting tensor is observations x features x coefficients x coefficients which
+            # is too large too store in memory in most cases. However, the full 4D tensor is never
+            # actually needed but only its marginal across features, the final hessian block shape.
+            # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
+            Hblock = tf.einsum('ofc,od->fcd',
+                               tf.einsum('of,oc->ofc', const, design_scale),
+                               design_scale)
+            return Hblock
+
+        def _ab_byobs_batched(X, design_loc, design_scale, mu, r):
+            """
+            Compute the mean-dispersion model off-diagonal block of the
+            closed form hessian of nb_glm model by observastion across features.
+
+            Note that there are two blocks of the same size which can
+            be compute from each other with a transpose operation as
+            the hessian is symmetric.
+            """
+            const = self._coef_invariant_ab(  # [observations=1 x features]
+                X=X,
+                mu=mu,
+                r=r,
+                dtype=dtype
+            )
+            # The computation of the hessian block requires two outer products between
+            # feature-wise constants and the coefficient wise design matrix entries, for each observation.
+            # The resulting tensor is observations x features x coefficients x coefficients which
+            # is too large too store in memory in most cases. However, the full 4D tensor is never
+            # actually needed but only its marginal across features, the final hessian block shape.
+            # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
+            Hblock = tf.einsum('ofc,od->fcd',
+                               tf.einsum('of,oc->ofc', const, design_loc),
+                               design_scale)
             return Hblock
 
         def _assemble_byobs(idx, data):
@@ -407,14 +507,20 @@ class Hessians:
             mu = model.mu
             r = model.r
 
-            H_aa = _aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-            H_bb = _bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-            H_ab = _ab_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            if batched==True:
+                H_aa = _aa_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                H_bb = _bb_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                H_ab = _ab_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            else:
+                H_aa = _aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                H_bb = _bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                H_ab = _ab_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+
             H_ba = tf.transpose(H_ab, perm=[0, 2, 1])
             H = tf.concat(
-                [tf.concat([H_aa, H_ab], axis=1),
-                 tf.concat([H_ba, H_bb], axis=1)],
-                axis=2
+                [tf.concat([H_aa, H_ab], axis=2),
+                 tf.concat([H_ba, H_bb], axis=2)],
+                axis=1
             )
             return H
 
