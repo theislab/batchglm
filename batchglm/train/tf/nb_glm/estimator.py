@@ -1509,6 +1509,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 with tf.name_scope("newton-raphson"):
                     # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
+                    # Full data model:
                     param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
                     param_grad_vec_t = tf.transpose(param_grad_vec)
 
@@ -1523,6 +1524,23 @@ class EstimatorGraph(TFEstimatorGraph):
                     # nr_update = model_vars.params - delta
                     newton_raphson_op = tf.group(
                         tf.assign(model_vars.params, nr_update),
+                        tf.assign_add(global_step, 1)
+                    )
+
+                    # Batched data model:
+                    param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
+                                                          model_vars.params)[0]
+                    param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
+
+                    delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
+                        batch_model.hessians,
+                        tf.expand_dims(param_grad_vec_batched_t, axis=-1),
+                        fast=False
+                    ), axis=-1)
+                    delta_batched = tf.transpose(delta_batched_t)
+                    nr_update_batched = model_vars.params - learning_rate * delta_batched
+                    newton_raphson_batched_op = tf.group(
+                        tf.assign(model_vars.params, nr_update_batched),
                         tf.assign_add(global_step, 1)
                     )
 
@@ -1630,6 +1648,7 @@ class EstimatorGraph(TFEstimatorGraph):
         self.fisher_inv = fisher_inv
 
         self.newton_raphson_op = newton_raphson_op
+        self.newton_raphson_batched_op = newton_raphson_batched_op
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -2125,14 +2144,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # check if r was initialized with MLE
             train_r = self._train_r
 
-        if optim_algo.lower() == "newton-raphson" or \
-                optim_algo.lower() == "newton_raphson" or \
-                optim_algo.lower() == "nr":
-            loss = self.model.full_loss
-            train_op = self.model.newton_raphson_op
-        elif use_batching:
+        if use_batching:
             loss = self.model.loss
-            if train_mu:
+            if optim_algo.lower() == "newton-raphson" or \
+                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "nr":
+                train_op = self.model.newton_raphson_batched_op
+            elif train_mu:
                 if train_r:
                     train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
                 else:
@@ -2145,7 +2163,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     return
         else:
             loss = self.model.full_loss
-            if train_mu:
+            if optim_algo.lower() == "newton-raphson" or \
+                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "nr":
+                train_op = self.model.newton_raphson_op
+            elif train_mu:
                 if train_r:
                     train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
                 else:
