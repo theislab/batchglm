@@ -1009,6 +1009,7 @@ class BasicModelGraph:
         self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
         self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
+
         with tf.name_scope("loss"):
             self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
 
@@ -1125,8 +1126,8 @@ class ModelVars:
 
             self.a = a_clipped
             self.b = b_clipped
-            self.a_var = a_var
-            self.b_var = b_var
+            # self.a_var = a_var
+            # self.b_var = b_var
             self.params = params
 
 
@@ -1217,8 +1218,8 @@ class FullDataModelGraph:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=model_vars.a_var,
-                b=model_vars.b_var,
+                a=model_vars.a,
+                b=model_vars.b,
                 dtype=dtype,
                 size_factors=size_factors)
             return model
@@ -1381,8 +1382,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     design_scale=batch_design_scale,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
-                    a=model_vars.a_var,
-                    b=model_vars.b_var,
+                    a=model_vars.a,
+                    b=model_vars.b,
                     dtype=dtype,
                     size_factors=batch_size_factors
                 )
@@ -1428,19 +1429,6 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("training"):
                 global_step = tf.train.get_or_create_global_step()
 
-                a_only_constr = [
-                    lambda grad: tf.concat([
-                        grad[0:model_vars.a.shape[0]],
-                        tf.zeros_like(grad)[model_vars.a.shape[0]:],
-                    ], axis=0)
-                ]
-                b_only_constr = [
-                    lambda grad: tf.concat([
-                        tf.zeros_like(grad)[0:model_vars.a.shape[0]],
-                        grad[model_vars.a.shape[0]:],
-                    ], axis=0)
-                ]
-
                 # set up trainers for different selections of variables to train
                 # set up multiple optimization algorithms for each trainer
                 batch_trainers = train_utils.MultiTrainer(
@@ -1451,19 +1439,29 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
-                    loss=batch_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.a_var],
-                    variables=[model_vars.params],
-                    grad_constr=a_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.a)[0],
+                                tf.zeros_like(model_vars.b),
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
-                    loss=batch_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.b_var],
-                    variables=[model_vars.params],
-                    grad_constr=b_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.zeros_like(model_vars.a),
+                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.b)[0],
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers_b_only"
@@ -1484,19 +1482,29 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.a_var],
-                    variables=[model_vars.params],
-                    grad_constr=a_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.a)[0],
+                                tf.zeros_like(model_vars.b),
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood,
-                    # variables=[model_vars.b_var],
-                    variables=[model_vars.params],
-                    grad_constr=b_only_constr,
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.zeros_like(model_vars.a),
+                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.b)[0],
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers_b_only"
@@ -1794,7 +1802,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             self._input_data = input_data
             self._train_mu = True
-            self._train_r = False if quick_scale == True else True
+            self._train_r = not quick_scale
 
             r"""
             standard:

@@ -183,6 +183,10 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         return self.data["design_scale"]
 
     @property
+    def size_factors(self):
+        return None
+
+    @property
     def a(self):
         return self.params['a']
 

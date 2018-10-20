@@ -73,7 +73,7 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
 
     def generate_data(self):
         self.data["X"] = (
-            ("observations", "features"),
+            self.param_shapes()["X"],
             rand_utils.NegativeBinomial(mean=self.mu, r=self.r).sample()
         )
 

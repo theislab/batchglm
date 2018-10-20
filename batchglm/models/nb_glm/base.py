@@ -48,8 +48,8 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
         elif isinstance(design, xr.DataArray):
             dmat = design
             dmat = dmat.rename({
-                design.dims[0]: "observations",
-                design.dims[1]: dim,
+                dmat.dims[0]: "observations",
+                dmat.dims[1]: dim,
             })
         elif isinstance(design, pd.DataFrame):
             dmat = xr.DataArray(np.asarray(design), dims=("observations", dim))
@@ -62,8 +62,8 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
     elif isinstance(data, xr.Dataset):
         dmat: xr.DataArray = data[design_key]
         dmat = dmat.rename({
-            design.dims[0]: "observations",
-            design.dims[1]: dim,
+            dmat.dims[0]: "observations",
+            dmat.dims[1]: dim,
         })
     else:
         raise ValueError("Missing design_loc matrix!")
@@ -231,7 +231,13 @@ class InputData(NegativeBinomialInputData):
 
     @size_factors.setter
     def size_factors(self, data):
-        self.data.coords["size_factors"] = data
+        if data is None and "size_factors" in self.data.coords:
+            del self.data.coords["size_factors"]
+        else:
+            self.data.coords["size_factors"] = xr.DataArray(
+                dims=("observations",),
+                data=np.broadcast_to(data, [self.num_observations, ])
+            )
 
     @property
     def num_design_loc_params(self):
@@ -280,6 +286,10 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         return self.input_data.design_scale
 
     @property
+    def size_factors(self):
+        return self.input_data.size_factors
+
+    @property
     @abc.abstractmethod
     def a(self) -> xr.DataArray:
         pass
@@ -291,11 +301,27 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
 
     @property
     def mu(self) -> xr.DataArray:
-        return np.exp(self.design_loc.dot(self.a))
+        # exp(design * a + sf)
+        # Depend on xarray and use xr.DataArray.dot() for matrix multiplication
+        # Also, make sure that the right order of dimensions get returned => use xr.DataArray.transpose()
+        log_retval = self.design_loc.dot(self.a, dims="design_loc_params").transpose(*self.param_shapes()["mu"])
+
+        if self.size_factors is not None:
+            log_retval += self.size_factors
+
+        return np.exp(log_retval)
 
     @property
     def r(self) -> xr.DataArray:
-        return np.exp(self.design_scale.dot(self.b))
+        # exp(design * b + sf)
+        # Depend on xarray and use xr.DataArray.dot() for matrix multiplication
+        # Also, make sure that the right order of dimensions get returned => use xr.DataArray.transpose()
+        log_retval = self.design_scale.dot(self.b, dims="design_scale_params").transpose(*self.param_shapes()["r"])
+
+        if self.size_factors is not None:
+            log_retval += self.size_factors
+
+        return np.exp(log_retval)
 
     @property
     def par_link_loc(self):
@@ -357,8 +383,8 @@ def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], p
             })
         elif anndata is not None and isinstance(data, anndata.AnnData):
             params = xr.Dataset({
-                "a": (MODEL_PARAMS["a"], data.obsm["a"]),
-                "b": (MODEL_PARAMS["b"], data.obsm["b"]),
+                "a": (MODEL_PARAMS["a"], np.transpose(data.varm["a"])),
+                "b": (MODEL_PARAMS["b"], np.transpose(data.varm["b"])),
             })
         elif isinstance(data, xr.Dataset):
             params = data
