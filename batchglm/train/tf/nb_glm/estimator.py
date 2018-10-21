@@ -1541,7 +1541,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     # full_gradient = tf.add_n(
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
 
-                with tf.name_scope("newton-raphson"):
+                with tf.name_scope("newton-rhapson"):
                     # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
                     # Full data model:
                     param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
@@ -1556,7 +1556,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     delta = tf.transpose(delta_t)
                     nr_update = model_vars.params - delta
                     # nr_update = model_vars.params - delta
-                    newton_raphson_op = tf.group(
+                    newton_rhapson_op = tf.group(
                         tf.assign(model_vars.params, nr_update),
                         tf.assign_add(global_step, 1)
                     )
@@ -1573,7 +1573,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ), axis=-1)
                     delta_batched = tf.transpose(delta_batched_t)
                     nr_update_batched = model_vars.params - delta_batched
-                    newton_raphson_batched_op = tf.group(
+                    newton_rhapson_batched_op = tf.group(
                         tf.assign(model_vars.params, nr_update_batched),
                         tf.assign_add(global_step, 1)
                     )
@@ -1679,8 +1679,8 @@ class EstimatorGraph(TFEstimatorGraph):
         self.hessians = full_data_model.hessian
         self.fisher_inv = fisher_inv
 
-        self.newton_raphson_op = newton_raphson_op
-        self.newton_raphson_batched_op = newton_raphson_batched_op
+        self.newton_rhapson_op = newton_rhapson_op
+        self.newton_rhapson_batched_op = newton_rhapson_batched_op
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -1754,7 +1754,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "stop_at_loss_change": 0.25,
                 "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "Newton-Raphson",
+                "optim_algo": "Newton-Rhapson",
             },
         ]
         QUICK = [
@@ -1780,7 +1780,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         NEWTON_EXACT = [
             {
                 "learning_rate": 1,
-                "convergence_criteria": "t_test",
+                "convergence_criteria": "moving_average",
                 "stop_at_loss_change": 1e-8,
                 "loss_window_size": 5,
                 "use_batching": False,
@@ -1790,10 +1790,28 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         NEWTON_BATCHED = [
             {
                 "learning_rate": 1,
-                "convergence_criteria": "t_test",
+                "convergence_criteria": "moving_average",
                 "stop_at_loss_change": 1e-8,
                 "loss_window_size": 20,
                 "use_batching": True,
+                "optim_algo": "newton-rhapson",
+            },
+        ]
+        NEWTON_SERIES = [
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "moving_average",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 8,
+                "use_batching": True,
+                "optim_algo": "newton-rhapson",
+            },
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "moving_average",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 4,
+                "use_batching": False,
                 "optim_algo": "newton-rhapson",
             },
         ]
@@ -2199,10 +2217,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         if use_batching:
             loss = self.model.loss
             if optim_algo.lower() == "newton" or \
-                    optim_algo.lower() == "newton-raphson" or \
-                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "newton-rhapson" or \
+                    optim_algo.lower() == "newton_rhapson" or \
                     optim_algo.lower() == "nr":
-                train_op = self.model.newton_raphson_batched_op
+                train_op = self.model.newton_rhapson_batched_op
             elif train_mu:
                 if train_r:
                     train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
@@ -2217,10 +2235,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         else:
             loss = self.model.full_loss
             if optim_algo.lower() == "newton" or \
-                    optim_algo.lower() == "newton-raphson" or \
-                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "newton-rhapson" or \
+                    optim_algo.lower() == "newton_rhapson" or \
                     optim_algo.lower() == "nr":
-                train_op = self.model.newton_raphson_op
+                train_op = self.model.newton_rhapson_op
             elif train_mu:
                 if train_r:
                     train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
