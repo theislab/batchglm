@@ -47,7 +47,7 @@ def estimate_nr_full(input_data: InputData, working_dir: str):
     input_data.save(os.path.join(working_dir, "input_data.h5"))
 
     estimator.train_sequence(training_strategy=[
-        {'convergence_criteria': 'loss_change_to_last',
+        {'convergence_criteria': 't_test',
          'learning_rate': 1,
          'loss_window_size': 5,
          'optim_algo': 'newton',

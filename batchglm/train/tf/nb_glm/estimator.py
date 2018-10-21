@@ -1554,7 +1554,7 @@ class EstimatorGraph(TFEstimatorGraph):
                         fast=False
                     ), axis=-1)
                     delta = tf.transpose(delta_t)
-                    nr_update = model_vars.params - learning_rate * delta
+                    nr_update = model_vars.params - delta
                     # nr_update = model_vars.params - delta
                     newton_raphson_op = tf.group(
                         tf.assign(model_vars.params, nr_update),
@@ -1572,7 +1572,7 @@ class EstimatorGraph(TFEstimatorGraph):
                         fast=False
                     ), axis=-1)
                     delta_batched = tf.transpose(delta_batched_t)
-                    nr_update_batched = model_vars.params - learning_rate * delta_batched
+                    nr_update_batched = model_vars.params - delta_batched
                     newton_raphson_batched_op = tf.group(
                         tf.assign(model_vars.params, nr_update_batched),
                         tf.assign_add(global_step, 1)
