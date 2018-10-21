@@ -90,8 +90,8 @@ class NB_GLM_hessian_Test(unittest.TestCase):
 
         i = 1
         print("\n")
-        print("run time obervation-wise analytic solution: ", str(self.t_ow))
-        print("run time obervation batch-wise analytic solution: ", str(self.t_ob))
+        print("run time observation-wise analytic solution: ", str(self.t_ow))
+        print("run time observation batch-wise analytic solution: ", str(self.t_ob))
         print("run time feature-wise analytic solution: ", str(self.t_fw))
         print("run time feature-wise tensorflow solution: ", str(self.t_tf))
         print("ratio of analytic feature-wise hessian to analytic observation-wise hessian:")
