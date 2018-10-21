@@ -44,13 +44,6 @@ class FullDataModelGraph:
         batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         batched_data = batched_data.prefetch(1)
 
-        if pkg_constants.HESSIAN_MODE == "obs":
-            # Only need iterator that yields single observations for hessian mode obs:
-            singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            singleobs_data = singleobs_data.prefetch(1)
-        else:
-            singleobs_data = None
-
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
             model = BasicModelGraph(
@@ -80,6 +73,14 @@ class FullDataModelGraph:
 
         with tf.name_scope("loss"):
             loss = tf.reduce_sum(norm_neg_log_likelihood)
+
+        # TODO: remove this and decide for one implementation
+        if pkg_constants.HESSIAN_MODE == "obs":
+            # Only need iterator that yields single observations for hessian mode obs:
+            singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            singleobs_data = singleobs_data.prefetch(1)
+        else:
+            singleobs_data = None
 
         with tf.name_scope("hessians"):
             hessians = Hessians(
