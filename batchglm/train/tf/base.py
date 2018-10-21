@@ -177,7 +177,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 
         def should_stop(step):
             if step % len(loss_hist) == 0 and not np.any(np.isinf(previous_loss_hist)):
-                if convergence_criteria == "simple":
+                if convergence_criteria == "loss_change_to_last":
                     change = loss_hist[-2] - loss_hist[-1]
                     tf.logging.info("loss change: %f", change)
                     return change < stop_at_loss_change
