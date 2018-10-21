@@ -25,14 +25,16 @@ class Hessians:
             sample_indices: tf.Tensor,
             constraints_loc,
             constraints_scale,
-            model_vars: ModelVars,
+            model_vars,
             dtype,
-            mode="obs"
+            mode="obs",
+            iterator=True
     ):
         """ Return computational graph for hessian based on mode choice.
 
-        :param data: Dataset iterator over mini-batches of data (used for training).
-        :param data: Dataset iterator over single observation batches of data.
+        :param batched_data:
+            Dataset iterator over mini-batches of data (used for training) or tf.Tensors of mini-batch.
+        :param singleobs_data: Dataset iterator over single observation batches of data.
         :param sample_indices: Indices of samples to be used.
         :param constraints_loc: Constraints for location model.
             Array with constraints in rows and model parameters in columns.
@@ -61,6 +63,9 @@ class Hessians:
             by observation is much faster. "tf" allows for
             evaluation of the hessian via the tf.hessian function,
             which is done by feature for implementation reasons.
+        :param iterator: bool
+            Whether an iterator or a tensor (single yield of an iterator) is given
+            in
         """
         if constraints_loc != None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_loc is not None")
@@ -70,7 +75,7 @@ class Hessians:
         if mode == "obs":
             logger.info("Performance warning for hessian mode: " +
                         "obs_batched is strongly recommended as an alternative to obs.")
-            self.H = self.byobs(
+            self.hessian = self.byobs(
                 batched_data=singleobs_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -79,18 +84,21 @@ class Hessians:
                 batched=False,
                 dtype=dtype
             )
+            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "obs_batched":
-            self.H = self.byobs(
+            self.hessian = self.byobs(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
                 batched=True,
+                iterator=iterator,
                 dtype=dtype
             )
+            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "feature":
-            self.H = self.byfeature(
+            self.hessian = self.byfeature(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -98,8 +106,12 @@ class Hessians:
                 model_vars=model_vars,
                 dtype=dtype
             )
+            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "tf":
-            self.H = self.tf_byfeature(
+            # tensorflow computes the hessian based on the objective,
+            # which is the negative loglikelihood. Accordingly, the hessian
+            # is the negative hessian.
+            self.neg_hessian = self.tf_byfeature(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -107,6 +119,7 @@ class Hessians:
                 model_vars=model_vars,
                 dtype=dtype
             )
+            self.hessian = tf.negative(self.neg_hessian)
         else:
             raise ValueError("mode not recognized in hessian_nb_glm: " + mode)
 
@@ -277,8 +290,9 @@ class Hessians:
             sample_indices,
             constraints_loc,
             constraints_scale,
-            model_vars: ModelVars,
+            model_vars,
             batched,
+            iterator,
             dtype
     ):
         """
@@ -519,13 +533,19 @@ class Hessians:
         p_shape_a = model_vars.a.shape[0]
         p_shape_b = model_vars.b.shape[0]
 
-        H = op_utils.map_reduce(
-            last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-            data=batched_data,
-            map_fn=_assemble_byobs,
-            reduce_fn=_red,
-            parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-        )
+        if iterator == True:
+            H = op_utils.map_reduce(
+                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
+                data=batched_data,
+                map_fn=_assemble_byobs,
+                reduce_fn=_red,
+                parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
+            )
+        else:
+            H = _assemble_byobs(
+                idx=sample_indices,
+                data=batched_data
+            )
         return H
 
     def byfeature(
@@ -534,7 +554,7 @@ class Hessians:
             sample_indices,
             constraints_loc,
             constraints_scale,
-            model_vars: ModelVars,
+            model_vars,
             dtype
     ):
         """
@@ -702,7 +722,7 @@ class Hessians:
             sample_indices,
             constraints_loc,
             constraints_scale,
-            model_vars: ModelVars,
+            model_vars,
             dtype
     ) -> List[tf.Tensor]:
         """

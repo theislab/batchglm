@@ -120,7 +120,8 @@ class FullDataModelGraph:
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
 
-        self.hessians = hessians.H
+        self.hessian = hessians.hessian
+        self.neg_hessian = hessians.neg_hessian
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -233,6 +234,19 @@ class EstimatorGraph(TFEstimatorGraph):
                 # use the mean loss to keep a constant learning rate independently of the batch size
                 batch_loss = batch_model.loss
 
+                # Define the hessian on the batched model:
+                batch_hessians = Hessians(
+                    batched_data=batch_data,
+                    singleobs_data=None,
+                    sample_indices=batch_sample_index,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode="obs_batched",
+                    iterator=False,
+                    dtype=dtype
+                )
+
             with tf.name_scope("full_data"):
                 # ### alternative definitions for custom observations:
                 sample_selection = tf.placeholder_with_default(tf.range(num_observations),
@@ -248,7 +262,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     dtype=dtype,
                 )
                 full_data_loss = full_data_model.loss
-                fisher_inv = op_utils.pinv(full_data_model.hessians)
+                fisher_inv = op_utils.pinv(full_data_model.neg_hessian)
 
                 # with tf.name_scope("hessian_diagonal"):
                 #     hessian_diagonal = [
@@ -358,12 +372,13 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 with tf.name_scope("newton-raphson"):
                     # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
+                    # Full data model:
                     param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
                     param_grad_vec_t = tf.transpose(param_grad_vec)
 
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
-                        # full_data_model.hessians,
-                        (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,
+                        full_data_model.neg_hessian,
+                        # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2, # don't need this with closed forms
                         tf.expand_dims(param_grad_vec_t, axis=-1),
                         fast=False
                     ), axis=-1)
@@ -372,6 +387,23 @@ class EstimatorGraph(TFEstimatorGraph):
                     # nr_update = model_vars.params - delta
                     newton_raphson_op = tf.group(
                         tf.assign(model_vars.params, nr_update),
+                        tf.assign_add(global_step, 1)
+                    )
+
+                    # Batched data model:
+                    param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
+                                                          model_vars.params)[0]
+                    param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
+
+                    delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
+                        batch_hessians.neg_hessian,
+                        tf.expand_dims(param_grad_vec_batched_t, axis=-1),
+                        fast=False
+                    ), axis=-1)
+                    delta_batched = tf.transpose(delta_batched_t)
+                    nr_update_batched = model_vars.params - delta_batched
+                    newton_raphson_batched_op = tf.group(
+                        tf.assign(model_vars.params, nr_update_batched),
                         tf.assign_add(global_step, 1)
                     )
 
@@ -473,12 +505,11 @@ class EstimatorGraph(TFEstimatorGraph):
         # self.full_gradient_a = full_gradient_a
         # self.full_gradient_b = full_gradient_b
 
-        # we are minimizing the negative LL instead of maximizing the LL
-        # => invert hessians
-        self.hessians = - full_data_model.hessians
+        self.hessians = full_data_model.hessian
         self.fisher_inv = fisher_inv
 
         self.newton_raphson_op = newton_raphson_op
+        self.newton_raphson_batched_op = newton_raphson_batched_op
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -573,6 +604,44 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
+            },
+        ]
+        NEWTON_EXACT = [
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "scaled_moving_average",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 5,
+                "use_batching": False,
+                "optim_algo": "newton-raphson",
+            },
+        ]
+        NEWTON_BATCHED = [
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "scaled_moving_average",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 20,
+                "use_batching": True,
+                "optim_algo": "newton-raphson",
+            },
+        ]
+        NEWTON_SERIES = [
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "scaled_moving_average",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 8,
+                "use_batching": True,
+                "optim_algo": "newton-raphson",
+            },
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "scaled_moving_average",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 4,
+                "use_batching": False,
+                "optim_algo": "newton-raphson",
             },
         ]
 
@@ -992,14 +1061,14 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # check if r was initialized with MLE
             train_r = self._train_r
 
-        if optim_algo.lower() == "newton-raphson" or \
-                optim_algo.lower() == "newton_raphson" or \
-                optim_algo.lower() == "nr":
-            loss = self.model.full_loss
-            train_op = self.model.newton_raphson_op
-        elif use_batching:
+        if use_batching:
             loss = self.model.loss
-            if train_mu:
+            if optim_algo.lower() == "newton" or \
+                    optim_algo.lower() == "newton-raphson" or \
+                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "nr":
+                train_op = self.model.newton_raphson_batched_op
+            elif train_mu:
                 if train_r:
                     train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
                 else:
@@ -1012,7 +1081,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     return
         else:
             loss = self.model.full_loss
-            if train_mu:
+            if optim_algo.lower() == "newton" or \
+                    optim_algo.lower() == "newton-raphson" or \
+                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "nr":
+                train_op = self.model.newton_raphson_op
+            elif train_mu:
                 if train_r:
                     train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
                 else:
