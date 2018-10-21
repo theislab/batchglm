@@ -46,12 +46,14 @@ class Hessians:
         constraints_scale,
         model_vars,
         dtype,
-        mode="obs"
+        mode="obs",
+        iterator=True
     ):
         """ Return computational graph for hessian based on mode choice.
 
-        :param data: Dataset iterator over mini-batches of data (used for training).
-        :param data: Dataset iterator over single observation batches of data.
+        :param batched_data:
+            Dataset iterator over mini-batches of data (used for training) or tf.Tensors of mini-batch.
+        :param singleobs_data: Dataset iterator over single observation batches of data.
         :param sample_indices: Indices of samples to be used.
         :param constraints_loc: Constraints for location model.
             Array with constraints in rows and model parameters in columns.
@@ -80,6 +82,9 @@ class Hessians:
             by observation is much faster. "tf" allows for
             evaluation of the hessian via the tf.hessian function,
             which is done by feature for implementation reasons.
+        :param iterator: bool
+            Whether an iterator or a tensor (single yield of an iterator) is given
+            in
         """
         if constraints_loc != None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_loc is not None")
@@ -87,9 +92,9 @@ class Hessians:
             raise ValueError("closed form hessian does not work if constraints_scale is not None")
 
         if mode == "obs":
-            logger.info("Performance warning for hessian mode: "+
+            logger.info("Performance warning for hessian mode: " +
                         "obs_batched is strongly recommended as an alternative to obs.")
-            self.H = self.byobs(
+            self.hessian = self.byobs(
                 batched_data=singleobs_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -98,18 +103,21 @@ class Hessians:
                 batched=False,
                 dtype=dtype
             )
+            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "obs_batched":
-            self.H = self.byobs(
+            self.hessian = self.byobs(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
                 batched=True,
+                iterator=iterator,
                 dtype=dtype
             )
+            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "feature":
-            self.H = self.byfeature(
+            self.hessian = self.byfeature(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -117,8 +125,12 @@ class Hessians:
                 model_vars=model_vars,
                 dtype=dtype
             )
+            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "tf":
-            self.H = self.tf_byfeature(
+            # tensorflow computes the hessian based on the objective,
+            # which is the negative loglikelihood. Accordingly, the hessian
+            # is the negative hessian.
+            self.neg_hessian = self.tf_byfeature(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -126,6 +138,7 @@ class Hessians:
                 model_vars=model_vars,
                 dtype=dtype
             )
+            self.hessian = tf.negative(self.neg_hessian)
         else:
             raise ValueError("mode not recognized in hessian_nb_glm: " + mode)
 
@@ -301,6 +314,7 @@ class Hessians:
         constraints_scale,
         model_vars,
         batched,
+        iterator,
         dtype
     ):
         """
@@ -541,13 +555,19 @@ class Hessians:
         p_shape_a = model_vars.a_var.shape[0]
         p_shape_b = model_vars.b_var.shape[0]
 
-        H = op_utils.map_reduce(
-            last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-            data=batched_data,
-            map_fn=_assemble_byobs,
-            reduce_fn=_red,
-            parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-        )
+        if iterator==True:
+            H = op_utils.map_reduce(
+                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
+                data=batched_data,
+                map_fn=_assemble_byobs,
+                reduce_fn=_red,
+                parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
+            )
+        else:
+            H = _assemble_byobs(
+                idx=sample_indices,
+                data=batched_data
+            )
         return H
 
 
@@ -1278,7 +1298,8 @@ class FullDataModelGraph:
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
 
-        self.hessians = hessians.H
+        self.hessian = hessians.hessian
+        self.neg_hessian = hessians.neg_hessian
 
 
 class EstimatorGraph(TFEstimatorGraph):
@@ -1391,6 +1412,19 @@ class EstimatorGraph(TFEstimatorGraph):
                 # use the mean loss to keep a constant learning rate independently of the batch size
                 batch_loss = batch_model.loss
 
+                # Define the hessian on the batched model:
+                batch_hessians = Hessians(
+                    batched_data=batch_data,
+                    singleobs_data=None,
+                    sample_indices=batch_sample_index,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode="obs_batched",
+                    iterator=False,
+                    dtype=dtype
+                )
+
             with tf.name_scope("full_data"):
                 # ### alternative definitions for custom observations:
                 sample_selection = tf.placeholder_with_default(tf.range(num_observations),
@@ -1406,7 +1440,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     dtype=dtype,
                 )
                 full_data_loss = full_data_model.loss
-                fisher_inv = op_utils.pinv(full_data_model.hessians)
+                fisher_inv = op_utils.pinv(full_data_model.neg_hessian)
 
                 # with tf.name_scope("hessian_diagonal"):
                 #     hessian_diagonal = [
@@ -1514,8 +1548,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     param_grad_vec_t = tf.transpose(param_grad_vec)
 
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
-                        # full_data_model.hessians,
-                        (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,
+                        full_data_model.neg_hessian,
+                        #(full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2, # don't need this with closed forms
                         tf.expand_dims(param_grad_vec_t, axis=-1),
                         fast=False
                     ), axis=-1)
@@ -1533,7 +1567,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
 
                     delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
-                        batch_model.hessians,
+                        batch_hessians.neg_hessian,
                         tf.expand_dims(param_grad_vec_batched_t, axis=-1),
                         fast=False
                     ), axis=-1)
@@ -1642,9 +1676,7 @@ class EstimatorGraph(TFEstimatorGraph):
         # self.full_gradient_a = full_gradient_a
         # self.full_gradient_b = full_gradient_b
 
-        # we are minimizing the negative LL instead of maximizing the LL
-        # => invert hessians
-        self.hessians = - full_data_model.hessians
+        self.hessians = full_data_model.hessian
         self.fisher_inv = fisher_inv
 
         self.newton_raphson_op = newton_raphson_op
@@ -1743,6 +1775,26 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
+            },
+        ]
+        NEWTON_EXACT = [
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 5,
+                "use_batching": False,
+                "optim_algo": "newton-rhapson",
+            },
+        ]
+        NEWTON_BATCHED = [
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "t_test",
+                "stop_at_loss_change": 1e-8,
+                "loss_window_size": 20,
+                "use_batching": True,
+                "optim_algo": "newton-rhapson",
             },
         ]
 
@@ -2146,7 +2198,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         if use_batching:
             loss = self.model.loss
-            if optim_algo.lower() == "newton-raphson" or \
+            if optim_algo.lower() == "newton" or \
+                    optim_algo.lower() == "newton-raphson" or \
                     optim_algo.lower() == "newton_raphson" or \
                     optim_algo.lower() == "nr":
                 train_op = self.model.newton_raphson_batched_op
@@ -2163,7 +2216,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     return
         else:
             loss = self.model.full_loss
-            if optim_algo.lower() == "newton-raphson" or \
+            if optim_algo.lower() == "newton" or \
+                    optim_algo.lower() == "newton-raphson" or \
                     optim_algo.lower() == "newton_raphson" or \
                     optim_algo.lower() == "nr":
                 train_op = self.model.newton_raphson_op
