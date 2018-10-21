@@ -1713,24 +1713,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     class TrainingStrategy(Enum):
         AUTO = None
-        DEFAULT = [
-            {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-        ]
         EXACT = [
             {
                 "learning_rate": 0.1,
@@ -1780,7 +1762,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         NEWTON_EXACT = [
             {
                 "learning_rate": 1,
-                "convergence_criteria": "moving_average",
+                "convergence_criteria": "scaled_moving_average",
                 "stop_at_loss_change": 1e-8,
                 "loss_window_size": 5,
                 "use_batching": False,
@@ -1790,7 +1772,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         NEWTON_BATCHED = [
             {
                 "learning_rate": 1,
-                "convergence_criteria": "moving_average",
+                "convergence_criteria": "scaled_moving_average",
                 "stop_at_loss_change": 1e-8,
                 "loss_window_size": 20,
                 "use_batching": True,
@@ -1800,7 +1782,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         NEWTON_SERIES = [
             {
                 "learning_rate": 1,
-                "convergence_criteria": "moving_average",
+                "convergence_criteria": "scaled_moving_average",
                 "stop_at_loss_change": 1e-8,
                 "loss_window_size": 8,
                 "use_batching": True,
@@ -1808,13 +1790,14 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             },
             {
                 "learning_rate": 1,
-                "convergence_criteria": "moving_average",
+                "convergence_criteria": "scaled_moving_average",
                 "stop_at_loss_change": 1e-8,
                 "loss_window_size": 4,
                 "use_batching": False,
                 "optim_algo": "newton-rhapson",
             },
         ]
+        DEFAULT = NEWTON_SERIES
 
     model: EstimatorGraph
     _train_mu: bool

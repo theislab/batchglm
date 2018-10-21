@@ -181,8 +181,12 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                     change = loss_hist[-2] - loss_hist[-1]
                     tf.logging.info("loss change: %f", change)
                     return change < stop_at_loss_change
-                if convergence_criteria == "moving_average":
+                elif convergence_criteria == "moving_average":
                     change = np.mean(previous_loss_hist) - np.mean(loss_hist)
+                    tf.logging.info("loss change: %f", change)
+                    return change < stop_at_loss_change
+                elif convergence_criteria == "scaled_moving_average":
+                    change = (np.mean(previous_loss_hist) - np.mean(loss_hist))/np.mean(previous_loss_hist)
                     tf.logging.info("loss change: %f", change)
                     return change < stop_at_loss_change
                 elif convergence_criteria == "absolute_moving_average":
