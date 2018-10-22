@@ -28,7 +28,7 @@
 
 \allowdisplaybreaks
 
-\title{Closed form of hessian of negative binomial GLM with model for dispersion and mean parameter}
+\title{Closed form of the Jacobian and the hessian matrix of negative binomial GLM}
 \author{David Fischer}
 
 \begin{document}
@@ -59,16 +59,16 @@ LL(y|\theta^m_i, \theta^r_i) &= \log L(y|\theta^m_i, \theta^r_i) \\
 \end{equation}
 
 \subsection{Parameter models}
-The mean ($m$) and dispersion ($r$) model of the GLM  with design matrices $X^m$ and $X^r$ look as follows:
+The mean ($m$) and dispersion ($r$) model of the GLM  with design matrices $X^m$ and $X^r$ and cell specific normalisation constants $s$ look as follows:
 \begin{equation}
 \begin{split}
-r(\theta^r) &= \exp(\langle X^r, \theta^r_i \rangle) \\
+m(\theta^m) &= \exp(\langle X^m, \theta^m \rangle +s) \\
 \end{split}
 \end{equation}
 
 \begin{equation}
 \begin{split}
-m(\theta^m) &= \exp(\langle X^m, \theta^m_i \rangle) \\
+r(\theta^r) &= \exp(\langle X^r, \theta^r \rangle) \\
 \end{split}
 \end{equation}
 
@@ -76,8 +76,8 @@ m(\theta^m) &= \exp(\langle X^m, \theta^m_i \rangle) \\
 Using the chain rule $\frac{f(m)}{d \theta^m_i}=\frac{f(m)}{m}\frac{m}{d \theta^m_i}$ we can decompose the first derivative. Firstly, the derivative of the mean model with respect to its parameters is:
 \begin{equation}
 \begin{split}
-\frac{d}{d \theta^m_i} m(\theta^m) &= \frac{d}{d \theta^m_i} \exp(\langle X^m, \theta^m_i \rangle) \\
-&= \exp(\langle X^m * \theta^m \rangle) * X^m_{i}  \\
+\frac{d}{d \theta^m_i} m(\theta^m) &= \frac{d}{d \theta^m_i} \exp(\langle X^m, \theta^m \rangle + s) \\
+&= \exp(\langle X^m * \theta^m \rangle + s) * X^m_{i}  \\
 &= m(\theta^m) * X^m_{i}  \\
 \end{split}
 \end{equation}
@@ -99,7 +99,6 @@ In the following, we also need the polygamma function $\psi$ to compute the deri
 \end{split}
 \end{equation}
 
-Note that due to the chain rule, both homogenous and heterogenous secondary derivatives of the polygamma function can be computed via $\psi_1$:
 \begin{equation}
 \begin{split}
 \frac{d}{d \theta^r_i} \log \Gamma(r(\theta^r)+y) &= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y) 
@@ -135,7 +134,6 @@ The second form of the gamma function that we encounter in the negative binomial
 
 \section{Jacobians}
 \subsection{Jacobian mean model}
-The Jacobians of the GLM wrt to the $m$ model is:
 \begin{equation}
 \begin{split}
 \frac{d}{d \theta^m_i} LL(y|\theta^m, \theta^r) &= \frac{d}{d \theta^m_i} \log(\Gamma(r(\theta^r)+y)) - \frac{d}{d \theta^m_i} \log(y! \Gamma(r(\theta^r))) \\
@@ -152,7 +150,6 @@ The Jacobians of the GLM wrt to the $m$ model is:
 \end{equation}
 
 \subsection{Jacobian dispersion model}
-The Jacobians of the GLM wrt to the $r$ model is:
 \begin{equation}
 \begin{split}
 \frac{d}{d \theta^r_i} LL(y|\theta^m, \theta^r) &= \frac{d}{d \theta^r_i} \log(\Gamma(r(\theta^r)+y)) - \frac{d}{d \theta^r_i} \log(y! \Gamma(r(\theta^r))) \\
@@ -214,7 +211,8 @@ H^{r,r}_{i,j} &= \frac{d^2}{d \theta^r_i d \theta^r_i} LL(y|\theta^m, \theta^r) 
 \begin{split}
 H^{r,r}_{i,j} &= \bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y) + r(\theta^r) * X^r_{i} * X^r_{j} * r(\theta^r) * \psi_1(r(\theta^r)+y) \bigg) \\
 &- \bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) + r(\theta^r) * X^r_{i} * X^r_{j} * r(\theta^r) * \psi_1(r(\theta^r)) \bigg) \\
-&- \bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \frac{r(\theta^r) + y}{r(\theta^r)+m(\theta^m)} + r(\theta^r) * X^r_{i} * \frac{X^r_{j} * r(\theta^r)*(r(\theta^r)+m(\theta^m))-(r(\theta^r) + y)*X^r_{j} * r(\theta^r)}{(r(\theta^r)+m(\theta^m))^2} \bigg) \\
+&- \bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \frac{r(\theta^r) + y}{r(\theta^r)+m(\theta^m)} + r(\theta^r) * X^r_{i} \\
+&* \frac{X^r_{j} * r(\theta^r)*(r(\theta^r)+m(\theta^m))-(r(\theta^r) + y)*X^r_{j} * r(\theta^r)}{(r(\theta^r)+m(\theta^m))^2} \bigg) \\
 &+\bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \log(r(\theta^r)) + r(\theta^r) * X^r_{i} * X^r_{j} * r(\theta^r) * \frac{1}{r(\theta^r)} \bigg) \\
 &+\bigg( X^r_{j} * r(\theta^r) * X^r_{i}  \bigg) \\
 &- \bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \log(r(\theta^r)+m(\theta^m)) +  r(\theta^r) * X^r_{i} * X^r_{j} * r(\theta^r) * \frac{1}{r(\theta^r)+m(\theta^m)} \bigg) \\
@@ -236,8 +234,8 @@ H^{r,r}_{i,j} &= \bigg( X^r_{j} * r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y) 
 \end{split}
 \end{equation}
 
-\subsection{Offdiagonal-model block $H^{r,m}$}
-Offdiagonal-model block derived from mean-model jacobian:
+\subsection{Mean-dispersion-model block $H^{r,m}$}
+Mean-dispersion-model block derived from the mean-model jacobian:
 \begin{equation}
 \begin{split}
 H^{r,m}_{i,j} &= \frac{d^2}{d \theta^m_i d \theta^r_j} LL(y|\theta^m, \theta^r) \\
