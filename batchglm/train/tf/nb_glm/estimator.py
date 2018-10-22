@@ -22,6 +22,7 @@ from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model,
 from .external import nb_utils, train_utils, op_utils, rand_utils
 from .external import pkg_constants
 from .hessians import Hessians
+from .jacobians import Jacobians
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,18 @@ class FullDataModelGraph:
                 dtype=dtype
             )
 
+        with tf.name_scope("jacobians"):
+            jacobians = Jacobians(
+                batched_data=batched_data,
+                sample_indices=sample_indices,
+                batch_model=None,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                model_vars=model_vars,
+                mode=pkg_constants.JACOBIAN_MODE,
+                dtype=dtype
+            )
+
         self.X = model.X
         self.design_loc = model.design_loc
         self.design_scale = model.design_scale
@@ -121,6 +134,8 @@ class FullDataModelGraph:
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
 
+        self.jac = jacobians.jac
+        self.neg_jac = jacobians.neg_jac
         self.hessian = hessians.hessian
         self.neg_hessian = hessians.neg_hessian
 
@@ -235,7 +250,20 @@ class EstimatorGraph(TFEstimatorGraph):
                 # use the mean loss to keep a constant learning rate independently of the batch size
                 batch_loss = batch_model.loss
 
-                # Define the hessian on the batched model:
+                # Define the jacobian on the batched model for newton-rhapson:
+                batch_jac = Jacobians(
+                    batched_data=batch_X,
+                    sample_indices=batch_sample_index,
+                    batch_model=batch_model,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode="analytic",
+                    iterator=False,
+                    dtype=dtype
+                )
+
+                # Define the hessian on the batched model for newton-rhapson:
                 batch_hessians = Hessians(
                     batched_data=batch_data,
                     singleobs_data=None,
@@ -374,7 +402,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 with tf.name_scope("newton-raphson"):
                     # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
                     # Full data model:
-                    param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
+                    param_grad_vec = full_data_model.neg_jac
+                    #param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
                     param_grad_vec_t = tf.transpose(param_grad_vec)
 
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
@@ -392,8 +421,9 @@ class EstimatorGraph(TFEstimatorGraph):
                     )
 
                     # Batched data model:
-                    param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
-                                                          model_vars.params)[0]
+                    param_grad_vec_batched = batch_jac.neg_jac
+                    #param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
+                    #                                      model_vars.params)[0]
                     param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
 
                     delta_batched_t = tf.squeeze(tf.matrix_solve_ls(

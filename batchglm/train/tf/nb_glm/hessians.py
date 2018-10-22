@@ -90,7 +90,7 @@ def _coef_invariant_aa(
         given observations and features.
     """
     const = tf.negative(tf.multiply(
-        mu,  # [observations x features]
+        mu,  # [observations, features]
         tf.divide(
             (X / r) + 1,
             tf.square((mu / r) + 1)
