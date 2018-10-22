@@ -169,7 +169,8 @@ def _coef_invariant_bb(
 class Hessians:
     """ Compute the nb_glm model hessian.
     """
-    H: tf.Tensor
+    hessian: tf.Tensor
+    neg_hessian: tf.Tensor
 
     def __init__(
             self,
@@ -290,10 +291,10 @@ class Hessians:
     ):
         """
         Compute the closed-form of the nb_glm model hessian
-        by evalutating its terms grouped by observations.
+        by evaluating its terms grouped by observations.
 
-        Has three subfunctions which built the specific blocks of the hessian
-        and one subfunction which concatenates the blocks into a full hessian.
+        Has three sub-functions which built the specific blocks of the hessian
+        and one sub-function which concatenates the blocks into a full hessian.
 
         Note that two different groups of functions compute the hessian
         block either with standard matrix multiplication for a single observation
@@ -303,7 +304,7 @@ class Hessians:
         use the einsum to compute the hessian block on a batch of observations
         in a single go. This requires the handling of a latent 4D tensor which
         potentially large memory usage, depending on the einsum behaviour. In
-        principle the latter can be fast though as they relace iterations which
+        principle the latter can be fast though as they replace iterations which
         larger tensor operations.
         """
 
@@ -355,7 +356,7 @@ class Hessians:
         def _ab_byobs(X, design_loc, design_scale, mu, r):
             """
             Compute the mean-dispersion model off-diagonal block of the
-            closed form hessian of nb_glm model by observastion across features.
+            closed form hessian of nb_glm model by observation across features.
 
             Note that there are two blocks of the same size which can
             be compute from each other with a transpose operation as
@@ -510,7 +511,7 @@ class Hessians:
 
             Every evaluation of the hessian on an observation yields a full
             hessian matrix. This function sums over consecutive evaluations
-            of this hessian so that not all seperate evluations have to be
+            of this hessian so that not all separate evaluations have to be
             stored.
             """
             return tf.add(prev, cur)
@@ -545,11 +546,11 @@ class Hessians:
     ):
         """
         Compute the closed-form of the nb_glm model hessian
-        by evalutating its terms grouped by features.
+        by evaluating its terms grouped by features.
 
 
-        Has three subfunctions which built the specific blocks of the hessian
-        and one subfunction which concatenates the blocks into a full hessian.
+        Has three sub-functions which built the specific blocks of the hessian
+        and one sub-function which concatenates the blocks into a full hessian.
         """
 
         def _aa_byfeature(X, design_loc, design_scale, mu, r):
