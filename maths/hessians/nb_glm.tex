@@ -155,17 +155,17 @@ The second form of the gamma function that we encounter in the negative binomial
 \frac{d}{d \theta^r_i} LL(y|\theta^m, \theta^r) &= \frac{d}{d \theta^r_i} \log(\Gamma(r(\theta^r)+y)) - \frac{d}{d \theta^r_i} \log(y! \Gamma(r(\theta^r))) \\
 &+ y * \frac{d}{d \theta^r_i} \bigg( \log(m(\theta^m)) -\log(r(\theta^r)+m(\theta^m)) \bigg) \\
 &+ \frac{d}{d \theta^r_i} \bigg( r(\theta^r) * \bigg( \log(r(\theta^r)) - \log(r(\theta^r)+m(\theta^m)) \bigg) \bigg) \\
-&= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y)+ r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) \\
+&= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y) - r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) \\
 &- y*\frac{d}{d \theta^r_i} \bigg( \log(r(\theta^r)+m(\theta^m)) \bigg) \\
 &+ \frac{d}{d \theta^r_i} \bigg( r(\theta^r)*\log(r(\theta^r)) \bigg) - \frac{d}{d \theta^r_i} \bigg( r(\theta^r) \log(r(\theta^r)+m(\theta^m)) \bigg) \\
-&= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y)+ r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) \\
+&= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y) - r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) \\
 &- y*\frac{1}{r(\theta^r)+m(\theta^m)} r(\theta^r) * X^r_{i}   \\
 &+  \bigg( r(\theta^r) * X^r_{i}  * \log(r(\theta^r)) + r(\theta^r) * r(\theta^r) * X^r_{i}  * \frac{1}{r(\theta^r)} \bigg) \\
 &- \bigg(r(\theta^r) * X^r_{i}  * \log(r(\theta^r)+m(\theta^m)) +  r(\theta^r) * r(\theta^r) * X^r_{i}  * \frac{1}{r(\theta^r)+m(\theta^m)} \bigg) \\
-&= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y)+ r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) \\
+&= r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)+y)- r(\theta^r) * X^r_{i} * \psi_0(r(\theta^r)) \\
 &- \frac{1}{r(\theta^r)+m(\theta^m)} r(\theta^r) * X^r_{i}  *(r(\theta^r) + y) \\
 &+ r(\theta^r) * X^r_{i}  * \bigg( \log(r(\theta^r)) + 1 - \log(r(\theta^r)+m(\theta^m)) \bigg)  \\
-&= r(\theta^r) * X^r_{i} * \bigg( \psi_0(r(\theta^r)+y)+\psi_0(r(\theta^r)) \\
+&= r(\theta^r) * X^r_{i} * \bigg( \psi_0(r(\theta^r)+y)-\psi_0(r(\theta^r)) \\
 &- \frac{r(\theta^r) + y}{r(\theta^r)+m(\theta^m)} + \log(r(\theta^r)) + 1 - \log(r(\theta^r)+m(\theta^m)) \bigg)  \\
 \end{split}
 \end{equation}
