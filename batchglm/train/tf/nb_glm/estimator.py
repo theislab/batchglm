@@ -92,6 +92,7 @@ class FullDataModelGraph:
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
                 mode=pkg_constants.HESSIAN_MODE,
+                iterator=True,
                 dtype=dtype
             )
 
@@ -104,6 +105,7 @@ class FullDataModelGraph:
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
                 mode=pkg_constants.JACOBIAN_MODE,
+                iterator=True,
                 dtype=dtype
             )
 
@@ -252,7 +254,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 # Define the jacobian on the batched model for newton-rhapson:
                 batch_jac = Jacobians(
-                    batched_data=batch_X,
+                    batched_data=batch_data,
                     sample_indices=batch_sample_index,
                     batch_model=batch_model,
                     constraints_loc=constraints_loc,
@@ -394,8 +396,9 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="full_data_trainers_b_only"
                 )
                 with tf.name_scope("full_gradient"):
-                    full_gradient = full_data_trainers.gradient[0][0]
-                    full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
+                    #full_gradient = full_data_trainers.gradient[0][0]
+                    #full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
+                    full_gradient = full_data_model.neg_jac
                     # full_gradient = tf.add_n(
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
 
@@ -404,12 +407,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     # Full data model:
                     param_grad_vec = full_data_model.neg_jac
                     #param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
-                    param_grad_vec_t = tf.transpose(param_grad_vec)
+                    #param_grad_vec_t = tf.transpose(param_grad_vec)
 
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
                         full_data_model.neg_hessian,
                         # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2, # don't need this with closed forms
-                        tf.expand_dims(param_grad_vec_t, axis=-1),
+                        tf.expand_dims(param_grad_vec, axis=-1),
                         fast=False
                     ), axis=-1)
                     delta = tf.transpose(delta_t)
@@ -424,11 +427,11 @@ class EstimatorGraph(TFEstimatorGraph):
                     param_grad_vec_batched = batch_jac.neg_jac
                     #param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
                     #                                      model_vars.params)[0]
-                    param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
+                    #param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
 
                     delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
                         batch_hessians.neg_hessian,
-                        tf.expand_dims(param_grad_vec_batched_t, axis=-1),
+                        tf.expand_dims(param_grad_vec_batched, axis=-1),
                         fast=False
                     ), axis=-1)
                     delta_batched = tf.transpose(delta_batched_t)

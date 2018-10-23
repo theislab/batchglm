@@ -28,9 +28,9 @@ def _coef_invariant_a(
     of i and j.
     .. math::
 
-        &J^{m}_{i} = X^m_i*Y-X^m_i*(Y+r)*\frac{mu}{mu+r} \\
-        &const = (Y+r)*\frac{mu}{mu+r} \\
-        &J^{m}_{i} = X^m_i*Y-X^m_i*const \\
+        &J^{m}_{i} = X^m_i*\bigg(Y-(Y+r)*\frac{mu}{mu+r}\bigg) \\
+        &const = Y-(Y+r)*\frac{mu}{mu+r} \\
+        &J^{m}_{i} = X^m_i*const \\
 
     :param X: tf.tensor observations x features
         Observation by observation and feature.
@@ -43,13 +43,14 @@ def _coef_invariant_a(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    const = tf.multiply(
-        tf.add(X, r),  # [observations, features]
+    const = tf.multiply(  # [observations, features]
+        tf.add(X, r),
         tf.divide(
-            mu,  # [observations, features]
+            mu,
             tf.add(mu, r)
         )
     )
+    const = tf.subtract(X, const)
     return const
 
 
@@ -68,11 +69,11 @@ def _coef_invariant_b(
     of i and j.
     .. math::
 
-        GJ{r}_{i} &= X^r_i \\
-            &*r*\bigg(psi_0(r+Y)+psi_0(r) \\
+        J{r}_{i} &= X^r_i \\
+            &*r*\bigg(psi_0(r+Y)-psi_0(r) \\
             &-\frac{r+Y}{r+mu} \\
             &+log(r)+1-log(r+mu) \bigg) \\
-        const = r*\bigg(psi_0(r+Y)+psi_0(r) \\ const1
+        const = r*\bigg(psi_0(r+Y)-psi_0(r) \\ const1
             &-\frac{r+Y}{r+mu} \\ const2
             &+log(r)+1-log(r+mu) \bigg) \\ const3
         J^{r}_{i} &= X^r_i * const \\
@@ -88,22 +89,19 @@ def _coef_invariant_b(
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
+    scalar_one = tf.constant(1, shape=[1,1], dtype=X.dtype)
     # Pre-define sub-graphs that are used multiple times:
-    r_plus_mu = r + mu
-    r_plus_x = r + X
+    r_plus_mu = tf.add(r, mu)
+    r_plus_x = tf.add(r, X)
     # Define graphs for individual terms of constant term of hessian:
-    const1 = tf.add(  # [observations, features]
+    const1 = tf.subtract(
         tf.math.digamma(x=r_plus_x),
         tf.math.digamma(x=r)
     )
-    const2 = tf.negative(tf.divide(
-        r_plus_x,
-        r_plus_mu
-    ))
-    const3 = tf.add(  # [observations, features]
+    const2 = tf.negative(tf.divide(r_plus_x, r_plus_mu))
+    const3 = tf.add(
         tf.log(r),
-        scalar_two - tf.log(r_plus_mu)
+        tf.subtract(scalar_one, tf.log(r_plus_mu))
     )
     const = tf.add_n([const1, const2, const3])  # [observations, features]
     const = tf.multiply(r, const)
@@ -178,12 +176,10 @@ class Jacobians:
             )
             self.neg_jac = tf.negative(self.jac)
         elif mode == "tf":
-            if batch_model is None:
-                raise ValueError("mode tf only possible if batch_model is given to Jacobians.")
             # tensorflow computes the jacobian based on the objective,
             # which is the negative log-likelihood. Accordingly, the jacobian
             # is the negative jacobian computed here.
-            self.neg_jac = self.tf(
+            self.jac = self.tf(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 batch_model=batch_model,
@@ -193,7 +189,7 @@ class Jacobians:
                 iterator=iterator,
                 dtype=dtype
             )
-            self.jac = tf.negative(self.neg_jac)
+            self.neg_jac = tf.negative(self.jac)
         else:
             raise ValueError("mode not recognized in Jacobian: " + mode)
 
@@ -225,19 +221,16 @@ class Jacobians:
             :return Jblock: tf.tensor features x coefficients
                 Block of jacobian.
             """
-            const = _coef_invariant_a(X=X, mu=mu, r=r)  # [observations x features]
-            Jblock = tf.subtract( # [features x coefficients]
-                tf.matmul(tf.transpose(X), design_loc, axes=1),
-                tf.matmul(tf.transpose(const), design_loc, axes=1)
-            )
+            const = _coef_invariant_a(X=X, mu=mu, r=r)  # [observations, features]
+            Jblock = tf.matmul(tf.transpose(const), design_loc)  # [features, coefficients]
             return Jblock
 
         def _b_byobs(X, design_loc, design_scale, mu, r):
             """
             Compute the dispersion model block of the jacobian.
             """
-            const = _coef_invariant_b(X=X, mu=mu, r=r)  # [observations x features]
-            Jblock = tf.matmul(tf.transpose(const), design_loc, axes=1)  # [features x coefficients]
+            const = _coef_invariant_b(X=X, mu=mu, r=r)  # [observations, features]
+            Jblock = tf.matmul(tf.transpose(const), design_scale)  # [features, coefficients]
             return Jblock
 
         def _assemble_bybatch(idx, data):
@@ -310,6 +303,7 @@ class Jacobians:
                 idx=sample_indices,
                 data=batched_data
             )
+
         return J
 
     def tf(
@@ -328,7 +322,9 @@ class Jacobians:
         """
 
         def _jac(batch_model, model_vars):
-            return tf.gradients(batch_model.log_likelihood, model_vars.params)[0]
+            J = tf.gradients(batch_model.log_likelihood, model_vars.params)[0]
+            J = tf.transpose(J)
+            return J
 
         def _assemble_bybatch(idx, data):
             """
@@ -364,7 +360,7 @@ class Jacobians:
                 size_factors=size_factors
             )
 
-            J = _jac(batch_model=batch_model, model_vars=model_vars)
+            J = _jac(batch_model=model, model_vars=model_vars)
             return J
 
         def _red(prev, cur):
@@ -377,6 +373,10 @@ class Jacobians:
             stored.
             """
             return tf.add(prev, cur)
+
+        params = model_vars.params
+        p_shape_a = model_vars.a.shape[0]
+        p_shape_b = model_vars.b.shape[0]
 
         if iterator==True and batch_model is None:
             J = op_utils.map_reduce(
