@@ -353,7 +353,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="batch_trainers_b_only"
                 )
 
-                with tf.name_scope("full_gradient"):
+                with tf.name_scope("batch_gradient"):
                     batch_gradient = batch_trainers.gradient[0][0]
                     batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
 
@@ -396,9 +396,9 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="full_data_trainers_b_only"
                 )
                 with tf.name_scope("full_gradient"):
-                    #full_gradient = full_data_trainers.gradient[0][0]
-                    #full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
-                    full_gradient = full_data_model.neg_jac
+                    # full_gradient = full_data_trainers.gradient[0][0]
+                    # full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
+                    full_gradient = tf.reduce_sum(full_data_model.neg_jac, axis=0)
                     # full_gradient = tf.add_n(
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
 
@@ -406,8 +406,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
                     # Full data model:
                     param_grad_vec = full_data_model.neg_jac
-                    #param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
-                    #param_grad_vec_t = tf.transpose(param_grad_vec)
+                    # param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
+                    # param_grad_vec_t = tf.transpose(param_grad_vec)
 
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
                         full_data_model.neg_hessian,
@@ -425,9 +425,9 @@ class EstimatorGraph(TFEstimatorGraph):
 
                     # Batched data model:
                     param_grad_vec_batched = batch_jac.neg_jac
-                    #param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
+                    # param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
                     #                                      model_vars.params)[0]
-                    #param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
+                    # param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
 
                     delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
                         batch_hessians.neg_hessian,
@@ -876,7 +876,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         if input_data.size_factors is not None:
                             X = np.divide(X, size_factors_init)
 
-                        #Xdiff = X - np.exp(input_data.design_loc @ init_a)
+                        # Xdiff = X - np.exp(input_data.design_loc @ init_a)
                         # Define xarray version of init so that Xdiff can be evaluated lazy by dask.
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
                         init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
