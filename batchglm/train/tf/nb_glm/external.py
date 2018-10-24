@@ -1,3 +1,5 @@
+import batchglm.data as data_utils
+
 from batchglm.models.nb_glm.base import AbstractEstimator, XArrayEstimatorStore, InputData, Model
 
 import batchglm.train.tf.ops as op_utils

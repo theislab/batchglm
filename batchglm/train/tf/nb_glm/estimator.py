@@ -19,7 +19,7 @@ from .base import BasicModelGraph, ModelVars, ESTIMATOR_PARAMS
 from .base import param_bounds, tf_clip_param, np_clip_param, apply_constraints
 
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator, TFEstimatorGraph
-from .external import nb_utils, train_utils, op_utils, rand_utils
+from .external import nb_utils, train_utils, op_utils, rand_utils, data_utils
 from .external import pkg_constants
 from .hessians import Hessians
 from .jacobians import Jacobians
@@ -772,6 +772,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     shape=[input_data.num_observations, input_data.num_features]
                 )
 
+            groupwise_means = None  # [groups, features]
+            overall_means = None  # [1, features]
+            logger.debug(" * Initialize mean model")
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -797,12 +800,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         if size_factors_init is not None:
                             X = np.divide(X, size_factors_init)
 
-                        mean = X.groupby("group").mean(dim="observations").values
+                        groupwise_means = X.groupby("group").mean(dim="observations").values
                         # clipping
-                        mean = np_clip_param(mean, "mu")
+                        groupwise_means = np_clip_param(groupwise_means, "mu")
                         # mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
 
-                        a = np.log(mean)
+                        a = np.log(groupwise_means)
                         if input_data.constraints_loc is not None:
                             a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])
                             # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
@@ -812,7 +815,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # inv_design = np.linalg.inv(unique_design_loc) # NOTE: this is exact if full rank!
                         # init_a = np.matmul(inv_design, a)
                         #
-                        # Better option: use least-squares solver to calculate a'
+                        # Use least-squares solver to calculate a':
+                        # This is faster and more accurate than using matrix inversion.
+                        logger.debug(" ** Solve lstsq problem")
                         a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
                         init_a = a_prime[0]
                         # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
@@ -830,18 +835,19 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     except np.linalg.LinAlgError:
                         logger.warning("Closed form initialization failed!")
                 elif init_a.lower() == "standard":
-                    mean = input_data.X.mean(dim="observations").values  # directly calculate the mean
+                    overall_means = input_data.X.mean(dim="observations").values  # directly calculate the mean
                     # clipping
-                    mean = np_clip_param(mean, "mu")
+                    overall_means = np_clip_param(overall_means, "mu")
                     # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
 
                     init_a = np.zeros([input_data.num_design_loc_params, input_data.num_features])
-                    init_a[0, :] = np.log(mean)
+                    init_a[0, :] = np.log(overall_means)
                     self._train_mu = True
 
                     logger.info("Using standard initialization for mean")
                     logger.info("Should train mu: %s", self._train_mu)
 
+            logger.debug(" * Initialize dispersion model")
             if isinstance(init_b, str):
                 if init_b.lower() == "auto":
                     init_b = "closed_form"
@@ -868,14 +874,20 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         if input_data.size_factors is not None:
                             X = np.divide(X, size_factors_init)
 
-                        Xdiff = X - np.exp(input_data.design_loc @ init_a)
+                        #Xdiff = X - np.exp(input_data.design_loc @ init_a)
+                        # Define xarray version of init so that Xdiff can be evaluated lazy by dask.
+                        init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
+                        init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
+                        logger.debug(" ** Define Xdiff")
+                        Xdiff = X - np.exp(input_data.design_loc.dot(init_a_xr))
                         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
-                        group_mean = X.groupby("group").mean(dim="observations")
-                        denominator = np.fmax(variance - group_mean, 0)
+                        if groupwise_means is None:
+                            groupwise_means = X.groupby("group").mean(dim="observations")
+                        denominator = np.fmax(variance - groupwise_means, 0)
                         denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
                                                    dtype=denominator.dtype)
-                        r = np.asarray(np.square(group_mean) / denominator)
+                        r = np.asarray(np.square(groupwise_means) / denominator)
                         # clipping
                         r = np_clip_param(r, "r")
                         # r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
@@ -891,7 +903,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
                         # init_b = np.matmul(inv_design, b)
                         #
-                        # Better option: use least-squares solver to calculate b''
+                        # Use least-squares solver to calculate a':
+                        # This is faster and more accurate than using matrix inversion.
+                        logger.debug(" ** Solve lstsq problem")
                         b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
                         init_b = b_prime[0]
 
@@ -1012,6 +1026,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         else:
             init_b = init_b.astype(dtype)
 
+        logger.debug(" * Start creating model")
         with graph.as_default():
             # create model
             model = EstimatorGraph(
@@ -1030,6 +1045,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 extended_summary=extended_summary,
                 dtype=dtype
             )
+        logger.debug(" * Finished creating model")
 
         MonitoredTFEstimator.__init__(self, model)
 
