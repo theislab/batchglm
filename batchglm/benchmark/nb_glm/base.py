@@ -112,6 +112,11 @@ def get_benchmark_samples(root_dir: str, config_file="config.yml"):
     return list(config["benchmark_samples"].keys())
 
 
+def touch(path):
+    with open(path, 'a'):
+        os.utime(path, None)
+
+
 def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
@@ -122,6 +127,21 @@ def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     sample_config = config["benchmark_samples"][sample]
 
     working_dir = os.path.join(root_dir, sample_config["working_dir"])
+
+    # working space locking
+    if os.path.exists(os.path.join(working_dir, "ready")):
+        print("benchmark sample '%s' was already estimated" % sample)
+        return
+    if os.path.exists(os.path.join(working_dir, "lock")):
+        print((
+                      "benchmark sample '%s' is locked. " +
+                      "Maybe there is already another instance estimating this sample?"
+              ) % sample)
+        return
+
+    print("locking dir...", end="", flush=True)
+    touch(os.path.join(working_dir, "lock"))
+    print("\t[OK]")
 
     print("loading data...", end="", flush=True)
     sim = Simulator()
@@ -141,3 +161,8 @@ def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     estimator.initialize(**init_args)
     estimator.train(**training_args)
     print("estimation of benchmark sample '%s' ready" % sample)
+
+    print("unlocking dir and finalizing...", end="", flush=True)
+    os.remove(os.path.join(working_dir, "lock"))
+    touch(os.path.join(working_dir, "ready"))
+    print("\t[OK]")
