@@ -22,8 +22,6 @@ setup(
         'toolz',
         # design matrix generation
         'patsy',
-        'PyYAML',
-
     ],
     extras_require={
         'scanpy_deps': [
@@ -40,7 +38,7 @@ setup(
             "tensorflow-probability-gpu",
         ],
         'benchmarks': [
-            'yaml',
+            'PyYAML',
             "plotnine",
             "matplotlib",
         ],

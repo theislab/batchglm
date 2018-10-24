@@ -52,14 +52,14 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 200,
                 "optim_algo": "ADAM"
             },
             {
                 "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.25,
+                "stopping_criteria": 0.25,
                 "loss_window_size": 100,
                 "optim_algo": "GD"
             },
@@ -68,20 +68,20 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 200,
                 "optim_algo": "ADAM"
             },
             {
                 "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 100,
             },
             {
                 "learning_rate": 0.005,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.25,
+                "stopping_criteria": 0.25,
                 "loss_window_size": 25,
             },
         ]
@@ -89,7 +89,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 200,
                 "optim_algo": "ADAM"
             },
@@ -98,7 +98,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.01,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.25,
+                "stopping_criteria": 0.25,
                 "loss_window_size": 25,
             },
         ]
@@ -169,7 +169,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                               train_op,
                               feed_dict,
                               loss_window_size,
-                              stop_at_loss_change,
+                              stopping_criteria,
                               convergence_criteria="t_test"):
 
         previous_loss_hist = np.tile(np.inf, loss_window_size)
@@ -180,25 +180,25 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                 if convergence_criteria == "loss_change_to_last":
                     change = loss_hist[-2] - loss_hist[-1]
                     tf.logging.info("loss change: %f", change)
-                    return change < stop_at_loss_change
+                    return change < stopping_criteria
                 elif convergence_criteria == "moving_average":
                     change = np.mean(previous_loss_hist) - np.mean(loss_hist)
                     tf.logging.info("loss change: %f", change)
-                    return change < stop_at_loss_change
+                    return change < stopping_criteria
                 elif convergence_criteria == "scaled_moving_average":
-                    change = (np.mean(previous_loss_hist) - np.mean(loss_hist))/np.mean(previous_loss_hist)
+                    change = (np.mean(previous_loss_hist) - np.mean(loss_hist)) / np.mean(previous_loss_hist)
                     tf.logging.info("loss change: %f", change)
-                    return change < stop_at_loss_change
+                    return change < stopping_criteria
                 elif convergence_criteria == "absolute_moving_average":
                     change = np.abs(np.mean(previous_loss_hist) - np.mean(loss_hist))
                     tf.logging.info("absolute loss change: %f", change)
-                    return change < stop_at_loss_change
+                    return change < stopping_criteria
                 elif convergence_criteria == "t_test":
                     # H0: pevious_loss_hist and loss_hist are equally distributed
-                    # => continue training while P(H0) < stop_at_loss_change
+                    # => continue training while P(H0) < stopping_criteria
                     pval = stat_utils.welch_t_test(previous_loss_hist, loss_hist)
                     tf.logging.info("pval: %f", pval)
-                    return not pval < stop_at_loss_change
+                    return not pval < stopping_criteria
             else:
                 return False
 
@@ -227,7 +227,7 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
               feed_dict=None,
               convergence_criteria="t_test",
               loss_window_size=None,
-              stop_at_loss_change=None,
+              stopping_criteria=None,
               loss=None,
               train_op=None,
               **kwargs):
@@ -241,16 +241,18 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
 
             Currently implemented criterias:
 
-            "simple":
-                stop, when `loss(step=i) - loss(step=i-1)` < `stop_at_loss_change`
-            "moving_average":
-                stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stop_at_loss_change`
-            "absolute_moving_average":
-                stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stop_at_loss_change`
-            "t_test" (recommended):
+            - "step":
+              stop, when the step counter reaches `stopping_criteria`
+            - "difference":
+              stop, when `loss(step=i) - loss(step=i-1)` < `stopping_criteria`
+            - "moving_average":
+                stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stopping_criteria`
+            - "absolute_moving_average":
+                stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stopping_criteria`
+            - "t_test" (recommended):
                 Perform t_test between the last [i-2N..i-N] and [i-N..i] losses.
-                Stop if P(H0: "both distributions are not equal") <= `stop_at_loss_change`.
-        :param stop_at_loss_change: Additional parameter for convergence criteria.
+                Stop if P(H0: "both distributions are not equal") <= `stopping_criteria`.
+        :param stopping_criteria: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_window_size: specifies `N` in `convergence_criteria`.
@@ -262,11 +264,13 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         # default values:
         if loss_window_size is None:
             loss_window_size = 100
-        if stop_at_loss_change is None:
-            if convergence_criteria in ["simple", "moving_agerage", "absolute_moving_average"]:
-                stop_at_loss_change = 1e-5
+        if stopping_criteria is None:
+            if convergence_criteria == "step":
+                stopping_criteria = 5000
+            elif convergence_criteria in ["difference", "moving_agerage", "absolute_moving_average"]:
+                stopping_criteria = 1e-5
             else:
-                stop_at_loss_change = 0.05
+                stopping_criteria = 0.05
 
         if loss is None:
             loss = self.model.loss
@@ -274,14 +278,24 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         if train_op is None:
             train_op = self.model.train_op
 
-        self._train_to_convergence(
-            loss=loss,
-            train_op=train_op,
-            convergence_criteria=convergence_criteria,
-            loss_window_size=loss_window_size,
-            stop_at_loss_change=stop_at_loss_change,
-            feed_dict=feed_dict
-        )
+        if convergence_criteria == "step":
+            train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
+            while train_step < stopping_criteria:
+                train_step, global_loss, _ = self.session.run(
+                    (self.model.global_step, loss, train_op),
+                    feed_dict=feed_dict
+                )
+
+                tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
+        else:
+            self._train_to_convergence(
+                loss=loss,
+                train_op=train_op,
+                convergence_criteria=convergence_criteria,
+                loss_window_size=loss_window_size,
+                stopping_criteria=stopping_criteria,
+                feed_dict=feed_dict
+            )
 
 
 class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
@@ -331,7 +345,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         Initializes this Estimator.
         
         If specified, previous checkpoints will be loaded from `working_dir`.
-    
+
         :param working_dir: working directory for all actions requiring writing files to disk
         :param save_checkpoint_steps: number of steps after which a new checkpoint will be created
         :param save_checkpoint_secs: period of time after which a new checkpoint will be created
@@ -353,6 +367,10 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         :param export_steps: number of steps after which the parameters specified in `export` will be exported
         :param export_secs: time period after which the parameters specified in `export` will be exported
         :param export_compression: Enable compression for exported data. Defaults to `True`.
+        :param use_monitored_session: if True, uses tf.train.MonitoredTrainingSession instead of tf.Session.
+
+            tf.train.MonitoredTrainingSession is needed for certain features like checkpoint and summary saving.
+            However, tf.Session can be useful for debugging purposes.
         """
 
         self.close_session()

@@ -547,7 +547,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 100,
                 "use_batching": True,
                 "optim_algo": "ADAM",
@@ -555,7 +555,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
@@ -565,7 +565,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 100,
                 "use_batching": True,
                 "optim_algo": "ADAM",
@@ -573,7 +573,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 100,
                 "use_batching": True,
                 "optim_algo": "ADAM",
@@ -581,7 +581,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.005,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.25,
+                "stopping_criteria": 0.25,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "Newton-Raphson",
@@ -591,7 +591,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.1,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.05,
+                "stopping_criteria": 0.05,
                 "loss_window_size": 100,
                 "use_batching": True,
                 "optim_algo": "ADAM",
@@ -601,7 +601,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 0.01,
                 "convergence_criteria": "t_test",
-                "stop_at_loss_change": 0.25,
+                "stopping_criteria": 0.25,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
@@ -611,7 +611,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
-                "stop_at_loss_change": 1e-8,
+                "stopping_criteria": 1e-8,
                 "loss_window_size": 5,
                 "use_batching": False,
                 "optim_algo": "newton-raphson",
@@ -621,7 +621,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
-                "stop_at_loss_change": 1e-8,
+                "stopping_criteria": 1e-8,
                 "loss_window_size": 20,
                 "use_batching": True,
                 "optim_algo": "newton-raphson",
@@ -631,7 +631,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
-                "stop_at_loss_change": 1e-8,
+                "stopping_criteria": 1e-8,
                 "loss_window_size": 8,
                 "use_batching": True,
                 "optim_algo": "newton-raphson",
@@ -639,7 +639,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             {
                 "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
-                "stop_at_loss_change": 1e-8,
+                "stopping_criteria": 1e-8,
                 "loss_window_size": 4,
                 "use_batching": False,
                 "optim_algo": "newton-raphson",
@@ -681,6 +681,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             - str:
                 * "auto": automatically choose best initialization
                 * "random": initialize with random values
+                * "standard": initialize intercept with observed mean
                 * "init_model": initialize with another model (see `ìnit_model` parameter)
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'a'
@@ -690,6 +691,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             - str:
                 * "auto": automatically choose best initialization
                 * "random": initialize with random values
+                * "standard": initialize with zeros
                 * "init_model": initialize with another model (see `ìnit_model` parameter)
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'b'
@@ -1013,7 +1015,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
               learning_rate=0.5,
               convergence_criteria="t_test",
               loss_window_size=100,
-              stop_at_loss_change=0.05,
+              stopping_criteria=0.05,
               train_mu: bool = None,
               train_r: bool = None,
               use_batching=True,
@@ -1029,16 +1031,18 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param convergence_criteria: criteria after which the training will be interrupted.
             Currently implemented criterias:
 
-            - "simple":
-              stop, when `loss(step=i) - loss(step=i-1)` < `stop_at_loss_change`
+            - "step":
+              stop, when the step counter reaches `stopping_criteria`
+            - "difference":
+              stop, when `loss(step=i) - loss(step=i-1)` < `stopping_criteria`
             - "moving_average":
-              stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stop_at_loss_change`
+              stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stopping_criteria`
             - "absolute_moving_average":
-              stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stop_at_loss_change`
+              stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stopping_criteria`
             - "t_test" (recommended):
               Perform t-Test between the last [i-2N..i-N] and [i-N..i] losses.
-              Stop if P("both distributions are equal") > `stop_at_loss_change`.
-        :param stop_at_loss_change: Additional parameter for convergence criteria.
+              Stop if P("both distributions are equal") > `stopping_criteria`.
+        :param stopping_criteria: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_window_size: specifies `N` in `convergence_criteria`.
@@ -1103,7 +1107,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       feed_dict={"learning_rate:0": learning_rate},
                       convergence_criteria=convergence_criteria,
                       loss_window_size=loss_window_size,
-                      stop_at_loss_change=stop_at_loss_change,
+                      stopping_criteria=stopping_criteria,
                       loss=loss,
                       train_op=train_op,
                       **kwargs)
