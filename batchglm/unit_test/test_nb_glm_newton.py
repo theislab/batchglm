@@ -10,6 +10,7 @@ import scipy.sparse
 
 import batchglm.data as data_utils
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
+import batchglm.pkg_constants as pkg_constants
 
 
 def estimate_adam_full(input_data: InputData, working_dir: str):
@@ -51,7 +52,7 @@ def estimate_nr_full(input_data: InputData, working_dir: str):
     return estimator
 
 def estimate_nr_batched(input_data: InputData, working_dir: str):
-    estimator = Estimator(input_data, batch_size=500)
+    estimator = Estimator(input_data, batch_size=50)
     estimator.initialize(
         working_dir=working_dir,
         save_checkpoint_steps=20,
@@ -140,6 +141,7 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         os.makedirs(wd, exist_ok=True)
 
         t0 = time.time()
+        pkg_constants.JACOBIAN_MODE = "analytic"
         estimator = estimate_nr_batched(idata, wd)
         t1 = time.time()
         self._estims.append(estimator)
@@ -165,6 +167,7 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         os.makedirs(wd, exist_ok=True)
 
         t0 = time.time()
+        pkg_constants.JACOBIAN_MODE = "analytic"
         estimator = estimate_nr_full(idata, wd)
         t1 = time.time()
         self._estims.append(estimator)
@@ -189,6 +192,7 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         os.makedirs(wd, exist_ok=True)
 
         t0 = time.time()
+        pkg_constants.JACOBIAN_MODE = "analytic"
         estimator = estimate_nr_series(idata, wd)
         t1 = time.time()
         self._estims.append(estimator)
