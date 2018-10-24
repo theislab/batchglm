@@ -396,9 +396,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="full_data_trainers_b_only"
                 )
                 with tf.name_scope("full_gradient"):
-                    # full_gradient = full_data_trainers.gradient[0][0]
-                    # full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
-                    full_gradient = tf.reduce_sum(full_data_model.neg_jac, axis=0)
+                    # use same gradient as the optimizers
+                    full_gradient = full_data_trainers.gradient[0][0]
+                    full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
+
+                    # # the analytic Jacobian
+                    # full_gradient = tf.reduce_sum(full_data_model.neg_jac, axis=0)
                     # full_gradient = tf.add_n(
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
 
