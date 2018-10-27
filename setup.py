@@ -9,9 +9,9 @@ setup(
     author_email='florian.hoelzlwimmer@helmholtz-muenchen.de',
     packages=find_packages(),
     install_requires=[
-        'tensorflow',
+        'tensorflow>=1.10.0',
         'tensorflow-probability',
-        'numpy',
+        'numpy>=1.14.0',
         'scipy',
         'pandas',
         'xarray',
@@ -22,8 +22,6 @@ setup(
         'toolz',
         # design matrix generation
         'patsy',
-        'PyYAML',
-
     ],
     extras_require={
         'scanpy_deps': [
@@ -40,7 +38,7 @@ setup(
             "tensorflow-probability-gpu",
         ],
         'benchmarks': [
-            'yaml',
+            'PyYAML',
             "plotnine",
             "matplotlib",
         ],

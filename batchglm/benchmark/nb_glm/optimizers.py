@@ -3,135 +3,12 @@ from typing import Tuple
 import os
 import shutil
 
+import scipy.stats
 import numpy as np
 import xarray as xr
 import yaml
 
-# import batchglm.pkg_constants
-from batchglm.api.models.nb_glm import Simulator, Estimator
-
-import batchglm.utils.stats as stat_utils
-
-
-def init_benchmark(
-        root_dir: str,
-        sim: Simulator,
-        batch_size,
-        stop_at_step=5000,
-        learning_rate=0.05,
-        save_checkpoint_steps=25,
-        save_summaries_steps=25,
-        export_steps=25,
-        config_file="config.yml"
-):
-    os.makedirs(root_dir, exist_ok=True)
-
-    config = {
-        "sim_data": "sim_data.h5",
-        "plot_dir": "plot_dir",
-    }
-
-    os.makedirs(os.path.join(root_dir, config["plot_dir"]), exist_ok=True)
-    sim.save(os.path.join(root_dir, config["sim_data"]))
-
-    config["benchmark_samples"] = {
-        "minibatch_gd": prepare_benchmark_sample(
-            root_dir=root_dir,
-            working_dir="minibatch_sgd",
-            batch_size=batch_size,
-            stop_at_step=stop_at_step,
-            learning_rate=learning_rate,
-            save_checkpoint_steps=save_checkpoint_steps,
-            save_summaries_steps=save_summaries_steps,
-            export_steps=export_steps,
-        ),
-        "gradient_descent": prepare_benchmark_sample(
-            root_dir=root_dir,
-            working_dir="gradient_descent",
-            batch_size=sim.num_observations,
-            stop_at_step=stop_at_step,
-            learning_rate=learning_rate,
-            save_checkpoint_steps=save_checkpoint_steps,
-            save_summaries_steps=save_summaries_steps,
-            export_steps=export_steps,
-        )
-    }
-
-    config_file = os.path.join(root_dir, config_file)
-    with open(config_file, mode="w") as f:
-        yaml.dump(config, f, default_flow_style=False)
-
-
-def prepare_benchmark_sample(
-        root_dir: str,
-        working_dir: str,
-        batch_size: int,
-        stop_at_step: int,
-        learning_rate: float = 0.05,
-        stop_below_loss_change: float = None,
-        save_checkpoint_steps=25,
-        save_summaries_steps=25,
-        export_steps=25,
-        **kwargs
-
-):
-    os.makedirs(os.path.join(root_dir, working_dir), exist_ok=True)
-
-    sample_config = {
-        "working_dir": working_dir,
-        "learning_rate": learning_rate,
-        "batch_size": batch_size,
-    }
-
-    init_args = {
-        # "working_dir": working_dir,
-        "stop_at_step": stop_at_step,
-        "stop_below_loss_change": stop_below_loss_change,
-        "save_checkpoint_steps": save_checkpoint_steps,
-        "save_summaries_steps": save_summaries_steps,
-        "export_steps": export_steps,
-        "export": ["a", "b", "mu", "r", "loss"],
-        **kwargs
-    }
-
-    sample_config["init_args"] = init_args
-
-    return sample_config
-
-
-def get_benchmark_samples(root_dir: str, config_file="config.yml"):
-    config_file = os.path.join(root_dir, config_file)
-    with open(config_file, mode="r") as f:
-        config = yaml.load(f)
-    return list(config["benchmark_samples"].keys())
-
-
-def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
-    config_file = os.path.join(root_dir, config_file)
-    with open(config_file, mode="r") as f:
-        config = yaml.load(f)
-
-    sim_data_file = os.path.join(root_dir, config["sim_data"])
-
-    sample_config = config["benchmark_samples"][sample]
-
-    working_dir = os.path.join(root_dir, sample_config["working_dir"])
-    batch_size = sample_config["batch_size"]
-    learning_rate = sample_config["learning_rate"]
-
-    init_args = sample_config["init_args"]
-    init_args["working_dir"] = working_dir
-
-    print("loading data...", end="", flush=True)
-    sim = Simulator()
-    sim.load(sim_data_file)
-    print("\t[OK]")
-
-    print("starting estimation of benchmark sample '%s'..." % sample)
-    estimator = Estimator(sim.input_data, batch_size=batch_size)
-    estimator.initialize(**init_args)
-    estimator.train(learning_rate=learning_rate)
-    print("estimation of benchmark sample '%s' ready" % sample)
+from .base import init_benchmark, get_benchmark_samples, run_benchmark, Simulator
 
 
 def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Simulator, xr.Dataset]:
@@ -218,6 +95,58 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
     val: xr.DataArray = benchmark_data.loss
     plot_stat(val, "loss", "loss")
 
+    def plot_pval(window_size):
+        print("plotting p-value with window size: %d" % window_size)
+
+        roll1 = benchmark_data.loss.rolling(step=window_size)
+        roll2 = benchmark_data.loss.roll(step=window_size).rolling(step=window_size)
+        mu1 = roll1.mean().dropna("step")
+        mu2 = roll2.mean().dropna("step")
+        var1 = roll1.var().dropna("step")
+        var2 = roll2.var().dropna("step")
+        n1 = window_size
+        n2 = window_size
+
+        t, df = stat_utils.welch(mu1, mu2, var1, var2, n1, n2)
+        t = t[:, window_size:]
+        df = df[:, window_size:]
+
+        pval = t.copy()
+        pval[:, :] = scipy.stats.t(df).cdf(t)
+        pval.plot.line(hue="benchmark")
+        plt.savefig(os.path.join(plot_dir, "pval_convergence.%dsteps.svg" % window_size), format="svg")
+        # plt.show()
+        plt.close()
+
+    plot_pval(100)
+    plot_pval(200)
+    plot_pval(400)
+
+    benchmark_data.full_loss.plot.line(hue="benchmark")
+    plt.savefig(os.path.join(plot_dir, "full_loss.svg"), format="svg")
+    plt.close()
+
+    benchmark_data.loss.plot.line(hue="benchmark")
+    plt.savefig(os.path.join(plot_dir, "batch_loss.svg"), format="svg")
+    plt.close()
+
+    def plot_loss_rolling_mean(window_size):
+        print("plotting rolling mean of batch loss with window size: %d" % window_size)
+
+        benchmark_data.loss.rolling(step=window_size).mean().plot.line(hue="benchmark")
+        plt.savefig(os.path.join(plot_dir, "batch_loss_rolling_mean.%dsteps.svg" % window_size), format="svg")
+        plt.close()
+
+    plot_loss_rolling_mean(25)
+    plot_loss_rolling_mean(50)
+    plot_loss_rolling_mean(100)
+    plot_loss_rolling_mean(200)
+
+    with ProgressBar():
+        benchmark_data.full_gradient.mean(dim="features").plot.line(hue="benchmark")
+    plt.savefig(os.path.join(plot_dir, "mean_full_gradient.svg"), format="svg")
+    plt.close()
+
     print("ready")
 
 
@@ -245,11 +174,14 @@ def main():
     act_init.add_argument('--num_observations', help='number of observations to generate', type=int, default=4000)
     act_init.add_argument('--num_features', help='number of features to generate', type=int, default=500)
     act_init.add_argument('--batch_size', help='batch size to use for mini-batch SGD', type=int, default=500)
-    act_init.add_argument('--learning_rate', help='learning rate to use for all optimizers', type=float, default=0.05)
-    act_init.add_argument('--stop_at_step', help='number of steps to run', type=int, default=5000)
-    act_init.add_argument('--save_checkpoint_steps', help='number of steps to run', type=int, default=25)
-    act_init.add_argument('--save_summaries_steps', help='number of steps to run', type=int, default=25)
-    act_init.add_argument('--export_steps', help='number of steps to run', type=int, default=25)
+    act_init.add_argument('--num_batches', help='number of batches to simulate', type=int, default=4)
+    act_init.add_argument('--num_conditions', help='number of conditions to simulate', type=int, default=2)
+    # act_init.add_argument('--learning_rate', help='learning rate to use for all optimizers', type=float, default=0.05)
+    act_init.add_argument('--stopping_criteria', help='number of steps to run', type=int, default=5000)
+    act_init.add_argument('--save_checkpoint_steps', help='number of steps to run', type=int, default=100)
+    act_init.add_argument('--save_summaries_steps', help='number of steps to run', type=int, default=1)
+    act_init.add_argument('--optim_algo', help='optimization algorithm', type=str, default="gradient_descent")
+    act_init.add_argument('--export_steps', help='number of steps to run', type=int, default=1)
 
     act_run = subparsers.add_parser('run', help='run a benchmark')
     act_run.set_defaults(action='run')
@@ -271,17 +203,19 @@ def main():
     action = args.action
     if action == "init":
         sim = Simulator(num_observations=args.num_observations, num_features=args.num_features)
+        sim.generate_sample_description(num_batches=args.num_batches, num_conditions=args.num_conditions)
         sim.generate()
 
         init_benchmark(
             root_dir=root_dir,
             sim=sim,
             batch_size=args.batch_size,
-            stop_at_step=args.stop_at_step,
-            learning_rate=args.learning_rate,
+            stopping_criteria=args.stopping_criteria,
+            # learning_rate=args.learning_rate,
             save_checkpoint_steps=args.save_checkpoint_steps if args.save_checkpoint_steps > 0 else None,
             save_summaries_steps=args.save_summaries_steps if args.save_summaries_steps > 0 else None,
             export_steps=args.export_steps if args.export_steps > 0 else None,
+            optim_algo=args.optim_algo
         )
     elif action == "run":
         if args.benchmark_sample is not None:
