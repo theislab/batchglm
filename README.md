@@ -17,9 +17,9 @@ You can install [tensorflow](https://www.tensorflow.org/install/) via pip or via
 
 #### pip
 - CPU-only: <br/>
-  `pip install tf-nightly`
+  `pip install tensorflow`
 - GPU: <br/>
-  `pip install tf-nightly-gpu`
+  `pip install tensorflow-gpu`
   
 ### Hardware-optimized tensorflow installation (compiling from source)
 Please refer to https://www.tensorflow.org/install/ .
@@ -35,7 +35,6 @@ First, you have to install bazel (a build tool).
     https://docs.bazel.build/versions/master/install.html
   
 #### Compilation
-This does not work yet.
 1. Get newest TensorFlow repo from github via git clone:<br/>
     `git clone https://github.com/tensorflow/tensorflow.git`
 2. `cd tensorflow/`
