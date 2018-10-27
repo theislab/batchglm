@@ -678,6 +678,24 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "optim_algo": "newton-raphson",
             },
         ]
+        CONTINUOUS = [
+            {
+                "learning_rate": 0.1,
+                "convergence_criteria": "t_test",
+                "stopping_criteria": 0.05,
+                "loss_window_size": 20,
+                "use_batching": False,
+                "optim_algo": "ADAM",
+            },
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-8,
+                "loss_window_size": 4,
+                "use_batching": False,
+                "optim_algo": "newton-raphson",
+            },
+        ]
 
     model: EstimatorGraph
     _train_mu: bool
