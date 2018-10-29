@@ -1,3 +1,4 @@
+from .. import __version__
 from ..log_cfg import logger, unconfigure_logging, enable_logging
 
 from . import models
