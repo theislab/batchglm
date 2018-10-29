@@ -79,6 +79,17 @@ class BasicInputData:
             engine=pkg_constants.XARRAY_NETCDF_ENGINE
         )
 
+    def __str__(self):
+        return "[%s.%s object at %s]: data=%s" % (
+            type(self).__module__,
+            type(self).__name__,
+            hex(id(self)),
+            self.data
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class BasicModel(metaclass=abc.ABCMeta):
     r"""
@@ -434,3 +445,14 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
         retval.params = self.params.copy()
 
         return retval
+
+    def __str__(self):
+        return "[%s.%s object at %s]: data=%s" % (
+            type(self).__module__,
+            type(self).__name__,
+            hex(id(self)),
+            self.data
+        )
+
+    def __repr__(self):
+        return self.__str__()

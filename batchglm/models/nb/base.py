@@ -147,16 +147,16 @@ class InputData(BasicInputData):
 
         return type(self)(data)
 
-    def __str__(self):
-        return "[%s.%s object at %s]: data=%s" % (
-            type(self).__module__,
-            type(self).__name__,
-            hex(id(self)),
-            self.data
-        )
-
-    def __repr__(self):
-        return self.__str__()
+    # def __str__(self):
+    #     return "[%s.%s object at %s]: data=%s" % (
+    #         type(self).__module__,
+    #         type(self).__name__,
+    #         hex(id(self)),
+    #         self.data
+    #     )
+    #
+    # def __repr__(self):
+    #     return self.__str__()
 
 
 class Model(BasicModel, metaclass=abc.ABCMeta):
