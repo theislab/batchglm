@@ -7,11 +7,6 @@ import tensorflow as tf
 
 import numpy as np
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 from .external import AbstractEstimator
 from .external import nb_utils
 from .external import pkg_constants

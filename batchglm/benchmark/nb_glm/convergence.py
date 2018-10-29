@@ -2,57 +2,34 @@ from typing import Tuple
 
 import os
 import shutil
+import logging
 
 import scipy.stats
 import numpy as np
 import xarray as xr
 import yaml
 
-from .base import init_benchmark, get_benchmark_samples, run_benchmark, Simulator
+from .base import init_benchmark, get_benchmark_samples, run_benchmark, load_benchmark_dataset
+from .base import Simulator
 
 import batchglm.utils.stats as stat_utils
 
-
-def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Simulator, xr.Dataset, dict]:
-    config_file = os.path.join(root_dir, config_file)
-    with open(config_file, mode="r") as f:
-        config = yaml.load(f)
-
-    sim_data_file = os.path.join(root_dir, config["sim_data"])
-    sim = Simulator()
-    sim.load(sim_data_file)
-
-    benchmark_samples = config["benchmark_samples"]
-    benchmark_data = []
-    for smpl, cfg in benchmark_samples.items():
-        data = xr.open_mfdataset(
-            os.path.join(root_dir, cfg["working_dir"], "estimation-*.h5"),
-            engine="netcdf4",
-            concat_dim="step",
-            autoclose=True,
-            parallel=True,
-        )
-        data = data.sortby("global_step")
-        data.coords["benchmark"] = smpl
-        benchmark_data.append(data)
-    benchmark_data = xr.auto_combine(benchmark_data, concat_dim="benchmark", coords="all")
-
-    return sim, benchmark_data, benchmark_samples
+logger = logging.getLogger(__name__)
 
 
 def plot_benchmark(root_dir: str, config_file="config.yml"):
-    print("loading config...", end="", flush=True)
+    logger.info("loading config...", end="", flush=True)
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
         config = yaml.load(f)
-    print("\t[OK]")
+    logger.info("\t[OK]")
 
     plot_dir = os.path.join(root_dir, config["plot_dir"])
 
-    print("loading data...", end="", flush=True)
-    sim, benchmark_data, benchmark_sample_config = load_benchmark_dataset(root_dir)
+    logger.info("loading data...", end="", flush=True)
+    sim, benchmark_data = load_benchmark_dataset(root_dir)
     benchmark_data.coords["time_elapsed"] = benchmark_data.time_elapsed.cumsum("step")
-    print("\t[OK]")
+    logger.info("\t[OK]")
 
     import plotnine as pn
     import matplotlib.pyplot as plt
@@ -83,7 +60,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
             plot = plot + pn.scale_y_log10()
         plot.save(os.path.join(plot_dir, name_prefix + ".step.svg"), format="svg")
 
-    print("plotting...")
+    logger.info("plotting...")
     val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.params["a"][0], dims=("features",))),
         np.exp(benchmark_data.a.isel(design_loc_params=0)), axis=[0])
@@ -98,7 +75,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
     plot_stat(val, "loss", "loss")
 
     def plot_pval(window_size):
-        print("plotting p-value with window size: %d" % window_size)
+        logger.info("plotting p-value with window size: %d" % window_size)
 
         roll1 = benchmark_data.loss.rolling(step=window_size)
         roll2 = benchmark_data.loss.roll(step=window_size).rolling(step=window_size)
@@ -133,7 +110,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
     plt.close()
 
     def plot_loss_rolling_mean(window_size):
-        print("plotting rolling mean of batch loss with window size: %d" % window_size)
+        logger.info("plotting rolling mean of batch loss with window size: %d" % window_size)
 
         benchmark_data.loss.rolling(step=window_size).mean().plot.line(hue="benchmark")
         plt.savefig(os.path.join(plot_dir, "batch_loss_rolling_mean.%dsteps.svg" % window_size), format="svg")
@@ -149,7 +126,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
     plt.savefig(os.path.join(plot_dir, "mean_full_gradient.svg"), format="svg")
     plt.close()
 
-    print("ready")
+    logger.info("ready")
 
 
 def clean(root_dir: str):
@@ -161,7 +138,7 @@ def clean(root_dir: str):
             elif os.path.isdir(file_path):
                 shutil.rmtree(file_path)
         except Exception as e:
-            print(e)
+            logger.info(e)
 
 
 def main():
@@ -235,7 +212,7 @@ def main():
     elif action == "print_samples":
         benchmark_samples = get_benchmark_samples(root_dir)
         for smpl in benchmark_samples:
-            print(smpl)
+            logger.info(smpl)
     elif action == "plot":
         plot_benchmark(root_dir)
     elif action == "clean":
