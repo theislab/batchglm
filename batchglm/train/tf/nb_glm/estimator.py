@@ -883,6 +883,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # Define xarray version of init so that Xdiff can be evaluated lazy by dask.
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
                         init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
+                        init_a_xr.coords["features"] = X.coords["features"]
                         logger.debug(" ** Define Xdiff")
                         Xdiff = X - np.exp(input_data.design_loc.dot(init_a_xr))
                         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
