@@ -683,7 +683,15 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         ]
         CONTINUOUS = [
             {
-                "learning_rate": 0.1,
+                "learning_rate": 0.5,
+                "convergence_criteria": "t_test",
+                "stopping_criteria": 0.05,
+                "loss_window_size": 20,
+                "use_batching": True,
+                "optim_algo": "ADAM",
+            },
+            {
+                "learning_rate": 0.5,
                 "convergence_criteria": "t_test",
                 "stopping_criteria": 0.05,
                 "loss_window_size": 20,
@@ -694,9 +702,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
                 "stopping_criteria": 1e-8,
-                "loss_window_size": 4,
+                "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "newton-raphson",
+                "optim_algo": "GD",
             },
         ]
 
