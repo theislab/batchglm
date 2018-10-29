@@ -66,7 +66,7 @@ def _parse_design(data, design, names, design_key, dim="design_params"):
             dmat.dims[1]: dim,
         })
     else:
-        raise ValueError("Missing design_loc matrix!")
+        raise ValueError("Missing %s matrix!" % design_key)
 
     if names is not None:
         dmat.coords[dim] = names
