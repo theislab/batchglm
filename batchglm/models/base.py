@@ -84,7 +84,7 @@ class BasicInputData:
             type(self).__module__,
             type(self).__name__,
             hex(id(self)),
-            self.data
+            str(self.data).replace("\n", "\n    "),
         )
 
     def __repr__(self):
@@ -364,8 +364,8 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
             type(self).__module__,
             type(self).__name__,
             hex(id(self)),
-            self.data,
-            self.params
+            str(self.data).replace("\n", "\n    "),
+            str(self.params).replace("\n", "\n    "),
         )
 
     def __repr__(self):
