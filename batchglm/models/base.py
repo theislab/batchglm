@@ -211,93 +211,6 @@ class BasicModel(metaclass=abc.ABCMeta):
         return self.get(item)
 
 
-class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
-    r"""
-    Estimator base class
-    """
-
-    class TrainingStrategy(Enum):
-        AUTO = None
-        DEFAULT = [
-            {"learning_rate": 0.5, },
-            {"learning_rate": 0.05, },
-        ]
-        EXACT = [
-            {"learning_rate": 0.5, },
-            {"learning_rate": 0.05, },
-            {"learning_rate": 0.005, },
-        ]
-        QUICK = [
-            {"learning_rate": 0.5, },
-        ]
-        PRE_INITIALIZED = [
-            {"learning_rate": 0.005, },
-        ]
-
-    def validate_data(self, **kwargs):
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def initialize(self, **kwargs):
-        """
-        Initializes this estimator
-        """
-        pass
-
-    @abc.abstractmethod
-    def train(self, learning_rate=None, **kwargs):
-        """
-        Starts the training routine
-        """
-        pass
-
-    def train_sequence(self, training_strategy=TrainingStrategy.AUTO):
-        """
-        Starts a sequence of training routines
-
-        :param training_strategy: List of dicts or enum with parameters which will be passed to self.train().
-
-                - `training_strategy = [ {"learning_rate": 0.5}, {"learning_rate": 0.05} ]` is equivalent to
-                    `self.train(learning_rate=0.5); self.train(learning_rate=0.05);`
-
-                - Can also be an enum: self.TrainingStrategy.[AUTO|DEFAULT|EXACT|QUICK|...]
-                - Can also be a str: "[AUTO|DEFAULT|EXACT|QUICK|...]"
-        """
-        if isinstance(training_strategy, Enum):
-            training_strategy = training_strategy.value
-        elif isinstance(training_strategy, str):
-            training_strategy = self.TrainingStrategy[training_strategy].value
-
-        if training_strategy is None:
-            training_strategy = self.TrainingStrategy.DEFAULT.value
-
-        logger.info("training strategy: %s", str(training_strategy))
-
-        for idx, d in enumerate(training_strategy):
-            logger.info("Beginning with training sequence #%d", idx + 1)
-            self.train(**d)
-            logger.info("Training sequence #%d complete", idx + 1)
-
-    @abc.abstractmethod
-    def finalize(self, **kwargs):
-        """
-        Clean up, free resources
-
-        :return: some Estimator containing all necessary data
-        """
-        pass
-
-    @property
-    @abc.abstractmethod
-    def loss(self):
-        pass
-
-    @property
-    @abc.abstractmethod
-    def gradient(self):
-        pass
-
-
 class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
     r"""
     Simulator base class
@@ -447,12 +360,100 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
         return retval
 
     def __str__(self):
-        return "[%s.%s object at %s]: data=%s" % (
+        return "[%s.%s object at %s]:\ndata=%s\nparams=%s" % (
             type(self).__module__,
             type(self).__name__,
             hex(id(self)),
-            self.data
+            self.data,
+            self.params
         )
 
     def __repr__(self):
         return self.__str__()
+
+
+class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
+    r"""
+    Estimator base class
+    """
+
+    class TrainingStrategy(Enum):
+        AUTO = None
+        DEFAULT = [
+            {"learning_rate": 0.5, },
+            {"learning_rate": 0.05, },
+        ]
+        EXACT = [
+            {"learning_rate": 0.5, },
+            {"learning_rate": 0.05, },
+            {"learning_rate": 0.005, },
+        ]
+        QUICK = [
+            {"learning_rate": 0.5, },
+        ]
+        PRE_INITIALIZED = [
+            {"learning_rate": 0.005, },
+        ]
+
+    def validate_data(self, **kwargs):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def initialize(self, **kwargs):
+        """
+        Initializes this estimator
+        """
+        pass
+
+    @abc.abstractmethod
+    def train(self, learning_rate=None, **kwargs):
+        """
+        Starts the training routine
+        """
+        pass
+
+    def train_sequence(self, training_strategy=TrainingStrategy.AUTO):
+        """
+        Starts a sequence of training routines
+
+        :param training_strategy: List of dicts or enum with parameters which will be passed to self.train().
+
+                - `training_strategy = [ {"learning_rate": 0.5}, {"learning_rate": 0.05} ]` is equivalent to
+                    `self.train(learning_rate=0.5); self.train(learning_rate=0.05);`
+
+                - Can also be an enum: self.TrainingStrategy.[AUTO|DEFAULT|EXACT|QUICK|...]
+                - Can also be a str: "[AUTO|DEFAULT|EXACT|QUICK|...]"
+        """
+        if isinstance(training_strategy, Enum):
+            training_strategy = training_strategy.value
+        elif isinstance(training_strategy, str):
+            training_strategy = self.TrainingStrategy[training_strategy].value
+
+        if training_strategy is None:
+            training_strategy = self.TrainingStrategy.DEFAULT.value
+
+        logger.info("training strategy: %s", str(training_strategy))
+
+        for idx, d in enumerate(training_strategy):
+            logger.info("Beginning with training sequence #%d", idx + 1)
+            self.train(**d)
+            logger.info("Training sequence #%d complete", idx + 1)
+
+    @abc.abstractmethod
+    def finalize(self, **kwargs):
+        """
+        Clean up, free resources
+
+        :return: some Estimator containing all necessary data
+        """
+        pass
+
+    @property
+    @abc.abstractmethod
+    def loss(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def gradient(self):
+        pass
