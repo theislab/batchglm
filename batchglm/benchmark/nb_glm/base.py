@@ -1,13 +1,18 @@
+from typing import Tuple
+
 import os
+import logging
 
 from collections import OrderedDict
 import itertools
 
+import xarray as xr
 import pandas as pd
 import yaml
 
 from batchglm.api.models.nb_glm import Simulator, Estimator
 
+logger = logging.getLogger(__name__)
 
 def init_benchmark(
         root_dir: str,
@@ -166,3 +171,51 @@ def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     os.remove(os.path.join(working_dir, "lock"))
     touch(os.path.join(working_dir, "ready"))
     print("\t[OK]")
+
+
+def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Simulator, xr.Dataset]:
+    config_file = os.path.join(root_dir, config_file)
+    with open(config_file, mode="r") as f:
+        config = yaml.load(f)
+
+    sim_data_file = os.path.join(root_dir, config["sim_data"])
+    sim = Simulator()
+    sim.load(sim_data_file)
+
+    benchmark_samples = config["benchmark_samples"]
+    benchmark_data = []
+    for smpl, cfg in benchmark_samples.items():
+        wd = cfg["working_dir"]
+        logger.info("opening working dir: %s", wd)
+        ds_path = os.path.join(root_dir, wd, "cache.zarr")
+        try:  # try open zarr cache
+            data = xr.open_zarr(ds_path)
+            logger.info("using zarr cache: %s", os.path.join(wd, "cache.zarr"))
+        except:  # open netcdf4 files
+            logger.info("loading step-wise netcdf4 files...")
+            ncdf_data = xr.open_mfdataset(
+                os.path.join(root_dir, cfg["working_dir"], "estimation-*.h5"),
+                engine="netcdf4",
+                concat_dim="step",
+                autoclose=True,
+                parallel=True,
+            )
+            ncdf_data = ncdf_data.sortby("global_step")
+            ncdf_data.coords["benchmark"] = smpl
+            logger.info("loading step-wise netcdf4 files ready")
+
+            try:  # try to save data in zarr cache
+                zarr_data = ncdf_data.to_zarr(ds_path)
+                logger.info("Stored data in zarr cache")
+
+                # close netcdf4 data sets
+                ncdf_data.close()
+                del ncdf_data
+                data = zarr_data
+            except:  # use netcdf4 since zarr does not seem to work
+                data = ncdf_data
+
+        benchmark_data.append(data)
+    benchmark_data = xr.auto_combine(benchmark_data, concat_dim="benchmark", coords="all")
+
+    return sim, benchmark_data
