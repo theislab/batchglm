@@ -22,34 +22,4 @@ You can install [tensorflow](https://www.tensorflow.org/install/) via pip or via
   `pip install tf-nightly-gpu`
   
 ### Hardware-optimized tensorflow installation (compiling from source)
-Please refer to https://www.tensorflow.org/install/ .
-
-#### Pre-requirements
-First, you have to install bazel (a build tool).
-- On MacBook:<br/>
-  `brew install bazel`
-- On linux:
-  * Use Anaconda/Miniconda:<br/>
-    `conda install bazel`
-  * Official / Distribution-specific ways: 
-    https://docs.bazel.build/versions/master/install.html
-  
-#### Compilation
-This does not work yet.
-1. Get newest TensorFlow repo from github via git clone:<br/>
-    `git clone https://github.com/tensorflow/tensorflow.git`
-2. `cd tensorflow/`
-3. `git checkout <release>`
-4. `./configure`
-5. `bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package`
-6. `bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg`
-7. `pip install /tmp/tensorflow_pkg/tensorflow-<blah>.whl`
-
-## Building the documentation
-The documentation is maintained in the `docs/` directory.
-
-The built documentation will be saved in `build/docs`. 
- 
-1. Make sure sphinx is installed (install via pip for example). 
-2. `cd docs/`
-3. `make html`
+Please refer to https://www.tensorflow.org/install/.
