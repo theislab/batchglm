@@ -1,13 +1,62 @@
 import abc
 
+import math
 import numpy as np
 import xarray as xr
 # import pandas as pd
 # import patsy
 
+from batchglm.utils.linalg import stacked_lstsq
+
 from ..nb_glm.simulator import Simulator as NB_GLM_Simulator
 from ..external import data_utils, rand_utils
 from .base import Model, InputData
+
+
+def generate_mixture_design(num_mixtures, formula="~ 1 - 1"):
+    dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_scale")
+    dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
+    dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
+
+    return dmat_ar
+
+
+def generate_mixture_description(num_mixtures, num_conditions=2, num_batches=4) -> xr.Dataset:
+    """ Build a sample description.
+
+    :param num_mixtures: Number of observations to simulate.
+    :param num_conditions: number of conditions; will be repeated like [1,2,3,1,2,3]
+    :param num_batches: number of conditions; will be repeated like [1,1,2,2,3,3]
+    """
+    ds = {}
+    var_list = ["~ 1"]
+
+    ds["intercept"] = ("mixtures", np.repeat(1, num_mixtures))
+    if num_conditions > 0:
+        # condition column
+        reps_conditions = math.ceil(num_mixtures / num_conditions)
+        conditions = np.squeeze(np.tile([np.arange(num_conditions)], reps_conditions))
+        conditions = conditions[range(num_mixtures)].astype(str)
+
+        ds["condition"] = ("mixtures", conditions)
+        var_list.append("condition")
+
+    if num_batches > 0:
+        # batch column
+        reps_batches = math.ceil(num_mixtures / num_batches)
+        batches = np.repeat(range(num_batches), reps_batches)
+        batches = batches[range(num_mixtures)].astype(str)
+
+        ds["batch"] = ("mixtures", batches)
+        var_list.append("batch")
+
+    # build sample description
+    sample_description = xr.Dataset(ds, attrs={
+        "formula": " + ".join(var_list)
+    })
+    # sample_description = pd.DataFrame(data=sample_description, dtype="category")
+
+    return sample_description
 
 
 class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
@@ -16,7 +65,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
     Uses the natural logarithm as linker function.
     """
 
-    def __init__(self, *args, num_mixtures=2, **kwargs):
+    def __init__(self, *args, num_mixtures=3, **kwargs):
         NB_GLM_Simulator.__init__(self, *args, **kwargs)
         Model.__init__(self)
 
@@ -46,12 +95,31 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
     def num_mixtures(self, data):
         self._num_mixtures = data
 
-    def generate_params(self, *args, min_mean=1, max_mean=10000, min_r=1, max_r=10,
-                        rand_fn=lambda shape: np.random.uniform(0.5, 2, shape),
-                        rand_fn_loc=None,
-                        rand_fn_scale=None,
-                        prob_transition=0.9,
-                        shuffle_mixture_assignment=False, min_bias=0.5, max_bias=2, **kwargs):
+    def generate_mixture_description(self, num_conditions=0, num_batches=0):
+        mixture_description = generate_mixture_description(
+            self.num_mixtures,
+            num_conditions=num_conditions,
+            num_batches=num_batches
+        )
+        self.data.merge(mixture_description, inplace=True)
+
+        if "formula_mixture" not in self.data.attrs:
+            self.data.attrs["formula_mixture"] = mixture_description.attrs["formula"]
+
+        del self.data["intercept"]
+
+    def generate_params(
+            self,
+            *args,
+            min_mean=1, max_mean=10000,
+            min_r=1, max_r=10,
+            rand_fn=lambda shape: np.random.uniform(0.5, 2, shape),
+            rand_fn_loc=None, rand_fn_scale=None,
+            prob_transition=0.9,
+            shuffle_mixture_assignment=False,
+            min_bias=0.5, max_bias=2,
+            **kwargs
+    ):
         r"""
 
         :param min_mean: minimum mean value
@@ -93,22 +161,30 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
-        if "formula" not in self.data.attrs:
-            self.generate_sample_description()
-
         if "design_loc" not in self.data:
-            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations")
+            if "formula_loc" not in self.data.attrs:
+                self.generate_sample_description()
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_loc")
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_loc"])
             dmat_ar.coords["design_loc_params"] = dmat.design_info.column_names
             self.data["design_loc"] = dmat_ar
         if "design_scale" not in self.data:
-            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations")
+            if "formula_scale" not in self.data.attrs:
+                self.generate_sample_description()
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_scale")
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
             dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
             self.data["design_scale"] = dmat_ar
+        if "design_mixture" not in self.data:
+            if "formula_mixture" not in self.data.attrs:
+                self.generate_mixture_description()
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="mixtures", formula_key="formula_mixture")
+            dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_mixture"])
+            dmat_ar.coords["design_mixture_params"] = dmat.design_info.column_names
+            self.data["design_mixture"] = dmat_ar
 
-        self.params['a'] = xr.DataArray(
-            dims=self.param_shapes()["a"],
+        par_link_loc = xr.DataArray(
+            dims=self.param_shapes()["par_link_loc"],
             data=np.log(np.concatenate([
                 mean,
                 rand_fn_loc((self.num_mixtures, self.data.design_loc.shape[1] - 1, self.num_features))
@@ -116,13 +192,36 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
             coords={"design_loc_params": self.data.design_loc_params}
         )
 
-        self.params['b'] = xr.DataArray(
-            dims=self.param_shapes()["b"],
+        par_link_scale = xr.DataArray(
+            dims=self.param_shapes()["par_link_scale"],
             data=np.log(np.concatenate([
                 r,
                 rand_fn_scale((self.num_mixtures, self.data.design_scale.shape[1] - 1, self.num_features))
             ], axis=-2)),
             coords={"design_scale_params": self.data.design_scale_params}
+        )
+
+        self.params['a'] = xr.DataArray(
+            dims=self.param_shapes()["a"],
+            data=stacked_lstsq(
+                self.design_mixture,
+                par_link_loc.transpose("features", "mixtures", "design_loc_params")
+            ),
+            coords={
+                "design_mixture_params": self.data.design_mixture_params,
+                "design_loc_params": self.data.design_loc_params
+            }
+        )
+        self.params['b'] = xr.DataArray(
+            dims=self.param_shapes()["b"],
+            data=stacked_lstsq(
+                self.design_mixture,
+                par_link_scale.transpose("features", "mixtures", "design_scale_params")
+            ),
+            coords={
+                "design_mixture_params": self.data.design_mixture_params,
+                "design_scale_params": self.data.design_scale_params
+            }
         )
 
         initial_mixture_assignment = np.repeat(
@@ -181,6 +280,10 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
     @property
     def design_scale(self):
         return self.data["design_scale"]
+
+    @property
+    def design_mixture(self):
+        return self.data["design_mixture"]
 
     @property
     def size_factors(self):

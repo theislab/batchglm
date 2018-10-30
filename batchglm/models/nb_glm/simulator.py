@@ -12,10 +12,11 @@ from .base import Model, InputData
 
 
 def generate_sample_description(num_observations, num_conditions=2, num_batches=4) -> xr.Dataset:
-    """ Build a design matrix.
+    """ Build a sample description.
 
-    :param num_observations: Number of cells to simulate.
-    :param num_batchs
+    :param num_observations: Number of observations to simulate.
+    :param num_conditions: number of conditions; will be repeated like [1,2,3,1,2,3]
+    :param num_batches: number of conditions; will be repeated like [1,1,2,2,3,3]
     """
     ds = {}
     var_list = ["~ 1"]

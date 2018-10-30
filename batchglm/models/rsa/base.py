@@ -5,27 +5,34 @@ try:
     import anndata
 except ImportError:
     anndata = None
+
 import xarray as xr
 import numpy as np
+import pandas as pd
+import patsy
 
+from ..base import BasicEstimator
+from ..glm import parse_design
+from ..mixture import Model as MixtureModel
 from ..nb_glm.base import InputData as NB_GLM_InputData
 from ..nb_glm.base import Model as NB_GLM_Model
 from ..nb_glm.base import MODEL_PARAMS as NB_GLM_MODEL_PARAMS
 from ..nb_glm.base import INPUT_DATA_PARAMS as NB_GLM_INPUT_DATA_PARAMS
-from ..base import BasicEstimator
-from ..mixture import Model as MixtureModel
 
 INPUT_DATA_PARAMS = NB_GLM_INPUT_DATA_PARAMS.copy()
 INPUT_DATA_PARAMS.update({
     "design_loc": ("observations", "design_loc_params"),
     "design_scale": ("observations", "design_scale_params"),
+    "design_mixture": ("mixtures", "design_mixture_params"),
 })
 
 MODEL_PARAMS = NB_GLM_MODEL_PARAMS.copy()
 MODEL_PARAMS.update(INPUT_DATA_PARAMS)
 MODEL_PARAMS.update({
-    "a": ("mixtures", "design_loc_params", "features"),
-    "b": ("mixtures", "design_scale_params", "features"),
+    "a": ("features", "design_mixture_params", "design_loc_params"),
+    "b": ("features", "design_mixture_params", "design_scale_params"),
+    "par_link_loc": ("mixtures", "design_loc_params", "features"),
+    "par_link_scale": ("mixtures", "design_scale_params", "features"),
     "mixture_assignment": ("observations",),
     "mixture_prob": ("observations", "mixtures"),
     "mixture_log_prob": ("observations", "mixtures"),
@@ -41,7 +48,7 @@ ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
 ESTIMATOR_PARAMS.update({
     "loss": (),
     "gradient": ("features",),
-    "hessians": ("features", "delta_var0", "delta_var1"),
+    # "hessians": ("features", "delta_var0", "delta_var1"),
     "fisher_inv": ("features", "delta_var0", "delta_var1"),
 })
 
@@ -54,7 +61,11 @@ class InputData(NB_GLM_InputData):
     @classmethod
     def new(
             cls,
+            data,
             *args,
+            design_mixture: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
+            design_mixture_key: str = "design_mixtures",
+            cast_dtype=None,
             **kwargs
     ):
         """
@@ -88,9 +99,24 @@ class InputData(NB_GLM_InputData):
         :return: InputData object
         """
         retval = super(InputData, cls).new(
+            data,
             *args,
+            cast_dtype=cast_dtype,
             **kwargs
         )
+
+        design_mixture = parse_design(
+            data=data,
+            design_matrix=design_mixture,
+            design_key=design_mixture_key,
+            dims=INPUT_DATA_PARAMS["design_mixture"]
+        )
+
+        if cast_dtype is not None:
+            design_mixture = design_mixture.astype(cast_dtype)
+            # design = design.chunk({"observations": 1})
+
+        retval.design_mixture = design_mixture
 
         return retval
 
@@ -114,6 +140,47 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def b(self) -> xr.DataArray:
         pass
+
+    @property
+    @abc.abstractmethod
+    def design_mixture(self) -> xr.DataArray:
+        pass
+
+    # @property
+    # def mu(self) -> xr.DataArray:
+    #     # exp(design * a + sf)
+    #     # Depend on xarray and use xr.DataArray.dot() for matrix multiplication
+    #     # Also, make sure that the right order of dimensions get returned => use xr.DataArray.transpose()
+    #     log_retval = self.design_loc.dot(self., dims="design_loc_params").transpose(*self.param_shapes()["mu"])
+    #
+    #     if self.size_factors is not None:
+    #         log_retval += self.size_factors
+    #
+    #     return np.exp(log_retval)
+    #
+    # @property
+    # def r(self) -> xr.DataArray:
+    #     # exp(design * b + sf)
+    #     # Depend on xarray and use xr.DataArray.dot() for matrix multiplication
+    #     # Also, make sure that the right order of dimensions get returned => use xr.DataArray.transpose()
+    #     log_retval = self.design_scale.dot(self.b, dims="design_scale_params").transpose(*self.param_shapes()["r"])
+    #
+    #     if self.size_factors is not None:
+    #         log_retval += self.size_factors
+    #
+    #     return np.exp(log_retval)
+
+    @property
+    def par_link_loc(self):
+        retval = self.design_mixture.dot(self.a, dims="design_mixture_params")
+        retval = retval.transpose(*self.param_shapes()["par_link_loc"])
+        return retval
+
+    @property
+    def par_link_scale(self):
+        retval = self.design_mixture.dot(self.b, dims="design_mixture_params")
+        retval = retval.transpose(*self.param_shapes()["par_link_scale"])
+        return retval
 
     @property
     @abc.abstractmethod
