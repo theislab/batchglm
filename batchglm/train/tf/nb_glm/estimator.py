@@ -59,7 +59,6 @@ class FullDataModelGraph:
                 size_factors=size_factors)
             return model
 
-        super()
         model = map_model(*fetch_fn(sample_indices))
 
         with tf.name_scope("log_likelihood"):
