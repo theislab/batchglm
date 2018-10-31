@@ -1,3 +1,4 @@
+from typing import Union, Tuple, List
 import abc
 
 import math
@@ -10,53 +11,44 @@ from batchglm.utils.linalg import stacked_lstsq
 
 from ..nb_glm.simulator import Simulator as NB_GLM_Simulator
 from ..external import data_utils, rand_utils
-from .base import Model, InputData
+from .base import Model, InputData, design_tensor_from_mixture_description
 
 
-def generate_mixture_design(num_mixtures, formula="~ 1 - 1"):
-    dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_scale")
-    dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
-    dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
+def generate_mixture_description(
+        num_mixtures,
+        differing_params: Union[Tuple[str], List[str]] = ("Intercept",),
+        equal_params: Union[Tuple[str], List[str]] = ("batch", "condition"),
+        dim_names: Tuple[str, str] = ("mixtures", "design_params")
+) -> xr.DataArray:
+    r"""
+    Generate a mixture description which specifies equal and differing parameters
 
-    return dmat_ar
-
-
-def generate_mixture_description(num_mixtures, num_conditions=2, num_batches=4) -> xr.Dataset:
-    """ Build a sample description.
-
-    :param num_mixtures: Number of observations to simulate.
-    :param num_conditions: number of conditions; will be repeated like [1,2,3,1,2,3]
-    :param num_batches: number of conditions; will be repeated like [1,1,2,2,3,3]
+    :param num_mixtures: number of mixtures
+    :param differing_params: parameters which shall differ across mixtures
+    :param equal_params: parameters which shall be equal across mixtures
+    :param dim_names: dimension names of the returned xr.DataArray
+    :return: xr.DataArray of shape (num_mixtures, num_parameters)
     """
-    ds = {}
-    var_list = ["~ 1"]
 
-    ds["intercept"] = ("mixtures", np.repeat(1, num_mixtures))
-    if num_conditions > 0:
-        # condition column
-        reps_conditions = math.ceil(num_mixtures / num_conditions)
-        conditions = np.squeeze(np.tile([np.arange(num_conditions)], reps_conditions))
-        conditions = conditions[range(num_mixtures)].astype(str)
-
-        ds["condition"] = ("mixtures", conditions)
-        var_list.append("condition")
-
-    if num_batches > 0:
-        # batch column
-        reps_batches = math.ceil(num_mixtures / num_batches)
-        batches = np.repeat(range(num_batches), reps_batches)
-        batches = batches[range(num_mixtures)].astype(str)
-
-        ds["batch"] = ("mixtures", batches)
-        var_list.append("batch")
+    equal_data = np.tile("0", (num_mixtures, len(equal_params)))
+    differing_data = np.tile(np.arange(num_mixtures).astype(str), (len(differing_params), 1)).T
 
     # build sample description
-    sample_description = xr.Dataset(ds, attrs={
-        "formula": " + ".join(var_list)
-    })
-    # sample_description = pd.DataFrame(data=sample_description, dtype="category")
+    mixture_description = xr.DataArray(
+        dims=dim_names,
+        data=np.concatenate([
+            differing_data,
+            equal_data
+        ], axis=-1),
+        coords={
+            dim_names[-1]: np.concatenate([
+                np.asarray(differing_params),
+                np.asarray(equal_params)
+            ], axis=0)
+        }
+    )
 
-    return sample_description
+    return mixture_description
 
 
 class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
@@ -95,18 +87,77 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
     def num_mixtures(self, data):
         self._num_mixtures = data
 
-    def generate_mixture_description(self, num_conditions=0, num_batches=0):
+    def _generate_mixture_description(
+            self,
+            differing_params: Union[Tuple[str], List[str]] = None,
+            equal_params: Union[Tuple[str], List[str]] = None,
+            dmat_key="design",
+            dmat_params_dim="design_params"
+    ):
+        if dmat_key not in self.data:
+            raise ValueError("Please set up `%s` before calling this method" % dmat_key)
+
+        dmat = self.data[dmat_key]
+        params = set(dmat[dmat_params_dim].values)
+        if differing_params is None:
+            if "Intercept" in params:
+                differing_params = ["Intercept"]
+            else:
+                differing_params = []
+        if equal_params is None:
+            equal_params = list(params.difference(differing_params))
+
         mixture_description = generate_mixture_description(
             self.num_mixtures,
-            num_conditions=num_conditions,
-            num_batches=num_batches
+            differing_params=differing_params,
+            equal_params=equal_params,
+            dim_names=("mixtures", dmat_params_dim)
         )
-        self.data.merge(mixture_description, inplace=True)
+        mixture_description = mixture_description.sortby(self.data[dmat_params_dim])
 
-        if "formula_mixture" not in self.data.attrs:
-            self.data.attrs["formula_mixture"] = mixture_description.attrs["formula"]
+        return mixture_description
 
-        del self.data["intercept"]
+    def generate_mixture_description_loc(
+            self,
+            differing_params: Union[Tuple[str], List[str]] = None,
+            equal_params: Union[Tuple[str], List[str]] = None,
+    ):
+        r"""
+        Generate a mixture description which specifies equal and differing parameters.
+        Per default, only 'Intercept' will differ across mixtures.
+
+        :param differing_params: parameters which shall differ across mixtures
+        :param equal_params: parameters which shall be equal across mixtures
+        :return: xr.DataArray of shape (mixtures, design_loc_params)
+        """
+        self.data["mixture_description_loc"] = self._generate_mixture_description(
+            differing_params=differing_params,
+            equal_params=equal_params,
+            dmat_key="design_loc",
+            dmat_params_dim="design_loc_params"
+        )
+        return self.data["mixture_description_loc"]
+
+    def generate_mixture_description_scale(
+            self,
+            differing_params: Union[Tuple[str], List[str]] = None,
+            equal_params: Union[Tuple[str], List[str]] = None,
+    ):
+        r"""
+        Generate a mixture description which specifies equal and differing parameters.
+        Per default, only 'Intercept' will differ across mixtures.
+
+        :param differing_params: parameters which shall differ across mixtures
+        :param equal_params: parameters which shall be equal across mixtures
+        :return: xr.DataArray of shape (mixtures, design_scale_params)
+        """
+        self.data["mixture_description_scale"] = self._generate_mixture_description(
+            differing_params=differing_params,
+            equal_params=equal_params,
+            dmat_key="design_scale",
+            dmat_params_dim="design_scale_params"
+        )
+        return self.data["mixture_description_scale"]
 
     def generate_params(
             self,
@@ -161,6 +212,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
+        # set up design matrices of location and scale
         if "design_loc" not in self.data:
             if "formula_loc" not in self.data.attrs:
                 self.generate_sample_description()
@@ -175,13 +227,24 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
             dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
             self.data["design_scale"] = dmat_ar
-        if "design_mixture" not in self.data:
-            if "formula_mixture" not in self.data.attrs:
-                self.generate_mixture_description()
-            dmat = data_utils.design_matrix_from_xarray(self.data, dim="mixtures", formula_key="formula_mixture")
-            dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_mixture"])
-            dmat_ar.coords["design_mixture_params"] = dmat.design_info.column_names
-            self.data["design_mixture"] = dmat_ar
+
+        # set up design matrices of the mixtures
+        if "design_mixture_loc" not in self.data:
+            if "mixture_description_loc" not in self.data:
+                self.generate_mixture_description_loc()
+            dmat = design_tensor_from_mixture_description(
+                self.data["mixture_description_loc"],
+                dims=self.param_shapes()["design_mixture_loc"]
+            )
+            self.data["design_mixture_loc"] = dmat
+        if "design_mixture_scale" not in self.data:
+            if "mixture_description_scale" not in self.data:
+                self.generate_mixture_description_scale()
+            dmat = design_tensor_from_mixture_description(
+                self.data["mixture_description_scale"],
+                dims=self.param_shapes()["design_mixture_scale"]
+            )
+            self.data["design_mixture_scale"] = dmat
 
         par_link_loc = xr.DataArray(
             dims=self.param_shapes()["par_link_loc"],
@@ -191,7 +254,6 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
             ], axis=-2)),
             coords={"design_loc_params": self.data.design_loc_params}
         )
-
         par_link_scale = xr.DataArray(
             dims=self.param_shapes()["par_link_scale"],
             data=np.log(np.concatenate([
@@ -204,22 +266,22 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         self.params['a'] = xr.DataArray(
             dims=self.param_shapes()["a"],
             data=stacked_lstsq(
-                self.design_mixture,
-                par_link_loc.transpose("features", "mixtures", "design_loc_params")
+                self.design_mixture_loc,
+                par_link_loc.transpose("design_loc_params", "mixtures", "features")
             ),
             coords={
-                "design_mixture_params": self.data.design_mixture_params,
+                "design_mixture_loc_params": self.data.design_mixture_loc_params,
                 "design_loc_params": self.data.design_loc_params
             }
         )
         self.params['b'] = xr.DataArray(
             dims=self.param_shapes()["b"],
             data=stacked_lstsq(
-                self.design_mixture,
-                par_link_scale.transpose("features", "mixtures", "design_scale_params")
+                self.design_mixture_scale,
+                par_link_scale.transpose("design_scale_params", "mixtures", "features")
             ),
             coords={
-                "design_mixture_params": self.data.design_mixture_params,
+                "design_mixture_scale_params": self.data.design_mixture_scale_params,
                 "design_scale_params": self.data.design_scale_params
             }
         )
@@ -282,8 +344,12 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         return self.data["design_scale"]
 
     @property
-    def design_mixture(self):
-        return self.data["design_mixture"]
+    def design_mixture_loc(self):
+        return self.data["design_mixture_loc"]
+
+    @property
+    def design_mixture_scale(self):
+        return self.data["design_mixture_scale"]
 
     @property
     def size_factors(self):
