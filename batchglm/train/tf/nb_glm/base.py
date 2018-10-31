@@ -25,13 +25,13 @@ ESTIMATOR_PARAMS.update({
 
 def param_bounds(dtype):
     if isinstance(dtype, tf.DType):
-        min = dtype.min
-        max = dtype.max
+        dmin = dtype.min
+        dmax = dtype.max
         dtype = dtype.as_numpy_dtype
     else:
         dtype = np.dtype(dtype)
-        min = np.finfo(dtype).min
-        max = np.finfo(dtype).max
+        dmin = np.finfo(dtype).min
+        dmax = np.finfo(dtype).max
         dtype = dtype.type
 
     sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
@@ -46,12 +46,12 @@ def param_bounds(dtype):
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
     bounds_max = {
-        "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_r": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
-        "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "b": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "log_r": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
         "probs": dtype(1),
         "log_probs": dtype(0),
     }
