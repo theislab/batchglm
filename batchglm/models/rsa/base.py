@@ -55,6 +55,7 @@ ESTIMATOR_PARAMS.update({
 })
 
 
+# TODO: maybe move this function into some utility module
 def design_tensor_from_mixture_description(
         mixture_description: Union[xr.DataArray, pd.DataFrame],
         dims=("properties", "mixtures", "design_mixture_params")
@@ -120,8 +121,10 @@ class InputData(NB_GLM_InputData):
             cls,
             data,
             *args,
-            design_mixture: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
-            design_mixture_key: str = "design_mixtures",
+            design_mixture_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
+            design_mixture_loc_key: str = "design_mixture_loc",
+            design_mixture_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
+            design_mixture_scale_key: str = "design_mixture_scale",
             cast_dtype=None,
             **kwargs
     ):
@@ -162,20 +165,45 @@ class InputData(NB_GLM_InputData):
             **kwargs
         )
 
-        design_mixture = parse_design(
+        design_mixture_loc = parse_design(
             data=data,
-            design_matrix=design_mixture,
-            design_key=design_mixture_key,
-            dims=INPUT_DATA_PARAMS["design_mixture"]
+            design_matrix=design_mixture_loc,
+            design_key=design_mixture_loc_key,
+            dims=INPUT_DATA_PARAMS["design_mixture_loc"]
         )
-
         if cast_dtype is not None:
-            design_mixture = design_mixture.astype(cast_dtype)
+            design_mixture_loc = design_mixture_loc.astype(cast_dtype)
             # design = design.chunk({"observations": 1})
+        retval.design_mixture_loc = design_mixture_loc
 
-        retval.design_mixture = design_mixture
+        design_mixture_scale = parse_design(
+            data=data,
+            design_matrix=design_mixture_scale,
+            design_key=design_mixture_scale_key,
+            dims=INPUT_DATA_PARAMS["design_mixture_scale"]
+        )
+        if cast_dtype is not None:
+            design_mixture_scale = design_mixture_scale.astype(cast_dtype)
+            # design = design.chunk({"observations": 1})
+        retval.design_mixture_scale = design_mixture_scale
 
         return retval
+
+    @property
+    def design_mixture_loc(self) -> xr.DataArray:
+        return self.data["design_mixture_loc"]
+
+    @design_mixture_loc.setter
+    def design_mixture_loc(self, data):
+        self.data["design_mixture_loc"] = data
+
+    @property
+    def design_mixture_scale(self) -> xr.DataArray:
+        return self.data["design_mixture_scale"]
+
+    @design_mixture_scale.setter
+    def design_mixture_scale(self, data):
+        self.data["design_mixture_scale"] = data
 
 
 class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
