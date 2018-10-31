@@ -94,6 +94,7 @@ def design_tensor_from_mixture_description(
         )
     else:
         df = mixture_description
+    df = df.astype(str)
 
     list_of_dmatrices = [patsy.highlevel.dmatrix("~ 0 + col", {"col": data}) for col, data in df.items()]
     names = df.columns
