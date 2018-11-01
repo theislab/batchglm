@@ -1184,7 +1184,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       **kwargs)
 
     @property
-    def input_data(self):
+    def input_data(self) -> InputData:
         return self._input_data
 
     def train_sequence(self, training_strategy=TrainingStrategy.AUTO):
