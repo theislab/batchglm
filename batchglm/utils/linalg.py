@@ -54,7 +54,6 @@ def combine_matrices(list_of_matrices: List):
 
 
 def groupwise_solve_lm(
-        data: xr.DataArray,
         dmat,
         apply_fun: callable,
         constraints=None,
@@ -72,11 +71,23 @@ def groupwise_solve_lm(
             &= D \cdot x' = f^{-1}(\theta)
     $$
 
-    :param data:
-    :param dmat:
-    :param apply_fun:
-    :param constraints:
-    :return:
+    :param data: xr.DataArray of shape (observations, features) which can be grouped by `dmat`
+    :param dmat: design matrix which should be solved for
+    :param apply_fun: some callable function taking one xr.DataArray argument.
+        Should compute a group-wise parameter solution.
+
+        Example method calculating group-wise means:
+        ::
+            def apply_fun(grouping):
+                groupwise_means = data.groupby(grouping).mean(dim="observations").values
+
+                return np.log(groupwise_means)
+
+        The `data` argument provided to `apply_fun` is the same xr.DataArray provided to this
+
+    :param constraints: possible design constraints for constraint optimization
+    :return: tuple of (apply_fun(grouping), x_prime, rmsd, rank, s) where x_prime is the parameter matrix solved for
+    `dmat`.
     """
     unique_design_scale, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
 
@@ -94,8 +105,7 @@ def groupwise_solve_lm(
     if unique_design_scale.shape[1] > np.linalg.matrix_rank(unique_design_scale):
         logger.warning("Scale model is not full rank!")
 
-    grouped_data = data.assign_coords(group=((data.dims[0],), inverse_idx))
-    params = apply_fun(grouped_data)
+    params = apply_fun(inverse_idx)
 
     if constraints is not None:
         param_constraints = np.zeros([constraints.shape[0], params.shape[1]])
@@ -109,6 +119,6 @@ def groupwise_solve_lm(
     # Use least-squares solver to calculate a':
     # This is faster and more accurate than using matrix inversion.
     logger.debug(" ** Solve lstsq problem")
-    params_prime = np.linalg.lstsq(unique_design_scale, params, rcond=None)
+    x_prime, rmsd, rank, s = np.linalg.lstsq(unique_design_scale, params, rcond=None)
 
-    return params_prime
+    return params, x_prime, rmsd, rank, s

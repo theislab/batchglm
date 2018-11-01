@@ -826,7 +826,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # init_a = a_prime
                         # # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
 
-                        init_a, rmsd_a = nb_glm_utils.closed_form_negbin_logmu(
+                        groupwise_means, init_a, rmsd_a = nb_glm_utils.closed_form_negbin_logmu(
                             X=input_data.X,
                             design_loc=input_data.design_loc,
                             constraints=input_data.constraints_loc,
@@ -923,7 +923,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
                         init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
 
-                        init_b, rmsd_b = nb_glm_utils.closed_form_negbin_logphi(
+                        groupwise_scales, init_b, rmsd_b = nb_glm_utils.closed_form_negbin_logphi(
                             X=input_data.X,
                             a=init_a_xr,
                             design_loc=input_data.design_loc,

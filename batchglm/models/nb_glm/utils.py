@@ -13,22 +13,22 @@ def closed_form_negbin_logmu(
     if size_factors is not None:
         X = np.divide(X, size_factors)
 
-    def apply_fun(data):
-        groupwise_means = data.groupby("group").mean(dim="observations").values
+    def apply_fun(grouping):
+        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
+        groupwise_means = grouped_data.groupby("group").mean(dim="observations").values
         # clipping
         groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
                                        dtype=groupwise_means.dtype)
 
         return np.log(groupwise_means)
 
-    logmu, rmsd, rank, _ = groupwise_solve_lm(
-        data=X,
+    groupwise_means, logmu, rmsd, rank, s = groupwise_solve_lm(
         dmat=design_loc,
         apply_fun=apply_fun,
         constraints=constraints
     )
 
-    return logmu, rmsd
+    return groupwise_means, logmu, rmsd
 
 
 def closed_form_negbin_logphi(
@@ -43,14 +43,15 @@ def closed_form_negbin_logphi(
     if size_factors is not None:
         X = np.divide(X, size_factors)
 
-    def apply_fun(data):
+    def apply_fun(grouping):
+        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
         nonlocal groupwise_means
 
-        Xdiff = data - np.exp(design_loc.dot(a))
+        Xdiff = grouped_data - np.exp(design_loc.dot(a))
         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
         if groupwise_means is None:
-            groupwise_means = data.groupby("group").mean(dim="observations")
+            groupwise_means = grouped_data.groupby("group").mean(dim="observations")
 
         denominator = np.fmax(variance - groupwise_means, 0)
         denominator = np.nextafter(0, 1, out=denominator.values,
@@ -66,11 +67,10 @@ def closed_form_negbin_logphi(
 
         return np.log(groupwise_scales)
 
-    logphi, rmsd, rank, _ = groupwise_solve_lm(
-        data=X,
+    groupwise_scales, logphi, rmsd, rank, _ = groupwise_solve_lm(
         dmat=design_scale,
         apply_fun=apply_fun,
         constraints=constraints
     )
 
-    return logphi, rmsd
+    return groupwise_scales, logphi, rmsd
