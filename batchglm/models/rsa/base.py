@@ -206,6 +206,14 @@ class InputData(NB_GLM_InputData):
     def design_mixture_scale(self, data):
         self.data["design_mixture_scale"] = data
 
+    @property
+    def num_design_mixture_loc_params(self):
+        return self.data.dims["design_mixture_loc_params"]
+
+    @property
+    def num_design_mixture_scale_params(self):
+        return self.data.dims["design_mixture_scale_params"]
+
 
 class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
     """
@@ -272,11 +280,6 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
         retval = self.design_mixture_scale.dot(self.b, dims="design_mixture_scale_params")
         retval = retval.transpose(*self.param_shapes()["par_link_scale"])
         return retval
-
-    @property
-    @abc.abstractmethod
-    def mixture_log_prob(self):
-        pass
 
     def log_probs(self):
         self.mixture_log_prob.dot(super().log_probs(), dims="mixtures")

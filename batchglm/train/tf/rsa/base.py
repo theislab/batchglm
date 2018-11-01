@@ -110,6 +110,7 @@ class MixtureModel:
             self.prob = prob
             self.log_prob = log_prob
             self.normalized_logits = op_utils.logit(prob, name="normalized_logits")
+            self.mixture_assignment = tf.argmax(prob, axis=0)
 
 
 class BasicModelGraph:
@@ -142,7 +143,7 @@ class BasicModelGraph:
         # => (mixtures, design_scale_params, features)
 
         with tf.name_scope("mu"):
-            log_mu = tf.matmul(design_loc, par_link_loc, name="log_mu_obs")
+            log_mu = tf.matmul(tf.expand_dims(design_loc, axis=0), par_link_loc, name="log_mu_obs")
             # log_mu = tf.einsum('mod,dmp,dpf>mof', design_loc, design_mixture_loc, a)
             if size_factors is not None:
                 log_mu = log_mu + size_factors
@@ -150,7 +151,7 @@ class BasicModelGraph:
             mu = tf.exp(log_mu)
 
         with tf.name_scope("r"):
-            log_r = tf.matmul(design_scale, par_link_scale, name="log_r_obs")
+            log_r = tf.matmul(tf.expand_dims(design_scale, axis=0), par_link_scale, name="log_r_obs")
             # log_r = tf.einsum('mod,dmp,dpf>mof', design_scale, design_mixture_scale, a)
             log_r = tf_clip_param(log_r, "log_r")
             r = tf.exp(log_r)
@@ -200,6 +201,7 @@ class BasicModelGraph:
         self.r = r
         self.sigma2 = dist_obs.variance()
 
+        self.probs = tf.exp(log_probs, name="probs")
         self.log_probs = log_probs
         self.joint_log_probs = joint_log_probs
         self.log_likelihood = tf.reduce_sum(self.joint_log_probs, axis=0, name="log_likelihood")
