@@ -323,4 +323,6 @@ def stacked_lstsq(L, b, rcond=1e-10, name="stacked_lstsq"):
             tf.einsum('...K,...MK,...MN->...KN', inv_s, u, b)
         )
 
+        # rank = tf.sum(s > rcond)
+
         return tf.conj(x)

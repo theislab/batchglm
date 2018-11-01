@@ -283,38 +283,38 @@ class ModelVars:
                 # Define reduced variable set which is stucturally identifiable.
                 init_b = tf.gather(init_b, indices=np.where(b_is_dep == False)[0], axis=0)
 
-            # Param is the only tf.Variable in the graph.
-            # a_var and b_var have to be slices of params.
-            params = tf.Variable(tf.concat(
-                [
-                    init_a,
-                    init_b,
-                ],
-                axis=0
-            ), name="params")
+        # Param is the only tf.Variable in the graph.
+        # a_var and b_var have to be slices of params.
+        params = tf.Variable(tf.concat(
+            [
+                init_a,
+                init_b,
+            ],
+            axis=0
+        ), name="params")
 
-            a_var = params[0:init_a.shape[0]]
-            b_var = params[init_a.shape[0]:]
+        a_var = params[0:init_a.shape[0]]
+        b_var = params[init_a.shape[0]:]
 
-            # Define first layer of computation graph on identifiable variables
-            # to yield dependent set of parameters of model for each location
-            # and scale model.
+        # Define first layer of computation graph on identifiable variables
+        # to yield dependent set of parameters of model for each location
+        # and scale model.
 
-            if constraints_loc is not None:
-                a = apply_constraints(constraints_loc, a_var, dtype=dtype)
-            else:
-                a = a_var
+        if constraints_loc is not None:
+            a = apply_constraints(constraints_loc, a_var, dtype=dtype)
+        else:
+            a = a_var
 
-            if constraints_scale is not None:
-                b = apply_constraints(constraints_scale, b_var, dtype=dtype)
-            else:
-                b = b_var
+        if constraints_scale is not None:
+            b = apply_constraints(constraints_scale, b_var, dtype=dtype)
+        else:
+            b = b_var
 
-            a_clipped = tf_clip_param(a, "a")
-            b_clipped = tf_clip_param(b, "b")
+        a_clipped = tf_clip_param(a, "a")
+        b_clipped = tf_clip_param(b, "b")
 
-            self.a = a_clipped
-            self.b = b_clipped
-            self.a_var = a_var
-            self.b_var = b_var
-            self.params = params
+        self.a = a_clipped
+        self.b = b_clipped
+        self.a_var = a_var
+        self.b_var = b_var
+        self.params = params
