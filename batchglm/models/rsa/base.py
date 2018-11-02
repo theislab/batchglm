@@ -207,6 +207,10 @@ class InputData(NB_GLM_InputData):
         self.data["design_mixture_scale"] = data
 
     @property
+    def num_mixtures(self):
+        return self.data.dims["mixtures"]
+
+    @property
     def num_design_mixture_loc_params(self):
         return self.data.dims["design_mixture_loc_params"]
 

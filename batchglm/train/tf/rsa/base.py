@@ -236,7 +236,7 @@ class ModelVars:
             design_mixture_scale,
             init_a=None,
             init_b=None,
-            init_mixture_probs=None,
+            init_mixture_weights=None,
             name="ModelVars",
     ):
         with tf.name_scope(name):
@@ -306,15 +306,15 @@ class ModelVars:
                 init_a = tf_clip_param(init_a, "a")
                 init_b = tf_clip_param(init_b, "b")
 
-                if init_mixture_probs is None:
-                    init_mixture_probs = tf.random_uniform((num_mixtures, num_observations), 0, 1, dtype=tf.float32)
+                if init_mixture_weights is None:
+                    init_mixture_weights = tf.random_uniform((num_mixtures, num_observations), 0, 1, dtype=tf.float32)
                     # make sure the probabilities sum up to 1
-                    init_mixture_probs = tf.div(
-                        init_mixture_probs,
-                        tf.reduce_sum(init_mixture_probs, axis=0, keepdims=True)
+                    init_mixture_weights = tf.div(
+                        init_mixture_weights,
+                        tf.reduce_sum(init_mixture_weights, axis=0, keepdims=True)
                     )
 
-                init_mixture_logits = tf.log(init_mixture_probs, name="init_mixture_logits")
+                init_mixture_logits = tf.log(init_mixture_weights, name="init_mixture_logits")
                 init_mixture_logits = tf.where(
                     condition=tf.is_nan(init_mixture_logits),
                     x=tf.broadcast_to(np.log(0.5), init_mixture_logits.shape),

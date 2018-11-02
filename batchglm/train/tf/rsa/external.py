@@ -10,4 +10,5 @@ from batchglm.train.tf.base import TFEstimatorGraph, MonitoredTFEstimator
 
 import batchglm.models.nb_glm.utils as nb_glm_utils
 import batchglm.utils.random as rand_utils
+import batchglm.utils.linalg as linalg_utils
 from batchglm import pkg_constants
