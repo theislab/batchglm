@@ -109,7 +109,7 @@ class MixtureModel:
 
             self.prob = prob
             self.log_prob = log_prob
-            self.normalized_logits = op_utils.logit(prob, name="normalized_logits")
+            self.logit_prob = op_utils.logit(prob, name="normalized_logits")
             self.mixture_assignment = tf.argmax(prob, axis=0)
 
 
@@ -127,7 +127,7 @@ class BasicModelGraph:
             mixture_logits,  # (mixtures, observations)
             size_factors=None,
     ):
-        mixture_model = MixtureModel(logits=mixture_logits)
+        mixture_model = MixtureModel(logits=mixture_logits, axis=-1)
         log_mixture_weights = mixture_model.log_prob
         mixture_weights = mixture_model.prob
 
@@ -142,8 +142,39 @@ class BasicModelGraph:
         par_link_scale = tf.einsum('dmp,dpf->mdf', design_mixture_scale, b)
         # => (mixtures, design_scale_params, features)
 
+        # design_loc_bcast = tf.broadcast_to(
+        #     tf.expand_dims(design_loc, axis=0),
+        #     shape=tf.broadcast_dynamic_shape(design_loc.shape, par_link_loc.shape)
+        # )
+        # design_loc_bcast.set_shape([
+        #     par_link_loc.shape[0],
+        #     design_loc.shape[0],
+        #     design_loc.shape[1]
+        # ])
+        # design_scale_bcast = tf.broadcast_to(
+        #     tf.expand_dims(design_scale, axis=0),
+        #     shape=tf.broadcast_dynamic_shape(design_scale.shape, par_link_loc.shape)
+        # )
+        # design_loc_bcast.set_shape([
+        #     par_link_loc.shape[0],
+        #     design_scale.shape[0],
+        #     design_scale.shape[1]
+        # ])
+        design_loc_bcast = tf.tile(
+            tf.expand_dims(design_loc, axis=0),
+            multiples=[par_link_loc.shape[0], 1, 1]
+        )
+        design_scale_bcast = tf.tile(
+            tf.expand_dims(design_scale, axis=0),
+            multiples=[par_link_loc.shape[0], 1, 1]
+        )
+
         with tf.name_scope("mu"):
-            log_mu = tf.matmul(tf.expand_dims(design_loc, axis=0), par_link_loc, name="log_mu_obs")
+            log_mu = tf.matmul(
+                design_loc_bcast,
+                par_link_loc,
+                name="log_mu_obs"
+            )
             # log_mu = tf.einsum('mod,dmp,dpf>mof', design_loc, design_mixture_loc, a)
             if size_factors is not None:
                 log_mu = log_mu + size_factors
@@ -151,7 +182,11 @@ class BasicModelGraph:
             mu = tf.exp(log_mu)
 
         with tf.name_scope("r"):
-            log_r = tf.matmul(tf.expand_dims(design_scale, axis=0), par_link_scale, name="log_r_obs")
+            log_r = tf.matmul(
+                design_scale_bcast,
+                par_link_scale,
+                name="log_r_obs"
+            )
             # log_r = tf.einsum('mod,dmp,dpf>mof', design_scale, design_mixture_scale, a)
             log_r = tf_clip_param(log_r, "log_r")
             r = tf.exp(log_r)
@@ -165,11 +200,11 @@ class BasicModelGraph:
         with tf.name_scope("joint_log_probs"):
             # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
             joint_log_probs = tf.reduce_logsumexp(
-                log_probs + tf.expand_dims(log_mixture_weights, -1),
+                log_probs + tf.expand_dims(tf.transpose(log_mixture_weights), -1),
                 axis=-3,
                 # name="joint_log_probs"
             )
-            joint_log_probs = tf_clip_param(joint_log_probs, "joint_log_probs")
+            joint_log_probs = tf_clip_param(joint_log_probs, "log_probs")
 
         # with tf.name_scope("probs"):
         #     probs = dist_obs.prob(X)
@@ -279,21 +314,6 @@ class ModelVars:
                         intercept,
                         slope,
                     ], axis=-2)
-                else:
-                    init_b = tf.convert_to_tensor(init_b, dtype=dtype)
-
-                if init_b is None:
-                    intercept = tf.log(init_dist.r)
-                    slope = tf.random_uniform(
-                        tf.TensorShape([num_design_scale_params - 1, num_features]),
-                        minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
-                        maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
-                        dtype=dtype
-                    )
-                    init_b = tf.concat([
-                        intercept,
-                        slope,
-                    ], axis=-2)
 
                     # broadcast along mixture design params
                     init_b = tf.broadcast_to(
@@ -307,12 +327,14 @@ class ModelVars:
                 init_b = tf_clip_param(init_b, "b")
 
                 if init_mixture_weights is None:
-                    init_mixture_weights = tf.random_uniform((num_mixtures, num_observations), 0, 1, dtype=tf.float32)
+                    init_mixture_weights = tf.random_uniform((num_observations, num_mixtures), 0, 1, dtype=dtype)
                     # make sure the probabilities sum up to 1
                     init_mixture_weights = tf.div(
                         init_mixture_weights,
                         tf.reduce_sum(init_mixture_weights, axis=0, keepdims=True)
                     )
+                else:
+                    init_mixture_weights = tf.convert_to_tensor(init_mixture_weights, dtype=dtype)
 
                 init_mixture_logits = tf.log(init_mixture_weights, name="init_mixture_logits")
                 init_mixture_logits = tf.where(
@@ -350,6 +372,7 @@ class ModelVars:
             self.mixture_logits = mixture_logits_clipped
             self.a_var = a_var
             self.b_var = b_var
+            self.mixture_logits_var = mixture_logits
             # self.params = params
 
 # class LinearBatchModel:

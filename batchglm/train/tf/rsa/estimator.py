@@ -249,7 +249,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 # set up multiple optimization algorithms for each trainer
                 batch_trainers = train_utils.MultiTrainer(
                     loss=batch_model.norm_neg_log_likelihood,
-                    variables=[model_vars.a, model_vars.b, model_vars.mixture_logits],
+                    variables=[model_vars.a_var, model_vars.b_var, model_vars.mixture_logits_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="batch_trainers"
@@ -264,7 +264,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 full_data_trainers = train_utils.MultiTrainer(
                     loss=full_data_model.norm_neg_log_likelihood,
-                    variables=[model_vars.a, model_vars.b, model_vars.mixture_logits],
+                    variables=[model_vars.a_var, model_vars.b_var, model_vars.mixture_logits_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_trainers"
@@ -289,44 +289,46 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
 
-            # ### output values:
-            #       override all-zero features with lower bound coefficients
-            with tf.name_scope("output"):
-                bounds_min, bounds_max = param_bounds(dtype)
-
-                param_nonzero_a = tf.broadcast_to(
-                    feature_isnonzero,
-                    shape=[num_mixtures, num_design_loc_params, num_features]
-                )
-                alt_a = tf.concat([
-                    # intercept
-                    tf.broadcast_to(bounds_min["a"], [num_mixtures, 1, num_features]),
-                    # slope
-                    tf.zeros(shape=[num_mixtures, num_design_loc_params - 1, num_features], dtype=model_vars.a.dtype),
-                ], axis=-2, name="alt_a")
-                a = tf.where(
-                    param_nonzero_a,
-                    model_vars.a,
-                    alt_a,
-                    name="a"
-                )
-
-                param_nonzero_b = tf.broadcast_to(
-                    feature_isnonzero,
-                    shape=[num_mixtures, num_design_scale_params, num_features]
-                )
-                alt_b = tf.concat([
-                    # intercept
-                    tf.broadcast_to(bounds_max["b"], [num_mixtures, 1, num_features]),
-                    # slope
-                    tf.zeros(shape=[num_mixtures, num_design_scale_params - 1, num_features], dtype=model_vars.b.dtype),
-                ], axis=-2, name="alt_b")
-                b = tf.where(
-                    param_nonzero_b,
-                    model_vars.b,
-                    alt_b,
-                    name="b"
-                )
+            # # ### output values:
+            # #       override all-zero features with lower bound coefficients
+            # with tf.name_scope("output"):
+            #     bounds_min, bounds_max = param_bounds(dtype)
+            #
+            #     param_nonzero_a = tf.broadcast_to(
+            #         feature_isnonzero,
+            #         shape=[num_mixtures, num_design_loc_params, num_features]
+            #     )
+            #     alt_a = tf.concat([
+            #         # intercept
+            #         tf.broadcast_to(bounds_min["a"], [num_mixtures, 1, num_features]),
+            #         # slope
+            #         tf.zeros(shape=[num_mixtures, num_design_loc_params - 1, num_features], dtype=model_vars.a.dtype),
+            #     ], axis=-2, name="alt_a")
+            #     a = tf.where(
+            #         param_nonzero_a,
+            #         model_vars.a,
+            #         alt_a,
+            #         name="a"
+            #     )
+            #
+            #     param_nonzero_b = tf.broadcast_to(
+            #         feature_isnonzero,
+            #         shape=[num_mixtures, num_design_scale_params, num_features]
+            #     )
+            #     alt_b = tf.concat([
+            #         # intercept
+            #         tf.broadcast_to(bounds_max["b"], [num_mixtures, 1, num_features]),
+            #         # slope
+            #         tf.zeros(shape=[num_mixtures, num_design_scale_params - 1, num_features], dtype=model_vars.b.dtype),
+            #     ], axis=-2, name="alt_b")
+            #     b = tf.where(
+            #         param_nonzero_b,
+            #         model_vars.b,
+            #         alt_b,
+            #         name="b"
+            #     )
+            a = model_vars.a
+            b = model_vars.b
 
             self.fetch_fn = fetch_fn
             self.model_vars = model_vars
@@ -534,6 +536,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 )
 
             groupwise_means = None  # [groups, features]
+            par_link_loc = None
             overall_means = None  # [1, features]
             logger.debug(" * Initialize mean model")
             if isinstance(init_a, str):
@@ -543,14 +546,17 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_a.lower() == "closed_form":
                     try:
-                        groupwise_means, par_link_loc, rmsd_loc = nb_glm_utils.closed_form_negbin_logmu(
+                        groupwise_means, par_link_loc, rmsd_loc = nb_glm_utils.closedform_nb_glm_logmu(
                             X=input_data.X,
                             design_loc=input_data.design_loc,
                             constraints=input_data.constraints_loc,
                             size_factors=size_factors_init
                         )
 
-                        init_a = linalg_utils.stacked_lstsq(input_data.design_mixture_loc, par_link_loc)
+                        init_a = linalg_utils.stacked_lstsq(
+                            L=input_data.design_mixture_loc,
+                            b=np.expand_dims(par_link_loc, axis=1)
+                        )
 
                         logger.info("Using closed-form MLE initialization for mean")
                         logger.debug("RMSE of closed-form mean:\n%s", rmsd_loc)
@@ -581,20 +587,29 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_b.lower() == "closed_form":
                     try:
-                        init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
-                        init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
+                        if par_link_loc is not None:
+                            init_a_xr = data_utils.xarray_from_data(
+                                par_link_loc,
+                                dims=("design_loc_params", "features")
+                            )
+                            init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
+                            init_mu = np.exp(input_data.design_loc.dot(init_a_xr))
+                        else:
+                            init_mu = None
 
-                        groupwise_scales, par_link_scale, rmsd_scale = nb_glm_utils.closed_form_negbin_logphi(
+                        groupwise_scales, par_link_scale, rmsd_scale = nb_glm_utils.closedform_nb_glm_logphi(
                             X=input_data.X,
-                            a=init_a_xr,
-                            design_loc=input_data.design_loc,
+                            mu=init_mu,
                             design_scale=input_data.design_scale,
                             constraints=input_data.constraints_loc,
                             size_factors=size_factors_init,
                             groupwise_means=groupwise_means
                         )
 
-                        init_b = linalg_utils.stacked_lstsq(input_data.design_mixture_scale, par_link_scale)
+                        init_b = linalg_utils.stacked_lstsq(
+                            input_data.design_mixture_scale,
+                            np.expand_dims(par_link_scale, axis=1)
+                        )
 
                         logger.info("Using closed-form MME initialization for dispersion")
                         logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_scale)
@@ -679,6 +694,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 init_b = None
             else:
                 init_b = init_b.astype(dtype)
+            if isinstance(init_mixture_weights, str):
+                init_mixture_weights = None
 
             logger.debug(" * Start creating model")
             with graph.as_default():
