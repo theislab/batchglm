@@ -1,17 +1,19 @@
 from typing import List
 
 import os
+# import sys
 import unittest
 import tempfile
+import logging
 
 import numpy as np
 import scipy.sparse
 
-import batchglm.data as data_utils
+import batchglm.api as glm
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 
-
-# from utils.config import getConfig
+glm.setup_logging(verbosity="INFO", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
 def estimate(input_data: InputData, working_dir: str):
@@ -98,9 +100,9 @@ class NB_GLM_Test(unittest.TestCase):
         sim.generate_sample_description(num_conditions=0, num_batches=4)
         sim.generate()
 
-        sample_description = data_utils.sample_description_from_xarray(sim.data, dim="observations")
-        design_loc = data_utils.design_matrix(sample_description, formula="~ 1 - 1 + batch")
-        design_scale = data_utils.design_matrix(sample_description, formula="~ 1 - 1 + batch")
+        sample_description = glm.data.sample_description_from_xarray(sim.data, dim="observations")
+        design_loc = glm.data.design_matrix(sample_description, formula="~ 1 - 1 + batch")
+        design_scale = glm.data.design_matrix(sample_description, formula="~ 1 - 1 + batch")
 
         input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 

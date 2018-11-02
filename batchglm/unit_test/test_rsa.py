@@ -1,14 +1,19 @@
 from typing import List
 
 import os
+# import sys
 import unittest
 import tempfile
+import logging
 
 import numpy as np
 import scipy.sparse
 
-import batchglm.data as data_utils
+import batchglm.api as glm
 from batchglm.api.models.rsa import Simulator, Estimator, InputData
+
+glm.setup_logging(verbosity="INFO", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
 # from utils.config import getConfig
@@ -25,7 +30,7 @@ def estimate(input_data: InputData, working_dir: str):
         # stop_at_step=1000,
         # stop_below_loss_change=1e-5,i
 
-        export=["a", "b", "mu", "r", "mixture_prob", "mixture_assignments", "loss"],
+        export=["a", "b", "mu", "r", "mixture_prob", "mixture_assignment", "loss"],
         export_steps=20
     )
     input_data.save(os.path.join(working_dir, "input_data.h5"))
@@ -69,9 +74,9 @@ class RSA_Test(unittest.TestCase):
         estimator = estimator.finalize()
         print(estimator.mu.values)
         print(estimator.gradient.values)
-        print(estimator.hessians.values)
         print(estimator.probs().values)
         print(estimator.log_probs().values)
+        print(estimator.mixture_assignment)
 
         return estimator, sim
 
