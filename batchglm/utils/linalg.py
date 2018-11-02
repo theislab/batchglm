@@ -22,7 +22,7 @@ def stacked_lstsq(L, b, rcond=1e-10):
     s_max = s.max(axis=-1, keepdims=True)
     s_min = rcond * s_max
 
-    inv_s = np.where(s >= s_min, np.reciprocal(s), 0)
+    inv_s = np.reciprocal(s, out=np.zeros_like(s), where=s >= s_min)
 
     x = np.einsum(
         '...MK,...MN->...KN',
