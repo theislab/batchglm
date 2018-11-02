@@ -2,56 +2,66 @@ import numpy as np
 import xarray as xr
 
 from batchglm.utils.linalg import groupwise_solve_lm
+from batchglm.models.glm import closedform_glm_mean
 
 
-def closed_form_negbin_logmu(
+def closedform_nb_glm_logmu(
         X: xr.DataArray,
         design_loc,
         constraints=None,
-        size_factors=None
+        size_factors=None,
 ):
-    if size_factors is not None:
-        X = np.divide(X, size_factors)
+    """
+    Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
 
-    def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
-        groupwise_means = grouped_data.groupby("group").mean(dim="observations").values
-        # clipping
-        groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
-                                       dtype=groupwise_means.dtype)
-
-        return np.log(groupwise_means)
-
-    groupwise_means, logmu, rmsd, rank, s = groupwise_solve_lm(
-        dmat=design_loc,
-        apply_fun=apply_fun,
-        constraints=constraints
-    )
-
-    return groupwise_means, logmu, rmsd
+    :param X:
+    :param design_loc:
+    :param constraints:
+    :param size_factors:
+    :return:
+    """
+    return closedform_glm_mean(X, design_loc, constraints, size_factors, link_fn=np.log)
 
 
-def closed_form_negbin_logphi(
+def closedform_nb_glm_logphi(
         X: xr.DataArray,
-        a: xr.DataArray,
-        design_loc: xr.DataArray,
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
+        mu=None,
         groupwise_means=None,
 ):
+    """
+    Calculates a closed-form solution for the log-scale parameters of negative-binomial GLMs.
+    Based on the Method-of-Moments estimator.
+
+    :param X:
+    :param design_scale:
+    :param constraints:
+    :param size_factors:
+    :param mu: optional, if there are for example different mu's per observation.
+
+        Used to calculate `Xdiff = X - mu`.
+    :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
+    :return:
+    """
     if size_factors is not None:
         X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
+        grouped_X = X.assign_coords(group=((X.dims[0],), grouping))
         nonlocal groupwise_means
+        nonlocal mu
 
-        Xdiff = grouped_data - np.exp(design_loc.dot(a))
+        if mu is None:
+            Xdiff = grouped_X - grouped_X.mean(dim="observations")
+        else:
+            Xdiff = grouped_X - mu
+
         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
         if groupwise_means is None:
-            groupwise_means = grouped_data.groupby("group").mean(dim="observations")
+            groupwise_means = grouped_X.groupby("group").mean(dim="observations")
 
         denominator = np.fmax(variance - groupwise_means, 0)
         denominator = np.nextafter(0, 1, out=denominator.values,

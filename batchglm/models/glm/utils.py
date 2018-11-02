@@ -10,6 +10,8 @@ import pandas as pd
 
 import patsy
 
+from batchglm.utils.linalg import groupwise_solve_lm
+
 
 def parse_design(
         data: Union[anndata.AnnData, xr.Dataset] = None,
@@ -65,3 +67,83 @@ def parse_design(
         # raise ValueError("Could not find names for %s; Please specify them manually." % dim)
 
     return dmat
+
+
+def closedform_glm_mean(
+        X: xr.DataArray,
+        design_loc,
+        constraints=None,
+        size_factors=None,
+        link_fn: Union[callable, None] = None
+):
+    """
+    Calculates a closed-form solution for the mean parameters of GLMs.
+
+    :param X:
+    :param design_loc:
+    :param constraints:
+    :param size_factors:
+    :param link_fn: linker function for GLM
+    :return:
+    """
+    if size_factors is not None:
+        X = np.divide(X, size_factors)
+
+    def apply_fun(grouping):
+        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
+        groupwise_means = grouped_data.groupby("group").mean(dim="observations").values
+        # clipping
+        groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
+                                       dtype=groupwise_means.dtype)
+        if link_fn is None:
+            return groupwise_means
+        else:
+            return link_fn(groupwise_means)
+
+    groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
+        dmat=design_loc,
+        apply_fun=apply_fun,
+        constraints=constraints
+    )
+
+    return groupwise_means, mu, rmsd
+
+
+def closedform_glm_var(
+        X: xr.DataArray,
+        design_loc,
+        constraints=None,
+        size_factors=None,
+        link_fn: Union[callable, None] = None
+):
+    """
+    Calculates a closed-form solution for the variance parameters of GLMs.
+
+    :param X:
+    :param design_loc:
+    :param constraints:
+    :param size_factors:
+    :param link_fn: linker function for GLM
+    :return:
+    """
+    if size_factors is not None:
+        X = np.divide(X, size_factors)
+
+    def apply_fun(grouping):
+        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
+        groupwise_variance = grouped_data.groupby("group").var(dim="observations").values
+        # clipping
+        groupwise_variance = np.nextafter(0, 1, out=groupwise_variance, where=groupwise_variance == 0,
+                                          dtype=groupwise_variance.dtype)
+        if link_fn is None:
+            return groupwise_variance
+        else:
+            return link_fn(groupwise_variance)
+
+    groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
+        dmat=design_loc,
+        apply_fun=apply_fun,
+        constraints=constraints
+    )
+
+    return groupwise_means, mu, rmsd
