@@ -286,7 +286,7 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
         return retval
 
     def log_probs(self):
-        self.mixture_log_prob.dot(super().log_probs(), dims="mixtures")
+        return self.mixture_log_prob.dot(super().log_probs(), dims="mixtures")
 
     # @property
     # def mu(self) -> xr.DataArray:
@@ -419,13 +419,21 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
-        params = estim.to_xarray(["a", "b", "loss", "gradient"], coords=input_data.data)
+        params = estim.to_xarray(["a", "b", "mixture_log_prob", "loss", "gradient"], coords=input_data.data)
 
         XArrayModel.__init__(self, input_data, params)
 
     @property
     def input_data(self):
         return self._input_data
+
+    @property
+    def design_mixture_loc(self) -> xr.DataArray:
+        return self.input_data.design_mixture_loc
+
+    @property
+    def design_mixture_scale(self) -> xr.DataArray:
+        return self.input_data.design_mixture_scale
 
     @property
     def loss(self):

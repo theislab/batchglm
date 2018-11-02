@@ -216,8 +216,7 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
         return self.mu + ((self.mu * self.mu) / self.r)
 
     def probs(self) -> xr.DataArray:
-        X = self.X
-        return rand_utils.NegativeBinomial(mean=self.mu, r=self.r).prob(X)
+        return np.exp(self.log_probs())
 
     def log_probs(self) -> xr.DataArray:
         X = self.X

@@ -110,7 +110,7 @@ class MixtureModel:
             self.prob = prob
             self.log_prob = log_prob
             self.logit_prob = op_utils.logit(prob, name="normalized_logits")
-            self.mixture_assignment = tf.argmax(prob, axis=0)
+            self.mixture_assignment = tf.argmax(prob, axis=axis)
 
 
 class BasicModelGraph:

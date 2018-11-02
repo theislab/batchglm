@@ -239,7 +239,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 mu = full_data_model.mu
                 r = full_data_model.r
                 sigma2 = full_data_model.sigma2
-                mixture_model = MixtureModel(model_vars.mixture_logits)
+                mixture_model = MixtureModel(model_vars.mixture_logits, axis=-1)
 
             # ### management
             with tf.name_scope("training"):
