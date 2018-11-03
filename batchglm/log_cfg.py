@@ -39,6 +39,6 @@ def setup_logging(verbosity="WARNING", stream=None, format=logging.BASIC_FORMAT)
 
 # If we are in an interactive environment (like Jupyter), set loglevel to INFO and pipe the output to stdout.
 if _is_interactive:
-    setup_logging(logging.INFO, sys.stdout)
+    setup_logging(logging.INFO)
 else:
-    setup_logging(logging.WARNING, sys.stderr)
+    setup_logging(logging.WARNING)
