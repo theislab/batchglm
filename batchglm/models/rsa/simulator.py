@@ -300,7 +300,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         real_mixture_probs = np.tile(np.nextafter(0, 1, dtype=float), [self.num_mixtures, self.num_observations])
         real_mixture_probs[real_mixture_assignment, range(self.num_observations)] = 1
 
-        self.data["initial_mixture_probs"] = xr.DataArray(
+        self.data["initial_mixture_weights"] = xr.DataArray(
             dims=self.param_shapes()["mixture_log_prob"],
             data=np.transpose(initial_mixture_probs)
         )
@@ -366,6 +366,10 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
     @property
     def mixture_log_prob(self):
         return self.params["mixture_log_prob"]
+
+    @property
+    def initial_mixture_weights(self):
+        return self.data["initial_mixture_weights"]
 
 
 def sim_test():
