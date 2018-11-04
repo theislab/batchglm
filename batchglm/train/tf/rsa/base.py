@@ -44,9 +44,11 @@ def param_bounds(dtype):
         "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         "mu": np.nextafter(0, np.inf, dtype=dtype),
         "r": np.nextafter(0, np.inf, dtype=dtype),
-        "probs": dtype(0),
+        # "probs": dtype(0),
+        "probs": np.nextafter(0, np.inf, dtype=dtype),
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        "mixture_prob": dtype(0),
+        # "mixture_prob": dtype(0),
+        "mixture_prob": np.nextafter(0, np.inf, dtype=dtype),
         "mixture_log_prob": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         "mixture_logits": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
@@ -194,7 +196,9 @@ class BasicModelGraph:
         dist_obs = nb_utils.NegativeBinomial(mean=mu, r=r, name="dist_obs")
 
         # calculate probability of observations:
-        log_probs = dist_obs.log_prob(tf.expand_dims(X, 0), name="log_count_probs")
+        with tf.name_scope("log_probs"):
+            log_probs = dist_obs.log_prob(tf.expand_dims(X, 0), name="log_count_probs")
+            log_probs = tf_clip_param(log_probs, "log_probs")
 
         # calculate joint probability of mixture distributions
         with tf.name_scope("joint_log_probs"):

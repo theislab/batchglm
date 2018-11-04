@@ -131,6 +131,9 @@ class EstimatorGraph(TFEstimatorGraph):
     ):
         super().__init__(graph)
 
+        # make sure all following methods use the Tensorflow dtype
+        dtype = tf.as_dtype(dtype)
+
         self.num_mixtures = num_mixtures
         self.num_observations = num_observations
         self.num_features = num_features
@@ -394,17 +397,14 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 with tf.name_scope("prob_image"):
                     # repeat:
-                    prob_image = tf.reshape(
-                        tf.transpose(tf.tile(
-                            [mixture_model.prob],  # input tensor
-                            ((num_observations // num_mixtures), 1, 1))),  # target shape
-                        [-1]  # flatten
-                    )
-                    prob_image = tf.transpose(
-                        tf.reshape(prob_image, ((num_observations // num_mixtures) * num_mixtures, num_observations)))
-                    prob_image = tf.expand_dims(prob_image, 0)
-                    prob_image = tf.expand_dims(prob_image, -1)
-                    prob_image = prob_image * 255.0
+                    repeat_indices = np.repeat(np.arange(num_mixtures), (num_observations // num_mixtures))
+                    prob_image_grayscale = tf.gather(tf.transpose(mixture_model.prob), indices=repeat_indices, axis=0)
+
+                    prob_image_grayscale = tf.transpose(prob_image_grayscale)
+                    prob_image_grayscale = tf.expand_dims(prob_image_grayscale, 0)
+                    prob_image_grayscale = tf.expand_dims(prob_image_grayscale, -1)
+                    # prob_image_grayscale = prob_image_grayscale * 255.0
+                    prob_image = tf.image.grayscale_to_rgb(prob_image_grayscale)
 
                 tf.summary.image('mixture_prob', prob_image)
 
@@ -422,6 +422,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
                     tf.summary.scalar('full_loss', full_data_loss)
 
+            self.prob_image_grayscale = prob_image_grayscale
+            self.prob_image = prob_image
             self.saver = tf.train.Saver()
             self.merged_summary = tf.summary.merge_all()
 
@@ -512,6 +514,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             init_mixture_weights: Union[np.ndarray, str] = "AUTO",
+            random_factor=0,  # add random uniform error to mixture initialization with bounds [-random_factor, factor]
             model: EstimatorGraph = None,
             extended_summary=False,
             dtype="float64",
@@ -688,14 +691,28 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             if isinstance(init_a, str):
                 init_a = None
-            else:
-                init_a = init_a.astype(dtype)
+            elif init_a is not None:
+                init_a = np.asarray(init_a).astype(dtype)
+
             if isinstance(init_b, str):
                 init_b = None
-            else:
-                init_b = init_b.astype(dtype)
+            elif init_b is not None:
+                init_b = np.asarray(init_b).astype(dtype)
+
             if isinstance(init_mixture_weights, str):
                 init_mixture_weights = None
+            elif init_mixture_weights is not None:
+                init_mixture_weights = np.asarray(init_mixture_weights).astype(dtype)
+                # add random uniform error to mixture probabilities with bounds [-random_factor, factor]
+                if random_factor > 0:
+                    init_mixture_weights += np.random.uniform(
+                        low=-random_factor,
+                        high=random_factor,
+                        size=init_mixture_weights.shape
+                    )
+                init_mixture_weights -= np.min(init_mixture_weights, axis=-1, keepdims=True)
+                init_mixture_weights /= np.sum(init_mixture_weights, axis=-1, keepdims=True)
+                init_mixture_weights = np_clip_param(init_mixture_weights, "mixture_prob")
 
             logger.debug(" * Start creating model")
             with graph.as_default():
@@ -792,6 +809,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       loss=loss,
                       train_op=train_op,
                       **kwargs)
+
+    def initialize(self, **kwargs):
+        super().initialize(**kwargs)
+        if ("save_summaries_secs" in kwargs or "save_summaries_steps" in kwargs) and \
+                self.global_step == 0:
+            self.session.run(self.model.merged_summary, feed_dict={"learning_rate:0": 0})
 
     @property
     def input_data(self) -> InputData:

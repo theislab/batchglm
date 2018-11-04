@@ -74,7 +74,7 @@ class RSA_Test(unittest.TestCase):
         estimator = estimator.finalize()
         print(estimator.mu.values)
         print(estimator.gradient.values)
-        print(estimator.probs().values)
+        # print(estimator.probs().values)
         print(estimator.log_probs().values)
         print(estimator.mixture_assignment)
 
