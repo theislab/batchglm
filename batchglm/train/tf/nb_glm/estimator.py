@@ -928,7 +928,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             X=input_data.X,
                             mu=init_mu,
                             design_scale=input_data.design_scale,
-                            constraints=input_data.constraints_loc,
+                            constraints=input_data.constraints_scale,
                             size_factors=size_factors_init,
                             groupwise_means=groupwise_means
                         )
