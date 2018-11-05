@@ -11,7 +11,12 @@ from ..external import data_utils
 from .base import Model, InputData
 
 
-def generate_sample_description(num_observations, num_conditions=2, num_batches=4) -> xr.Dataset:
+def generate_sample_description(
+        num_observations,
+        num_conditions=2,
+        num_batches=4,
+        shuffle_assignments=False
+) -> xr.Dataset:
     """ Build a sample description.
 
     :param num_observations: Number of observations to simulate.
@@ -46,6 +51,11 @@ def generate_sample_description(num_observations, num_conditions=2, num_batches=
     })
     # sample_description = pd.DataFrame(data=sample_description, dtype="category")
 
+    if shuffle_assignments:
+        sample_description = sample_description.isel(
+            observations=np.random.permutation(sample_description.observations.values)
+        )
+
     return sample_description
 
 
@@ -75,11 +85,12 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
     def num_features(self, data):
         self._num_features = data
 
-    def generate_sample_description(self, num_conditions=2, num_batches=4):
+    def generate_sample_description(self, num_conditions=2, num_batches=4, **kwargs):
         sample_description = generate_sample_description(
             self.num_observations,
             num_conditions=num_conditions,
-            num_batches=num_batches
+            num_batches=num_batches,
+            **kwargs
         )
         self.data.merge(sample_description, inplace=True)
 

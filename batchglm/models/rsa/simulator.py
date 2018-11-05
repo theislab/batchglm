@@ -167,6 +167,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
             rand_fn=lambda shape: np.random.uniform(0.5, 2, shape),
             rand_fn_loc=None, rand_fn_scale=None,
             prob_transition=0.9,
+            shuffle_sample_description=True,
             shuffle_mixture_assignment=False,
             min_bias=0.5, max_bias=2,
             **kwargs
@@ -189,9 +190,10 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
 
             Per-mixture transition probabilities can be provided by a vector of
             probabilites with length 'num_mixtures'.
+        :param shuffle_sample_description: should the description of observations be shuffled?
+            If true, the sample_description will be shuffled row-wise, i.e. per observation
         :param shuffle_mixture_assignment: should the mixture assignments be shuffled?
             If false, the observations will be divided into 'num_mixtures' parts and continuously assigned with mixtures.
-            I.e. the first part will be
         :param min_bias: minimum bias factor of design parameters
         :param max_bias: maximum bias factor of design parameters
         """
@@ -215,14 +217,14 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         # set up design matrices of location and scale
         if "design_loc" not in self.data:
             if "formula_loc" not in self.data.attrs:
-                self.generate_sample_description()
+                self.generate_sample_description(shuffle_assignments=shuffle_sample_description)
             dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_loc")
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_loc"])
             dmat_ar.coords["design_loc_params"] = dmat.design_info.column_names
             self.data["design_loc"] = dmat_ar
         if "design_scale" not in self.data:
             if "formula_scale" not in self.data.attrs:
-                self.generate_sample_description()
+                self.generate_sample_description(shuffle_assignments=shuffle_sample_description)
             dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_scale")
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
             dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
@@ -300,18 +302,30 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         real_mixture_probs = np.tile(np.nextafter(0, 1, dtype=float), [self.num_mixtures, self.num_observations])
         real_mixture_probs[real_mixture_assignment, range(self.num_observations)] = 1
 
-        self.data["initial_mixture_weights"] = xr.DataArray(
+        initial_mixture_weights = xr.DataArray(
             dims=self.param_shapes()["mixture_log_prob"],
             data=np.transpose(initial_mixture_probs)
         )
-        self.params["mixture_assignment"] = xr.DataArray(
+        mixture_assignment = xr.DataArray(
             dims=self.param_shapes()["mixture_assignment"],
             data=real_mixture_assignment
         )
-        self.params["mixture_log_prob"] = xr.DataArray(
+        mixture_log_prob = xr.DataArray(
             dims=self.param_shapes()["mixture_log_prob"],
             data=np.transpose(np.log(real_mixture_probs))
         )
+
+        if shuffle_mixture_assignment:
+            idx = np.arange(self.num_observations)
+            np.random.shuffle(idx)
+
+            initial_mixture_weights = initial_mixture_weights.isel(observations=idx)
+            mixture_assignment = mixture_assignment.isel(observations=idx)
+            mixture_log_prob = mixture_log_prob.isel(observations=idx)
+
+        self.data["initial_mixture_weights"] = initial_mixture_weights
+        self.params["mixture_assignment"] = mixture_assignment
+        self.params["mixture_log_prob"] = mixture_log_prob
 
     def generate_data(self):
         self.data["X"] = (
