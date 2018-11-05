@@ -97,6 +97,13 @@ class FullDataModelGraph:
         self.loss = loss
 
 
+def _normalize_mixture_weights(weights):
+    weights -= np.min(weights, axis=-1, keepdims=True)
+    weights /= np.sum(weights, axis=-1, keepdims=True)
+    weights = np_clip_param(weights, "mixture_prob")
+    return weights
+
+
 class EstimatorGraph(TFEstimatorGraph):
     sample_data: tf.Tensor
     design: tf.Tensor
@@ -538,10 +545,17 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     shape=[input_data.num_observations, input_data.num_features]
                 )
 
-            groupwise_means = None  # [groups, features]
-            par_link_loc = None
-            overall_means = None  # [1, features]
+            if isinstance(init_mixture_weights, str) or init_mixture_weights is None:
+                init_mixture_weights = np.random.uniform(size=[input_data.num_observations, input_data.num_mixtures])
+            else:
+                init_mixture_weights = np.asarray(init_mixture_weights).astype(dtype)
+
+            # groupwise_means = None  # [groups, features]
+            init_par_link_loc = None
+            # overall_means = None  # [1, features]
             logger.debug(" * Initialize mean model")
+            init_mixture_assignments = np.argmax(init_mixture_weights, axis=-1)
+            # init_mixture_assignments = xr.DataArray(init_mixture_assignments, dims="observations")
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -549,20 +563,28 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_a.lower() == "closed_form":
                     try:
-                        groupwise_means, par_link_loc, rmsd_loc = nb_glm_utils.closedform_nb_glm_logmu(
-                            X=input_data.X,
-                            design_loc=input_data.design_loc,
-                            constraints=input_data.constraints_loc,
-                            size_factors=size_factors_init
-                        )
+                        # - calculate par_link_loc for each mixture
+                        # - concat them to a 3D (mixtures, design_params, features) matrix
+                        init_par_link_loc = list()
+                        for i in range(input_data.num_mixtures):
+                            sel = init_mixture_assignments == i
+                            groupwise_means, mixture_par_link_loc, rmsd_loc = nb_glm_utils.closedform_nb_glm_logmu(
+                                X=input_data.X[sel],
+                                design_loc=input_data.design_loc[sel],
+                                constraints=input_data.constraints_loc,
+                                size_factors=size_factors_init[sel] if size_factors_init is not None else None
+                            )
+                            init_par_link_loc.append(mixture_par_link_loc)
+
+                        init_par_link_loc = np.asarray(init_par_link_loc)
 
                         init_a = linalg_utils.stacked_lstsq(
                             L=input_data.design_mixture_loc,
-                            b=np.expand_dims(par_link_loc, axis=1)
+                            b=np.transpose(init_par_link_loc, [1, 0, 2])
                         )
 
                         logger.info("Using closed-form MLE initialization for mean")
-                        logger.debug("RMSE of closed-form mean:\n%s", rmsd_loc)
+                        # logger.debug("RMSE of closed-form mean:\n%s", rmsd_loc)
                     except np.linalg.LinAlgError:
                         logger.warning("Closed form initialization failed!")
                 elif init_a.lower() == "standard":
@@ -589,33 +611,51 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_b = "closed_form"
 
                 if init_b.lower() == "closed_form":
-                    try:
-                        if par_link_loc is not None:
-                            init_a_xr = data_utils.xarray_from_data(
-                                par_link_loc,
-                                dims=("design_loc_params", "features")
-                            )
-                            init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
-                            init_mu = np.exp(input_data.design_loc.dot(init_a_xr))
-                        else:
-                            init_mu = None
-
-                        groupwise_scales, par_link_scale, rmsd_scale = nb_glm_utils.closedform_nb_glm_logphi(
-                            X=input_data.X,
-                            mu=init_mu,
-                            design_scale=input_data.design_scale,
-                            constraints=input_data.constraints_loc,
-                            size_factors=size_factors_init,
-                            groupwise_means=groupwise_means
+                    if init_par_link_loc is not None:
+                        # convert par_link_loc to xarray to allow lazy evaluation
+                        init_par_link_loc_xr = data_utils.xarray_from_data(
+                            init_par_link_loc,
+                            dims=("mixtures", "design_loc_params", "features")
                         )
+                        init_par_link_loc_xr.coords["design_loc_params"] = input_data.design_loc.coords[
+                            "design_loc_params"
+                        ]
+                        # calculate mu
+                        init_mu = np.exp(input_data.design_loc.dot(init_par_link_loc_xr).transpose(
+                            *self.param_shapes()["mu"]
+                        ))
+                    else:
+                        init_mu = None
+
+                    try:
+                        # - calculate par_link_scale for each mixture
+                        # - concat them to a 3D (mixtures, design_params, features) matrix
+                        init_par_link_scale = list()
+                        for i in range(input_data.num_mixtures):
+                            sel = init_mixture_assignments == i
+                            (
+                                groupwise_scales,
+                                mixture_par_link_scale,
+                                rmsd_scale
+                            ) = nb_glm_utils.closedform_nb_glm_logphi(
+                                X=input_data.X[sel],
+                                mu=init_mu[i],
+                                design_scale=input_data.design_scale[sel],
+                                constraints=input_data.constraints_scale,
+                                size_factors=size_factors_init[sel] if size_factors_init is not None else None,
+                                # groupwise_means=groupwise_means
+                            )
+                            init_par_link_scale.append(mixture_par_link_scale)
+
+                        init_par_link_scale = np.asarray(init_par_link_scale)
 
                         init_b = linalg_utils.stacked_lstsq(
-                            input_data.design_mixture_scale,
-                            np.expand_dims(par_link_scale, axis=1)
+                            L=input_data.design_mixture_scale,
+                            b=np.transpose(init_par_link_scale, [1, 0, 2])
                         )
 
                         logger.info("Using closed-form MME initialization for dispersion")
-                        logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_scale)
+                        # logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_scale)
                     except np.linalg.LinAlgError:
                         logger.warning("Closed form initialization failed!")
                 elif init_b.lower() == "standard":
@@ -699,20 +739,17 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             elif init_b is not None:
                 init_b = np.asarray(init_b).astype(dtype)
 
-            if isinstance(init_mixture_weights, str):
-                init_mixture_weights = None
-            elif init_mixture_weights is not None:
-                init_mixture_weights = np.asarray(init_mixture_weights).astype(dtype)
-                # add random uniform error to mixture probabilities with bounds [-random_factor, factor]
-                if random_factor > 0:
-                    init_mixture_weights += np.random.uniform(
-                        low=-random_factor,
-                        high=random_factor,
-                        size=init_mixture_weights.shape
-                    )
-                init_mixture_weights -= np.min(init_mixture_weights, axis=-1, keepdims=True)
-                init_mixture_weights /= np.sum(init_mixture_weights, axis=-1, keepdims=True)
-                init_mixture_weights = np_clip_param(init_mixture_weights, "mixture_prob")
+            logger.debug(" * Normalizing weights")
+            init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
+            # add random uniform error to mixture probabilities with bounds [-random_factor, factor]
+            if random_factor > 0:
+                logger.debug(" * Applying random uniform error of +/- %s", random_factor)
+                init_mixture_weights += np.random.uniform(
+                    low=-random_factor,
+                    high=random_factor,
+                    size=init_mixture_weights.shape
+                )
+                init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
 
             logger.debug(" * Start creating model")
             with graph.as_default():
@@ -750,14 +787,17 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             )
         return scaffold
 
-    def train(self, *args,
-              learning_rate=0.5,
-              convergence_criteria="t_test",
-              loss_window_size=100,
-              stopping_criteria=0.05,
-              use_batching=True,
-              optim_algo="gradient_descent",
-              **kwargs):
+    def train(
+            self,
+            *args,
+            learning_rate=0.5,
+            convergence_criteria="t_test",
+            loss_window_size=100,
+            stopping_criteria=0.05,
+            use_batching=True,
+            optim_algo="gradient_descent",
+            **kwargs
+    ):
         r"""
         Starts training of the model
 
@@ -801,14 +841,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             loss = self.model.full_loss
             train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
 
-        super().train(*args,
-                      feed_dict={"learning_rate:0": learning_rate},
-                      convergence_criteria=convergence_criteria,
-                      loss_window_size=loss_window_size,
-                      stopping_criteria=stopping_criteria,
-                      loss=loss,
-                      train_op=train_op,
-                      **kwargs)
+        super().train(
+            *args,
+            feed_dict={"learning_rate:0": learning_rate},
+            convergence_criteria=convergence_criteria,
+            loss_window_size=loss_window_size,
+            stopping_criteria=stopping_criteria,
+            loss=loss,
+            train_op=train_op,
+            **kwargs
+        )
 
     def initialize(self, **kwargs):
         super().initialize(**kwargs)

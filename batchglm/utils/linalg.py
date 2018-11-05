@@ -89,21 +89,21 @@ def groupwise_solve_lm(
     :return: tuple of (apply_fun(grouping), x_prime, rmsd, rank, s) where x_prime is the parameter matrix solved for
     `dmat`.
     """
-    unique_design_scale, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
+    unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
 
     if constraints is not None:
-        unique_design_constraints = constraints.copy()
+        design_constraints = constraints.copy()
         # -1 in the constraint matrix is used to indicate which variable
         # is made dependent so that the constrained is fullfilled.
         # This has to be rewritten here so that the design matrix is full rank
         # which is necessary so that it can be inverted for parameter
         # initialisation.
-        unique_design_constraints[unique_design_constraints == -1] = 1
+        design_constraints[design_constraints == -1] = 1
         # Add constraints into design matrix to remove structural unidentifiability.
-        unique_design_scale = np.vstack([unique_design_scale, unique_design_constraints])
+        unique_design = np.vstack([unique_design, design_constraints])
 
-    if unique_design_scale.shape[1] > np.linalg.matrix_rank(unique_design_scale):
-        logger.warning("Scale model is not full rank!")
+    if unique_design.shape[1] > np.linalg.matrix_rank(unique_design):
+        logger.warning("model is not full rank!")
 
     params = apply_fun(inverse_idx)
 
@@ -119,6 +119,6 @@ def groupwise_solve_lm(
     # Use least-squares solver to calculate a':
     # This is faster and more accurate than using matrix inversion.
     logger.debug(" ** Solve lstsq problem")
-    x_prime, rmsd, rank, s = np.linalg.lstsq(unique_design_scale, params, rcond=None)
+    x_prime, rmsd, rank, s = np.linalg.lstsq(unique_design, params, rcond=None)
 
     return params, x_prime, rmsd, rank, s
