@@ -11,7 +11,9 @@ import numpy as np
 import pandas as pd
 import patsy
 
-from batchglm.utils.linalg import combine_matrices
+import batchglm.api as glm
+
+from batchglm.api.utils.numeric import combine_matrices
 from ..base import BasicEstimator
 from ..glm import parse_design
 from ..mixture import Model as MixtureModel
@@ -285,8 +287,18 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
         retval = retval.transpose(*self.param_shapes()["par_link_scale"])
         return retval
 
-    def log_probs(self):
-        return self.mixture_log_prob.dot(super().log_probs(), dims="mixtures")
+    def elemwise_log_prob(self):
+        # log_probs = glm.utils.random.NegativeBinomial(mean=self.mu, r=self.r).log_prob(self.X)
+        return super().log_probs()
+
+    def log_probs(self) -> xr.DataArray:
+        return self.mixture_log_prob.dot(self.elemwise_log_prob(), dims="mixtures")
+
+    def expected_mixture_prob(self):
+        log_probs = self.elemwise_log_prob()
+        return glm.utils.numeric.softmax(log_probs.sum(dim="features"), axis=0).transpose(
+            *self.param_shapes()["mixture_prob"]
+        )
 
     # @property
     # def mu(self) -> xr.DataArray:
