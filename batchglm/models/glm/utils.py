@@ -11,6 +11,7 @@ import pandas as pd
 import patsy
 
 from batchglm.utils.linalg import groupwise_solve_lm
+from batchglm.utils.numeric import weighted_mean, weighted_variance
 
 
 def parse_design(
@@ -71,18 +72,20 @@ def parse_design(
 
 def closedform_glm_mean(
         X: xr.DataArray,
-        design_loc,
+        dmat,
         constraints=None,
         size_factors=None,
+        weights=None,
         link_fn: Union[callable, None] = None
 ):
     """
     Calculates a closed-form solution for the mean parameters of GLMs.
 
-    :param X:
-    :param design_loc:
-    :param constraints:
-    :param size_factors:
+    :param X: The input data array
+    :param dmat: some design matrix
+    :param constraints: constraints
+    :param size_factors: size factors for X
+    :param weights: allows to weight the values of X
     :param link_fn: linker function for GLM
     :return:
     """
@@ -90,8 +93,24 @@ def closedform_glm_mean(
         X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
-        groupwise_means = grouped_data.groupby("group").mean(dim="observations").values
+        grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
+
+        if weights is None:
+            groupwise_means = grouped_data.mean(X.dims[0]).values
+        else:
+            grouped_weights = xr.DataArray(
+                data=weights,
+                dims=(X.dims[0],),
+                coords={
+                    "group": ((X.dims[0],), grouping),
+                }
+            ).groupby("group")
+
+            groupwise_means: xr.DataArray = xr.concat([
+                weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
+            ], dim="group")
+            groupwise_means = groupwise_means.values
+
         # clipping
         groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
                                        dtype=groupwise_means.dtype)
@@ -101,7 +120,7 @@ def closedform_glm_mean(
             return link_fn(groupwise_means)
 
     groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
-        dmat=design_loc,
+        dmat=dmat,
         apply_fun=apply_fun,
         constraints=constraints
     )
@@ -111,16 +130,17 @@ def closedform_glm_mean(
 
 def closedform_glm_var(
         X: xr.DataArray,
-        design_loc,
+        dmat,
         constraints=None,
         size_factors=None,
+        weights=None,
         link_fn: Union[callable, None] = None
 ):
     """
     Calculates a closed-form solution for the variance parameters of GLMs.
 
     :param X:
-    :param design_loc:
+    :param dmat:
     :param constraints:
     :param size_factors:
     :param link_fn: linker function for GLM
@@ -131,7 +151,21 @@ def closedform_glm_var(
 
     def apply_fun(grouping):
         grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
-        groupwise_variance = grouped_data.groupby("group").var(dim="observations").values
+        if weights is None:
+            groupwise_variance = grouped_data.var(X.dims[0]).values
+        else:
+            grouped_weights = xr.DataArray(
+                data=weights,
+                dims=(X.dims[0],),
+                coords={
+                    "group": ((X.dims[0],), grouping),
+                }
+            ).groupby("group")
+
+            groupwise_variance: xr.DataArray = xr.concat([
+                weighted_variance(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
+            ], dim="group")
+            groupwise_variance = groupwise_variance.values
         # clipping
         groupwise_variance = np.nextafter(0, 1, out=groupwise_variance, where=groupwise_variance == 0,
                                           dtype=groupwise_variance.dtype)
@@ -141,7 +175,7 @@ def closedform_glm_var(
             return link_fn(groupwise_variance)
 
     groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
-        dmat=design_loc,
+        dmat=dmat,
         apply_fun=apply_fun,
         constraints=constraints
     )

@@ -550,12 +550,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             else:
                 init_mixture_weights = np.asarray(init_mixture_weights).astype(dtype)
 
-            # groupwise_means = None  # [groups, features]
             init_par_link_loc = None
-            # overall_means = None  # [1, features]
             logger.debug(" * Initialize mean model")
-            init_mixture_assignments = np.argmax(init_mixture_weights, axis=-1)
-            # init_mixture_assignments = xr.DataArray(init_mixture_assignments, dims="observations")
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -567,12 +563,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # - concat them to a 3D (mixtures, design_params, features) matrix
                         init_par_link_loc = list()
                         for i in range(input_data.num_mixtures):
-                            sel = init_mixture_assignments == i
+                            weight = init_mixture_weights[:, i]
                             groupwise_means, mixture_par_link_loc, rmsd_loc = nb_glm_utils.closedform_nb_glm_logmu(
-                                X=input_data.X[sel],
-                                design_loc=input_data.design_loc[sel],
+                                X=input_data.X,
+                                design_loc=input_data.design_loc,
                                 constraints=input_data.constraints_loc,
-                                size_factors=size_factors_init[sel] if size_factors_init is not None else None
+                                size_factors=size_factors_init,
+                                weights=weight
                             )
                             init_par_link_loc.append(mixture_par_link_loc)
 
@@ -632,17 +629,18 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # - concat them to a 3D (mixtures, design_params, features) matrix
                         init_par_link_scale = list()
                         for i in range(input_data.num_mixtures):
-                            sel = init_mixture_assignments == i
+                            weight = init_mixture_weights[:, i]
                             (
                                 groupwise_scales,
                                 mixture_par_link_scale,
                                 rmsd_scale
                             ) = nb_glm_utils.closedform_nb_glm_logphi(
-                                X=input_data.X[sel],
+                                X=input_data.X,
                                 mu=init_mu[i],
-                                design_scale=input_data.design_scale[sel],
+                                design_scale=input_data.design_scale,
                                 constraints=input_data.constraints_scale,
-                                size_factors=size_factors_init[sel] if size_factors_init is not None else None,
+                                weights=weight,
+                                size_factors=size_factors_init,
                                 # groupwise_means=groupwise_means
                             )
                             init_par_link_scale.append(mixture_par_link_scale)

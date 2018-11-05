@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 
 from batchglm.utils.linalg import groupwise_solve_lm
+from batchglm.utils.numeric import weighted_mean
 from batchglm.models.glm import closedform_glm_mean
 
 
@@ -10,6 +11,7 @@ def closedform_nb_glm_logmu(
         design_loc,
         constraints=None,
         size_factors=None,
+        weights=None,
 ):
     """
     Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
@@ -20,7 +22,7 @@ def closedform_nb_glm_logmu(
     :param size_factors:
     :return:
     """
-    return closedform_glm_mean(X, design_loc, constraints, size_factors, link_fn=np.log)
+    return closedform_glm_mean(X, design_loc, constraints, size_factors, weights, link_fn=np.log)
 
 
 def closedform_nb_glm_logphi(
@@ -28,6 +30,7 @@ def closedform_nb_glm_logphi(
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
+        weights=None,
         mu=None,
         groupwise_means=None,
 ):
@@ -48,20 +51,59 @@ def closedform_nb_glm_logphi(
     if size_factors is not None:
         X = np.divide(X, size_factors)
 
+    # to circumvent nonlocal error
+    provided_groupwise_means = groupwise_means
+    provided_weights = weights
+    provided_mu = mu
+
     def apply_fun(grouping):
         grouped_X = X.assign_coords(group=((X.dims[0],), grouping))
-        nonlocal groupwise_means
-        nonlocal mu
 
-        if mu is None:
-            Xdiff = grouped_X - grouped_X.mean(dim="observations")
+        # convert weights into a xr.DataArray
+        if provided_weights is not None:
+            weights = xr.DataArray(
+                data=provided_weights,
+                dims=(X.dims[0],),
+                coords={
+                    "group": ((X.dims[0],), grouping),
+                }
+            )
         else:
-            Xdiff = grouped_X - mu
+            weights = None
 
-        variance = np.square(Xdiff).groupby("group").mean(dim="observations")
+        # calculate group-wise means if necessary
+        if provided_groupwise_means is None:
+            if weights is None:
+                groupwise_means = grouped_X.mean(X.dims[0]).values
+            else:
+                # for each group: calculate weighted mean
+                groupwise_means: xr.DataArray = xr.concat([
+                    weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(
+                        grouped_X.groupby("group"),
+                        weights.groupby("group"))
+                ], dim="group")
+        else:
+            groupwise_means = provided_groupwise_means
 
-        if groupwise_means is None:
-            groupwise_means = grouped_X.groupby("group").mean(dim="observations")
+        # calculated (x - mean) depending on whether `mu` was specified
+        if provided_mu is None:
+            Xdiff = grouped_X - groupwise_means
+        else:
+            Xdiff = grouped_X - provided_mu
+
+        if weights is None:
+            # for each group:
+            #   calculate mean of (X - mean)^2
+            variance = np.square(Xdiff).groupby("group").mean(X.dims[0])
+        else:
+            # for each group:
+            #   calculate weighted mean of (X - mean)^2
+            variance: xr.DataArray = xr.concat([
+                weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(
+                    np.square(Xdiff).groupby("group"),
+                    weights.groupby("group")
+                )
+            ], dim="group")
 
         denominator = np.fmax(variance - groupwise_means, 0)
         denominator = np.nextafter(0, 1, out=denominator.values,
