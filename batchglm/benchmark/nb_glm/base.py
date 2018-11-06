@@ -112,10 +112,16 @@ def prepare_benchmark_sample(
     return sample_config
 
 
-def get_benchmark_samples(root_dir: str, config_file="config.yml"):
+def load_config(root_dir, config_file):
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
         config = yaml.load(f)
+
+    return config
+
+
+def get_benchmark_samples(root_dir: str, config_file="config.yml"):
+    config = load_config(root_dir, config_file)
     return list(config["benchmark_samples"].keys())
 
 
