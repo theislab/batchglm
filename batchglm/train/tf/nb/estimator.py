@@ -100,7 +100,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=trainable_variables,
                     learning_rate=learning_rate
                 )
-                gradient = trainers.gradient
+                gradient = trainers.gradients
 
                 aggregated_gradient = tf.add_n(
                     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in gradient])

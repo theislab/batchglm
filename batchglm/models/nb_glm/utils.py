@@ -12,6 +12,7 @@ def closedform_nb_glm_logmu(
         constraints=None,
         size_factors=None,
         weights=None,
+        link_fn=np.log
 ):
     """
     Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
@@ -22,7 +23,7 @@ def closedform_nb_glm_logmu(
     :param size_factors:
     :return:
     """
-    return closedform_glm_mean(X, design_loc, constraints, size_factors, weights, link_fn=np.log)
+    return closedform_glm_mean(X, design_loc, constraints, size_factors, weights, link_fn=link_fn)
 
 
 def closedform_nb_glm_logphi(
@@ -33,6 +34,7 @@ def closedform_nb_glm_logphi(
         weights=None,
         mu=None,
         groupwise_means=None,
+        link_fn=np.log
 ):
     """
     Calculates a closed-form solution for the log-scale parameters of negative-binomial GLMs.
@@ -48,8 +50,8 @@ def closedform_nb_glm_logphi(
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
     :return:
     """
-    if size_factors is not None:
-        X = np.divide(X, size_factors)
+    # if size_factors is not None:
+    #     X = np.divide(X, size_factors)
 
     # to circumvent nonlocal error
     provided_groupwise_means = groupwise_means
@@ -105,19 +107,17 @@ def closedform_nb_glm_logphi(
                 )
             ], dim="group")
 
-        denominator = np.fmax(variance - groupwise_means, 0)
-        denominator = np.nextafter(0, 1, out=denominator.values,
-                                   where=denominator == 0,
-                                   dtype=denominator.dtype)
-        groupwise_scales = np.asarray(np.square(groupwise_means) / denominator)
-        # clipping
-        # r = np_clip_param(r, "r")
-        groupwise_scales = np.nextafter(0, 1, out=groupwise_scales,
-                                        where=groupwise_scales == 0,
-                                        dtype=groupwise_scales.dtype)
-        groupwise_scales = np.fmin(groupwise_scales, np.finfo(groupwise_scales.dtype).max)
+        denominator = np.fmax(variance - groupwise_means, np.nextafter(0, 1, dtype=variance.dtype))
+        groupwise_scales = np.square(groupwise_means) / denominator
 
-        return np.log(groupwise_scales)
+        # # clipping
+        # # r = np_clip_param(r, "r")
+        # groupwise_scales = np.nextafter(0, 1, out=groupwise_scales,
+        #                                 where=groupwise_scales == 0,
+        #                                 dtype=groupwise_scales.dtype)
+        # groupwise_scales = np.fmin(groupwise_scales, np.finfo(groupwise_scales.dtype).max)
+
+        return link_fn(groupwise_scales)
 
     groupwise_scales, logphi, rmsd, rank, _ = groupwise_solve_lm(
         dmat=design_scale,

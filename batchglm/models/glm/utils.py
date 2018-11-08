@@ -109,11 +109,12 @@ def closedform_glm_mean(
             groupwise_means: xr.DataArray = xr.concat([
                 weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
             ], dim="group")
-            groupwise_means = groupwise_means.values
+            # groupwise_means = groupwise_means.values
 
-        # clipping
-        groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
-                                       dtype=groupwise_means.dtype)
+        # # clipping
+        # groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
+        #                                dtype=groupwise_means.dtype)
+
         if link_fn is None:
             return groupwise_means
         else:
@@ -166,9 +167,11 @@ def closedform_glm_var(
                 weighted_variance(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
             ], dim="group")
             groupwise_variance = groupwise_variance.values
-        # clipping
-        groupwise_variance = np.nextafter(0, 1, out=groupwise_variance, where=groupwise_variance == 0,
-                                          dtype=groupwise_variance.dtype)
+
+        # # clipping
+        # groupwise_variance = np.nextafter(0, 1, out=groupwise_variance, where=groupwise_variance == 0,
+        #                                   dtype=groupwise_variance.dtype)
+
         if link_fn is None:
             return groupwise_variance
         else:

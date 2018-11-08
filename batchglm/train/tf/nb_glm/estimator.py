@@ -352,7 +352,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 )
 
                 with tf.name_scope("batch_gradient"):
-                    batch_gradient = batch_trainers.gradient[0][0]
+                    batch_gradient = batch_trainers.plain_gradient_by_variable(model_vars.params)
                     batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
 
                     # batch_gradient = tf.add_n(
@@ -395,7 +395,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 )
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
-                    full_gradient = full_data_trainers.gradient[0][0]
+                    full_gradient = full_data_trainers.plain_gradient_by_variable(model_vars.params)
                     full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
 
                     # # the analytic Jacobian
@@ -830,7 +830,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             X=input_data.X,
                             design_loc=input_data.design_loc,
                             constraints=input_data.constraints_loc,
-                            size_factors=size_factors_init
+                            size_factors=size_factors_init,
+                            link_fn=lambda mu: np.log(np_clip_param(mu, "mu"))
                         )
 
                         # train mu, if the closed-form solution is inaccurate
@@ -930,7 +931,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             design_scale=input_data.design_scale,
                             constraints=input_data.constraints_scale,
                             size_factors=size_factors_init,
-                            groupwise_means=groupwise_means
+                            groupwise_means=groupwise_means,
+                            link_fn=lambda r: np.log(np_clip_param(r, "r"))
                         )
 
                         logger.info("Using closed-form MME initialization for dispersion")

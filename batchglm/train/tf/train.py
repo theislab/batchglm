@@ -232,7 +232,14 @@ class StopAtLossHook(tf.train.SessionRunHook):
 
 
 class MultiTrainer:
-    def __init__(self, learning_rate, loss = None, variables: List = None, gradients: list = None, global_step=None,
+    def __init__(self,
+                 learning_rate,
+                 loss=None,
+                 variables: List = None,
+                 gradients: list = None,
+                 apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
+                 global_step=None,
+                 apply_train_ops: callable = None,
                  name=None):
         r"""
 
@@ -240,7 +247,11 @@ class MultiTrainer:
         :param loss: loss which should be minimized
         :param variables: list of variables which will be trained
         :param gradients: list of (gradient, variable) tuples; alternative to specifying variables and loss
+        :param apply_gradients: callable(s) appliable to the gradients.
+            Can be either a single callable which will be applied to all gradients or a dict of
+            {tf.Variable: callable} mappings.
         :param global_step: global step counter
+        :param apply_train_ops: callable which will be applied to all train ops
         :param name: optional name scope
         """
         with contextlib.ExitStack() as stack:
@@ -251,8 +262,17 @@ class MultiTrainer:
                 if variables is None:
                     raise ValueError("Either variables and loss or gradients have to be specified")
 
-                gradients = tf.gradients(loss, variables)
-                gradients = [(g, v) for g, v in zip(gradients, variables)]
+                plain_gradients = tf.gradients(loss, variables)
+                plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
+            else:
+                plain_gradients = gradients
+
+            if callable(apply_gradients):
+                gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
+            elif isinstance(apply_gradients, dict):
+                gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
+            else:
+                gradients = plain_gradients
 
             optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
             optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -264,8 +284,15 @@ class MultiTrainer:
             train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
             train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
 
+            if apply_train_ops is not None:
+                train_op_GD = apply_train_ops(train_op_GD)
+                train_op_Adam = apply_train_ops(train_op_Adam)
+                train_op_Adagrad = apply_train_ops(train_op_Adagrad)
+                train_op_RMSProp = apply_train_ops(train_op_RMSProp)
+
             self.global_step = global_step
-            self.gradient = gradients
+            self.plain_gradients = plain_gradients
+            self.gradients = gradients
 
             self.optim_GD = optim_GD
             self.optim_Adam = optim_Adam
@@ -300,3 +327,25 @@ class MultiTrainer:
             return self.train_op_RMSProp
         else:
             raise ValueError("Unknown optimizer: %s" % name)
+
+    def gradient_by_variable(self, variable: tf.Variable):
+        """
+        Returns the gradient to a specific variable if existing in self.gradients
+        :param variable: the variable whose gradient is requested
+        :return: gradient tensor or None if not found
+        """
+        for g, v in self.gradients:
+            if v is variable:
+                return g
+        return None
+
+    def plain_gradient_by_variable(self, variable: tf.Variable):
+        """
+        Returns the plain gradient to a specific variable if existing in self.plain_gradients
+        :param variable: the variable whose gradient is requested
+        :return: gradient tensor or None if not found
+        """
+        for g, v in self.plain_gradients:
+            if v is variable:
+                return g
+        return None

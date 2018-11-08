@@ -69,6 +69,33 @@ class FullDataModelGraph:
         with tf.name_scope("loss"):
             loss = tf.reduce_sum(norm_neg_log_likelihood)
 
+        with tf.name_scope("EM_update"):
+            def map_fn(idx, data):
+                model = map_model(idx, data)
+
+                mixture_EM_update = tf.scatter_update(
+                    ref=model_vars.mixture_logits_var,
+                    indices=idx,
+                    updates=tf.transpose(model.estimated_mixture_log_prob)
+                )
+
+                with tf.control_dependencies([mixture_EM_update]):
+                    return tf.identity(model.log_likelihood)
+
+            log_likelihood_EM = op_utils.map_reduce(
+                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
+                data=batched_data,
+                map_fn=map_fn,
+                parallel_iterations=1,
+            )
+            norm_neg_log_likelihood_EM = - tf.div(
+                log_likelihood_EM,
+                tf.cast(tf.size(sample_indices), dtype=log_likelihood_EM.dtype)
+            )
+
+            with tf.name_scope("loss"):
+                loss_EM = tf.reduce_sum(norm_neg_log_likelihood_EM)
+
         self.X = model.X
         self.design_loc = model.design_loc
         self.design_scale = model.design_scale
@@ -95,6 +122,9 @@ class FullDataModelGraph:
         self.norm_log_likelihood = norm_log_likelihood
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
+
+        self.norm_neg_log_likelihood_EM = norm_neg_log_likelihood_EM
+        self.loss_EM = loss_EM
 
 
 def _normalize_mixture_weights(weights):
@@ -190,6 +220,11 @@ class EstimatorGraph(TFEstimatorGraph):
                 init_a=init_a,
                 init_b=init_b,
             )
+            # variables = [
+            #     model_vars.a_var,
+            #     model_vars.b_var,
+            #     model_vars.mixture_logits_var
+            # ]
 
             with tf.name_scope("input_pipeline"):
                 data_indices = tf.data.Dataset.from_tensor_slices((
@@ -211,6 +246,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     axis=0,
                     name="batch_mixture_logits"
                 )
+                # batch_mixture_logits = model_vars.mixture_logits[batch_sample_index, :]
 
             with tf.name_scope("batch"):
                 # Batch model:
@@ -227,6 +263,11 @@ class EstimatorGraph(TFEstimatorGraph):
                     b=model_vars.b,
                     mixture_logits=batch_mixture_logits,
                     size_factors=batch_size_factors
+                )
+                batch_mixture_EM_update = tf.scatter_update(
+                    ref=model_vars.mixture_logits_var,
+                    indices=batch_sample_index,
+                    updates=tf.transpose(batch_model.estimated_mixture_log_prob)
                 )
 
                 # minimize negative log probability (log(1) = 0);
@@ -246,6 +287,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 )
                 full_data_loss = full_data_model.loss
 
+                # exported defines
                 mu = full_data_model.mu
                 r = full_data_model.r
                 sigma2 = full_data_model.sigma2
@@ -264,11 +306,19 @@ class EstimatorGraph(TFEstimatorGraph):
                     global_step=global_step,
                     name="batch_trainers"
                 )
+                batch_trainers_EM = train_utils.MultiTrainer(
+                    loss=batch_model.norm_neg_log_likelihood,
+                    variables=[model_vars.a_var, model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_train_ops=lambda train_op: tf.group(train_op, batch_mixture_EM_update),
+                    name="batch_trainers"
+                )
                 with tf.name_scope("batch_gradient"):
                     # use same gradient as the optimizers
-                    batch_gradient_a = batch_trainers.gradient[0][0]
+                    batch_gradient_a = batch_trainers.gradients[0][0]
                     batch_gradient_a = tf.reduce_sum(tf.abs(batch_gradient_a), axis=[0, 1])
-                    batch_gradient_b = batch_trainers.gradient[1][0]
+                    batch_gradient_b = batch_trainers.gradients[1][0]
                     batch_gradient_b = tf.reduce_sum(tf.abs(batch_gradient_b), axis=[0, 1])
                     batch_gradient = tf.add(batch_gradient_a, batch_gradient_b)
 
@@ -279,22 +329,21 @@ class EstimatorGraph(TFEstimatorGraph):
                     global_step=global_step,
                     name="full_data_trainers"
                 )
+                full_data_trainers_EM = train_utils.MultiTrainer(
+                    loss=full_data_model.norm_neg_log_likelihood_EM,
+                    variables=[model_vars.a_var, model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    name="full_data_EMlike"
+                )
+
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
-                    full_gradient_a = full_data_trainers.gradient[0][0]
+                    full_gradient_a = full_data_trainers.gradient_by_variable(model_vars.a_var)
                     full_gradient_a = tf.reduce_sum(tf.abs(full_gradient_a), axis=[0, 1])
-                    full_gradient_b = full_data_trainers.gradient[1][0]
+                    full_gradient_b = full_data_trainers.gradient_by_variable(model_vars.b_var)
                     full_gradient_b = tf.reduce_sum(tf.abs(full_gradient_b), axis=[0, 1])
                     full_gradient = tf.add(full_gradient_a, full_gradient_b)
-
-            with tf.name_scope("training"):
-                self.global_train_step = tf.train.get_or_create_global_step()
-                self.loss = batch_model.loss
-
-                self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                self.gradient = self.optimizer.compute_gradients(self.loss)
-
-                self.train_op = self.optimizer.minimize(self.loss, global_step=self.global_train_step)
 
             with tf.name_scope("init_op"):
                 init_op = tf.global_variables_initializer()
@@ -348,7 +397,9 @@ class EstimatorGraph(TFEstimatorGraph):
             self.loss = batch_loss
 
             self.batch_trainers = batch_trainers
+            self.batch_trainers_EM = batch_trainers_EM
             self.full_data_trainers = full_data_trainers
+            self.full_data_trainers_EM = full_data_trainers_EM
             self.global_step = global_step
 
             self.gradient = batch_gradient
@@ -521,7 +572,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             init_mixture_weights: Union[np.ndarray, str] = "AUTO",
-            random_factor=0,  # add random uniform error to mixture initialization with bounds [-random_factor, factor]
+            random_factor=0.01,  # add random uniform error to mixture initialization with bounds [-random_factor, factor]
             model: EstimatorGraph = None,
             extended_summary=False,
             dtype="float64",
@@ -569,7 +620,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                                 design_loc=input_data.design_loc,
                                 constraints=input_data.constraints_loc,
                                 size_factors=size_factors_init,
-                                weights=weight
+                                weights=weight,
+                                link_fn=lambda mu: np.log(np_clip_param(mu, "mu"))
                             )
                             init_par_link_loc.append(mixture_par_link_loc)
 
@@ -641,7 +693,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                                 constraints=input_data.constraints_scale,
                                 weights=weight,
                                 size_factors=size_factors_init,
-                                # groupwise_means=groupwise_means
+                                # groupwise_means=groupwise_means,
+                                link_fn=lambda r: np.log(np_clip_param(r, "r"))
                             )
                             init_par_link_scale.append(mixture_par_link_scale)
 
@@ -793,6 +846,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             loss_window_size=100,
             stopping_criteria=0.05,
             use_batching=True,
+            use_em=True,
             optim_algo="gradient_descent",
             **kwargs
     ):
@@ -832,12 +886,20 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             See :func:train_utils.MultiTrainer.train_op_by_name for further details.
         """
-        if use_batching:
-            loss = self.model.loss
-            train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
+        if use_em:
+            if use_batching:
+                loss = self.model.loss
+                train_op = self.model.batch_trainers_EM.train_op_by_name(optim_algo)
+            else:
+                loss = self.model.full_data_model.loss_EM
+                train_op = self.model.full_data_trainers_EM.train_op_by_name(optim_algo)
         else:
-            loss = self.model.full_loss
-            train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
+            if use_batching:
+                loss = self.model.loss
+                train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
+            else:
+                loss = self.model.full_loss
+                train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
 
         super().train(
             *args,

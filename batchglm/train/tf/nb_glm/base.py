@@ -73,7 +73,7 @@ def np_clip_param(param, name):
         param,
         bounds_min[name],
         bounds_max[name],
-        out=param
+        # out=param
     )
 
 

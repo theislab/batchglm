@@ -83,7 +83,7 @@ def np_clip_param(param, name):
         param,
         bounds_min[name],
         bounds_max[name],
-        out=param
+        # out=param
     )
 
 
@@ -218,6 +218,14 @@ class BasicModelGraph:
         #     log_probs = dist_obs.log_prob(X)
         #     log_probs = tf_clip_param(log_probs, "log_probs")
 
+        with tf.name_scope("estimated_mixture_log_prob"):
+            estimated_mixture_log_prob = tf.nn.log_softmax(tf.reduce_sum(log_probs, axis=-1), axis=0)
+            estimated_mixture_log_prob = tf_clip_param(estimated_mixture_log_prob, "mixture_log_prob")
+
+        estimated_mixture_prob = tf.exp(estimated_mixture_log_prob, name="estimated_mixture_prob")
+
+        # update_mixture_weights_op = tf.assign(mixture_logits, estimated_mixture_log_prob)
+
         self.X = X
         self.a = a
         self.b = b
@@ -229,6 +237,9 @@ class BasicModelGraph:
         self.mixture_model = mixture_model
         self.log_mixture_weights = log_mixture_weights
         self.mixture_weights = mixture_weights
+        self.estimated_mixture_log_prob = estimated_mixture_log_prob
+        self.estimated_mixture_prob = estimated_mixture_prob
+        # self.update_mixture_weights_op = update_mixture_weights_op
 
         self.dist_estim = dist_estim
         self.mu_estim = dist_estim.mean()
