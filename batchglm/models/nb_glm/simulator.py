@@ -92,7 +92,7 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
             num_batches=num_batches,
             **kwargs
         )
-        self.data.merge(sample_description, inplace=True)
+        self.data = self.data.merge(sample_description)
 
         if "formula_loc" not in self.data.attrs:
             self.data.attrs["formula_loc"] = sample_description.attrs["formula"]
