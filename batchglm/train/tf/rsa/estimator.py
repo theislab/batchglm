@@ -79,6 +79,7 @@ class FullDataModelGraph:
                     updates=tf.transpose(model.estimated_mixture_log_prob)
                 )
 
+                # perform mixture update and return resulting log-likelihood
                 with tf.control_dependencies([mixture_EM_update]):
                     return tf.identity(model.log_likelihood)
 
