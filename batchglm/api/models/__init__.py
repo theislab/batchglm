@@ -6,3 +6,4 @@ from batchglm.models.base import BasicSimulator
 from . import glm
 from . import nb
 from . import nb_glm
+from . import rsa
