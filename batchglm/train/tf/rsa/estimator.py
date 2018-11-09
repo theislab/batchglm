@@ -497,7 +497,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         AUTO = None
         DEFAULT = [
             {
-                "learning_rate": 0.1,
+                "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
                 "stopping_criteria": 0.05,
                 "loss_window_size": 100,
@@ -514,14 +514,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             },
         ]
         EXACT = [
-            {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
             {
                 "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
@@ -541,7 +533,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         ]
         QUICK = [
             {
-                "learning_rate": 0.1,
+                "learning_rate": 0.05,
                 "convergence_criteria": "t_test",
                 "stopping_criteria": 0.05,
                 "loss_window_size": 100,
