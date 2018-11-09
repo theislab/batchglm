@@ -233,6 +233,11 @@ class InputData(NegativeBinomialInputData):
         return self.size_factors[idx]
 
     def set_chunk_size(self, cs: int):
+        """
+        Set the chunk size in number of observations
+
+        :param cs: numer of observations in one chunk
+        """
         super().set_chunk_size(cs)
         self.design_loc = self.design_loc.chunk({"observations": cs})
         self.design_scale = self.design_scale.chunk({"observations": cs})
