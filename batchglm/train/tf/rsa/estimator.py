@@ -49,7 +49,7 @@ class FullDataModelGraph:
                 design_mixture_scale=model_vars.design_mixture_scale,
                 a=model_vars.a,
                 b=model_vars.b,
-                mixture_logits=model_vars.mixture_logits,
+                mixture_logits=tf.gather(model_vars.mixture_logits, idx, axis=0),
                 size_factors=size_factors
             )
             return model
