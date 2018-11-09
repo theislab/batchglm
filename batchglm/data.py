@@ -3,6 +3,7 @@ from typing import Union, Dict, Tuple, List
 import os
 import tempfile
 import zipfile as zf
+import logging
 
 import patsy
 import pandas as pd
@@ -16,6 +17,8 @@ try:
     import anndata
 except ImportError:
     anndata = None
+
+logger = logging.getLogger(__name__)
 
 
 def _sparse_to_xarray(data, dims):
@@ -317,7 +320,7 @@ def load_mtx_to_adata(path, cache=True):
     """
     import scanpy.api as sc
 
-    ad = sc.read(os.path.join(path, "matrix.mtx"), cache=cache).T
+    adata = sc.read(os.path.join(path, "matrix.mtx"), cache=cache).T
 
     files = os.listdir(os.path.join(path))
     for file in files:
@@ -326,22 +329,30 @@ def load_mtx_to_adata(path, cache=True):
             if file.endswith("tsv"):
                 delim = "\t"
 
-            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
-            ad.var = tbl
+            fpath = os.path.join(path, file)
+            logger.info("Reading %s as gene annotation...", fpath)
+            tbl = pd.read_csv(fpath, header=None, sep=delim)
+            tbl.columns = np.vectorize(lambda x: "col_%d" % x)(tbl.columns)
+
+            adata.var = tbl
             # ad.var_names = tbl[1]
         elif file.startswith("barcodes"):
             delim = ","
             if file.endswith("tsv"):
                 delim = "\t"
 
-            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
-            ad.obs = tbl
+            fpath = os.path.join(path, file)
+            logger.info("Reading %s as barcode file...", fpath)
+            tbl = pd.read_csv(fpath, header=None, sep=delim)
+            tbl.columns = np.vectorize(lambda x: "col_%d" % x)(tbl.columns)
+
+            adata.obs = tbl
             # ad.obs_names = tbl[0]
     # ad.var_names_make_unique()
-    ad.var.columns = ad.var.columns.astype(str)
-    ad.obs.columns = ad.obs.columns.astype(str)
+    adata.var.columns = adata.var.columns.astype(str)
+    adata.obs.columns = adata.obs.columns.astype(str)
 
-    return ad
+    return adata
 
 
 def load_mtx_to_xarray(path):
@@ -368,7 +379,9 @@ def load_mtx_to_xarray(path):
             if file.endswith("tsv"):
                 delim = "\t"
 
-            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
+            fpath = os.path.join(path, file)
+            logger.info("Reading %s as gene annotation...", fpath)
+            tbl = pd.read_csv(fpath, header=None, sep=delim)
             # retval["var"] = (["var_annotations", "features"], np.transpose(tbl))
             for col_id in tbl:
                 retval.coords["gene_annot%d" % col_id] = ("features", tbl[col_id])
@@ -377,7 +390,9 @@ def load_mtx_to_xarray(path):
             if file.endswith("tsv"):
                 delim = "\t"
 
-            tbl = pd.read_csv(os.path.join(path, file), header=None, sep=delim)
+            fpath = os.path.join(path, file)
+            logger.info("Reading %s as barcode file...", fpath)
+            tbl = pd.read_csv(fpath, header=None, sep=delim)
             # retval["obs"] = (["obs_annotations", "observations"], np.transpose(tbl))
             for col_id in tbl:
                 retval.coords["sample_annot%d" % col_id] = ("observations", tbl[col_id])
@@ -390,7 +405,7 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
 
     :param dir_or_zipfile: directory or zip file which will be traversed
     :param target_format: format to read into. Either "xarray" or "adata"
-    :param cache: option passed to `load_mtx_to_adata` when `target_format == "adata"`
+    :param cache: option passed to `load_mtx_to_adata` when `target_format == "adata" or "anndata"`
     :return: Dict[str, xr.DataArray] containing {"path" : data}
     """
     dir_or_zipfile = os.path.expanduser(dir_or_zipfile)
@@ -407,8 +422,10 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
         for file in files:
             if file == "matrix.mtx":
                 if target_format.lower() == "xarray":
+                    logger.info("Reading %s as xarray...", root)
                     ad = load_mtx_to_xarray(root)
-                elif target_format.lower() == "adata":
+                elif target_format.lower() == "adata" or target_format.lower() == "anndata":
+                    logger.info("Reading %s as AnnData...", root)
                     ad = load_mtx_to_adata(root, cache=cache)
                 else:
                     raise RuntimeError("Unknown target format %s" % target_format)

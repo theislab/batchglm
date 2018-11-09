@@ -1,5 +1,5 @@
 import abc
-from typing import Union, List, Tuple
+from typing import Union
 
 try:
     import anndata
@@ -11,9 +11,7 @@ import numpy as np
 import pandas as pd
 import patsy
 
-import batchglm.api as glm
-
-from batchglm.api.utils.numeric import combine_matrices
+from batchglm.utils.numeric import softmax
 from ..base import BasicEstimator
 from ..glm import parse_design
 from ..mixture import Model as MixtureModel
@@ -55,63 +53,6 @@ ESTIMATOR_PARAMS.update({
     # "hessians": ("features", "delta_var0", "delta_var1"),
     # "fisher_inv": ("features", "delta_var0", "delta_var1"),
 })
-
-
-# TODO: maybe move this function into some utility module
-def design_tensor_from_mixture_description(
-        mixture_description: Union[xr.DataArray, pd.DataFrame],
-        dims=("properties", "mixtures", "design_mixture_params")
-):
-    r"""
-    This method allows to specify in detail, which of the parameters in a design matrix should be equal across
-    multiple mixtures.
-
-    For example, if `mixture_description` would look like the following data frame:
-    ::
-
-                 Intercept   batch condition
-        mixtures
-        0                0     'a'         0
-        1                1     'a'         0
-        2                2     'b'         0
-        3                3     'b'         0
-
-    Then, `intercept` would differ across all mixtures, `batch` would be equal in mixtures 0 and 1 as well as 1 and 3.
-    `condition` would be equal in all mixtures.
-
-    Technically, it converts a 2D mixture description of shape (mixtures, properties) into a 3D design matrix of shape
-    (properties, mixtures, design_mixture_params) by creating from each column in `mixture_description`
-    a (non-confounded) design matrix and combining this list of design matrices to one 3D matrix.
-
-    :param mixture_description: 2D mixture description of shape (mixtures, properties)
-    :param dims: names of the dimensions of the returned xr.DataArray
-    :return: 3D xr.DataArray of shape `dims`
-    """
-    df: pd.DataFrame
-    if isinstance(mixture_description, xr.DataArray):
-        df = pd.DataFrame(
-            data=mixture_description.values,
-            index=mixture_description[mixture_description.dims[0]],
-            columns=mixture_description[mixture_description.dims[1]]
-        )
-    else:
-        df = mixture_description
-    df = df.astype(str)
-
-    list_of_dmatrices = [patsy.highlevel.dmatrix("~ 0 + col", {"col": data}) for col, data in df.items()]
-    names = df.columns
-
-    data = combine_matrices(list_of_dmatrices)
-    combined_dmat = xr.DataArray(
-        dims=dims,
-        data=data,
-        coords={
-            dims[0]: np.asarray(names),
-            dims[2]: np.arange(data.shape[2])  # explicitly set parameter id's
-        }
-    )
-
-    return combined_dmat
 
 
 class InputData(NB_GLM_InputData):
@@ -296,7 +237,7 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
 
     def expected_mixture_prob(self):
         log_probs = self.elemwise_log_prob()
-        return glm.utils.numeric.softmax(log_probs.sum(dim="features"), axis=0).transpose(
+        return softmax(log_probs.sum(dim="features"), axis=0).transpose(
             *self.param_shapes()["mixture_prob"]
         )
 

@@ -11,7 +11,9 @@ from batchglm.utils.linalg import stacked_lstsq
 
 from ..nb_glm.simulator import Simulator as NB_GLM_Simulator
 from ..external import data_utils, rand_utils
-from .base import Model, InputData, design_tensor_from_mixture_description
+
+from .base import Model, InputData
+from .util import design_tensor_from_mixture_description
 
 
 def generate_mixture_description(
@@ -107,7 +109,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         if equal_params is None:
             equal_params = list(params.difference(differing_params))
 
-        mixture_description = generate_mixture_description(
+        mixture_description = generate_mixture_design(
             self.num_mixtures,
             differing_params=differing_params,
             equal_params=equal_params,
