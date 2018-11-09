@@ -109,7 +109,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         if equal_params is None:
             equal_params = list(params.difference(differing_params))
 
-        mixture_description = generate_mixture_design(
+        mixture_description = generate_mixture_description(
             self.num_mixtures,
             differing_params=differing_params,
             equal_params=equal_params,
