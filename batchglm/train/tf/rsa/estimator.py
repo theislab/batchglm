@@ -163,6 +163,7 @@ class EstimatorGraph(TFEstimatorGraph):
             init_a=None,
             init_b=None,
             init_mixture_weights=None,
+            summary_mixture_image=False,
             extended_summary=False,
             dtype="float32"
     ):
@@ -464,8 +465,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     # prob_image_grayscale = prob_image_grayscale * 255.0
                     prob_image = tf.image.grayscale_to_rgb(prob_image_grayscale)
 
-                tf.summary.image('mixture_prob', prob_image)
-
+                if summary_mixture_image:
+                    tf.summary.image('mixture_prob', prob_image)
                 if extended_summary:
                     tf.summary.scalar('median_ll',
                                       tf.contrib.distributions.percentile(
@@ -572,8 +573,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             init_mixture_weights: Union[np.ndarray, str] = "AUTO",
-            random_factor=0.01,  # add random uniform error to mixture initialization with bounds [-random_factor, factor]
+            random_factor=0.01,
+            # add random uniform error to mixture initialization with bounds [-random_factor, factor]
             model: EstimatorGraph = None,
+            summary_mixture_image=False,
             extended_summary=False,
             dtype="float64",
     ):
@@ -822,6 +825,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_a=init_a,
                     init_b=init_b,
                     init_mixture_weights=init_mixture_weights,
+                    summary_mixture_image=summary_mixture_image,
                     extended_summary=extended_summary,
                     dtype=dtype
                 )
