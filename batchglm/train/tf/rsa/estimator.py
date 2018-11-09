@@ -232,8 +232,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     tf.range(num_observations, name="sample_index")
                 ))
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-                # training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
-                training_data = training_data.batch(batch_size, drop_remainder=True)
+                training_data = training_data.batch(batch_size, drop_remainder=True)  # sort indices
+                training_data = training_data.map(tf.contrib.framework.sort)
                 training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
                 training_data = training_data.prefetch(buffer_size)
 
