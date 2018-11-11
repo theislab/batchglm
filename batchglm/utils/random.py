@@ -68,7 +68,7 @@ class NegativeBinomial:
                     raise ValueError("Must pass either probs or means, but not both")
 
                 mean = variance * (1 - p)
-                r = mean / (variance - mean)
+                r = mean * mean / (variance - mean)
 
             elif mean is not None:
                 if p is not None:
