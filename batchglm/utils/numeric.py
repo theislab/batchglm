@@ -8,12 +8,13 @@ except ImportError:
 import numpy as np
 
 
-def weighted_mean(input, weight=None, axis=None, keepdims=False, name="weighted_mean"):
+def weighted_mean(input, weights=None, sum_of_weights=None, axis=None, keepdims=False):
     """
     Calculates the weighted mean of `input`. See also tf.reduce_mean
 
     :param input: array to be reduced
-    :param weight: the weights of the arrays' elements; if `none` it will be ignored
+    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
+    :param sum_of_weights: sum of the weights; can be used e.g. to accumulate multiple weightings
     :param axis: The dimensions to reduce. If None (the default), reduces all dimensions.
         Must be in the range [-rank(input), rank(input)].
     :param keepdims: If true, retains reduced dimensions with length 1
@@ -22,16 +23,23 @@ def weighted_mean(input, weight=None, axis=None, keepdims=False, name="weighted_
 
     """
 
-    if weight is None:
+    if weights is None:
         if isinstance(input, xr.DataArray):
             retval = np.mean(input, axis=axis)
         else:
             retval = np.mean(input, axis=axis, keepdims=True)
     else:
+        # calculate sum_of_weights if needed
+        if sum_of_weights is None:
+            if isinstance(input, xr.DataArray):
+                sum_of_weights = np.sum(weights, axis=axis)
+            else:
+                sum_of_weights = np.sum(weights, axis=axis, keepdims=True)
+
         if isinstance(input, xr.DataArray):
-            retval = np.sum(weight * input / np.sum(weight, axis=axis), axis=axis)
+            retval = np.sum(weights * input / sum_of_weights, axis=axis)
         else:
-            retval = np.sum(weight * input / np.sum(weight, axis=axis, keepdims=True), axis=axis, keepdims=True)
+            retval = np.sum(weights * input / sum_of_weights, axis=axis, keepdims=True)
 
     if not keepdims and not isinstance(retval, xr.DataArray):
         retval = np.squeeze(retval, axis=axis)
@@ -39,12 +47,13 @@ def weighted_mean(input, weight=None, axis=None, keepdims=False, name="weighted_
     return retval
 
 
-def weighted_variance(input, weight=None, axis=None, keepdims=False, name="weighted_mean"):
+def weighted_variance(input, weights=None, sum_of_weights=None, axis=None, keepdims=False):
     """
     Calculates the weighted mean of `input`. See also tf.reduce_mean
 
     :param input: array to be reduced
-    :param weight: the weights of the arrays' elements; if `none` it will be ignored
+    :param weights: the weights of the arrays' elements; if `none` it will be ignored
+    :param sum_of_weights: sum of the weights; can be used e.g. to accumulate multiple weightings
     :param axis: The dimensions to reduce. If None (the default), reduces all dimensions.
         Must be in the range [-rank(input), rank(input)].
     :param keepdims: If true, retains reduced dimensions with length 1
@@ -53,26 +62,30 @@ def weighted_variance(input, weight=None, axis=None, keepdims=False, name="weigh
 
     """
 
-    if weight is None:
+    if weights is None:
         if isinstance(input, xr.DataArray):
             retval = np.var(input, axis=axis)
         else:
             retval = np.var(input, axis=axis, keepdims=True)
     else:
+        # calculate sum_of_weights if needed
+        if sum_of_weights is None:
+            if isinstance(input, xr.DataArray):
+                sum_of_weights = np.sum(weights, axis=axis)
+            else:
+                sum_of_weights = np.sum(weights, axis=axis, keepdims=True)
+
         mean = weighted_mean(
             input=input,
-            weight=weight,
+            weights=weights,
+            sum_of_weights=sum_of_weights,
             axis=axis,
             keepdims=True
         )
         if isinstance(input, xr.DataArray):
-            retval = np.sum(weight * np.square(input - mean) / np.sum(weight, axis=axis), axis=axis)
+            retval = np.sum(weights * np.square(input - mean) / sum_of_weights, axis=axis)
         else:
-            retval = np.sum(
-                weight * np.square(input - mean) / np.sum(weight, axis=axis, keepdims=True),
-                axis=axis,
-                keepdims=True
-            )
+            retval = np.sum(weights * np.square(input - mean) / sum_of_weights, axis=axis, keepdims=True)
 
     if not keepdims and not isinstance(retval, xr.DataArray):
         retval = np.squeeze(retval, axis=axis)

@@ -78,16 +78,16 @@ def closedform_glm_mean(
         weights=None,
         link_fn: Union[callable, None] = None
 ):
-    """
+    r"""
     Calculates a closed-form solution for the mean parameters of GLMs.
 
     :param X: The input data array
     :param dmat: some design matrix
     :param constraints: constraints
     :param size_factors: size factors for X
-    :param weights: allows to weight the values of X
+    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
     :param link_fn: linker function for GLM
-    :return:
+    :return: tuple: (groupwise_means, mu, rmsd)
     """
     if size_factors is not None:
         X = np.divide(X, size_factors)
@@ -107,7 +107,11 @@ def closedform_glm_mean(
             ).groupby("group")
 
             groupwise_means: xr.DataArray = xr.concat([
-                weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
+                weighted_mean(
+                    d,
+                    weights=w,
+                    axis=0
+                ) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
             ], dim="group")
             # groupwise_means = groupwise_means.values
 
@@ -140,12 +144,13 @@ def closedform_glm_var(
     """
     Calculates a closed-form solution for the variance parameters of GLMs.
 
-    :param X:
-    :param dmat:
-    :param constraints:
-    :param size_factors:
+    :param X: The input data array
+    :param dmat: some design matrix
+    :param constraints: constraints
+    :param size_factors: size factors for X
+    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
     :param link_fn: linker function for GLM
-    :return:
+    :return: tuple: (groupwise_variance, phi, rmsd)
     """
     if size_factors is not None:
         X = np.divide(X, size_factors)
@@ -177,10 +182,10 @@ def closedform_glm_var(
         else:
             return link_fn(groupwise_variance)
 
-    groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
+    groupwise_variance, phi, rmsd, rank, s = groupwise_solve_lm(
         dmat=dmat,
         apply_fun=apply_fun,
         constraints=constraints
     )
 
-    return groupwise_means, mu, rmsd
+    return groupwise_variance, phi, rmsd

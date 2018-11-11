@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 import xarray as xr
 
@@ -14,16 +16,24 @@ def closedform_nb_glm_logmu(
         weights=None,
         link_fn=np.log
 ):
-    """
+    r"""
     Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
 
-    :param X:
-    :param design_loc:
-    :param constraints:
-    :param size_factors:
-    :return:
+    :param X: The sample data
+    :param design_loc: design matrix for location
+    :param constraints: some design constraints
+    :param size_factors: size factors for X
+    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
+    :return: tuple: (groupwise_means, mu, rmsd)
     """
-    return closedform_glm_mean(X, design_loc, constraints, size_factors, weights, link_fn=link_fn)
+    return closedform_glm_mean(
+        X=X,
+        dmat=design_loc,
+        constraints=constraints,
+        size_factors=size_factors,
+        weights=weights,
+        link_fn=link_fn
+    )
 
 
 def closedform_nb_glm_logphi(
@@ -31,27 +41,28 @@ def closedform_nb_glm_logphi(
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
-        weights=None,
+        weights: Union[np.ndarray, xr.DataArray] = None,
         mu=None,
         groupwise_means=None,
         link_fn=np.log
 ):
-    """
+    r"""
     Calculates a closed-form solution for the log-scale parameters of negative-binomial GLMs.
     Based on the Method-of-Moments estimator.
 
-    :param X:
-    :param design_scale:
-    :param constraints:
-    :param size_factors:
+    :param X: The sample data
+    :param design_scale: design matrix for scale
+    :param constraints: some design constraints
+    :param size_factors: size factors for X
+    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
     :param mu: optional, if there are for example different mu's per observation.
 
         Used to calculate `Xdiff = X - mu`.
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
-    :return:
+    :return: tuple (groupwise_scales, logphi, rmsd)
     """
-    # if size_factors is not None:
-    #     X = np.divide(X, size_factors)
+    if size_factors is not None:
+        X = np.divide(X, size_factors)
 
     # to circumvent nonlocal error
     provided_groupwise_means = groupwise_means
