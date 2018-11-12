@@ -558,11 +558,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "optim_algo": "ADAM",
             },
             {
-                "learning_rate": 0.05,
+                "learning_rate": 0.005,
                 "convergence_criteria": "t_test",
                 "stopping_criteria": 0.05,
                 "loss_window_size": 10,
-                "use_batching": False,
+                "use_batching": True,
                 "optim_algo": "ADAM",
             },
         ]
@@ -596,11 +596,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         ]
         PRE_INITIALIZED = [
             {
-                "learning_rate": 0.01,
+                "learning_rate": 0.001,
                 "convergence_criteria": "t_test",
                 "stopping_criteria": 0.25,
                 "loss_window_size": 10,
-                "use_batching": False,
+                "use_batching": True,
                 "optim_algo": "ADAM",
             },
         ]
