@@ -329,6 +329,19 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         self.params["mixture_assignment"] = mixture_assignment
         self.params["mixture_log_prob"] = mixture_log_prob
 
+        # generate treatment names
+        treatment = initial_mixture_assignment
+        treatment_names = ["normal"]
+        for i in range(self.num_mixtures - 1):
+            treatment_names.append("treatment %d" % (i + 1))
+        treatment_names = np.asarray(treatment_names)
+        treatment = treatment_names[treatment]
+
+        self.data["treatment"] = xr.DataArray(
+            data=treatment,
+            dims=("observations",),
+        )
+
     def generate_data(self):
         self.data["X"] = (
             self.param_shapes()["X"],
