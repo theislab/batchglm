@@ -50,7 +50,8 @@ class FullDataModelGraph:
                 a=model_vars.a,
                 b=model_vars.b,
                 mixture_logits=tf.gather(model_vars.mixture_logits, idx, axis=0),
-                size_factors=size_factors
+                mixture_weight_log_priors=tf.gather(model_vars.mixture_weight_log_priors, idx, axis=0),
+                size_factors=size_factors,
             )
             return model
 
@@ -76,7 +77,7 @@ class FullDataModelGraph:
                 mixture_EM_update = tf.scatter_update(
                     ref=model_vars.mixture_logits_var,
                     indices=idx,
-                    updates=tf.transpose(model.estimated_mixture_log_prob)
+                    updates=tf.transpose(model.expected_mixture_log_prob)
                 )
 
                 # perform mixture update and return resulting log-likelihood
@@ -104,7 +105,7 @@ class FullDataModelGraph:
                 mixture_EM_update = tf.scatter_update(
                     ref=model_vars.mixture_logits_var,
                     indices=idx,
-                    updates=tf.transpose(model.estimated_mixture_log_prob)
+                    updates=tf.transpose(model.expected_mixture_log_prob)
                 )
 
                 # perform mixture update and return resulting log-likelihood
@@ -218,6 +219,7 @@ class EstimatorGraph(TFEstimatorGraph):
             init_a=None,
             init_b=None,
             init_mixture_weights=None,
+            mixture_weight_log_priors=None,
             summary_mixture_image=False,
             extended_summary=False,
             dtype="float32"
@@ -273,6 +275,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 design_mixture_loc=design_mixture_loc,
                 design_mixture_scale=design_mixture_scale,
                 init_mixture_weights=init_mixture_weights,
+                mixture_weight_priors=mixture_weight_log_priors,
                 init_a=init_a,
                 init_b=init_b,
             )
@@ -302,6 +305,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     axis=0,
                     name="batch_mixture_logits"
                 )
+                batch_mixture_weight_priors = tf.gather(
+                    model_vars.mixture_weight_log_priors,
+                    indices=batch_sample_index,
+                    axis=0,
+                    name="batch_mixture_logits"
+                )
                 # batch_mixture_logits = model_vars.mixture_logits[batch_sample_index, :]
 
             with tf.name_scope("batch"):
@@ -318,12 +327,13 @@ class EstimatorGraph(TFEstimatorGraph):
                     a=model_vars.a,
                     b=model_vars.b,
                     mixture_logits=batch_mixture_logits,
+                    mixture_weight_log_priors=batch_mixture_weight_priors,
                     size_factors=batch_size_factors
                 )
                 batch_mixture_EM_update = tf.scatter_update(
                     ref=model_vars.mixture_logits_var,
                     indices=batch_sample_index,
-                    updates=tf.transpose(batch_model.estimated_mixture_log_prob)
+                    updates=tf.transpose(batch_model.expected_mixture_log_prob)
                 )
 
                 # minimize negative log probability (log(1) = 0);
@@ -624,12 +634,25 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             init_b: Union[np.ndarray, str] = "AUTO",
             init_mixture_weights: Union[np.ndarray, str] = "AUTO",
             random_factor=0.01,
-            # add random uniform error to mixture initialization with bounds [-random_factor, factor]
             model: EstimatorGraph = None,
             summary_mixture_image=False,
             extended_summary=False,
             dtype="float64",
     ):
+        r"""
+
+        :param input_data:
+        :param batch_size:
+        :param graph:
+        :param init_a:
+        :param init_b:
+        :param init_mixture_weights:
+        :param random_factor: add random uniform error to mixture initialization with bounds [-random_factor, factor]
+        :param model:
+        :param summary_mixture_image:
+        :param extended_summary:
+        :param dtype:
+        """
         if np.linalg.matrix_rank(input_data.design_loc) != np.linalg.matrix_rank(input_data.design_loc.T):
             raise ValueError("design_loc matrix is not full rank")
         if np.linalg.matrix_rank(input_data.design_scale) != np.linalg.matrix_rank(input_data.design_scale.T):
@@ -870,6 +893,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     num_design_mixture_scale_params=input_data.num_design_mixture_scale_params,
                     design_mixture_loc=input_data.design_mixture_loc,
                     design_mixture_scale=input_data.design_mixture_scale,
+                    mixture_weight_log_priors=input_data.mixture_weight_priors,
                     graph=graph,
                     batch_size=batch_size,
                     init_a=init_a,
@@ -1023,6 +1047,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @property
     def design_mixture_scale(self) -> xr.DataArray:
         return self.input_data.design_mixture_scale
+
+    @property
+    def mixture_weight_priors(self) -> xr.DataArray:
+        return self.input_data.mixture_weight_priors
 
     # @property
     # def mixture_prob(self):

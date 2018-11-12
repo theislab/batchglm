@@ -1,4 +1,4 @@
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Iterable
 
 import patsy
 import pandas as pd
@@ -9,26 +9,13 @@ import batchglm.data as data_utils
 from batchglm.utils.numeric import combine_matrices
 
 
-def mixture_model_setup(
+def _mdesc_setup(
         sample_description: Union[np.ndarray, pd.DataFrame],
         formula,
-        mixture_grouping: Union[str, np.ndarray],
+        groups: Union[str, np.ndarray],
         differing_factors: Union[Tuple[str], List[str]] = ("Intercept",),
         dim_names: Tuple[str, str] = ("design_params", "mixtures", "design_mixture_params")
-) -> Tuple[patsy.highlevel.DesignMatrix, xr.DataArray, np.ndarray]:
-    r"""
-    Build a mixture description.
-
-    :param sample_description: Some sample description which can be used to build a design matrix
-    :param formula: Formula to set up a model design
-    :param mixture_grouping: either string pointing to one column in `sample_description` or a list of assignments.
-
-        Describes some (assumed) mixture assignment.
-        The number of mixtures is derived from the number of unique elements in this grouping.
-    :param differing_factors: Terms of the formula which are allowed to differ across mixtures
-    :param dim_names: dimension names; defaults to ("mixtures", "design_params").
-    :return: tuple: (design matrix, mixture design, initial mixture weights)
-    """
+):
     dmat: patsy.highlevel.DesignMatrix = data_utils.design_matrix(sample_description, formula=formula)
 
     # get differing and equal parameters
@@ -37,13 +24,13 @@ def mixture_model_setup(
         for param in dmat.design_info.column_names[dmat.design_info.term_name_slices[param_slice]]:
             differing_params.append(param)
 
-    if isinstance(mixture_grouping, str):
-        mixture_grouping = sample_description[mixture_grouping]
-
-    groups, init_mixture_assignment = np.unique(mixture_grouping, return_inverse=True)
+    # if isinstance(mixture_grouping, str):
+    #     mixture_grouping = sample_description[mixture_grouping]
+    #
+    # groups, _ = np.unique(mixture_grouping.astype(str), return_inverse=True)
 
     num_mixtures = np.size(groups)
-    num_observations = len(dmat)
+    # num_observations = len(sample_description)
     # num_design_params = len(dmat.design_info.column_names)
 
     # build mixture description
@@ -56,11 +43,107 @@ def mixture_model_setup(
         dims=dim_names
     )
 
+    return dmat, design_tensor
+
+
+def mixture_model_setup(
+        sample_description: Union[np.ndarray, pd.DataFrame],
+        formula_loc,
+        formula_scale,
+        mixture_grouping: Union[str, np.ndarray],
+        pin_mixtures: Union[Iterable[str], Iterable[int], None] = None,
+        differing_factors_loc: Union[Tuple[str], List[str]] = ("Intercept",),
+        differing_factors_scale: Union[Tuple[str], List[str]] = ("Intercept",),
+        dim_names_loc: Tuple[str, str] = ("design_loc_params", "mixtures", "design_mixture_loc_params"),
+        dim_names_scale: Tuple[str, str] = ("design_scale_params", "mixtures", "design_mixture_scale_params"),
+) -> Tuple[
+    patsy.highlevel.DesignMatrix,
+    xr.DataArray,
+    patsy.highlevel.DesignMatrix,
+    xr.DataArray,
+    np.ndarray,
+    np.ndarray
+]:
+    r"""
+    Build a mixture description.
+
+    :param sample_description: Some sample description which can be used to build a design matrix
+    :param formula_loc: Formula to set up a model design for location
+    :param formula_scale: Formula to set up a model design for scale
+    :param mixture_grouping: either string pointing to one column in `sample_description` or a list of assignments.
+
+        Describes some (assumed) mixture assignment.
+        The number of mixtures is derived from the number of unique elements in this grouping.
+    :param pin_mixtures:
+        Allows to specify, which of the observations should be assigned permanently to the initial mixture,
+        i.e. are not allowed to change.
+
+        Can be either:
+            - Iterable of strings: Will fix the assignments where `mixture_grouping == anyof(pin_mixtures)`
+            - Iterable of ints: Will fix the assignments at `observations[pin_mixtures]`
+    :param differing_factors_loc: Terms of the location formula which are allowed to differ across mixtures
+    :param differing_factors_scale: Terms of the scale formula which are allowed to differ across mixtures
+    :param dim_names_loc: dimension names; defaults to ("mixtures", "design_params").
+    :param dim_names_scale: dimension names; defaults to ("mixtures", "design_params").
+    :return:
+        tuple:
+            - design_loc matrix
+            - location mixture design
+            - design_scale matrix
+            - scale mixture design
+            - initial mixture weights
+            - mixture weight priors (`None` if `pin_mixtures` is not specified`)
+    """
+
+    if isinstance(mixture_grouping, str):
+        mixture_grouping = sample_description[mixture_grouping]
+    mixture_grouping = mixture_grouping.astype(str)
+
+    groups, init_mixture_assignment = np.unique(mixture_grouping, return_inverse=True)
+
+    dmat_loc, design_tensor_loc = _mdesc_setup(
+        sample_description=sample_description,
+        formula=formula_loc,
+        groups=groups,
+        differing_factors=differing_factors_loc,
+        dim_names=dim_names_loc
+    )
+    dmat_scale, design_tensor_scale = _mdesc_setup(
+        sample_description=sample_description,
+        formula=formula_scale,
+        groups=groups,
+        differing_factors=differing_factors_scale,
+        dim_names=dim_names_scale
+    )
+
+    num_mixtures = np.size(groups)
+    num_observations = len(sample_description)
+    # num_design_params = len(dmat.design_info.column_names)
+
     # build init_mixture_weights matrix
     init_mixture_weights = np.zeros(shape=[num_observations, num_mixtures])
     init_mixture_weights[np.arange(num_observations), init_mixture_assignment] = 1
 
-    return dmat, design_tensor, init_mixture_weights
+    if pin_mixtures is not None:
+        pin_mixtures = np.asarray(pin_mixtures)
+        if np.issubdtype(pin_mixtures.dtype, np.integer):
+            pinned_assignments = pin_mixtures
+        else:
+            if np.size(pin_mixtures) == 1:
+                pin_mixtures = {pin_mixtures.flatten()[0]}
+            else:
+                pin_mixtures = set(pin_mixtures.astype(str))
+            pinned_assignments = np.where(np.vectorize(lambda x: x in pin_mixtures)(mixture_grouping))
+
+        pin_mask = np.zeros([num_observations, num_mixtures])
+        pin_mask[pinned_assignments] = 1
+        pin_mask = pin_mask.astype(bool)
+
+        mixture_weight_priors = np.where(pin_mask, init_mixture_weights, np.ones_like(init_mixture_weights))
+    else:
+        mixture_weight_priors = None
+
+    return dmat_loc, design_tensor_loc, dmat_scale, design_tensor_scale, init_mixture_weights, mixture_weight_priors
 
 
 def design_tensor_from_mixture_description(

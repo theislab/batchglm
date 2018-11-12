@@ -23,6 +23,7 @@ INPUT_DATA_PARAMS = NB_INPUT_DATA_PARAMS.copy()
 INPUT_DATA_PARAMS.update({
     "design_loc": ("observations", "design_loc_params"),
     "design_scale": ("observations", "design_scale_params"),
+    "size_factors": ("observations",),
 })
 
 MODEL_PARAMS = NB_MODEL_PARAMS.copy()
@@ -49,6 +50,10 @@ class InputData(NegativeBinomialInputData):
     """
     Input data for Generalized Linear Models (GLMs) with negative binomial noise.
     """
+
+    @classmethod
+    def param_shapes(cls) -> dict:
+        return INPUT_DATA_PARAMS
 
     @classmethod
     def new(
@@ -210,9 +215,10 @@ class InputData(NegativeBinomialInputData):
         if data is None and "size_factors" in self.data.coords:
             del self.data.coords["size_factors"]
         else:
+            dims = self.param_shapes()["size_factors"]
             self.data.coords["size_factors"] = xr.DataArray(
-                dims=("observations",),
-                data=np.broadcast_to(data, [self.num_observations, ])
+                dims=dims,
+                data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
             )
 
     @property
@@ -267,7 +273,7 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         return self.input_data.design_scale
 
     @property
-    def size_factors(self):
+    def size_factors(self) -> Union[xr.DataArray, None]:
         return self.input_data.size_factors
 
     @property

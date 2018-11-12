@@ -26,6 +26,7 @@ INPUT_DATA_PARAMS.update({
     "design_scale": ("observations", "design_scale_params"),
     "design_mixture_loc": ("design_loc_params", "mixtures", "design_mixture_loc_params"),
     "design_mixture_scale": ("design_scale_params", "mixtures", "design_mixture_scale_params"),
+    "mixture_weight_priors": ("observations", "mixtures"),
 })
 
 MODEL_PARAMS = NB_GLM_MODEL_PARAMS.copy()
@@ -61,6 +62,10 @@ class InputData(NB_GLM_InputData):
     """
 
     @classmethod
+    def param_shapes(cls) -> dict:
+        return INPUT_DATA_PARAMS
+
+    @classmethod
     def new(
             cls,
             data,
@@ -69,6 +74,7 @@ class InputData(NB_GLM_InputData):
             design_mixture_loc_key: str = "design_mixture_loc",
             design_mixture_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_mixture_scale_key: str = "design_mixture_scale",
+            mixture_weight_priors=None,
             cast_dtype=None,
             **kwargs
     ):
@@ -131,6 +137,9 @@ class InputData(NB_GLM_InputData):
             # design = design.chunk({"observations": 1})
         retval.design_mixture_scale = design_mixture_scale
 
+        if mixture_weight_priors is not None:
+            retval.mixture_weight_priors = mixture_weight_priors
+
         return retval
 
     @property
@@ -148,6 +157,21 @@ class InputData(NB_GLM_InputData):
     @design_mixture_scale.setter
     def design_mixture_scale(self, data):
         self.data["design_mixture_scale"] = data
+
+    @property
+    def mixture_weight_priors(self) -> Union[xr.DataArray, None]:
+        return self.data.get("mixture_weight_priors")
+
+    @mixture_weight_priors.setter
+    def mixture_weight_priors(self, data):
+        if data is None and "mixture_weight_priors" in self.data:
+            del self.data["mixture_weight_priors"]
+        else:
+            dims = self.param_shapes()["mixture_weight_priors"]
+            self.data["mixture_weight_priors"] = xr.DataArray(
+                dims=dims,
+                data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
+            )
 
     @property
     def num_mixtures(self):

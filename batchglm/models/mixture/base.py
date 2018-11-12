@@ -26,3 +26,8 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def mixture_log_prob(self):
         pass
+
+    @property
+    @abc.abstractmethod
+    def mixture_weight_priors(self):
+        pass
