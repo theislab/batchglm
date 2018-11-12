@@ -360,6 +360,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.a_var, model_vars.b_var, model_vars.mixture_logits_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers"
                 )
                 batch_trainers_EM = train_utils.MultiTrainer(
@@ -368,13 +369,14 @@ class EstimatorGraph(TFEstimatorGraph):
                     learning_rate=learning_rate,
                     global_step=global_step,
                     apply_train_ops=lambda train_op: tf.group(train_op, batch_mixture_EM_update),
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers"
                 )
                 with tf.name_scope("batch_gradient"):
                     # use same gradient as the optimizers
-                    batch_gradient_a = batch_trainers.gradients[0][0]
+                    batch_gradient_a = batch_trainers.plain_gradient_by_variable(model_vars.a_var)
                     batch_gradient_a = tf.reduce_sum(tf.abs(batch_gradient_a), axis=[0, 1])
-                    batch_gradient_b = batch_trainers.gradients[1][0]
+                    batch_gradient_b = batch_trainers.plain_gradient_by_variable(model_vars.b_var)
                     batch_gradient_b = tf.reduce_sum(tf.abs(batch_gradient_b), axis=[0, 1])
                     batch_gradient = tf.add(batch_gradient_a, batch_gradient_b)
 
@@ -383,20 +385,22 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.a_var, model_vars.b_var, model_vars.mixture_logits_var],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers"
                 )
                 full_data_trainers_EM = train_utils.MultiTrainer(
                     gradients=full_data_model.norm_grads_EM_with_grads,
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_EMlike"
                 )
 
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
-                    full_gradient_a = full_data_trainers.gradient_by_variable(model_vars.a_var)
+                    full_gradient_a = full_data_trainers.plain_gradient_by_variable(model_vars.a_var)
                     full_gradient_a = tf.reduce_sum(tf.abs(full_gradient_a), axis=[0, 1])
-                    full_gradient_b = full_data_trainers.gradient_by_variable(model_vars.b_var)
+                    full_gradient_b = full_data_trainers.plain_gradient_by_variable(model_vars.b_var)
                     full_gradient_b = tf.reduce_sum(tf.abs(full_gradient_b), axis=[0, 1])
                     full_gradient = tf.add(full_gradient_a, full_gradient_b)
 

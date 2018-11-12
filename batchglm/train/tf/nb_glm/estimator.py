@@ -320,6 +320,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
@@ -334,6 +335,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
@@ -348,6 +350,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_b_only"
                 )
 
@@ -363,6 +366,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
@@ -377,6 +381,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
@@ -391,6 +396,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_b_only"
                 )
                 with tf.name_scope("full_gradient"):
