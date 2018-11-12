@@ -97,35 +97,89 @@ class FullDataModelGraph:
             with tf.name_scope("loss"):
                 loss_EM = tf.reduce_sum(norm_neg_log_likelihood_EM)
 
-        self.X = model.X
-        self.design_loc = model.design_loc
-        self.design_scale = model.design_scale
+        with tf.name_scope("EM_update_with_gradient"):
+            def map_fn_EM_with_grad(idx, data):
+                model = map_model(idx, data)
 
-        self.batched_data = batched_data
+                mixture_EM_update = tf.scatter_update(
+                    ref=model_vars.mixture_logits_var,
+                    indices=idx,
+                    updates=tf.transpose(model.estimated_mixture_log_prob)
+                )
 
-        self.dist_estim = model.dist_estim
-        self.mu_estim = model.mu_estim
-        self.r_estim = model.r_estim
-        self.sigma2_estim = model.sigma2_estim
+                # perform mixture update and return resulting log-likelihood
+                with tf.control_dependencies([mixture_EM_update]):
+                    gradients = tf.gradients(
+                        - model.log_likelihood,
+                        [model_vars.a_var, model_vars.b_var],
+                    )
+                    return tf.identity(model.log_likelihood), gradients,
 
-        self.dist_obs = model.dist_obs
-        self.mu = model.mu
-        self.r = model.r
-        self.sigma2 = model.sigma2
+                    # log_likelihood_EM = op_utils.map_reduce(
 
-        self.probs = tf.exp(model.log_probs)
-        self.log_probs = model.log_probs
+            def reduce_fn_EM_with_grad(prev, cur):
+                old_ll, old_grads = prev
+                cur_ll, cur_grads = cur
 
-        # custom
-        self.sample_indices = sample_indices
+                return tf.add(old_ll, cur_ll), [
+                    tf.add(old_grad, cur_grad) for old_grad, cur_grad in zip(old_grads, cur_grads)
+                ]
 
-        self.log_likelihood = log_likelihood
-        self.norm_log_likelihood = norm_log_likelihood
-        self.norm_neg_log_likelihood = norm_neg_log_likelihood
-        self.loss = loss
+            log_likelihood_EM_with_grad, grads_EM_with_grads = op_utils.map_reduce(
+                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
+                data=batched_data,
+                map_fn=map_fn_EM_with_grad,
+                reduce_fn=reduce_fn_EM_with_grad,
+                parallel_iterations=1,
+            )
+            divisor = tf.cast(tf.size(sample_indices), dtype=log_likelihood_EM_with_grad.dtype)
 
-        self.norm_neg_log_likelihood_EM = norm_neg_log_likelihood_EM
-        self.loss_EM = loss_EM
+            norm_neg_log_likelihood_EM_with_grad = - tf.div(
+                log_likelihood_EM_with_grad,
+                divisor
+            )
+            grads_EM_with_grads = zip(grads_EM_with_grads, [model_vars.a_var, model_vars.b_var])
+            norm_grads_EM_with_grads = [
+                (tf.div(grad, divisor), var) for grad, var in grads_EM_with_grads
+            ]
+
+            with tf.name_scope("loss"):
+                loss_EM_with_grad = tf.reduce_sum(norm_neg_log_likelihood_EM_with_grad)
+
+            self.X = model.X
+            self.design_loc = model.design_loc
+            self.design_scale = model.design_scale
+
+            self.batched_data = batched_data
+
+            self.dist_estim = model.dist_estim
+            self.mu_estim = model.mu_estim
+            self.r_estim = model.r_estim
+            self.sigma2_estim = model.sigma2_estim
+
+            self.dist_obs = model.dist_obs
+            self.mu = model.mu
+            self.r = model.r
+            self.sigma2 = model.sigma2
+
+            self.probs = tf.exp(model.log_probs)
+            self.log_probs = model.log_probs
+
+            # custom
+            self.sample_indices = sample_indices
+
+            self.log_likelihood = log_likelihood
+            self.norm_log_likelihood = norm_log_likelihood
+            self.norm_neg_log_likelihood = norm_neg_log_likelihood
+            self.loss = loss
+
+            self.norm_neg_log_likelihood_EM = norm_neg_log_likelihood_EM
+            self.loss_EM = loss_EM
+
+            self.norm_neg_log_likelihood_EM_with_grad = norm_neg_log_likelihood_EM_with_grad
+            self.loss_EM_with_grad = loss_EM_with_grad
+            self.grads_EM_with_grads = grads_EM_with_grads
+            self.norm_grads_EM_with_grads = norm_grads_EM_with_grads
 
 
 def _normalize_mixture_weights(weights):
@@ -332,8 +386,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="full_data_trainers"
                 )
                 full_data_trainers_EM = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood_EM,
-                    variables=[model_vars.a_var, model_vars.b_var],
+                    gradients=full_data_model.norm_grads_EM_with_grads,
                     learning_rate=learning_rate,
                     global_step=global_step,
                     name="full_data_EMlike"
