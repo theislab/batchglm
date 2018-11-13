@@ -84,27 +84,26 @@ def _coef_invariant_b(
         Value of mean model by observation and feature.
     :param r: tf.tensor observations x features
         Value of dispersion model by observation and feature.
-    :param dtype: dtype
     :return const: tf.tensor observations x features
         Coefficient invariant terms of hessian of
         given observations and features.
     """
-    scalar_one = tf.constant(1, shape=[1,1], dtype=X.dtype)
+    scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
     # Pre-define sub-graphs that are used multiple times:
-    r_plus_mu = tf.add(r, mu)
-    r_plus_x = tf.add(r, X)
+    r_plus_mu = r + mu
+    r_plus_x = r + X
     # Define graphs for individual terms of constant term of hessian:
     const1 = tf.subtract(
         tf.math.digamma(x=r_plus_x),
         tf.math.digamma(x=r)
     )
-    const2 = tf.negative(tf.divide(r_plus_x, r_plus_mu))
+    const2 = tf.negative(r_plus_x / r_plus_mu)
     const3 = tf.add(
         tf.log(r),
-        tf.subtract(scalar_one, tf.log(r_plus_mu))
+        scalar_one - tf.log(r_plus_mu)
     )
     const = tf.add_n([const1, const2, const3])  # [observations, features]
-    const = tf.multiply(r, const)
+    const = r * const
     return const
 
 
@@ -159,9 +158,9 @@ class Jacobians:
             Whether an iterator or a tensor (single yield of an iterator) is given
             in
         """
-        if constraints_loc != None and mode != "tf":
+        if constraints_loc is not None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_loc is not None")
-        if constraints_scale != None and mode != "tf":
+        if constraints_scale is not None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_scale is not None")
 
         if mode == "analytic":
@@ -378,7 +377,7 @@ class Jacobians:
         p_shape_a = model_vars.a.shape[0]
         p_shape_b = model_vars.b.shape[0]
 
-        if iterator==True and batch_model is None:
+        if iterator == True and batch_model is None:
             J = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
@@ -386,7 +385,7 @@ class Jacobians:
                 reduce_fn=_red,
                 parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
             )
-        elif iterator==False and batch_model is None:
+        elif iterator == False and batch_model is None:
             J = _assemble_bybatch(
                 idx=sample_indices,
                 data=batched_data

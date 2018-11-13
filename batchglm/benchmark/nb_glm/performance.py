@@ -2,15 +2,19 @@ from typing import Tuple
 
 import os
 import shutil
+import logging
 
 import numpy as np
 import xarray as xr
 import yaml
 
-# import batchglm.pkg_constants
+from .base import load_benchmark_dataset, get_benchmark_samples
+
 from batchglm.api.models.nb_glm import Simulator, Estimator
 
 import batchglm.utils.stats as stat_utils
+
+logger = logging.getLogger(__name__)
 
 
 def init_benchmark(
@@ -99,13 +103,6 @@ def prepare_benchmark_sample(
     return sample_config
 
 
-def get_benchmark_samples(root_dir: str, config_file="config.yml"):
-    config_file = os.path.join(root_dir, config_file)
-    with open(config_file, mode="r") as f:
-        config = yaml.load(f)
-    return list(config["benchmark_samples"].keys())
-
-
 def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
@@ -122,58 +119,31 @@ def run_benchmark(root_dir: str, sample: str, config_file="config.yml"):
     init_args = sample_config["init_args"]
     init_args["working_dir"] = working_dir
 
-    print("loading data...", end="", flush=True)
+    logger.info("loading data...", end="", flush=True)
     sim = Simulator()
     sim.load(sim_data_file)
-    print("\t[OK]")
+    logger.info("\t[OK]")
 
-    print("starting estimation of benchmark sample '%s'..." % sample)
+    logger.info("starting estimation of benchmark sample '%s'..." % sample)
     estimator = Estimator(sim.input_data, batch_size=batch_size)
     estimator.initialize(**init_args)
     estimator.train(learning_rate=learning_rate)
-    print("estimation of benchmark sample '%s' ready" % sample)
-
-
-def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Simulator, xr.Dataset]:
-    config_file = os.path.join(root_dir, config_file)
-    with open(config_file, mode="r") as f:
-        config = yaml.load(f)
-
-    sim_data_file = os.path.join(root_dir, config["sim_data"])
-    sim = Simulator()
-    sim.load(sim_data_file)
-
-    benchmark_samples = config["benchmark_samples"]
-    benchmark_data = []
-    for smpl, cfg in benchmark_samples.items():
-        data = xr.open_mfdataset(
-            os.path.join(root_dir, cfg["working_dir"], "estimation-*.h5"),
-            engine="netcdf4",
-            concat_dim="step",
-            autoclose=True,
-            parallel=True,
-        )
-        data = data.sortby("global_step")
-        data.coords["benchmark"] = smpl
-        benchmark_data.append(data)
-    benchmark_data = xr.auto_combine(benchmark_data, concat_dim="benchmark", coords="all")
-
-    return sim, benchmark_data
+    logger.info("estimation of benchmark sample '%s' ready" % sample)
 
 
 def plot_benchmark(root_dir: str, config_file="config.yml"):
-    print("loading config...", end="", flush=True)
+    logger.info("loading config...", end="", flush=True)
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
         config = yaml.load(f)
-    print("\t[OK]")
+    logger.info("\t[OK]")
 
     plot_dir = os.path.join(root_dir, config["plot_dir"])
 
-    print("loading data...", end="", flush=True)
+    logger.info("loading data...", end="", flush=True)
     sim, benchmark_data = load_benchmark_dataset(root_dir)
     benchmark_data.coords["time_elapsed"] = benchmark_data.time_elapsed.cumsum("step")
-    print("\t[OK]")
+    logger.info("\t[OK]")
 
     import plotnine as pn
     import matplotlib.pyplot as plt
@@ -204,7 +174,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
             plot = plot + pn.scale_y_log10()
         plot.save(os.path.join(plot_dir, name_prefix + ".step.svg"), format="svg")
 
-    print("plotting...")
+    logger.info("plotting...")
     val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.params["a"][0], dims=("features",))),
         np.exp(benchmark_data.a.isel(design_loc_params=0)), axis=[0])
@@ -218,7 +188,7 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
     val: xr.DataArray = benchmark_data.loss
     plot_stat(val, "loss", "loss")
 
-    print("ready")
+    logger.info("ready")
 
 
 def clean(root_dir: str):
@@ -230,7 +200,7 @@ def clean(root_dir: str):
             elif os.path.isdir(file_path):
                 shutil.rmtree(file_path)
         except Exception as e:
-            print(e)
+            logger.info(e)
 
 
 def main():
@@ -293,7 +263,7 @@ def main():
     elif action == "print_samples":
         benchmark_samples = get_benchmark_samples(root_dir)
         for smpl in benchmark_samples:
-            print(smpl)
+            logger.info(smpl)
     elif action == "plot":
         plot_benchmark(root_dir)
     elif action == "clean":
