@@ -699,12 +699,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "optim_algo": "ADAM",
             },
             {
-                "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
                 "stopping_criteria": 1e-8,
-                "loss_window_size": 10,
+                "loss_window_size": 4,
                 "use_batching": False,
-                "optim_algo": "GD",
+                "optim_algo": "newton",
             },
         ]
 
