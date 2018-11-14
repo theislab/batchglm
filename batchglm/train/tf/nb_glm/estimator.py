@@ -684,24 +684,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         CONTINUOUS = [
             {
                 "learning_rate": 0.5,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 20,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.5,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-5,
                 "loss_window_size": 20,
                 "use_batching": False,
                 "optim_algo": "ADAM",
             },
             {
                 "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 4,
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "newton",
             },
