@@ -581,104 +581,55 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         AUTO = None
         DEFAULT = [
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-5,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
+            },
+            {
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "newton",
             },
         ]
         EXACT = [
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.005,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-5,
                 "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "Newton-Raphson",
+                "optim_algo": "ADAM",
+            },
+            {
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "newton",
             },
         ]
         QUICK = [
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-8,
+                "loss_window_size": 10,
+                "use_batching": False,
                 "optim_algo": "ADAM",
             },
         ]
         PRE_INITIALIZED = [
             {
-                "learning_rate": 0.01,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
                 "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-        ]
-        NEWTON_EXACT = [
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 5,
-                "use_batching": False,
-                "optim_algo": "newton-raphson",
-            },
-        ]
-        NEWTON_BATCHED = [
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 20,
-                "use_batching": True,
-                "optim_algo": "newton-raphson",
-            },
-        ]
-        NEWTON_SERIES = [
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 8,
-                "use_batching": True,
-                "optim_algo": "newton-raphson",
-            },
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 4,
-                "use_batching": False,
-                "optim_algo": "newton-raphson",
+                "optim_algo": "newton",
             },
         ]
         CONTINUOUS = [
@@ -686,7 +637,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "learning_rate": 0.5,
                 "convergence_criteria": "scaled_moving_average",
                 "stopping_criteria": 1e-5,
-                "loss_window_size": 20,
+                "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
             },
