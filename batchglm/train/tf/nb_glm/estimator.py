@@ -899,11 +899,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     my_loc_names = set(input_data.design_loc_names.values)
                     my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
 
-                    init_loc = np.random.uniform(
-                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                        size=(input_data.num_design_loc_params, input_data.num_features)
-                    )
+                    # Initialize new parameters to zero:
+                    init_loc = np.zeros(shape=(input_data.num_design_loc_params, input_data.num_features))
                     for parm in my_loc_names:
                         init_idx = np.where(init_model.input_data.design_loc_names == parm)
                         my_idx = np.where(input_data.design_loc_names == parm)
@@ -916,11 +913,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     my_scale_names = set(input_data.design_scale_names.values)
                     my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
 
-                    init_scale = np.random.uniform(
-                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                        size=(input_data.num_design_scale_params, input_data.num_features)
-                    )
+                    # Initialize new parameters to zero:
+                    init_scale = np.zeros(shape=(input_data.num_design_scale_params, input_data.num_features))
                     for parm in my_scale_names:
                         init_idx = np.where(init_model.input_data.design_scale_names == parm)
                         my_idx = np.where(input_data.design_scale_names == parm)
