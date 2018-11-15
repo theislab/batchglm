@@ -230,7 +230,6 @@ class Hessians:
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
-                batched=True,
                 iterator=iterator,
                 dtype=dtype
             )
@@ -270,7 +269,6 @@ class Hessians:
             constraints_loc,
             constraints_scale,
             model_vars: ModelVars,
-            batched,
             iterator,
             dtype
     ):
@@ -292,74 +290,6 @@ class Hessians:
         principle the latter can be fast though as they replace iterations which
         larger tensor operations.
         """
-
-        def _aa_byobs(X, design_loc, design_scale, mu, r):
-            """
-            Compute the mean model diagonal block of the
-            closed form hessian of nb_glm model by observation across features.
-
-            :param X: tf.tensor observations x features
-                Observation by observation and feature.
-            :param mu: tf.tensor observations x features
-                Value of mean model by observation and feature.
-            :param r: tf.tensor observations x features
-                Value of dispersion model by observation and feature.
-            """
-            const = _coef_invariant_aa(  # [observations=1 x features]
-                X=X,
-                mu=mu,
-                r=r,
-            )
-            nonconst = tf.matmul(tf.transpose(design_loc), design_loc)  # [coefficients, coefficients]
-            nonconst = tf.expand_dims(nonconst, axis=0)  # [observations=1, coefficients, coefficients]
-            Hblock = tf.tensordot(  # [features, coefficients, coefficients]
-                a=tf.transpose(const),  # [features, observations=1]
-                b=nonconst,  # [observations=1, coefficients, coefficients]
-                axes=1  # collapse last dimension of a and first dimension of b
-            )
-            return Hblock
-
-        def _bb_byobs(X, design_loc, design_scale, mu, r):
-            """
-            Compute the dispersion model diagonal block of the
-            closed form hessian of nb_glm model by observation across features.
-            """
-            const = _coef_invariant_bb(  # [observations=1 x features]
-                X=X,
-                mu=mu,
-                r=r,
-            )
-            nonconst = tf.matmul(tf.transpose(design_scale), design_scale)  # [coefficients, coefficients]
-            nonconst = tf.expand_dims(nonconst, axis=0)  # [observations=1, coefficients, coefficients]
-            Hblock = tf.tensordot(  # [features, coefficients, coefficients]
-                a=tf.transpose(const),  # [features, observations=1]
-                b=nonconst,  # [observations=1, coefficients, coefficients]
-                axes=1  # collapse last dimension of a and first dimension of b
-            )
-            return Hblock
-
-        def _ab_byobs(X, design_loc, design_scale, mu, r):
-            """
-            Compute the mean-dispersion model off-diagonal block of the
-            closed form hessian of nb_glm model by observation across features.
-
-            Note that there are two blocks of the same size which can
-            be compute from each other with a transpose operation as
-            the hessian is symmetric.
-            """
-            const = _coef_invariant_ab(  # [observations=1 x features]
-                X=X,
-                mu=mu,
-                r=r,
-            )
-            nonconst = tf.matmul(tf.transpose(design_loc), design_scale)  # [coefficient_loc, coefficients_scale]
-            nonconst = tf.expand_dims(nonconst, axis=0)  # [observations=1, coefficient_loc, coefficients_scale]
-            Hblock = tf.tensordot(  # [features, coefficient_loc, coefficients_scale]
-                a=tf.transpose(const),  # [features, observations=1]
-                b=nonconst,  # [observations=1, coefficient_loc, coefficients_scale]
-                axes=1  # collapse last dimension of a and first dimension of b
-            )
-            return Hblock
 
         def _aa_byobs_batched(X, design_loc, design_scale, mu, r):
             """
@@ -465,22 +395,17 @@ class Hessians:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=a_split,
-                b=b_split,
+                a_var=a_split,
+                b_var=b_split,
                 dtype=dtype,
                 size_factors=size_factors
             )
             mu = model.mu
             r = model.r
 
-            if batched:
-                H_aa = _aa_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_bb = _bb_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_ab = _ab_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-            else:
-                H_aa = _aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_bb = _bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_ab = _ab_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            H_aa = _aa_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            H_bb = _bb_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            H_ab = _ab_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
 
             H_ba = tf.transpose(H_ab, perm=[0, 2, 1])
             H = tf.concat(
@@ -766,8 +691,8 @@ class Hessians:
                     design_scale=design_scale,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
-                    a=a_split,
-                    b=b_split,
+                    a_var=a_split,
+                    b_var=b_split,
                     dtype=dtype,
                     size_factors=size_factors
                 )

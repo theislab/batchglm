@@ -318,8 +318,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     gradients=[
                         (
                             tf.concat([
-                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.a)[0],
-                                tf.zeros_like(model_vars.b),
+                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.a_var)[0],
+                                tf.zeros_like(model_vars.b_var),
                             ], axis=0),
                             model_vars.params
                         ),
@@ -332,8 +332,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     gradients=[
                         (
                             tf.concat([
-                                tf.zeros_like(model_vars.a),
-                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.b)[0],
+                                tf.zeros_like(model_vars.a_var),
+                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.b_var)[0],
                             ], axis=0),
                             model_vars.params
                         ),
@@ -361,8 +361,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     gradients=[
                         (
                             tf.concat([
-                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.a)[0],
-                                tf.zeros_like(model_vars.b),
+                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.a_var)[0],
+                                tf.zeros_like(model_vars.b_var),
                             ], axis=0),
                             model_vars.params
                         ),
@@ -375,8 +375,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     gradients=[
                         (
                             tf.concat([
-                                tf.zeros_like(model_vars.a),
-                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.b)[0],
+                                tf.zeros_like(model_vars.a_var),
+                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.b_var)[0],
                             ], axis=0),
                             model_vars.params
                         ),
@@ -603,6 +603,15 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "optim_algo": "newton",
             },
         ]
+        NEWTON = [
+            {
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "newton",
+            },
+        ]
         QUICK = [
             {
                 "learning_rate": 0.5,
@@ -622,11 +631,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "optim_algo": "newton",
             },
         ]
-        CONSTRAINED = [  # Should not contain newton-rhapson right now.
+        CONSTRAINED = [  # No closed form hessian for newton-rhapson yet.
             {
                 "learning_rate": 0.5,
                 "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
+                "stopping_criteria": 1e-8,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",

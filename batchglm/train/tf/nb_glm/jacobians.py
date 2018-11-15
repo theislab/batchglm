@@ -260,8 +260,8 @@ class Jacobians:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=a_split,
-                b=b_split,
+                a_var=a_split,
+                b_var=b_split,
                 dtype=dtype,
                 size_factors=size_factors
             )
@@ -353,8 +353,8 @@ class Jacobians:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=a_split,
-                b=b_split,
+                a_var=a_split,
+                b_var=b_split,
                 dtype=dtype,
                 size_factors=size_factors
             )

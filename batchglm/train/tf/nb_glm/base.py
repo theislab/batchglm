@@ -123,6 +123,8 @@ def apply_constraints(
     if var_all is None:
         x = var_indep
     elif var_indep is None:
+        print(idx_indep)
+        print(var_all.shape)
         x = tf.gather(params=var_all, indices=idx_indep, axis=0)
     else:
         raise ValueError("only give var_all or var_indep to apply_constraints.")
@@ -155,23 +157,36 @@ class BasicModelGraph:
             design_scale,
             constraints_loc,
             constraints_scale,
-            a,
-            b,
             dtype,
+            a=None,
+            b=None,
+            a_var=None,
+            b_var=None,
             size_factors=None
     ):
-        dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
-                                               r=tf.exp(tf.gather(b, 0)),
-                                               name="dist_estim")
+        assert a is not None or a_var is not None
+        assert b is not None or b_var is not None
 
         # Define first layer of computation graph on identifiable variables
         # to yield dependent set of parameters of model for each location
         # and scale model.
-        if constraints_loc is not None:
-            a = apply_constraints(constraints=constraints_loc, var_all=a, dtype=dtype)
+        if a is None:
+            assert a_var is not None
+            if constraints_loc is not None:
+                a = apply_constraints(constraints=constraints_loc, var_indep=a_var, dtype=dtype)
+            else:
+                a = a_var
 
-        if constraints_scale is not None:
-            b = apply_constraints(constraints=constraints_scale, var_all=b, dtype=dtype)
+        if b is None:
+            assert b_var is not None
+            if constraints_scale is not None:
+                b = apply_constraints(constraints=constraints_scale, var_indep=b_var, dtype=dtype)
+            else:
+                b = b_var
+
+        dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
+                                               r=tf.exp(tf.gather(b, 0)),
+                                               name="dist_estim")
 
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
@@ -332,4 +347,8 @@ class ModelVars:
             self.b = b_clipped
             self.a_var = a_var
             self.b_var = b_var
+            # Need clipped raw variable for application of parameter updates during
+            # training:
+            self.a_var_clipped = tf_clip_param(a_var, "a")
+            self.b_var_clipped = tf_clip_param(b_var, "b")
             self.params = params
