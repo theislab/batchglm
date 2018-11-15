@@ -221,9 +221,9 @@ class Hessians:
             Whether an iterator or a tensor (single yield of an iterator) is given
             in
         """
-        if constraints_loc != None and mode != "tf":
+        if constraints_loc is not None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_loc is not None")
-        if constraints_scale != None and mode != "tf":
+        if constraints_scale is not None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_scale is not None")
 
         if mode == "obs":

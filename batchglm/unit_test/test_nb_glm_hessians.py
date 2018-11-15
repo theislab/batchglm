@@ -53,6 +53,7 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
         input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
+        print(input_data)
 
         pkg_constants.HESSIAN_MODE = "obs_batched"
         self.estimator_ob = estimate(input_data)

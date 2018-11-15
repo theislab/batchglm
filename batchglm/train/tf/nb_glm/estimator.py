@@ -260,7 +260,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     model_vars=model_vars,
-                    mode="analytic",
+                    mode=pkg_constants.JACOBIAN_MODE,  #"analytic",
                     iterator=False,
                     dtype=dtype
                 )
@@ -273,7 +273,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     model_vars=model_vars,
-                    mode="obs_batched",
+                    mode=pkg_constants.HESSIAN_MODE,  #"obs_batched",
                     iterator=False,
                     dtype=dtype
                 )
@@ -630,6 +630,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "newton",
+            },
+        ]
+        CONSTRAINED = [  # Should not contain newton-rhapson right now.
+            {
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "ADAM",
             },
         ]
         CONTINUOUS = [

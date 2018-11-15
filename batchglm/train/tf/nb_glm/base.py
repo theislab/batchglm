@@ -77,9 +77,15 @@ def np_clip_param(param, name):
     )
 
 
-def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
+def apply_constraints(
+        constraints: np.ndarray,
+        dtype: str,
+        var_all: tf.Variable = None,
+        var_indep: tf.Tensor = None
+):
     """ Iteratively build depend variables from other variables via constraints
 
+    :type var_all: object
     :param constraints: Array with constraints in rows and model parameters in columns.
         Each constraint contains non-zero entries for the a of parameters that
         has to sum to zero. This constraint is enforced by binding one parameter
@@ -88,16 +94,21 @@ def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
         parameter is indicated by a -1 in this array, the independent parameters
         of that constraint (which may be dependent at an earlier constraint)
         are indicated by a 1.
-    :param var: Variable tensor features x independent parameters.
+    :param var_all: Variable tensor features x independent parameters.
+        All model parameters.
+    :param var_all: Variable tensor features x independent parameters.
+        Only independent model parameters, ie. not parameters defined by constraints.
     :param dtype: Precision used in tensorflow.
 
     :return: Full model parameter matrix with dependent parameters.
     """
 
     # Find all independent variables:
-    idx_indep = np.where(np.all(constraints == -1, axis=0))[0]
+    idx_indep = np.where(np.all(constraints != -1, axis=0))[0]
+    idx_indep.astype(dtype=np.int64)
     # Relate constraints to dependent variables:
     idx_dep = np.array([np.where(constr == -1)[0] for constr in constraints])
+    idx_dep.astype(dtype=np.int64)
     # Only choose dependent variable which was not already defined above:
     idx_dep = np.concatenate([
         x[[xx not in np.concatenate(idx_dep[:i]) for xx in x]] if i > 0 else x
@@ -109,7 +120,13 @@ def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):
     # tensor is initialised with the independent variables var
     # and is grown by one varibale in each iteration until
     # all variables are there.
-    x = var
+    if var_all is None:
+        x = var_indep
+    elif var_indep is None:
+        x = tf.gather(params=var_all, indices=idx_indep, axis=0)
+    else:
+        raise ValueError("only give var_all or var_indep to apply_constraints.")
+
     for i in range(constraints.shape[0]):
         idx_var_i = np.concatenate([idx_indep, idx_dep[:i]])
         constraint_model = constraints[[i], :][:, idx_var_i]
@@ -150,12 +167,11 @@ class BasicModelGraph:
         # Define first layer of computation graph on identifiable variables
         # to yield dependent set of parameters of model for each location
         # and scale model.
-
         if constraints_loc is not None:
-            a = apply_constraints(constraints_loc, a, dtype=dtype)
+            a = apply_constraints(constraints=constraints_loc, var_all=a, dtype=dtype)
 
         if constraints_scale is not None:
-            b = apply_constraints(constraints_scale, b, dtype=dtype)
+            b = apply_constraints(constraints=constraints_scale, var_all=b, dtype=dtype)
 
         with tf.name_scope("mu"):
             log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
@@ -299,14 +315,13 @@ class ModelVars:
             # Define first layer of computation graph on identifiable variables
             # to yield dependent set of parameters of model for each location
             # and scale model.
-
             if constraints_loc is not None:
-                a = apply_constraints(constraints_loc, a_var, dtype=dtype)
+                a = apply_constraints(constraints=constraints_loc, var_indep=a_var, dtype=dtype)
             else:
                 a = a_var
 
             if constraints_scale is not None:
-                b = apply_constraints(constraints_scale, b_var, dtype=dtype)
+                b = apply_constraints(constraints=constraints_scale, var_indep=b_var, dtype=dtype)
             else:
                 b = b_var
 

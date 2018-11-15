@@ -159,9 +159,9 @@ class Jacobians:
             in
         """
         if constraints_loc is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_loc is not None")
+            raise ValueError("closed form jacobians do not work if constraints_loc is not None")
         if constraints_scale is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_scale is not None")
+            raise ValueError("closed form jacobians do not work if constraints_scale is not None")
 
         if mode == "analytic":
             self.jac = self.analytic(
