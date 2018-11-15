@@ -865,8 +865,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         Xdiff = X - np.exp(input_data.design_loc.dot(init_a_xr))
                         variance = np.square(Xdiff).groupby("group").mean(dim="observations")
 
-                        if groupwise_means is None:
-                            groupwise_means = X.groupby("group").mean(dim="observations")
+                        groupwise_means = X.groupby("group").mean(dim="observations")
                         denominator = np.fmax(variance - groupwise_means, 0)
                         denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
                                                    dtype=denominator.dtype)
