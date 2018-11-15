@@ -502,8 +502,8 @@ class Hessians:
             return tf.add(prev, cur)
 
         params = model_vars.params
-        p_shape_a = model_vars.a.shape[0]
-        p_shape_b = model_vars.b.shape[0]
+        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
         if iterator:
             H = op_utils.map_reduce(
@@ -671,8 +671,8 @@ class Hessians:
             return [tf.add(p, c) for p, c in zip(prev, cur)]
 
         params = model_vars.params
-        p_shape_a = model_vars.a.shape[0]
-        p_shape_b = model_vars.b.shape[0]
+        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
         if iterator:
             H = op_utils.map_reduce(
@@ -797,8 +797,8 @@ class Hessians:
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
                 params=model_vars.params,
-                p_shape_a=model_vars.a.shape[0],
-                p_shape_b=model_vars.b.shape[0],
+                p_shape_a=model_vars.a_var.shape[0],  # This has to be _var to work with constraints.
+                p_shape_b=model_vars.b_var.shape[0],  # This has to be _var to work with constraints.
                 dtype=dtype,
                 size_factors=size_factors
             )
