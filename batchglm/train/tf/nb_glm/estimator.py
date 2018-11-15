@@ -75,18 +75,9 @@ class FullDataModelGraph:
         with tf.name_scope("loss"):
             loss = tf.reduce_sum(norm_neg_log_likelihood)
 
-        # TODO: remove this and decide for one implementation
-        if pkg_constants.HESSIAN_MODE == "obs":
-            # Only need iterator that yields single observations for hessian mode obs:
-            singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            singleobs_data = singleobs_data.prefetch(1)
-        else:
-            singleobs_data = None
-
         with tf.name_scope("hessians"):
             hessians = Hessians(
                 batched_data=batched_data,
-                singleobs_data=singleobs_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
@@ -268,7 +259,6 @@ class EstimatorGraph(TFEstimatorGraph):
                 # Define the hessian on the batched model for newton-rhapson:
                 batch_hessians = Hessians(
                     batched_data=batch_data,
-                    singleobs_data=None,
                     sample_indices=batch_sample_index,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
