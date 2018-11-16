@@ -173,6 +173,16 @@ class InputData(NB_GLM_InputData):
                 data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
             )
 
+            if isinstance(data, pd.DataFrame):
+                self.data.coords["mixtures"] = xr.DataArray(
+                    dims=("mixtures",),
+                    data=np.asarray(data.columns)
+                )
+                self.data.coords["mixture_group"] = xr.DataArray(
+                    dims=("observations",),
+                    data=np.asarray(data.index)
+                )
+
     @property
     def num_mixtures(self):
         return self.data.dims["mixtures"]
