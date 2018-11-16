@@ -66,8 +66,8 @@ def param_bounds(dtype):
         "mixture_prob": dtype(1),
         "mixture_log_prob": dtype(0),
         "mixture_logits": dtype(0),
-        "mixture_weight_priors": dtype(1),
-        "mixture_weight_log_priors": dtype(0),
+        "mixture_weight_priors": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        "mixture_weight_log_priors": np.log(np.nextafter(np.inf, -np.inf, dtype=dtype)) / sf,
 
     }
     return bounds_min, bounds_max
@@ -103,7 +103,6 @@ class MixtureModel:
     def __init__(
             self,
             logits,
-            log_priors=None,
             axis=0,
             name="mixture_prob"
     ):
@@ -120,10 +119,6 @@ class MixtureModel:
 
             prob = tf.nn.softmax(logits, axis=axis, name="prob")
             log_prob = tf.nn.log_softmax(logits, axis=axis, name="log_prob")
-
-            if log_priors is not None:
-                log_prob = log_prob + log_priors
-                prob = prob * tf.exp(log_priors)
 
             self.prob = prob
             self.log_prob = log_prob
@@ -146,7 +141,7 @@ class BasicModelGraph:
             mixture_weight_log_priors=None,  # (mixtures, observations)
             size_factors=None,
     ):
-        mixture_model = MixtureModel(logits=mixture_logits, log_priors=mixture_weight_log_priors, axis=-1)
+        mixture_model = MixtureModel(logits=mixture_logits, axis=-1)
         log_mixture_weights = mixture_model.log_prob
         mixture_weights = mixture_model.prob
 
@@ -216,6 +211,10 @@ class BasicModelGraph:
         with tf.name_scope("log_probs"):
             log_probs = dist_obs.log_prob(tf.expand_dims(X, 0), name="log_count_probs")
             log_probs = tf_clip_param(log_probs, "log_probs")
+
+            # add mixture weight priors if specified
+            if mixture_weight_log_priors is not None:
+                log_probs = log_probs + tf.expand_dims(tf.transpose(mixture_weight_log_priors), -1)
 
         # calculate joint probability of mixture distributions
         with tf.name_scope("joint_log_probs"):
@@ -411,16 +410,13 @@ class ModelVars:
             self.mixture_logits_var = mixture_logits
 
             if mixture_weight_priors is not None:
+                mixture_weight_priors = np.asarray(mixture_weight_priors, dtype=dtype.as_numpy_dtype)
                 with tf.name_scope("mixture_weight_priors"):
                     mixture_weight_priors = tf.identity(
                         mixture_weight_priors,
+                        name="mixture_weight_priors"
                     )
-                    mixture_weight_priors = tf.div(
-                        mixture_weight_priors,
-                        tf.reduce_sum(mixture_weight_priors, axis=-1, keepdims=True)
-                    )
-
-                    mixture_weight_priors = tf_clip_param(mixture_weight_priors, "a")
+                    mixture_weight_priors = tf_clip_param(mixture_weight_priors, "mixture_weight_priors")
 
                 mixture_weight_log_priors = tf.log(mixture_weight_priors, name="mixture_weight_log_priors")
             else:

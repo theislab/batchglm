@@ -183,10 +183,26 @@ class FullDataModelGraph:
             self.norm_grads_EM_with_grads = norm_grads_EM_with_grads
 
 
-def _normalize_mixture_weights(weights):
-    weights -= np.min(weights, axis=-1, keepdims=True)
-    weights /= np.sum(weights, axis=-1, keepdims=True)
-    weights = np_clip_param(weights, "mixture_prob")
+def _normalize_mixture_weights(weights, shift_to_zero=False):
+    """
+    Normalize mixture weights to (0, 1):
+    $\forall k \in K: w_k = w_k / \sum_x^K w_x$
+    Additionally clips `w` to the range ]0, inf[
+
+    :param weights: the mixture weights with shape (observations, mixtures)
+    :param shift_to_zero: If True, substracts $w = w - min_k(w)$ to make the smallest value to be zero.
+    :return: normalized weights
+    """
+    if shift_to_zero:
+        if isinstance(weights, xr.DataArray):
+            weights -= np.min(weights, axis=-1)
+        else:
+            weights -= np.min(weights, axis=-1, keepdims=True)
+    weights = np_clip_param(weights, "mixture_weight_priors")
+    if isinstance(weights, xr.DataArray):
+        weights /= np.sum(weights, axis=-1)
+    else:
+        weights /= np.sum(weights, axis=-1, keepdims=True)
     return weights
 
 
@@ -219,7 +235,7 @@ class EstimatorGraph(TFEstimatorGraph):
             init_a=None,
             init_b=None,
             init_mixture_weights=None,
-            mixture_weight_log_priors=None,
+            mixture_weight_priors=None,
             summary_mixture_image=False,
             extended_summary=False,
             dtype="float32"
@@ -275,7 +291,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 design_mixture_loc=design_mixture_loc,
                 design_mixture_scale=design_mixture_scale,
                 init_mixture_weights=init_mixture_weights,
-                mixture_weight_priors=mixture_weight_log_priors,
+                mixture_weight_priors=mixture_weight_priors,
                 init_a=init_a,
                 init_b=init_b,
             )
@@ -305,7 +321,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     axis=0,
                     name="batch_mixture_logits"
                 )
-                batch_mixture_weight_priors = tf.gather(
+                batch_mixture_weight_log_priors = tf.gather(
                     model_vars.mixture_weight_log_priors,
                     indices=batch_sample_index,
                     axis=0,
@@ -327,7 +343,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     a=model_vars.a,
                     b=model_vars.b,
                     mixture_logits=batch_mixture_logits,
-                    mixture_weight_log_priors=batch_mixture_weight_priors,
+                    mixture_weight_log_priors=batch_mixture_weight_log_priors,
                     size_factors=batch_size_factors
                 )
                 batch_mixture_EM_update = tf.scatter_update(
@@ -679,6 +695,32 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             init_par_link_loc = None
             logger.debug(" * Initialize mean model")
+
+            logger.debug(" * Normalizing weights")
+            init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
+            # add random uniform error to mixture probabilities with bounds [-random_factor, factor]
+            if random_factor > 0:
+                logger.debug(" * Applying random uniform error of +/- %s", random_factor)
+                init_mixture_weights += np.random.uniform(
+                    low=-random_factor,
+                    high=random_factor,
+                    size=init_mixture_weights.shape
+                )
+                init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
+
+            if input_data.mixture_weight_priors is not None:
+                # calculate joint weights:
+                # ```
+                #   joint_weights = (
+                #       norm_mixture_weights * norm_priors / sum_mixtures(norm_mixture_weights * norm_priors)
+                #   )
+                # ```
+                normalized_priors = _normalize_mixture_weights(input_data.mixture_weight_priors.astype(float))
+                joint_weights = _normalize_mixture_weights(init_mixture_weights * normalized_priors)
+            else:
+                joint_weights = init_mixture_weights
+            logger.debug("joint weights: %s", joint_weights)
+
             if isinstance(init_a, str):
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
@@ -690,7 +732,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # - concat them to a 3D (mixtures, design_params, features) matrix
                         init_par_link_loc = list()
                         for i in range(input_data.num_mixtures):
-                            weight = init_mixture_weights[:, i]
+                            weight = joint_weights[:, i]
                             groupwise_means, mixture_par_link_loc, rmsd_loc = nb_glm_utils.closedform_nb_glm_logmu(
                                 X=input_data.X,
                                 design_loc=input_data.design_loc,
@@ -757,7 +799,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         # - concat them to a 3D (mixtures, design_params, features) matrix
                         init_par_link_scale = list()
                         for i in range(input_data.num_mixtures):
-                            weight = init_mixture_weights[:, i]
+                            weight = joint_weights[:, i]
                             (
                                 groupwise_scales,
                                 mixture_par_link_scale,
@@ -866,18 +908,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             elif init_b is not None:
                 init_b = np.asarray(init_b).astype(dtype)
 
-            logger.debug(" * Normalizing weights")
-            init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
-            # add random uniform error to mixture probabilities with bounds [-random_factor, factor]
-            if random_factor > 0:
-                logger.debug(" * Applying random uniform error of +/- %s", random_factor)
-                init_mixture_weights += np.random.uniform(
-                    low=-random_factor,
-                    high=random_factor,
-                    size=init_mixture_weights.shape
-                )
-                init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
-
             logger.debug(" * Start creating model")
             with graph.as_default():
                 # create model
@@ -893,7 +923,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     num_design_mixture_scale_params=input_data.num_design_mixture_scale_params,
                     design_mixture_loc=input_data.design_mixture_loc,
                     design_mixture_scale=input_data.design_mixture_scale,
-                    mixture_weight_log_priors=input_data.mixture_weight_priors,
+                    mixture_weight_priors=input_data.mixture_weight_priors,
                     graph=graph,
                     batch_size=batch_size,
                     init_a=init_a,

@@ -12,7 +12,7 @@ from batchglm.utils.numeric import combine_matrices
 def _mdesc_setup(
         sample_description: Union[np.ndarray, pd.DataFrame],
         formula,
-        groups: Union[str, np.ndarray],
+        num_mixtures: int,
         differing_factors: Union[Tuple[str], List[str]] = ("Intercept",),
         dim_names: Tuple[str, str] = ("design_params", "mixtures", "design_mixture_params")
 ):
@@ -29,7 +29,6 @@ def _mdesc_setup(
     #
     # groups, _ = np.unique(mixture_grouping.astype(str), return_inverse=True)
 
-    num_mixtures = np.size(groups)
     # num_observations = len(sample_description)
     # num_design_params = len(dmat.design_info.column_names)
 
@@ -46,12 +45,94 @@ def _mdesc_setup(
     return dmat, design_tensor
 
 
+def mixture_prior_setup(
+        mixture_grouping: Union[List, np.ndarray],
+        mixture_model_desc: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Creates a mixture prior
+
+    :param mixture_grouping: vector of length `num_observations` denoting the group of an observation.
+    :param mixture_model_desc: Pandas DataFrame of shape `(num_groups, mixtures)` containing booleans.
+
+        This table describes the structure of the mixture model:
+        It allows to specify, which of the observations are allowed to be assigned to which mixture.
+        Example:
+
+        ..
+            ```python3
+            pd.DataFrame({
+                "m_norm":  [1, 1, 1],
+                "m_tr1.1": [0, 1, 0],
+                "m_tr1.2": [0, 1, 0],
+                "m_tr2.1": [0, 0, 1],
+                "m_tr2.2": [0, 0, 1],
+            }, index = ["norm", "tr1", "tr2"])
+            ```
+
+                  m_norm  m_tr1.1  m_tr1.2  m_tr2.1  m_tr2.2
+            norm       1        0        0        0        0
+            tr1        1        1        1        0        0
+            tr2        1        0        0        1        1
+
+        In this example, all normal samples are only allowed to occur in the mixture `m_norm`.
+        All `tr1` samples can occur in the mixtures `m_norm`, `m_tr1.1` and `m_tr1.2`.
+        All `tr2` samples can occur in the mixtures `m_norm`, `m_tr2.1` and `m_tr2.2`.
+    :return: Pandas Dataframe of shape `(num_observations, num_mixtures)`
+    """
+    mixture_grouping = np.asarray(mixture_grouping)
+
+    # num_mixtures = pin_mixtures
+    # if pin_mixtures is not None:
+    #     pin_mixtures = np.asarray(pin_mixtures)
+    #     if np.issubdtype(pin_mixtures.dtype, np.integer):
+    #         pinned_assignments = pin_mixtures
+    #     else:
+    #         if np.size(pin_mixtures) == 1:
+    #             pin_mixtures = {pin_mixtures.flatten()[0]}
+    #         else:
+    #             pin_mixtures = set(pin_mixtures.astype(str))
+    #         pinned_assignments = np.where(np.vectorize(lambda x: x in pin_mixtures)(mixture_grouping))
+    #
+    #     pin_mask = np.zeros([num_observations, num_mixtures])
+    #     pin_mask[pinned_assignments] = 1
+    #     pin_mask = pin_mask.astype(bool)
+    #
+    #     mixture_weight_priors = np.where(pin_mask, init_mixture_weights, np.ones_like(init_mixture_weights))
+    # else:
+    #     mixture_weight_priors = None
+
+    if np.issubdtype(mixture_grouping.dtype, np.integer):
+        return mixture_model_desc.iloc[mixture_grouping]
+    else:
+        return mixture_model_desc.loc[mixture_grouping]
+
+
+# def mixture_weight_init(
+#         mixture_priors: pd.DataFrame,
+#         initial_mixture_assignments: pd.Series
+# ):
+#     """
+#     Creates an array of initial mixture weights
+#
+#     :param mixture_priors: Pandas Dataframe of mixture priors. See also :func:mixture_prior_setup
+#     :param initial_mixture_assignments: Pandas Series of length
+#     :return: numpy array `(num_observations, num_mixtures)`
+#     """
+#     bcast_init_assignments = initial_mixture_assignments.loc[mixture_priors.index]
+#
+#     initial_mixture_weights = np.zeros(mixture_priors.shape)
+#     initial_mixture_weights[range(len(mixture_priors)), bcast_init_assignments] = 1
+#
+#     return initial_mixture_weights
+
+
 def mixture_model_setup(
         sample_description: Union[np.ndarray, pd.DataFrame],
         formula_loc,
         formula_scale,
-        mixture_grouping: Union[str, np.ndarray],
-        pin_mixtures: Union[Iterable[str], Iterable[int], None] = None,
+        mixture_model_desc: pd.DataFrame,
+        mixture_grouping: Union[str, Iterable],
         differing_factors_loc: Union[Tuple[str], List[str]] = ("Intercept",),
         differing_factors_scale: Union[Tuple[str], List[str]] = ("Intercept",),
         dim_names_loc: Tuple[str, str] = ("design_loc_params", "mixtures", "design_mixture_loc_params"),
@@ -61,26 +142,42 @@ def mixture_model_setup(
     xr.DataArray,
     patsy.highlevel.DesignMatrix,
     xr.DataArray,
-    np.ndarray,
-    np.ndarray
+    pd.DataFrame
 ]:
     r"""
-    Build a mixture description.
+    Set up a mixture model.
 
     :param sample_description: Some sample description which can be used to build a design matrix
     :param formula_loc: Formula to set up a model design for location
     :param formula_scale: Formula to set up a model design for scale
+    :param mixture_model_desc: Pandas DataFrame of shape `(num_groups, mixtures)` containing booleans.
+
+        This table describes the structure of the mixture model:
+        It allows to specify, which of the observations are allowed to be assigned to which mixture.
+        Example:
+
+        ..
+            ```python3
+            pd.DataFrame({
+                "m_norm":  [1, 1, 1],
+                "m_tr1.1": [0, 1, 0],
+                "m_tr1.2": [0, 1, 0],
+                "m_tr2.1": [0, 0, 1],
+                "m_tr2.2": [0, 0, 1],
+            }, index = ["norm", "tr1", "tr2"])
+            ```
+
+                  m_norm  m_tr1.1  m_tr1.2  m_tr2.1  m_tr2.2
+            norm       1        0        0        0        0
+            tr1        1        1        1        0        0
+            tr2        1        0        0        1        1
+
+        In this example, all normal samples are only allowed to occur in the mixture `m_norm`.
+        All `tr1` samples can occur in the mixtures `m_norm`, `m_tr1.1` and `m_tr1.2`.
+        All `tr2` samples can occur in the mixtures `m_norm`, `m_tr2.1` and `m_tr2.2`.
     :param mixture_grouping: either string pointing to one column in `sample_description` or a list of assignments.
 
-        Describes some (assumed) mixture assignment.
-        The number of mixtures is derived from the number of unique elements in this grouping.
-    :param pin_mixtures:
-        Allows to specify, which of the observations should be assigned permanently to the initial mixture,
-        i.e. are not allowed to change.
-
-        Can be either:
-            - Iterable of strings: Will fix the assignments where `mixture_grouping == anyof(pin_mixtures)`
-            - Iterable of ints: Will fix the assignments at `observations[pin_mixtures]`
+        Describes which observations correspond to which group (i.e. row) in `mixture_model_desc`
     :param differing_factors_loc: Terms of the location formula which are allowed to differ across mixtures
     :param differing_factors_scale: Terms of the scale formula which are allowed to differ across mixtures
     :param dim_names_loc: dimension names; defaults to ("mixtures", "design_params").
@@ -91,59 +188,58 @@ def mixture_model_setup(
             - location mixture design
             - design_scale matrix
             - scale mixture design
-            - initial mixture weights
             - mixture weight priors (`None` if `pin_mixtures` is not specified`)
     """
+    num_mixtures = mixture_model_desc.shape[1]
+    # num_observations = len(sample_description)
 
     if isinstance(mixture_grouping, str):
         mixture_grouping = sample_description[mixture_grouping]
-    mixture_grouping = mixture_grouping.astype(str)
-
-    groups, init_mixture_assignment = np.unique(mixture_grouping, return_inverse=True)
 
     dmat_loc, design_tensor_loc = _mdesc_setup(
         sample_description=sample_description,
         formula=formula_loc,
-        groups=groups,
+        num_mixtures=num_mixtures,
         differing_factors=differing_factors_loc,
         dim_names=dim_names_loc
     )
     dmat_scale, design_tensor_scale = _mdesc_setup(
         sample_description=sample_description,
         formula=formula_scale,
-        groups=groups,
+        num_mixtures=num_mixtures,
         differing_factors=differing_factors_scale,
         dim_names=dim_names_scale
     )
 
-    num_mixtures = np.size(groups)
-    num_observations = len(sample_description)
     # num_design_params = len(dmat.design_info.column_names)
+    mixture_weight_priors = mixture_prior_setup(
+        mixture_grouping=mixture_grouping,
+        mixture_model_desc=mixture_model_desc
+    )
+    # # build init_mixture_weights matrix
+    # init_mixture_weights = np.zeros(shape=[num_observations, num_mixtures])
+    # init_mixture_weights[np.arange(num_observations), init_mixture_assignment] = 1
+    #
+    # if pin_mixtures is not None:
+    #     pin_mixtures = np.asarray(pin_mixtures)
+    #     if np.issubdtype(pin_mixtures.dtype, np.integer):
+    #         pinned_assignments = pin_mixtures
+    #     else:
+    #         if np.size(pin_mixtures) == 1:
+    #             pin_mixtures = {pin_mixtures.flatten()[0]}
+    #         else:
+    #             pin_mixtures = set(pin_mixtures.astype(str))
+    #         pinned_assignments = np.where(np.vectorize(lambda x: x in pin_mixtures)(mixture_grouping))
+    #
+    #     pin_mask = np.zeros([num_observations, num_mixtures])
+    #     pin_mask[pinned_assignments] = 1
+    #     pin_mask = pin_mask.astype(bool)
+    #
+    #     mixture_weight_priors = np.where(pin_mask, init_mixture_weights, np.ones_like(init_mixture_weights))
+    # else:
+    #     mixture_weight_priors = None
 
-    # build init_mixture_weights matrix
-    init_mixture_weights = np.zeros(shape=[num_observations, num_mixtures])
-    init_mixture_weights[np.arange(num_observations), init_mixture_assignment] = 1
-
-    if pin_mixtures is not None:
-        pin_mixtures = np.asarray(pin_mixtures)
-        if np.issubdtype(pin_mixtures.dtype, np.integer):
-            pinned_assignments = pin_mixtures
-        else:
-            if np.size(pin_mixtures) == 1:
-                pin_mixtures = {pin_mixtures.flatten()[0]}
-            else:
-                pin_mixtures = set(pin_mixtures.astype(str))
-            pinned_assignments = np.where(np.vectorize(lambda x: x in pin_mixtures)(mixture_grouping))
-
-        pin_mask = np.zeros([num_observations, num_mixtures])
-        pin_mask[pinned_assignments] = 1
-        pin_mask = pin_mask.astype(bool)
-
-        mixture_weight_priors = np.where(pin_mask, init_mixture_weights, np.ones_like(init_mixture_weights))
-    else:
-        mixture_weight_priors = None
-
-    return dmat_loc, design_tensor_loc, dmat_scale, design_tensor_scale, init_mixture_weights, mixture_weight_priors
+    return dmat_loc, design_tensor_loc, dmat_scale, design_tensor_scale, mixture_weight_priors
 
 
 def design_tensor_from_mixture_description(

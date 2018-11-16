@@ -329,6 +329,8 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         self.params["mixture_assignment"] = mixture_assignment
         self.params["mixture_log_prob"] = mixture_log_prob
 
+        self.data["mixture_weight_priors"] = None
+
         # generate treatment names
         treatment = initial_mixture_assignment
         treatment_names = ["normal"]
@@ -395,6 +397,10 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
     @property
     def mixture_log_prob(self):
         return self.params["mixture_log_prob"]
+
+    @property
+    def mixture_weight_priors(self):
+        return self.data["mixture_weight_priors"]
 
     @property
     def initial_mixture_weights(self):
