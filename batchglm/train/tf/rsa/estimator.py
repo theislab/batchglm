@@ -39,8 +39,21 @@ class FullDataModelGraph:
         batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         batched_data = batched_data.prefetch(1)
 
+
+
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
+
+            if model_vars.mixture_weight_log_priors is not None:
+                batch_mixture_weight_log_priors = tf.gather(
+                    model_vars.mixture_weight_log_priors,
+                    indices=idx,
+                    axis=0,
+                    name="batch_mixture_logits"
+                )
+            else:
+                batch_mixture_weight_log_priors = None
+
             model = BasicModelGraph(
                 X=X,
                 design_loc=design_loc,
@@ -50,7 +63,7 @@ class FullDataModelGraph:
                 a=model_vars.a,
                 b=model_vars.b,
                 mixture_logits=tf.gather(model_vars.mixture_logits, idx, axis=0),
-                mixture_weight_log_priors=tf.gather(model_vars.mixture_weight_log_priors, idx, axis=0),
+                mixture_weight_log_priors=batch_mixture_weight_log_priors,
                 size_factors=size_factors,
             )
             return model
@@ -305,7 +318,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 data_indices = tf.data.Dataset.from_tensor_slices((
                     tf.range(num_observations, name="sample_index")
                 ))
-                training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
+                training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=num_observations))
                 training_data = training_data.batch(batch_size, drop_remainder=True)  # sort indices
                 training_data = training_data.map(tf.contrib.framework.sort)
                 training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
@@ -321,12 +334,16 @@ class EstimatorGraph(TFEstimatorGraph):
                     axis=0,
                     name="batch_mixture_logits"
                 )
-                batch_mixture_weight_log_priors = tf.gather(
-                    model_vars.mixture_weight_log_priors,
-                    indices=batch_sample_index,
-                    axis=0,
-                    name="batch_mixture_logits"
-                )
+                if model_vars.mixture_weight_log_priors is not None:
+                    batch_mixture_weight_log_priors = tf.gather(
+                        model_vars.mixture_weight_log_priors,
+                        indices=batch_sample_index,
+                        axis=0,
+                        name="batch_mixture_logits"
+                    )
+                else:
+                    batch_mixture_weight_log_priors = None
+
                 # batch_mixture_logits = model_vars.mixture_logits[batch_sample_index, :]
 
             with tf.name_scope("batch"):
@@ -513,6 +530,8 @@ class EstimatorGraph(TFEstimatorGraph):
             self.mixture_logit_prob = mixture_model.logit_prob
             self.mixture_assignment = mixture_model.mixture_assignment
 
+            self.batch_sample_index = batch_sample_index
+            self.batch_data = batch_data
             self.batch_probs = batch_model.probs
             self.batch_log_probs = batch_model.log_probs
             self.batch_log_likelihood = batch_model.norm_log_likelihood
