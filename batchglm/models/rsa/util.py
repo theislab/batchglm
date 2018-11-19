@@ -187,9 +187,9 @@ def mixture_model_setup(
     # create initial mixture weights
     if init_mixture_assignments is not None:
         if np.issubdtype(mixture_grouping.dtype, np.integer):
-            init_mixture_weights = mixture_model_desc.iloc[mixture_grouping]
+            init_mixture_weights = init_mixture_assignments.iloc[mixture_grouping]
         else:
-            init_mixture_weights = mixture_model_desc.loc[mixture_grouping]
+            init_mixture_weights = init_mixture_assignments.loc[mixture_grouping]
     else:
         init_mixture_weights = mixture_weight_priors
 
