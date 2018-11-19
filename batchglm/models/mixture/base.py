@@ -29,5 +29,5 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def mixture_weight_priors(self):
+    def mixture_weight_constraints(self):
         pass

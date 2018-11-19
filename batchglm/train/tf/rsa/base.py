@@ -47,12 +47,13 @@ def param_bounds(dtype):
         # "probs": dtype(0),
         "probs": np.nextafter(0, np.inf, dtype=dtype),
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        # "mixture_prob": dtype(0),
         "mixture_prob": np.nextafter(0, np.inf, dtype=dtype),
         "mixture_log_prob": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         "mixture_logits": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        "mixture_weight_priors": np.nextafter(0, np.inf, dtype=dtype),
-        "mixture_weight_log_priors": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        # "mixture_weight_constraints": np.nextafter(0, np.inf, dtype=dtype),
+        "mixture_weight_constraints": dtype(0),
+        # "mixture_weight_log_constraints": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        "mixture_weight_log_constraints": -np.sqrt(dmax),
     }
     bounds_max = {
         "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
@@ -66,8 +67,8 @@ def param_bounds(dtype):
         "mixture_prob": dtype(1),
         "mixture_log_prob": dtype(0),
         "mixture_logits": dtype(0),
-        "mixture_weight_priors": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-        "mixture_weight_log_priors": np.log(np.nextafter(np.inf, -np.inf, dtype=dtype)) / sf,
+        "mixture_weight_constraints": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        "mixture_weight_log_constraints": np.log(np.nextafter(np.inf, -np.inf, dtype=dtype)) / sf,
 
     }
     return bounds_min, bounds_max
@@ -138,7 +139,7 @@ class BasicModelGraph:
             a,  # (design_loc_params, design_mixture_loc_params, features)
             b,  # (design_scale_params, design_mixture_scale_params, features)
             mixture_logits,  # (mixtures, observations)
-            mixture_weight_log_priors=None,  # (mixtures, observations)
+            mixture_weight_log_constraints=None,  # (mixtures, observations)
             size_factors=None,
     ):
         mixture_model = MixtureModel(logits=mixture_logits, axis=-1)
@@ -212,9 +213,9 @@ class BasicModelGraph:
             log_probs = dist_obs.log_prob(tf.expand_dims(X, 0), name="log_count_probs")
             log_probs = tf_clip_param(log_probs, "log_probs")
 
-            # add mixture weight priors if specified
-            if mixture_weight_log_priors is not None:
-                log_probs = log_probs + tf.expand_dims(tf.transpose(mixture_weight_log_priors), -1)
+            # add mixture weight constraints if specified
+            if mixture_weight_log_constraints is not None:
+                log_probs = log_probs + tf.expand_dims(tf.transpose(mixture_weight_log_constraints), -1)
 
         # calculate joint probability of mixture distributions
         with tf.name_scope("joint_log_probs"):
@@ -236,8 +237,8 @@ class BasicModelGraph:
 
         with tf.name_scope("estimated_mixture_log_prob"):
             expected_mixture_logits = tf.reduce_sum(log_probs, axis=-1)
-            # if mixture_weight_log_priors is not None:
-            #     expected_mixture_logits = tf.add(expected_mixture_logits, tf.transpose(mixture_weight_log_priors))
+            # if mixture_weight_log_constraints is not None:
+            #     expected_mixture_logits = tf.add(expected_mixture_logits, tf.transpose(mixture_weight_log_constraints))
             expected_mixture_log_prob = tf.nn.log_softmax(expected_mixture_logits, axis=0)
             expected_mixture_log_prob = tf_clip_param(expected_mixture_log_prob, "mixture_log_prob")
 
@@ -308,7 +309,7 @@ class ModelVars:
             init_a=None,
             init_b=None,
             init_mixture_weights=None,
-            mixture_weight_priors=None,
+            mixture_weight_constraints=None,
             name="ModelVars",
     ):
         with tf.name_scope(name):
@@ -411,18 +412,18 @@ class ModelVars:
             self.b_var = b_var
             self.mixture_logits_var = mixture_logits
 
-            if mixture_weight_priors is not None:
-                mixture_weight_priors = np.asarray(mixture_weight_priors, dtype=dtype.as_numpy_dtype)
-                with tf.name_scope("mixture_weight_priors"):
-                    mixture_weight_priors = tf.identity(
-                        mixture_weight_priors,
-                        name="mixture_weight_priors"
+            if mixture_weight_constraints is not None:
+                mixture_weight_constraints = np.asarray(mixture_weight_constraints, dtype=dtype.as_numpy_dtype)
+                with tf.name_scope("mixture_weight_constraints"):
+                    mixture_weight_constraints = tf.identity(
+                        mixture_weight_constraints,
+                        name="mixture_weight_constraints"
                     )
-                    mixture_weight_priors = tf_clip_param(mixture_weight_priors, "mixture_weight_priors")
+                    mixture_weight_constraints = tf_clip_param(mixture_weight_constraints, "mixture_weight_constraints")
 
-                mixture_weight_log_priors = tf.log(mixture_weight_priors, name="mixture_weight_log_priors")
+                mixture_weight_log_constraints = tf.log(mixture_weight_constraints, name="mixture_weight_log_constraints")
             else:
-                mixture_weight_log_priors = None
+                mixture_weight_log_constraints = None
 
-            self.mixture_weight_priors = mixture_weight_priors
-            self.mixture_weight_log_priors = mixture_weight_log_priors
+            self.mixture_weight_constraints = mixture_weight_constraints
+            self.mixture_weight_log_constraints = mixture_weight_log_constraints

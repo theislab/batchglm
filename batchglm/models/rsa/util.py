@@ -45,12 +45,12 @@ def _mdesc_setup(
     return dmat, design_tensor
 
 
-def mixture_prior_setup(
+def mixture_constraint_setup(
         mixture_grouping: Union[List, np.ndarray],
         mixture_model_desc: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Creates a mixture prior
+    Creates a mixture constraint
 
     :param mixture_grouping: vector of length `num_observations` denoting the group of an observation.
     :param mixture_model_desc: Pandas DataFrame of shape `(num_groups, mixtures)` containing booleans.
@@ -154,7 +154,7 @@ def mixture_model_setup(
             - location mixture design
             - design_scale matrix
             - scale mixture design
-            - mixture weight priors
+            - mixture weight constraints
             - initial mixture weights
     """
     num_mixtures = mixture_model_desc.shape[1]
@@ -179,7 +179,7 @@ def mixture_model_setup(
     )
 
     # num_design_params = len(dmat.design_info.column_names)
-    mixture_weight_priors = mixture_prior_setup(
+    mixture_weight_constraints = mixture_constraint_setup(
         mixture_grouping=mixture_grouping,
         mixture_model_desc=mixture_model_desc
     )
@@ -191,9 +191,9 @@ def mixture_model_setup(
         else:
             init_mixture_weights = init_mixture_assignments.loc[mixture_grouping]
     else:
-        init_mixture_weights = mixture_weight_priors
+        init_mixture_weights = mixture_weight_constraints
 
-    return dmat_loc, design_tensor_loc, dmat_scale, design_tensor_scale, mixture_weight_priors, init_mixture_weights
+    return dmat_loc, design_tensor_loc, dmat_scale, design_tensor_scale, mixture_weight_constraints, init_mixture_weights
 
 
 def design_tensor_from_mixture_description(

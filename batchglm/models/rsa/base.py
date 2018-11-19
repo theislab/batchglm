@@ -26,7 +26,7 @@ INPUT_DATA_PARAMS.update({
     "design_scale": ("observations", "design_scale_params"),
     "design_mixture_loc": ("design_loc_params", "mixtures", "design_mixture_loc_params"),
     "design_mixture_scale": ("design_scale_params", "mixtures", "design_mixture_scale_params"),
-    "mixture_weight_priors": ("observations", "mixtures"),
+    "mixture_weight_constraints": ("observations", "mixtures"),
 })
 
 MODEL_PARAMS = NB_GLM_MODEL_PARAMS.copy()
@@ -74,7 +74,7 @@ class InputData(NB_GLM_InputData):
             design_mixture_loc_key: str = "design_mixture_loc",
             design_mixture_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_mixture_scale_key: str = "design_mixture_scale",
-            mixture_weight_priors=None,
+            mixture_weight_constraints=None,
             cast_dtype=None,
             **kwargs
     ):
@@ -137,8 +137,8 @@ class InputData(NB_GLM_InputData):
             # design = design.chunk({"observations": 1})
         retval.design_mixture_scale = design_mixture_scale
 
-        if mixture_weight_priors is not None:
-            retval.mixture_weight_priors = mixture_weight_priors
+        if mixture_weight_constraints is not None:
+            retval.mixture_weight_constraints = mixture_weight_constraints
 
         return retval
 
@@ -159,16 +159,16 @@ class InputData(NB_GLM_InputData):
         self.data["design_mixture_scale"] = data
 
     @property
-    def mixture_weight_priors(self) -> Union[xr.DataArray, None]:
-        return self.data.get("mixture_weight_priors")
+    def mixture_weight_constraints(self) -> Union[xr.DataArray, None]:
+        return self.data.get("mixture_weight_constraints")
 
-    @mixture_weight_priors.setter
-    def mixture_weight_priors(self, data):
-        if data is None and "mixture_weight_priors" in self.data:
-            del self.data["mixture_weight_priors"]
+    @mixture_weight_constraints.setter
+    def mixture_weight_constraints(self, data):
+        if data is None and "mixture_weight_constraints" in self.data:
+            del self.data["mixture_weight_constraints"]
         else:
-            dims = self.param_shapes()["mixture_weight_priors"]
-            self.data["mixture_weight_priors"] = xr.DataArray(
+            dims = self.param_shapes()["mixture_weight_constraints"]
+            self.data["mixture_weight_constraints"] = xr.DataArray(
                 dims=dims,
                 data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
             )
@@ -271,9 +271,17 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
 
     def expected_mixture_prob(self):
         log_probs = self.elemwise_log_prob()
-        return softmax(log_probs.sum(dim="features"), axis=0).transpose(
+
+        retval = log_probs.sum(dim="features")
+        if self.mixture_weight_constraints is not None:
+            with np.errstate(divide='ignore'):
+                retval += np.log(self.mixture_weight_constraints).compute()
+
+        retval = softmax(retval, axis=0).transpose(
             *self.param_shapes()["mixture_prob"]
         )
+
+        return retval
 
     # @property
     # def mu(self) -> xr.DataArray:

@@ -295,7 +295,7 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         log_retval = log_retval.transpose(*self.param_shapes()["mu"])
 
         if self.size_factors is not None:
-            log_retval += self.size_factors
+            log_retval += self.link_loc(self.size_factors)
 
         return np.exp(log_retval)
 
@@ -308,7 +308,7 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         log_retval = log_retval.transpose(*self.param_shapes()["r"])
 
         if self.size_factors is not None:
-            log_retval += self.size_factors
+            log_retval += self.link_loc(self.size_factors)
 
         return np.exp(log_retval)
 
