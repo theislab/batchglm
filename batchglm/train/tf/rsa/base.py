@@ -248,6 +248,8 @@ class BasicModelGraph:
         self.X = X
         self.a = a
         self.b = b
+        self.par_link_loc = par_link_loc
+        self.par_link_scale = par_link_scale
         self.design_loc = design_loc
         self.design_scale = design_scale
         self.design_mixture_loc = design_mixture_loc

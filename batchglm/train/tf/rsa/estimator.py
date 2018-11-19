@@ -197,7 +197,7 @@ class FullDataModelGraph:
 
 
 def _normalize_mixture_weights(weights, shift_to_zero=False):
-    """
+    r"""
     Normalize mixture weights to (0, 1):
     $\forall k \in K: w_k = w_k / \sum_x^K w_x$
     Additionally clips `w` to the range ]0, inf[
@@ -784,9 +784,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         input_data.num_design_mixture_scale_params,
                         input_data.num_features
                     ])
-                    init_a[:, 0, :] = np.broadcast_to(
+                    init_a[0] = np.broadcast_to(
                         np.expand_dims(np.log(overall_means), axis=0),
-                        [input_data.num_mixtures, 1, input_data.num_features]
+                        [input_data.num_mixtures, input_data.num_features]
                     )
 
                     logger.info("Using standard initialization for mean")

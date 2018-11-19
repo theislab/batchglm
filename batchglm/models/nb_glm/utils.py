@@ -118,7 +118,7 @@ def closedform_nb_glm_logphi(
                 )
             ], dim="group")
 
-        denominator = np.fmax(variance - groupwise_means, np.nextafter(0, 1, dtype=variance.dtype))
+        denominator = np.fmax(variance - groupwise_means, np.sqrt(np.nextafter(0, 1, dtype=variance.dtype)))
         groupwise_scales = np.square(groupwise_means) / denominator
 
         # # clipping
