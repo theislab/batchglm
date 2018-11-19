@@ -7,6 +7,7 @@ from batchglm.models.rsa.base import Model
 # from batchglm.models.rsa.base import model_from_params
 from batchglm.models.rsa.util import mixture_model_setup
 from batchglm.models.rsa.util import design_tensor_from_mixture_description
+from batchglm.models.rsa.util import plot_mixture_weights
 
 from batchglm.models.rsa.simulator import Simulator
 

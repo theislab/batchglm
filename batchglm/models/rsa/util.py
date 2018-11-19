@@ -250,3 +250,90 @@ def design_tensor_from_mixture_description(
     )
 
     return combined_dmat
+
+
+def plot_mixture_weights(
+        mixture_prob: Union[np.ndarray, xr.DataArray],
+        mixture_labels: List[str] = None,
+        group_assignments: List[str] = None,
+        rasterized=True,
+        cbar_name="group",
+        cmap="vlag",
+        title="\nmixture probabilities of observations",
+        xlab="mixtures",
+        ylab="observations",
+        **kwargs
+):
+    r"""
+    Simplifies plotting mixture weights in a heatmap
+
+    :param mixture_prob: mixture probabilities of shape (observations, mixtures).
+    :param mixture_labels: optional labels of mixtures; can also be passed by mixture_prob.coords["mixtures"]
+    :param group_assignments: optional list of strings assigning each observation to a group;
+        can also be passed by mixture_prob.coords["mixture_group"]
+    :param cbar_name: name of the color bar
+    :param rasterized: should the heatmap be rasterized? See also seaborn.heatmap()
+    :param kwargs: other arguments which will be passed to seaborn.clustermap()
+    :param title: title of the plot
+    :param xlab: x-axis label
+    :param ylab: y-axis label
+    :return: seaborn.clustermap()
+    """
+    # import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    if not isinstance(mixture_prob, xr.DataArray):
+        mixture_prob = xr.DataArray(
+            dims=("observations", "mixtures"),
+            data=mixture_prob
+        )
+
+    if mixture_labels is None:
+        mixture_labels = mixture_prob.coords[mixture_prob.dims[-1]].values
+
+    if group_assignments is not None:
+        mixture_prob.coords["mixture_group"] = xr.DataArray(
+            dims=mixture_prob.dims[0],
+            data=group_assignments
+        )
+
+    if "mixture_group" in mixture_prob.coords:
+        mixture_prob = mixture_prob.sortby("mixture_group")
+
+        group_assignments = mixture_prob.coords["mixture_group"].values
+
+    plot_data = mixture_prob
+    plot_df = pd.DataFrame(plot_data.values, columns=mixture_labels)
+
+    if group_assignments is not None:
+        cbar_labels = pd.Series(group_assignments, name=cbar_name)
+        cbar_pal = sns.color_palette("colorblind", np.unique(cbar_labels).size)
+        cbar_lut = dict(zip(map(str, np.unique(cbar_labels)), cbar_pal))
+        cbar_colors = pd.Series(cbar_labels, index=plot_df.index).map(cbar_lut)
+
+        kwargs["row_colors"] = cbar_colors
+
+    g = sns.clustermap(
+        plot_df,
+        rasterized=rasterized,
+        xticklabels=mixture_labels,
+        row_cluster=False,
+        col_cluster=False,
+        cmap=cmap,
+        vmin=0,
+        vmax=1,
+        **kwargs
+    )
+
+    if group_assignments is not None:
+        for label in np.unique(cbar_labels):
+            g.ax_col_dendrogram.bar(0, 0, color=cbar_lut[label], label=label, linewidth=0)
+
+        lg = g.ax_col_dendrogram.legend(title=cbar_name, loc="lower center", ncol=6)
+
+    g.cax.set_position([.20, .2, .03, .45])
+    g.ax_col_dendrogram.set_title(title)
+    g.ax_heatmap.set_xlabel(xlab)
+    g.ax_heatmap.set_ylabel(ylab)
+
+    return g
