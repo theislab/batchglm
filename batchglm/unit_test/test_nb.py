@@ -1,13 +1,16 @@
 import os
+# import sys
 import unittest
 import tempfile
+import logging
 
 # import numpy as np
 
+import batchglm.api as glm
 from batchglm.api.models.nb import Simulator, Estimator
 
-
-# from utils.config import getConfig
+glm.setup_logging(verbosity="INFO", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
 def estimate(sim: Simulator, working_dir: str):

@@ -8,7 +8,6 @@ import tensorflow as tf
 # import tensorflow_probability as tfp
 
 import numpy as np
-from numpy.linalg import matrix_rank
 
 try:
     import anndata
@@ -59,7 +58,6 @@ class FullDataModelGraph:
                 size_factors=size_factors)
             return model
 
-        super()
         model = map_model(*fetch_fn(sample_indices))
 
         with tf.name_scope("log_likelihood"):
@@ -188,8 +186,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     tf.range(num_observations, name="sample_index")
                 ))
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-                # training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
                 training_data = training_data.batch(batch_size, drop_remainder=True)
+                training_data = training_data.map(tf.contrib.framework.sort)  # sort indices
                 training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
                 training_data = training_data.prefetch(buffer_size)
 
@@ -198,7 +196,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 batch_sample_index, batch_data = iterator.get_next()
                 (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
-            dtype = batch_X.dtype
+            # dtype = batch_X.dtype
 
             # implicit broadcasting of X and initial_mixture_probs to
             #   shape (num_mixtures, num_observations, num_features)
@@ -322,6 +320,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
@@ -336,6 +335,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
@@ -350,11 +350,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_b_only"
                 )
 
                 with tf.name_scope("batch_gradient"):
-                    batch_gradient = batch_trainers.gradient[0][0]
+                    batch_gradient = batch_trainers.plain_gradient_by_variable(model_vars.params)
                     batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
 
                     # batch_gradient = tf.add_n(
@@ -365,6 +366,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
@@ -379,6 +381,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
@@ -393,11 +396,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_b_only"
                 )
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
-                    full_gradient = full_data_trainers.gradient[0][0]
+                    full_gradient = full_data_trainers.plain_gradient_by_variable(model_vars.params)
                     full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
 
                     # # the analytic Jacobian
@@ -799,7 +803,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             # Add constraints into design matrix to remove structural unidentifiability.
                             unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
 
-                        if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
+                        if unique_design_loc.shape[1] > np.linalg.matrix_rank(unique_design_loc):
                             logger.warning("Location model is not full rank!")
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
                         if size_factors_init is not None:
@@ -872,7 +876,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             # Add constraints into design matrix to remove structural unidentifiability.
                             unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
 
-                        if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
+                        if unique_design_scale.shape[1] > np.linalg.matrix_rank(unique_design_scale):
                             logger.warning("Scale model is not full rank!")
 
                         X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
@@ -1165,7 +1169,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       **kwargs)
 
     @property
-    def input_data(self):
+    def input_data(self) -> InputData:
         return self._input_data
 
     def train_sequence(self, training_strategy=TrainingStrategy.AUTO):

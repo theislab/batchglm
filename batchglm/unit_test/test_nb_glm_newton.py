@@ -1,16 +1,21 @@
 from typing import List
 
 import os
+# import sys
 import unittest
 import tempfile
 import time
+import logging
 
 import numpy as np
 import scipy.sparse
 
-import batchglm.data as data_utils
+import batchglm.api as glm
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 import batchglm.pkg_constants as pkg_constants
+
+glm.setup_logging(verbosity="INFO", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
 def estimate_adam_full(input_data: InputData, working_dir: str):
@@ -51,6 +56,7 @@ def estimate_nr_full(input_data: InputData, working_dir: str):
 
     return estimator
 
+
 def estimate_nr_batched(input_data: InputData, working_dir: str):
     estimator = Estimator(input_data, batch_size=50)
     estimator.initialize(
@@ -65,6 +71,7 @@ def estimate_nr_batched(input_data: InputData, working_dir: str):
     estimator.train_sequence(training_strategy="NEWTON_BATCHED")
 
     return estimator
+
 
 def estimate_nr_series(input_data: InputData, working_dir: str):
     estimator = Estimator(input_data, batch_size=500)
@@ -102,7 +109,6 @@ class NB_GLM__Newton_Test(unittest.TestCase):
 
         self.working_dir.cleanup()
 
-
     def test_adam_full(self):
         X = scipy.sparse.csr_matrix(self.sim.X)
         design_loc = self.sim.design_loc
@@ -123,10 +129,9 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         # test finalizing
         estimator = estimator.finalize()
         print("\n")
-        print("run time adam on full data: ", str(t1-t0))
-        print((estimator.a.values-self.sim.a.values)/self.sim.a.values)
+        print("run time adam on full data: ", str(t1 - t0))
+        print((estimator.a.values - self.sim.a.values) / self.sim.a.values)
         print((estimator.b.values - self.sim.b.values) / self.sim.b.values)
-
 
     def test_newton_batched(self):
         X = scipy.sparse.csr_matrix(self.sim.X)
@@ -153,7 +158,6 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         print((estimator.a.values - self.sim.a.values) / self.sim.a.values)
         print((estimator.b.values - self.sim.b.values) / self.sim.b.values)
 
-
     def test_newton_full(self):
         X = scipy.sparse.csr_matrix(self.sim.X)
         design_loc = self.sim.design_loc
@@ -175,8 +179,8 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         # test finalizing
         estimator = estimator.finalize()
         print("\n")
-        print("run time newton-rhapson on full data: ", str(t1-t0))
-        print((estimator.a.values-self.sim.a.values)/self.sim.a.values)
+        print("run time newton-rhapson on full data: ", str(t1 - t0))
+        print((estimator.a.values - self.sim.a.values) / self.sim.a.values)
         print((estimator.b.values - self.sim.b.values) / self.sim.b.values)
 
     def test_newton_series(self):
@@ -200,8 +204,8 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         # test finalizing
         estimator = estimator.finalize()
         print("\n")
-        print("run time newton-rhapson series: ", str(t1-t0))
-        print((estimator.a.values-self.sim.a.values)/self.sim.a.values)
+        print("run time newton-rhapson series: ", str(t1 - t0))
+        print((estimator.a.values - self.sim.a.values) / self.sim.a.values)
         print((estimator.b.values - self.sim.b.values) / self.sim.b.values)
 
 

@@ -2,6 +2,7 @@ from typing import Tuple
 
 import os
 import logging
+import traceback
 
 from collections import OrderedDict
 import itertools
@@ -13,6 +14,7 @@ import yaml
 from batchglm.api.models.nb_glm import Simulator, Estimator
 
 logger = logging.getLogger(__name__)
+
 
 def init_benchmark(
         root_dir: str,
@@ -110,10 +112,16 @@ def prepare_benchmark_sample(
     return sample_config
 
 
-def get_benchmark_samples(root_dir: str, config_file="config.yml"):
+def load_config(root_dir, config_file):
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
         config = yaml.load(f)
+
+    return config
+
+
+def get_benchmark_samples(root_dir: str, config_file="config.yml"):
+    config = load_config(root_dir, config_file)
     return list(config["benchmark_samples"].keys())
 
 
@@ -186,12 +194,23 @@ def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Sim
     benchmark_data = []
     for smpl, cfg in benchmark_samples.items():
         wd = cfg["working_dir"]
-        logger.info("opening working dir: %s", wd)
+
         ds_path = os.path.join(root_dir, wd, "cache.zarr")
+        ds_cache_OK = os.path.join(root_dir, wd, "cache_OK")
+
+        logger.info("opening working dir: %s", wd)
         try:  # try open zarr cache
+            if not os.path.exists(ds_cache_OK):
+                raise FileNotFoundError
+
             data = xr.open_zarr(ds_path)
             logger.info("using zarr cache: %s", os.path.join(wd, "cache.zarr"))
-        except:  # open netcdf4 files
+        except BaseException as e:  # open netcdf4 files
+            if isinstance(e, FileNotFoundError):
+                pass
+            else:
+                traceback.print_exc()
+
             logger.info("loading step-wise netcdf4 files...")
             ncdf_data = xr.open_mfdataset(
                 os.path.join(root_dir, cfg["working_dir"], "estimation-*.h5"),
@@ -206,13 +225,18 @@ def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Sim
 
             try:  # try to save data in zarr cache
                 zarr_data = ncdf_data.to_zarr(ds_path)
+                touch(ds_cache_OK)
+
                 logger.info("Stored data in zarr cache")
 
                 # close netcdf4 data sets
                 ncdf_data.close()
                 del ncdf_data
                 data = zarr_data
-            except:  # use netcdf4 since zarr does not seem to work
+            except BaseException as e:  # use netcdf4 since zarr does not seem to work
+                traceback.print_exc()
+
+                logger.info("falling back to step-wise netcdf4 store")
                 data = ncdf_data
 
         benchmark_data.append(data)

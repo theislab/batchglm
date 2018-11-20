@@ -1,5 +1,5 @@
 from .. import __version__
-from ..log_cfg import logger, unconfigure_logging, enable_logging
+from ..log_cfg import logger, unconfigure_logging, setup_logging
 
 from . import models
 from . import data

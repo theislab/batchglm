@@ -25,13 +25,13 @@ ESTIMATOR_PARAMS.update({
 
 def param_bounds(dtype):
     if isinstance(dtype, tf.DType):
-        min = dtype.min
-        max = dtype.max
+        dmin = dtype.min
+        dmax = dtype.max
         dtype = dtype.as_numpy_dtype
     else:
         dtype = np.dtype(dtype)
-        min = np.finfo(dtype).min
-        max = np.finfo(dtype).max
+        dmin = np.finfo(dtype).min
+        dmax = np.finfo(dtype).max
         dtype = dtype.type
 
     sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
@@ -46,12 +46,12 @@ def param_bounds(dtype):
         "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
     }
     bounds_max = {
-        "a": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "b": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_mu": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "log_r": np.nextafter(np.log(max), -np.inf, dtype=dtype) / sf,
-        "mu": np.nextafter(max, -np.inf, dtype=dtype) / sf,
-        "r": np.nextafter(max, -np.inf, dtype=dtype) / sf,
+        "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "b": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "log_r": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
         "probs": dtype(1),
         "log_probs": dtype(0),
     }
@@ -73,7 +73,7 @@ def np_clip_param(param, name):
         param,
         bounds_min[name],
         bounds_max[name],
-        out=param
+        # out=param
     )
 
 
@@ -283,38 +283,38 @@ class ModelVars:
                 # Define reduced variable set which is stucturally identifiable.
                 init_b = tf.gather(init_b, indices=np.where(b_is_dep == False)[0], axis=0)
 
-            # Param is the only tf.Variable in the graph.
-            # a_var and b_var have to be slices of params.
-            params = tf.Variable(tf.concat(
-                [
-                    init_a,
-                    init_b,
-                ],
-                axis=0
-            ), name="params")
+        # Param is the only tf.Variable in the graph.
+        # a_var and b_var have to be slices of params.
+        params = tf.Variable(tf.concat(
+            [
+                init_a,
+                init_b,
+            ],
+            axis=0
+        ), name="params")
 
-            a_var = params[0:init_a.shape[0]]
-            b_var = params[init_a.shape[0]:]
+        a_var = params[0:init_a.shape[0]]
+        b_var = params[init_a.shape[0]:]
 
-            # Define first layer of computation graph on identifiable variables
-            # to yield dependent set of parameters of model for each location
-            # and scale model.
+        # Define first layer of computation graph on identifiable variables
+        # to yield dependent set of parameters of model for each location
+        # and scale model.
 
-            if constraints_loc is not None:
-                a = apply_constraints(constraints_loc, a_var, dtype=dtype)
-            else:
-                a = a_var
+        if constraints_loc is not None:
+            a = apply_constraints(constraints_loc, a_var, dtype=dtype)
+        else:
+            a = a_var
 
-            if constraints_scale is not None:
-                b = apply_constraints(constraints_scale, b_var, dtype=dtype)
-            else:
-                b = b_var
+        if constraints_scale is not None:
+            b = apply_constraints(constraints_scale, b_var, dtype=dtype)
+        else:
+            b = b_var
 
-            a_clipped = tf_clip_param(a, "a")
-            b_clipped = tf_clip_param(b, "b")
+        a_clipped = tf_clip_param(a, "a")
+        b_clipped = tf_clip_param(b, "b")
 
-            self.a = a_clipped
-            self.b = b_clipped
-            self.a_var = a_var
-            self.b_var = b_var
-            self.params = params
+        self.a = a_clipped
+        self.b = b_clipped
+        self.a_var = a_var
+        self.b_var = b_var
+        self.params = params
