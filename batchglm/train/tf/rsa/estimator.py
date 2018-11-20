@@ -39,8 +39,6 @@ class FullDataModelGraph:
         batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         batched_data = batched_data.prefetch(1)
 
-
-
         def map_model(idx, data) -> BasicModelGraph:
             X, design_loc, design_scale, size_factors = data
 
@@ -727,17 +725,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 )
                 init_mixture_weights = _normalize_mixture_weights(init_mixture_weights)
 
+            joint_weights = init_mixture_weights
             if input_data.mixture_weight_constraints is not None:
-                # calculate joint weights:
-                # ```
-                #   joint_weights = (
-                #       norm_mixture_weights * norm_constraints / sum_mixtures(norm_mixture_weights * norm_constraints)
-                #   )
-                # ```
-                normalized_constraints = _normalize_mixture_weights(input_data.mixture_weight_constraints.astype(float))
-                joint_weights = _normalize_mixture_weights(init_mixture_weights * normalized_constraints)
-            else:
-                joint_weights = init_mixture_weights
+                joint_weights = joint_weights * input_data.mixture_weight_constraints
             logger.debug("joint weights: %s", joint_weights)
 
             if isinstance(init_a, str):
@@ -777,7 +767,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     overall_means = input_data.X.mean(dim="observations").values  # directly calculate the mean
                     # clipping
                     overall_means = np_clip_param(overall_means, "mu")
-                    # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
 
                     init_a = np.zeros([
                         input_data.num_design_scale_params,
