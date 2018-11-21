@@ -17,9 +17,9 @@ You can install [tensorflow](https://www.tensorflow.org/install/) via pip or via
 
 #### pip
 - CPU-only: <br/>
-  `pip install tf-nightly`
+  `pip install tensorflow`
 - GPU: <br/>
-  `pip install tf-nightly-gpu`
+  `pip install tensorflow-gpu`
   
 ### Hardware-optimized tensorflow installation (compiling from source)
 Please refer to https://www.tensorflow.org/install/.

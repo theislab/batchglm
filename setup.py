@@ -2,11 +2,19 @@ from setuptools import setup, find_packages
 import versioneer
 
 author = 'Florian R. Hölzlwimmer, David S. Fischer'
+author_email='batchglm@frhoelzlwimmer.de, david.fischer@helmholtz-muenchen.de'
+description="Fast and scalable fitting of over-determined generalized-linear models (GLMs)"
+
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(
     name='batchglm',
     author=author,
-    author_email='florian.hoelzlwimmer@helmholtz-muenchen.de',
+    author_email=author_email,
+    description=description,
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=[
         'tensorflow>=1.10.0',

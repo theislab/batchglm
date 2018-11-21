@@ -585,104 +585,72 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         AUTO = None
         DEFAULT = [
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-5,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
+            },
+            {
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "newton",
             },
         ]
         EXACT = [
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-            {
-                "learning_rate": 0.005,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-5,
                 "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "Newton-Raphson",
+                "optim_algo": "ADAM",
+            },
+            {
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "newton",
             },
         ]
         QUICK = [
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-                "use_batching": True,
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-8,
+                "loss_window_size": 10,
+                "use_batching": False,
                 "optim_algo": "ADAM",
             },
         ]
         PRE_INITIALIZED = [
             {
-                "learning_rate": 0.01,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "newton",
+            },
+        ]
+        CONTINUOUS = [
+            {
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-5,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
             },
-        ]
-        NEWTON_EXACT = [
             {
-                "learning_rate": 1,
                 "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 5,
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
                 "use_batching": False,
-                "optim_algo": "newton-raphson",
-            },
-        ]
-        NEWTON_BATCHED = [
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 20,
-                "use_batching": True,
-                "optim_algo": "newton-raphson",
-            },
-        ]
-        NEWTON_SERIES = [
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 8,
-                "use_batching": True,
-                "optim_algo": "newton-raphson",
-            },
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 4,
-                "use_batching": False,
-                "optim_algo": "newton-raphson",
+                "optim_algo": "newton",
             },
         ]
 
@@ -935,11 +903,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     my_loc_names = set(input_data.design_loc_names.values)
                     my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
 
-                    init_loc = np.random.uniform(
-                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                        size=(input_data.num_design_loc_params, input_data.num_features)
-                    )
+                    # Initialize new parameters to zero:
+                    init_loc = np.zeros(shape=(input_data.num_design_loc_params, input_data.num_features))
                     for parm in my_loc_names:
                         init_idx = np.where(init_model.input_data.design_loc_names == parm)
                         my_idx = np.where(input_data.design_loc_names == parm)
@@ -952,11 +917,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     my_scale_names = set(input_data.design_scale_names.values)
                     my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
 
-                    init_scale = np.random.uniform(
-                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                        size=(input_data.num_design_scale_params, input_data.num_features)
-                    )
+                    # Initialize new parameters to zero:
+                    init_scale = np.zeros(shape=(input_data.num_design_scale_params, input_data.num_features))
                     for parm in my_scale_names:
                         init_idx = np.where(init_model.input_data.design_scale_names == parm)
                         my_idx = np.where(input_data.design_scale_names == parm)
