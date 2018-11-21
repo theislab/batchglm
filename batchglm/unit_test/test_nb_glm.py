@@ -100,9 +100,9 @@ class NB_GLM_Test(unittest.TestCase):
         sim.generate_sample_description(num_conditions=0, num_batches=4)
         sim.generate()
 
-        sample_description = data_utils.sample_description_from_xarray(sim.data, dim="observations")
-        design_loc = data_utils.design_matrix(sample_description, formula="~ 1 - 1 + batch")
-        design_scale = data_utils.design_matrix(sample_description, formula="~ 1 - 1 + batch")
+        sample_description = glm.data.sample_description_from_xarray(sim.data, dim="observations")
+        design_loc = glm.data.design_matrix(sample_description, formula="~ 1 - 1 + batch")
+        design_scale = glm.data.design_matrix(sample_description, formula="~ 1 - 1 + batch")
 
         input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 
@@ -127,7 +127,13 @@ class NB_GLM_Test(unittest.TestCase):
 
     def test_anndata(self):
         adata = self.sim.data_to_anndata()
-        idata = InputData.new(adata)
+        design_loc = self.sim.design_loc
+        design_scale = self.sim.design_scale
+        idata = InputData.new(
+            data=adata,
+            design_loc=design_loc,
+            design_scale=design_scale,
+        )
 
         wd = os.path.join(self.working_dir.name, "anndata")
         os.makedirs(wd, exist_ok=True)
@@ -141,7 +147,13 @@ class NB_GLM_Test(unittest.TestCase):
     def test_anndata_sparse(self):
         adata = self.sim.data_to_anndata()
         adata.X = scipy.sparse.csr_matrix(adata.X)
-        idata = InputData.new(adata)
+        design_loc = self.sim.design_loc
+        design_scale = self.sim.design_scale
+        idata = InputData.new(
+            data=adata,
+            design_loc=design_loc,
+            design_scale=design_scale,
+        )
 
         wd = os.path.join(self.working_dir.name, "anndata")
         os.makedirs(wd, exist_ok=True)
