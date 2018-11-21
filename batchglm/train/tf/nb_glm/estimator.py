@@ -564,11 +564,12 @@ class EstimatorGraph(TFEstimatorGraph):
                                       tf.reduce_sum(batch_model.log_probs, axis=1),
                                       50.)
                                   )
-                tf.summary.histogram('gradient_a', tf.gradients(batch_loss, model_vars.a))
-                tf.summary.histogram('gradient_b', tf.gradients(batch_loss, model_vars.b))
-                tf.summary.histogram("full_gradient", full_gradient)
-                tf.summary.scalar("full_gradient_median",
-                                  tf.contrib.distributions.percentile(full_gradient, 50.))
+                summary_full_grad = tf.where(tf.is_nan(full_gradient), tf.zeros_like(full_gradient), full_gradient,
+                                             name="full_gradient")
+                # TODO: adjust this if gradient is changed
+                tf.summary.histogram('batch_gradient', batch_trainers.gradient_by_variable(model_vars.params))
+                tf.summary.histogram("full_gradient", summary_full_grad)
+                tf.summary.scalar("full_gradient_median", tf.contrib.distributions.percentile(full_gradient, 50.))
                 tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
 
         self.saver = tf.train.Saver()
