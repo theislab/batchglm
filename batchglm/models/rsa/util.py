@@ -272,6 +272,7 @@ def plot_mixture_weights(
     :param group_assignments: optional list of strings assigning each observation to a group;
         can also be passed by mixture_prob.coords["mixture_group"]
     :param cbar_name: name of the color bar
+    :param cmap: color map to be used for the heatmap
     :param rasterized: should the heatmap be rasterized? See also seaborn.heatmap()
     :param kwargs: other arguments which will be passed to seaborn.clustermap()
     :param title: title of the plot
