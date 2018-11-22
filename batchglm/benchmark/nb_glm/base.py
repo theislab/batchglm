@@ -214,9 +214,9 @@ def load_benchmark_dataset(root_dir: str, config_file="config.yml") -> Tuple[Sim
             logger.info("loading step-wise netcdf4 files...")
             ncdf_data = xr.open_mfdataset(
                 os.path.join(root_dir, cfg["working_dir"], "estimation-*.h5"),
-                engine="netcdf4",
+                engine="h5netcdf",
                 concat_dim="step",
-                autoclose=True,
+                # autoclose=True,
                 parallel=True,
             )
             ncdf_data = ncdf_data.sortby("global_step")
