@@ -810,7 +810,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             design_scale=input_data.design_scale,
                             constraints=input_data.constraints_scale,
                             size_factors=size_factors_init,
-                            groupwise_means=groupwise_means,
+                            groupwise_means=None,  # Could only use groupwise_means from a init if design_loc and design_scale were the same.
                             link_fn=lambda r: np.log(np_clip_param(r, "r"))
                         )
 
