@@ -71,21 +71,25 @@ def plot_benchmarks(plot_dir: str, sim, benchmark_data, benchmark_names):
             df = val.to_dataframe(val_name)
         df = df.reset_index()
 
+        ylim = np.max(df.loc[df.global_step.eq(1), val_name]) * 2
+
         plot = (pn.ggplot(df)
                 + pn.aes(x="time_elapsed", y=val_name, group=groupby_col, color=groupby_col)
                 + pn.geom_line()
                 + pn.geom_vline(xintercept=df.loc[[np.argmin(df[val_name])]].time_elapsed.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df[val_name]), alpha=0.5)
+                + pn.ylim(0, ylim)
                 )
         if scale_y_log10:
             plot = plot + pn.scale_y_log10()
         plot.save(os.path.join(plot_dir, name_prefix + ".time.svg"), format="svg")
 
         plot = (pn.ggplot(df)
-                + pn.aes(x="global_step", y=val_name, group=groupby_col, color=groupby_col)
+                + pn.aes(x="global_step", y=val_name, group=groupby_col, color=groupby_col, ymax=ylim)
                 + pn.geom_line()
                 + pn.geom_vline(xintercept=df.loc[[np.argmin(df[val_name])]].global_step.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df[val_name]), alpha=0.5)
+                + pn.ylim(0, ylim)
                 )
         if scale_y_log10:
             plot = plot + pn.scale_y_log10()
