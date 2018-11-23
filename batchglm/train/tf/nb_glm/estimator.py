@@ -8,7 +8,6 @@ import tensorflow as tf
 # import tensorflow_probability as tfp
 
 import numpy as np
-from numpy.linalg import matrix_rank
 
 try:
     import anndata
@@ -19,7 +18,7 @@ from .base import BasicModelGraph, ModelVars, ESTIMATOR_PARAMS
 from .base import param_bounds, tf_clip_param, np_clip_param, apply_constraints
 
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator, TFEstimatorGraph
-from .external import nb_utils, train_utils, op_utils, rand_utils, data_utils
+from .external import nb_utils, train_utils, op_utils, rand_utils, data_utils, nb_glm_utils
 from .external import pkg_constants
 from .hessians import Hessians
 from .jacobians import Jacobians
@@ -59,7 +58,6 @@ class FullDataModelGraph:
                 size_factors=size_factors)
             return model
 
-        super()
         model = map_model(*fetch_fn(sample_indices))
 
         with tf.name_scope("log_likelihood"):
@@ -179,8 +177,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     tf.range(num_observations, name="sample_index")
                 ))
                 training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-                # training_data = training_data.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
                 training_data = training_data.batch(batch_size, drop_remainder=True)
+                training_data = training_data.map(tf.contrib.framework.sort)  # sort indices
                 training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
                 training_data = training_data.prefetch(buffer_size)
 
@@ -189,7 +187,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 batch_sample_index, batch_data = iterator.get_next()
                 (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
-            dtype = batch_X.dtype
+            # dtype = batch_X.dtype
 
             # implicit broadcasting of X and initial_mixture_probs to
             #   shape (num_mixtures, num_observations, num_features)
@@ -312,6 +310,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
@@ -326,6 +325,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_a_only"
                 )
                 batch_trainers_b_only = train_utils.MultiTrainer(
@@ -340,11 +340,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_b_only"
                 )
 
                 with tf.name_scope("batch_gradient"):
-                    batch_gradient = batch_trainers.gradient[0][0]
+                    batch_gradient = batch_trainers.plain_gradient_by_variable(model_vars.params)
                     batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
 
                     # batch_gradient = tf.add_n(
@@ -355,6 +356,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     variables=[model_vars.params],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
@@ -369,6 +371,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_a_only"
                 )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
@@ -383,11 +386,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     ],
                     learning_rate=learning_rate,
                     global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_b_only"
                 )
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
-                    full_gradient = full_data_trainers.gradient[0][0]
+                    full_gradient = full_data_trainers.plain_gradient_by_variable(model_vars.params)
                     full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
 
                     # # the analytic Jacobian
@@ -550,11 +554,12 @@ class EstimatorGraph(TFEstimatorGraph):
                                       tf.reduce_sum(batch_model.log_probs, axis=1),
                                       50.)
                                   )
-                tf.summary.histogram('gradient_a', tf.gradients(batch_loss, model_vars.a))
-                tf.summary.histogram('gradient_b', tf.gradients(batch_loss, model_vars.b))
-                tf.summary.histogram("full_gradient", full_gradient)
-                tf.summary.scalar("full_gradient_median",
-                                  tf.contrib.distributions.percentile(full_gradient, 50.))
+                summary_full_grad = tf.where(tf.is_nan(full_gradient), tf.zeros_like(full_gradient), full_gradient,
+                                             name="full_gradient")
+                # TODO: adjust this if gradient is changed
+                tf.summary.histogram('batch_gradient', batch_trainers.gradient_by_variable(model_vars.params))
+                tf.summary.histogram("full_gradient", summary_full_grad)
+                tf.summary.scalar("full_gradient_median", tf.contrib.distributions.percentile(full_gradient, 50.))
                 tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
 
         self.saver = tf.train.Saver()
@@ -755,55 +760,23 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_a.lower() == "closed_form":
                     try:
-                        unique_design_loc, inverse_idx = np.unique(input_data.design_loc, axis=0, return_inverse=True)
-                        if input_data.constraints_loc is not None:
-                            unique_design_loc_constraints = input_data.constraints_loc.copy()
-                            # -1 in the constraint matrix is used to indicate which variable
-                            # is made dependent so that the constrained is fullfilled.
-                            # This has to be rewritten here so that the design matrix is full rank
-                            # which is necessary so that it can be inverted for parameter
-                            # initialisation.
-                            unique_design_loc_constraints[unique_design_loc_constraints == -1] = 1
-                            # Add constraints into design matrix to remove structural unidentifiability.
-                            unique_design_loc = np.vstack([unique_design_loc, unique_design_loc_constraints])
-
-                        if unique_design_loc.shape[1] > matrix_rank(unique_design_loc):
-                            logger.warning("Location model is not full rank!")
-                        X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
-                        if size_factors_init is not None:
-                            X = np.divide(X, size_factors_init)
-
-                        groupwise_means = X.groupby("group").mean(dim="observations").values
-                        # clipping
-                        groupwise_means = np_clip_param(groupwise_means, "mu")
-                        # mean = np.nextafter(0, 1, out=mean.values, where=mean == 0, dtype=mean.dtype)
-
-                        a = np.log(groupwise_means)
-                        if input_data.constraints_loc is not None:
-                            a_constraints = np.zeros([input_data.constraints_loc.shape[0], a.shape[1]])
-                            # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-                            a = np.vstack([a, a_constraints])
-
-                        # inv_design = np.linalg.pinv(unique_design_loc) # NOTE: this is numerically inaccurate!
-                        # inv_design = np.linalg.inv(unique_design_loc) # NOTE: this is exact if full rank!
-                        # init_a = np.matmul(inv_design, a)
-                        #
-                        # Use least-squares solver to calculate a':
-                        # This is faster and more accurate than using matrix inversion.
-                        logger.debug(" ** Solve lstsq problem")
-                        a_prime = np.linalg.lstsq(unique_design_loc, a, rcond=None)
-                        init_a = a_prime[0]
-                        # stat_utils.rmsd(np.exp(unique_design_loc @ init_a), mean)
+                        groupwise_means, init_a, rmsd_a = nb_glm_utils.closedform_nb_glm_logmu(
+                            X=input_data.X,
+                            design_loc=input_data.design_loc,
+                            constraints=input_data.constraints_loc,
+                            size_factors=size_factors_init,
+                            link_fn=lambda mu: np.log(np_clip_param(mu, "mu"))
+                        )
 
                         # train mu, if the closed-form solution is inaccurate
-                        self._train_mu = not np.all(a_prime[1] == 0)
+                        self._train_mu = not np.all(rmsd_a == 0)
 
                         # Temporal fix: train mu if size factors are given as closed form may be different:
                         if input_data.size_factors is not None:
                             self._train_mu = True
 
                         logger.info("Using closed-form MLE initialization for mean")
-                        logger.debug("RMSE of closed-form mean:\n%s", a_prime[1])
+                        logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
                         logger.info("Should train mu: %s", self._train_mu)
                     except np.linalg.LinAlgError:
                         logger.warning("Closed form initialization failed!")
@@ -827,62 +800,22 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_b.lower() == "closed_form":
                     try:
-                        unique_design_scale, inverse_idx = np.unique(input_data.design_scale, axis=0,
-                                                                     return_inverse=True)
-                        if input_data.constraints_scale is not None:
-                            unique_design_scale_constraints = input_data.constraints_scale.copy()
-                            # -1 in the constraint matrix is used to indicate which variable
-                            # is made dependent so that the constrained is fullfilled.
-                            # This has to be rewritten here so that the design matrix is full rank
-                            # which is necessary so that it can be inverted for parameter
-                            # initialisation.
-                            unique_design_scale_constraints[unique_design_scale_constraints == -1] = 1
-                            # Add constraints into design matrix to remove structural unidentifiability.
-                            unique_design_scale = np.vstack([unique_design_scale, unique_design_scale_constraints])
-
-                        if unique_design_scale.shape[1] > matrix_rank(unique_design_scale):
-                            logger.warning("Scale model is not full rank!")
-
-                        X = input_data.X.assign_coords(group=(("observations",), inverse_idx))
-                        if input_data.size_factors is not None:
-                            X = np.divide(X, size_factors_init)
-
-                        # Xdiff = X - np.exp(input_data.design_loc @ init_a)
-                        # Define xarray version of init so that Xdiff can be evaluated lazy by dask.
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
                         init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
-                        logger.debug(" ** Define Xdiff")
-                        Xdiff = X - np.exp(input_data.design_loc.dot(init_a_xr))
-                        variance = np.square(Xdiff).groupby("group").mean(dim="observations")
+                        init_mu = np.exp(input_data.design_loc.dot(init_a_xr))
 
-                        groupwise_means = X.groupby("group").mean(dim="observations")
-                        denominator = np.fmax(variance - groupwise_means, 0)
-                        denominator = np.nextafter(0, 1, out=denominator.values, where=denominator == 0,
-                                                   dtype=denominator.dtype)
-                        r = np.asarray(np.square(groupwise_means) / denominator)
-                        # clipping
-                        r = np_clip_param(r, "r")
-                        # r = np.nextafter(0, 1, out=r.values, where=r == 0, dtype=r.dtype)
-                        # r = np.fmin(r, np.finfo(r.dtype).max)
-
-                        b = np.log(r)
-                        if input_data.constraints_scale is not None:
-                            b_constraints = np.zeros([input_data.constraints_scale.shape[0], b.shape[1]])
-                            # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-                            b = np.vstack([b, b_constraints])
-
-                        # inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate!
-                        # inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
-                        # init_b = np.matmul(inv_design, b)
-                        #
-                        # Use least-squares solver to calculate a':
-                        # This is faster and more accurate than using matrix inversion.
-                        logger.debug(" ** Solve lstsq problem")
-                        b_prime = np.linalg.lstsq(unique_design_scale, b, rcond=None)
-                        init_b = b_prime[0]
+                        groupwise_scales, init_b, rmsd_b = nb_glm_utils.closedform_nb_glm_logphi(
+                            X=input_data.X,
+                            mu=init_mu,
+                            design_scale=input_data.design_scale,
+                            constraints=input_data.constraints_scale,
+                            size_factors=size_factors_init,
+                            groupwise_means=groupwise_means,
+                            link_fn=lambda r: np.log(np_clip_param(r, "r"))
+                        )
 
                         logger.info("Using closed-form MME initialization for dispersion")
-                        logger.debug("RMSE of closed-form dispersion:\n%s", b_prime[1])
+                        logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_b)
                         logger.info("Should train r: %s", self._train_r)
                     except np.linalg.LinAlgError:
                         logger.warning("Closed form initialization failed!")
@@ -898,8 +831,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     my_loc_names = set(input_data.design_loc_names.values)
                     my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
 
-                    # Initialize new parameters to zero:
-                    init_loc = np.zeros(shape=(input_data.num_design_loc_params, input_data.num_features))
+                    init_loc = np.random.uniform(
+                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
+                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
+                        size=(input_data.num_design_loc_params, input_data.num_features)
+                    )
                     for parm in my_loc_names:
                         init_idx = np.where(init_model.input_data.design_loc_names == parm)
                         my_idx = np.where(input_data.design_loc_names == parm)
@@ -912,8 +848,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     my_scale_names = set(input_data.design_scale_names.values)
                     my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
 
-                    # Initialize new parameters to zero:
-                    init_scale = np.zeros(shape=(input_data.num_design_scale_params, input_data.num_features))
+                    init_scale = np.random.uniform(
+                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
+                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
+                        size=(input_data.num_design_scale_params, input_data.num_features)
+                    )
                     for parm in my_scale_names:
                         init_idx = np.where(init_model.input_data.design_scale_names == parm)
                         my_idx = np.where(input_data.design_scale_names == parm)
@@ -1126,7 +1065,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                       **kwargs)
 
     @property
-    def input_data(self):
+    def input_data(self) -> InputData:
         return self._input_data
 
     def train_sequence(self, training_strategy=TrainingStrategy.AUTO):

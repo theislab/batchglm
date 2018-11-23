@@ -4,12 +4,13 @@ import os
 import shutil
 import logging
 
+import pandas as pd
 import scipy.stats
 import numpy as np
 import xarray as xr
 import yaml
 
-from .base import init_benchmark, get_benchmark_samples, run_benchmark, load_benchmark_dataset
+from .base import init_benchmark, get_benchmark_samples, run_benchmark, load_benchmark_dataset, load_config
 from .base import Simulator
 
 import batchglm.utils.stats as stat_utils
@@ -17,7 +18,16 @@ import batchglm.utils.stats as stat_utils
 logger = logging.getLogger(__name__)
 
 
-def plot_benchmark(root_dir: str, config_file="config.yml"):
+def group_by_training(benchmark_configs, keys=("optim_algo", "learning_rate")):
+    benchmark_df = pd.DataFrame.from_dict({
+        benchmark: [cfg["training_args"][k] for k in keys]
+        for benchmark, cfg in benchmark_configs.items()
+    }, orient='index', columns=keys)
+
+    return benchmark_df
+
+
+def plot_all_benchmarks(root_dir, config_file="config.yml"):
     logger.info("loading config...", end="", flush=True)
     config_file = os.path.join(root_dir, config_file)
     with open(config_file, mode="r") as f:
@@ -28,22 +38,43 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
 
     logger.info("loading data...", end="", flush=True)
     sim, benchmark_data = load_benchmark_dataset(root_dir)
-    benchmark_data.coords["time_elapsed"] = benchmark_data.time_elapsed.cumsum("step")
     logger.info("\t[OK]")
+
+    plot_benchmarks(
+        plot_dir=plot_dir,
+        sim=sim,
+        benchmark_data=benchmark_data,
+        benchmark_names=benchmark_data.coords["benchmark"]
+    )
+
+
+def plot_benchmarks(plot_dir: str, sim, benchmark_data, benchmark_names):
+    benchmark_data = benchmark_data.assign_coords(**{
+        "time_elapsed": benchmark_data.time_elapsed.cumsum("step"),
+    })
+    benchmark_data.coords["benchmark"] = xr.DataArray(
+        dims=("benchmark",),
+        data=benchmark_names
+    )
+
+    groupby_col = "benchmark"
+    linewidth = 0.5
 
     import plotnine as pn
     import matplotlib.pyplot as plt
+    plt.rcParams["legend.loc"] = "center left"
 
     from dask.diagnostics import ProgressBar
 
     def plot_stat(val, val_name, name_prefix, scale_y_log10=False):
         with ProgressBar():
-            df = val.to_dataframe(val_name).reset_index()
+            df = val.to_dataframe(val_name)
+        df = df.reset_index()
 
         plot = (pn.ggplot(df)
-                + pn.aes(x="time_elapsed", y=val_name, group="benchmark", color="benchmark")
+                + pn.aes(x="time_elapsed", y=val_name, group=groupby_col, color=groupby_col)
                 + pn.geom_line()
-                + pn.geom_vline(xintercept=df.location[[np.argmin(df[val_name])]].time_elapsed.values[0], color="black")
+                + pn.geom_vline(xintercept=df.loc[[np.argmin(df[val_name])]].time_elapsed.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df[val_name]), alpha=0.5)
                 )
         if scale_y_log10:
@@ -51,25 +82,27 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
         plot.save(os.path.join(plot_dir, name_prefix + ".time.svg"), format="svg")
 
         plot = (pn.ggplot(df)
-                + pn.aes(x="global_step", y=val_name, group="benchmark", color="benchmark")
+                + pn.aes(x="global_step", y=val_name, group=groupby_col, color=groupby_col)
                 + pn.geom_line()
-                + pn.geom_vline(xintercept=df.location[[np.argmin(df[val_name])]].global_step.values[0], color="black")
+                + pn.geom_vline(xintercept=df.loc[[np.argmin(df[val_name])]].global_step.values[0], color="black")
                 + pn.geom_hline(yintercept=np.min(df[val_name]), alpha=0.5)
                 )
         if scale_y_log10:
             plot = plot + pn.scale_y_log10()
         plot.save(os.path.join(plot_dir, name_prefix + ".step.svg"), format="svg")
 
+        return df
+
     logger.info("plotting...")
     val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.params["a"][0], dims=("features",))),
         np.exp(benchmark_data.a.isel(design_loc_params=0)), axis=[0])
-    plot_stat(val, "mapd", "real_mu")
+    df = plot_stat(val, "mapd", "real_mu")
 
     val: xr.DataArray = stat_utils.rmsd(
         np.exp(xr.DataArray(sim.params["b"][0], dims=("features",))),
         np.exp(benchmark_data.b.isel(design_scale_params=0)), axis=[0])
-    plot_stat(val, "mapd", "real_r")
+    df = plot_stat(val, "mapd", "real_r")
 
     val: xr.DataArray = benchmark_data.loss
     plot_stat(val, "loss", "loss")
@@ -90,41 +123,65 @@ def plot_benchmark(root_dir: str, config_file="config.yml"):
         t = t[:, window_size:]
         df = df[:, window_size:]
 
-        pval = t.copy()
-        pval[:, :] = scipy.stats.t(df).cdf(t)
-        pval.plot.line(hue="benchmark")
-        plt.savefig(os.path.join(plot_dir, "pval_convergence.%dsteps.svg" % window_size), format="svg")
-        # plt.show()
-        plt.close()
+        pval = xr.DataArray(
+            name="pval",
+            data=scipy.stats.t(df).cdf(t),
+            dims=t.dims,
+            coords=t.coords
+        )
 
+        fig, ax = plt.subplots()
+        lines = pval.plot.line(hue=groupby_col, linewidth=linewidth, ax=ax)
+        ax.get_legend().set_bbox_to_anchor((1, 0.5))
+        fig.savefig(os.path.join(plot_dir, "pval_convergence.%dsteps.svg" % window_size),
+                    format="svg", bbox_inches='tight')
+        # fig.show()
+        plt.close(fig)
+
+    plot_pval(25)
+    plot_pval(50)
     plot_pval(100)
     plot_pval(200)
     plot_pval(400)
 
-    benchmark_data.full_loss.plot.line(hue="benchmark")
-    plt.savefig(os.path.join(plot_dir, "full_loss.svg"), format="svg")
-    plt.close()
+    fig, ax = plt.subplots()
+    lines = benchmark_data.full_loss.plot.line(hue=groupby_col, linewidth=linewidth, ax=ax)
+    ax.set_ylabel('full loss')
+    ax.get_legend().set_bbox_to_anchor((1, 0.5))
+    fig.savefig(os.path.join(plot_dir, "full_loss.svg"), format="svg", bbox_inches='tight')
+    plt.close(fig)
 
-    benchmark_data.loss.plot.line(hue="benchmark")
-    plt.savefig(os.path.join(plot_dir, "batch_loss.svg"), format="svg")
-    plt.close()
+    fig, ax = plt.subplots()
+    lines = benchmark_data.loss.plot.line(hue=groupby_col, linewidth=linewidth, ax=ax)
+    ax.set_ylabel('batch loss')
+    ax.get_legend().set_bbox_to_anchor((1, 0.5))
+    fig.savefig(os.path.join(plot_dir, "batch_loss.svg"), format="svg", bbox_inches='tight')
+    plt.close(fig)
 
     def plot_loss_rolling_mean(window_size):
         logger.info("plotting rolling mean of batch loss with window size: %d" % window_size)
 
-        benchmark_data.loss.rolling(step=window_size).mean().plot.line(hue="benchmark")
-        plt.savefig(os.path.join(plot_dir, "batch_loss_rolling_mean.%dsteps.svg" % window_size), format="svg")
-        plt.close()
+        fig, ax = plt.subplots()
+        lines = benchmark_data.loss.rolling(step=window_size).mean().plot.line(
+            hue=groupby_col, linewidth=linewidth, ax=ax)
+        ax.set_ylabel('rolling mean')
+        ax.get_legend().set_bbox_to_anchor((1, 0.5))
+        fig.savefig(os.path.join(plot_dir, "batch_loss_rolling_mean.%dsteps.svg" % window_size),
+                    format="svg", bbox_inches='tight')
+        plt.close(fig)
 
     plot_loss_rolling_mean(25)
     plot_loss_rolling_mean(50)
     plot_loss_rolling_mean(100)
     plot_loss_rolling_mean(200)
 
+    fig, ax = plt.subplots()
     with ProgressBar():
-        benchmark_data.full_gradient.mean(dim="features").plot.line(hue="benchmark")
-    plt.savefig(os.path.join(plot_dir, "mean_full_gradient.svg"), format="svg")
-    plt.close()
+        lines = benchmark_data.full_gradient.mean(dim="features").plot.line(
+            hue=groupby_col, linewidth=linewidth, ax=ax)
+    ax.get_legend().set_bbox_to_anchor((1, 0.5))
+    fig.savefig(os.path.join(plot_dir, "mean_full_gradient.svg"), format="svg", bbox_inches='tight')
+    plt.close(fig)
 
     logger.info("ready")
 
@@ -214,7 +271,7 @@ def main():
         for smpl in benchmark_samples:
             logger.info(smpl)
     elif action == "plot":
-        plot_benchmark(root_dir)
+        plot_all_benchmarks(root_dir)
     elif action == "clean":
         clean(root_dir)
 

@@ -11,11 +11,17 @@ from ..external import data_utils
 from .base import Model, InputData
 
 
-def generate_sample_description(num_observations, num_conditions=2, num_batches=4) -> xr.Dataset:
-    """ Build a design matrix.
+def generate_sample_description(
+        num_observations,
+        num_conditions=2,
+        num_batches=4,
+        shuffle_assignments=False
+) -> xr.Dataset:
+    """ Build a sample description.
 
-    :param num_observations: Number of cells to simulate.
-    :param num_batchs
+    :param num_observations: Number of observations to simulate.
+    :param num_conditions: number of conditions; will be repeated like [1,2,3,1,2,3]
+    :param num_batches: number of conditions; will be repeated like [1,1,2,2,3,3]
     """
     ds = {}
     var_list = ["~ 1"]
@@ -44,6 +50,11 @@ def generate_sample_description(num_observations, num_conditions=2, num_batches=
         "formula": " + ".join(var_list)
     })
     # sample_description = pd.DataFrame(data=sample_description, dtype="category")
+
+    if shuffle_assignments:
+        sample_description = sample_description.isel(
+            observations=np.random.permutation(sample_description.observations.values)
+        )
 
     return sample_description
 
@@ -74,33 +85,38 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
     def num_features(self, data):
         self._num_features = data
 
-    def generate_sample_description(self, num_conditions=2, num_batches=4):
+    def generate_sample_description(self, num_conditions=2, num_batches=4, **kwargs):
         sample_description = generate_sample_description(
-            self.num_observations, 
+            self.num_observations,
             num_conditions=num_conditions,
-            num_batches=num_batches
+            num_batches=num_batches,
+            **kwargs
         )
-        self.data.merge(sample_description, inplace=True)
-        self.data.attrs["formula"] = sample_description.attrs["formula"]
+        self.data = self.data.merge(sample_description)
+
+        if "formula_loc" not in self.data.attrs:
+            self.data.attrs["formula_loc"] = sample_description.attrs["formula"]
+        if "formula_scale" not in self.data.attrs:
+            self.data.attrs["formula_scale"] = sample_description.attrs["formula"]
 
         del self.data["intercept"]
 
     def parse_dmat_loc(self, dmat):
         """ Input externally created design matrix for location model.
         """
-        self.data.attrs["formula"] = None
+        self.data.attrs["formula_loc"] = None
         dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_loc"])
-        dmat_ar.coords["design_loc_params"] = ["p"+str(i) for i in range(dmat.shape[1])]
+        dmat_ar.coords["design_loc_params"] = ["p" + str(i) for i in range(dmat.shape[1])]
         self.data["design_loc"] = dmat_ar
-        
+
     def parse_dmat_scale(self, dmat):
         """ Input externally created design matrix for scale model.
         """
-        self.data.attrs["formula"] = None
+        self.data.attrs["formula_scale"] = None
         dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
-        dmat_ar.coords["design_scale_params"] = ["p"+str(i) for i in range(dmat.shape[1])]
+        dmat_ar.coords["design_scale_params"] = ["p" + str(i) for i in range(dmat.shape[1])]
         self.data["design_scale"] = dmat_ar
-        
+
     def generate_params(
             self,
             *args,
@@ -128,16 +144,19 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
-        if "formula" not in self.data.attrs:
-            self.generate_sample_description()
-
         if "design_loc" not in self.data:
-            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations")
+            if "formula_loc" not in self.data.attrs:
+                self.generate_sample_description()
+
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_loc")
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_loc"])
             dmat_ar.coords["design_loc_params"] = dmat.design_info.column_names
             self.data["design_loc"] = dmat_ar
         if "design_scale" not in self.data:
-            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations")
+            if "formula_scale" not in self.data.attrs:
+                self.generate_sample_description()
+
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_scale")
             dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
             dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
             self.data["design_scale"] = dmat_ar
