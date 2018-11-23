@@ -52,7 +52,15 @@ def estimate_nr_full(input_data: InputData, working_dir: str):
     )
     input_data.save(os.path.join(working_dir, "input_data.h5"))
 
-    estimator.train_sequence(training_strategy="NEWTON_EXACT")
+    estimator.train_sequence(training_strategy=[
+        {
+            "convergence_criteria": "scaled_moving_average",
+            "stopping_criteria": 1e-10,
+            "loss_window_size": 10,
+            "use_batching": False,
+            "optim_algo": "newton",
+        },
+    ])
 
     return estimator
 
@@ -68,23 +76,15 @@ def estimate_nr_batched(input_data: InputData, working_dir: str):
     )
     input_data.save(os.path.join(working_dir, "input_data.h5"))
 
-    estimator.train_sequence(training_strategy="NEWTON_BATCHED")
-
-    return estimator
-
-
-def estimate_nr_series(input_data: InputData, working_dir: str):
-    estimator = Estimator(input_data, batch_size=500)
-    estimator.initialize(
-        working_dir=working_dir,
-        save_checkpoint_steps=20,
-        save_summaries_steps=20,
-        export=["a", "b", "mu", "r", "loss"],
-        export_steps=20
-    )
-    input_data.save(os.path.join(working_dir, "input_data.h5"))
-
-    estimator.train_sequence(training_strategy="NEWTON_SERIES")
+    estimator.train_sequence(training_strategy=[
+        {
+            "convergence_criteria": "scaled_moving_average",
+            "stopping_criteria": 1e-8,
+            "loss_window_size": 10,
+            "use_batching": True,
+            "optim_algo": "newton",
+        },
+    ])
 
     return estimator
 
@@ -180,31 +180,6 @@ class NB_GLM__Newton_Test(unittest.TestCase):
         estimator = estimator.finalize()
         print("\n")
         print("run time newton-rhapson on full data: ", str(t1 - t0))
-        print((estimator.a.values - self.sim.a.values) / self.sim.a.values)
-        print((estimator.b.values - self.sim.b.values) / self.sim.b.values)
-
-    def test_newton_series(self):
-        X = scipy.sparse.csr_matrix(self.sim.X)
-        design_loc = self.sim.design_loc
-        design_scale = self.sim.design_scale
-        idata = InputData.new(
-            data=X,
-            design_loc=design_loc,
-            design_scale=design_scale,
-        )
-        wd = os.path.join(self.working_dir.name, "newton_full")
-        os.makedirs(wd, exist_ok=True)
-
-        t0 = time.time()
-        pkg_constants.JACOBIAN_MODE = "analytic"
-        estimator = estimate_nr_series(idata, wd)
-        t1 = time.time()
-        self._estims.append(estimator)
-
-        # test finalizing
-        estimator = estimator.finalize()
-        print("\n")
-        print("run time newton-rhapson series: ", str(t1 - t0))
         print((estimator.a.values - self.sim.a.values) / self.sim.a.values)
         print((estimator.b.values - self.sim.b.values) / self.sim.b.values)
 
