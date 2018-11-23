@@ -30,12 +30,14 @@ def estimate_adam_full(input_data: InputData, working_dir: str):
     input_data.save(os.path.join(working_dir, "input_data.h5"))
 
     estimator.train_sequence(training_strategy=[
-        {'convergence_criteria': 't_test',
-         'learning_rate': 0.1,
-         'loss_window_size': 20,
-         'optim_algo': 'ADAM',
-         'stop_at_loss_change': 1e-8,
-         'use_batching': False}
+        {
+            "convergence_criteria": "scaled_moving_average",
+            "stopping_criteria": 1e-6,
+             "loss_window_size": 5,
+             "use_batching": False,
+             "optim_algo": "ADAM",
+             "learning_rate": 0.1
+         }
     ])
 
     return estimator
@@ -55,8 +57,8 @@ def estimate_nr_full(input_data: InputData, working_dir: str):
     estimator.train_sequence(training_strategy=[
         {
             "convergence_criteria": "scaled_moving_average",
-            "stopping_criteria": 1e-10,
-            "loss_window_size": 10,
+            "stopping_criteria": 1e-6,
+            "loss_window_size": 5,
             "use_batching": False,
             "optim_algo": "newton",
         },
@@ -79,8 +81,8 @@ def estimate_nr_batched(input_data: InputData, working_dir: str):
     estimator.train_sequence(training_strategy=[
         {
             "convergence_criteria": "scaled_moving_average",
-            "stopping_criteria": 1e-8,
-            "loss_window_size": 10,
+            "stopping_criteria": 1e-6,
+            "loss_window_size": 5,
             "use_batching": True,
             "optim_algo": "newton",
         },
