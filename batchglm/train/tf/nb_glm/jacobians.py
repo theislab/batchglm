@@ -159,9 +159,9 @@ class Jacobians:
             in
         """
         if constraints_loc is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_loc is not None")
+            raise ValueError("closed form jacobians do not work if constraints_loc is not None")
         if constraints_scale is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_scale is not None")
+            raise ValueError("closed form jacobians do not work if constraints_scale is not None")
 
         if mode == "analytic":
             self.jac = self.analytic(
@@ -286,8 +286,8 @@ class Jacobians:
             return tf.add(prev, cur)
 
         params = model_vars.params
-        p_shape_a = model_vars.a.shape[0]
-        p_shape_b = model_vars.b.shape[0]
+        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
         if iterator:
             J = op_utils.map_reduce(
@@ -374,8 +374,8 @@ class Jacobians:
             return tf.add(prev, cur)
 
         params = model_vars.params
-        p_shape_a = model_vars.a.shape[0]
-        p_shape_b = model_vars.b.shape[0]
+        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
         if iterator == True and batch_model is None:
             J = op_utils.map_reduce(

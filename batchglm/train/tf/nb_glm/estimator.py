@@ -73,18 +73,9 @@ class FullDataModelGraph:
         with tf.name_scope("loss"):
             loss = tf.reduce_sum(norm_neg_log_likelihood)
 
-        # TODO: remove this and decide for one implementation
-        if pkg_constants.HESSIAN_MODE == "obs":
-            # Only need iterator that yields single observations for hessian mode obs:
-            singleobs_data = dataset.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            singleobs_data = singleobs_data.prefetch(1)
-        else:
-            singleobs_data = None
-
         with tf.name_scope("hessians"):
             hessians = Hessians(
                 batched_data=batched_data,
-                singleobs_data=singleobs_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
@@ -258,7 +249,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     model_vars=model_vars,
-                    mode="analytic",
+                    mode=pkg_constants.JACOBIAN_MODE,  #"analytic",
                     iterator=False,
                     dtype=dtype
                 )
@@ -266,12 +257,11 @@ class EstimatorGraph(TFEstimatorGraph):
                 # Define the hessian on the batched model for newton-rhapson:
                 batch_hessians = Hessians(
                     batched_data=batch_data,
-                    singleobs_data=None,
                     sample_indices=batch_sample_index,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     model_vars=model_vars,
-                    mode="obs_batched",
+                    mode=pkg_constants.HESSIAN_MODE,  #"obs_batched",
                     iterator=False,
                     dtype=dtype
                 )
@@ -637,6 +627,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "optim_algo": "newton",
             },
         ]
+        CONSTRAINED = [  # Should not contain newton-rhapson right now.
+            {
+                "learning_rate": 0.5,
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-10,
+                "loss_window_size": 10,
+                "use_batching": False,
+                "optim_algo": "ADAM",
+            },
+        ]
         CONTINUOUS = [
             {
                 "learning_rate": 0.5,
@@ -810,7 +810,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             design_scale=input_data.design_scale,
                             constraints=input_data.constraints_scale,
                             size_factors=size_factors_init,
-                            groupwise_means=groupwise_means,
+                            groupwise_means=None,  # Could only use groupwise_means from a init if design_loc and design_scale were the same.
                             link_fn=lambda r: np.log(np_clip_param(r, "r"))
                         )
 

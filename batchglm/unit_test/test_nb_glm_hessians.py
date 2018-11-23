@@ -54,6 +54,16 @@ class NB_GLM_hessian_Test(unittest.TestCase):
 
         input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 
+        pkg_constants.HESSIAN_MODE = "tf"
+        self.estimator_tf = estimate(input_data)
+        t0_tf = time.time()
+        # tensorflow computes the negative hessian as the
+        # objective is the negative log-likelihood.
+        self.H_tf = self.estimator_tf.hessians
+        t1_tf = time.time()
+        self.estimator_tf.close_session()
+        self.t_tf = t1_tf - t0_tf
+
         pkg_constants.HESSIAN_MODE = "obs_batched"
         self.estimator_ob = estimate(input_data)
         t0_ob = time.time()
@@ -61,14 +71,6 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         t1_ob = time.time()
         self.estimator_ob.close_session()
         self.t_ob = t1_ob - t0_ob
-
-        pkg_constants.HESSIAN_MODE = "obs"
-        self.estimator_ow = estimate(input_data)
-        t0_ow = time.time()
-        self.H_ow = self.estimator_ow.hessians
-        t1_ow = time.time()
-        self.estimator_ow.close_session()
-        self.t_ow = t1_ow - t0_ow
 
         pkg_constants.HESSIAN_MODE = "feature"
         self.estimator_fw = estimate(input_data)
@@ -78,28 +80,15 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         self.estimator_fw.close_session()
         self.t_fw = t1_fw - t0_fw
 
-        pkg_constants.HESSIAN_MODE = "tf"
-        self.estimator_tf = estimate(input_data)
-        t0_tf = time.time()
-        # tensorflow computes the negative hessian as the
-        # objective is the negative log-likelihood.
-        self.H_tf = -self.estimator_tf.hessians
-        t1_tf = time.time()
-        self.estimator_tf.close_session()
-        self.t_tf = t1_tf - t0_tf
-
         i = 1
         print("\n")
-        print("run time observation-wise analytic solution: ", str(self.t_ow))
         print("run time observation batch-wise analytic solution: ", str(self.t_ob))
         print("run time feature-wise analytic solution: ", str(self.t_fw))
         print("run time feature-wise tensorflow solution: ", str(self.t_tf))
-        print("ratio of analytic feature-wise hessian to analytic observation-wise hessian:")
-        print(self.H_tf.values[i, :, :] / self.H_ow.values[i, :, :])
-        print("ratio of analytic feature-wise hessian to analytic observation batch-wise hessian:")
+        print("ratio of tensorflow feature-wise hessian to analytic observation batch-wise hessian:")
         print(self.H_tf.values[i, :, :] / self.H_ob.values[i, :, :])
-        print("ratio of tensorflow feature-wise hessian to analytic observation-wise hessian:")
-        print(self.H_tf.values[i, :, :] / self.H_ow.values[i, :, :])
+        print("ratio of tensorflow feature-wise hessian to analytic feature-wise hessian:")
+        print(self.H_tf.values[i, :, :] / self.H_fw.values[i, :, :])
 
 
 if __name__ == '__main__':
