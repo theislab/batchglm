@@ -11,39 +11,41 @@ class NegativeBinomial(TFNegativeBinomial):
     __mean: tf.Tensor
     __variance: tf.Tensor
 
-    def __init__(self, total_count=None, r=None, variance=None, p=None, probs=None, log_probs=None, mean=None,
+    def __init__(self, total_count=None, r=None, variance=None, p=None, probs=None, logits=None, mean=None,
                  name="NegativeBinomial"):
         with tf.name_scope(name):
             if total_count is not None:  # total_count is alias for r
                 r = total_count
-            if log_probs is not None:  # calculate p from log_probs
-                p = tf.exp(log_probs)
+            if p is not None:
+                if p is not None:
+                    raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
+                probs = p
             if probs is not None:  # probs is alias for p
-                p = probs
+                logits = tf.log(probs)
 
             if r is None:
                 if variance is None:
                     raise ValueError("Must pass shape 'r' / 'total_count' or variance")
 
-                if p is None:
+                if logits is None:
                     if mean is None:
-                        raise ValueError("Must pass 'probs' / 'p', 'log_probs' or 'mean'")
+                        raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
 
                     with tf.name_scope("reparametrize"):
-                        p = 1. - (mean / variance)
-                        p = tf.identity(p, "p")
+                        logits = tf.log(variance - mean) - tf.log(variance)
+                        logits = tf.identity(logits, "logits")
 
                         r = mean * mean / (variance - mean)
                         r = tf.identity(r, "r")
-            elif p is None:
+            elif logits is None:
                 if mean is None:
-                    raise ValueError("Must pass 'probs' / 'p', 'log_probs' or 'mean'")
+                    raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
 
                 with tf.name_scope("reparametrize"):
-                    p = mean / (r + mean)
-                    p = tf.identity(p, "p")
+                    logits = tf.log(mean) - tf.log(r + mean)
+                    logits = tf.identity(logits, "logits")
 
-            super().__init__(r, probs=p)
+            super().__init__(r, logits=logits)
 
             self.__mean = mean
             self.__variance = variance
