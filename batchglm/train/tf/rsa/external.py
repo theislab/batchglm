@@ -1,6 +1,6 @@
 import batchglm.data as data_utils
 
-from batchglm.models.rsa.base import AbstractEstimator, XArrayEstimatorStore, InputData, Model
+from batchglm.models.rsa.base import AbstractEstimator, XArrayEstimatorStore, InputData, Model, param_bounds
 
 import batchglm.train.tf.ops as op_utils
 import batchglm.train.tf.train as train_utils

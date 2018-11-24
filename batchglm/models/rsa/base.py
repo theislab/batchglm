@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import patsy
 
+import batchglm.pkg_constants as pkg_constants
+import batchglm.utils.random as rand_utils
 from batchglm.utils.numeric import softmax
 from ..base import BasicEstimator
 from ..glm import parse_design
@@ -54,6 +56,77 @@ ESTIMATOR_PARAMS.update({
     # "hessians": ("features", "delta_var0", "delta_var1"),
     # "fisher_inv": ("features", "delta_var0", "delta_var1"),
 })
+
+
+def param_bounds(dtype: np.dtype, dmin=None, dmax=None):
+    dtype = np.dtype(dtype)
+    if dmin is None:
+        dmin = np.finfo(dtype).min
+    if dmax is None:
+        dmax = np.finfo(dtype).max
+    dtype = dtype.type
+
+    sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
+    bounds_min = {
+        "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+        # "mu": np.nextafter(0, np.inf, dtype=dtype),
+        # "r": np.nextafter(0, np.inf, dtype=dtype),
+        # "probs": dtype(0),
+        "probs": np.nextafter(0, np.inf, dtype=dtype),
+        "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        "mixture_prob": np.nextafter(0, np.inf, dtype=dtype),
+        "mixture_log_prob": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        "mixture_logits": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        # "mixture_weight_constraints": np.nextafter(0, np.inf, dtype=dtype),
+        "mixture_weight_constraints": dtype(0),
+        # "mixture_weight_log_constraints": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        "mixture_weight_log_constraints": -np.sqrt(dmax),
+    }
+    bounds_min.update({
+        "mu" : np.exp(bounds_min["log_mu"]),
+        "r" : np.exp(bounds_min["log_r"]),
+    })
+    bounds_max = {
+        "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "b": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "log_mu": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        "log_r": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+        # "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        # "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        "probs": dtype(1),
+        "log_probs": dtype(0),
+        "mixture_prob": dtype(1),
+        "mixture_log_prob": dtype(0),
+        "mixture_logits": dtype(0),
+        "mixture_weight_constraints": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+        "mixture_weight_log_constraints": np.log(np.nextafter(np.inf, -np.inf, dtype=dtype)) / sf,
+    }
+    bounds_max.update({
+        "mu" : np.exp(bounds_max["log_mu"]),
+        "r" : np.exp(bounds_max["log_r"]),
+    })
+
+    return bounds_min, bounds_max
+
+
+def np_clip_param(param, name):
+    bounds_min, bounds_max = param_bounds(param.dtype)
+    if isinstance(param, xr.DataArray):
+        return param.clip(
+            bounds_min[name],
+            bounds_max[name],
+            # out=param
+        )
+    else:
+        return np.clip(
+            param,
+            bounds_min[name],
+            bounds_max[name],
+            # out=param
+        )
 
 
 class InputData(NB_GLM_InputData):
@@ -203,6 +276,10 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
     """
 
     @classmethod
+    def clip_param(cls, param, name):
+        return np_clip_param(param, name)
+
+    @classmethod
     def param_shapes(cls) -> dict:
         return MODEL_PARAMS
 
@@ -262,9 +339,13 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
         retval = retval.transpose(*self.param_shapes()["par_link_scale"])
         return retval
 
-    def elemwise_log_prob(self):
-        # log_probs = glm.utils.random.NegativeBinomial(mean=self.mu, r=self.r).log_prob(self.X)
-        return super().log_probs()
+    def elemwise_log_prob(self) -> xr.DataArray:
+        X = self.X
+        mu = self.clip_param(self.mu, "mu")
+        r = self.clip_param(self.r, "r")
+        log_probs = rand_utils.NegativeBinomial(mean=mu, r=r).log_prob(X)
+        log_probs: xr.DataArray = self.clip_param(log_probs, "log_probs")
+        return log_probs
 
     def log_probs(self) -> xr.DataArray:
         return self.mixture_log_prob.dot(self.elemwise_log_prob(), dims="mixtures")

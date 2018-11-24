@@ -94,6 +94,14 @@ class NegativeBinomial:
     def p(self):
         return self.mean / (self.r + self.mean)
 
+    @property
+    def log_p(self):
+        return np.log(self.mean) - np.log(self.r + self.mean)
+
+    @property
+    def log_1p(self):
+        return np.log(self.r) - np.log(self.r + self.mean)
+
     def sample(self, size=None):
         """
         Sample from all distributions data of size `size`.
@@ -132,15 +140,25 @@ class NegativeBinomial:
         :return: numpy array of log-probabilitites
 
         """
-        p = self.p
+        mu = self.mean
         r = self.r
 
+        # min_p = np.nextafter(0, 1, dtype=self.p.dtype)
+        # max_p = np.nextafter(1, 0, dtype=self.p.dtype)
+        # log_p = np.fmin(log_p, max_p)
+        # log_p = np.fmax(log_p, min_p)
+
         # broadcasting
-        if xr != None and isinstance(p, xr.DataArray) and isinstance(r, xr.DataArray) and isinstance(X, xr.DataArray):
-            p, r, X = xr.align(p, r, X)
+        if xr != None and isinstance(mu, xr.DataArray) and isinstance(r, xr.DataArray) and isinstance(X, xr.DataArray):
+            mu, r, X = xr.align(mu, r, X)
         else:
-            p, r, X = np.broadcast_arrays(p, r, X)
+            mu, r, X = np.broadcast_arrays(mu, r, X)
+
+        div = np.log(r + mu)
+        log_p = np.log(mu) - div
+        log_1p = np.log(r) - div
 
         # return scipy.stats.nbinom(n=r, p=1 - p).logpmf(X)
         coeff = gammaln(r + X) - gammaln(X + 1) - gammaln(r)
-        return coeff + r * np.log(1 - p) + X * np.log(p)
+        # return coeff + r * np.log(1 - p) + X * np.log(p)
+        return coeff + r * log_1p + X * log_p

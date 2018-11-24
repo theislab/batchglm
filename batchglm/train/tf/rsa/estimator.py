@@ -176,6 +176,7 @@ class FullDataModelGraph:
 
             self.probs = tf.exp(model.log_probs)
             self.log_probs = model.log_probs
+            self.expected_mixture_log_prob = model.expected_mixture_log_prob
 
             # custom
             self.sample_indices = sample_indices
@@ -404,6 +405,14 @@ class EstimatorGraph(TFEstimatorGraph):
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers"
                 )
+                batch_trainers_noweight = train_utils.MultiTrainer(
+                    loss=batch_model.norm_neg_log_likelihood,
+                    variables=[model_vars.a_var, model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="batch_trainers_noweight"
+                )
                 batch_trainers_EM = train_utils.MultiTrainer(
                     loss=batch_model.norm_neg_log_likelihood,
                     variables=[model_vars.a_var, model_vars.b_var],
@@ -411,7 +420,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     global_step=global_step,
                     apply_train_ops=lambda train_op: tf.group(train_op, batch_mixture_EM_update),
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers"
+                    name="batch_trainers_EMlike"
                 )
                 with tf.name_scope("batch_gradient"):
                     # use same gradient as the optimizers
@@ -429,12 +438,21 @@ class EstimatorGraph(TFEstimatorGraph):
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers"
                 )
+                full_data_trainers_noweight = train_utils.MultiTrainer(
+                    loss=full_data_model.norm_neg_log_likelihood,
+                    variables=[model_vars.a_var, model_vars.b_var],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="full_data_trainers_noweight"
+                )
+
                 full_data_trainers_EM = train_utils.MultiTrainer(
                     gradients=full_data_model.norm_grads_EM_with_grads,
                     learning_rate=learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_EMlike"
+                    name="full_data_trainers_EMlike"
                 )
 
                 with tf.name_scope("full_gradient"):
@@ -498,8 +516,10 @@ class EstimatorGraph(TFEstimatorGraph):
 
             self.batch_trainers = batch_trainers
             self.batch_trainers_EM = batch_trainers_EM
+            self.batch_trainers_noweight = batch_trainers_noweight
             self.full_data_trainers = full_data_trainers
             self.full_data_trainers_EM = full_data_trainers_EM
+            self.full_data_trainers_noweight = full_data_trainers_noweight
             self.global_step = global_step
 
             self.gradient = batch_gradient
@@ -963,6 +983,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             stopping_criteria=0.05,
             use_batching=True,
             use_em=True,
+            train_weights=True,
             optim_algo="gradient_descent",
             **kwargs
     ):
@@ -993,6 +1014,12 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param loss_window_size: specifies `N` in `convergence_criteria`.
         :param use_batching: If True, will use mini-batches with the batch size defined in the constructor.
             Otherwise, the gradient of the full dataset will be used.
+        :param use_em: Should the mixture probabilities be updated using gradient-based optimization or by
+            closed-form EM-like update?
+
+            Recommended to use EM-like updates => set this to `True`.
+        :param train_weights: Should the mixture probabilities be trained?
+            Set this to `False` if the mixture probabilities should be kept constant.
         :param optim_algo: name of the requested train op. Can be:
 
             - "Adam"
@@ -1002,20 +1029,29 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             See :func:train_utils.MultiTrainer.train_op_by_name for further details.
         """
-        if use_em:
-            if use_batching:
-                loss = self.model.loss
-                train_op = self.model.batch_trainers_EM.train_op_by_name(optim_algo)
+
+        if train_weights:
+            if use_em:
+                if use_batching:
+                    loss = self.model.loss
+                    train_op = self.model.batch_trainers_EM.train_op_by_name(optim_algo)
+                else:
+                    loss = self.model.full_data_model.loss_EM
+                    train_op = self.model.full_data_trainers_EM.train_op_by_name(optim_algo)
             else:
-                loss = self.model.full_data_model.loss_EM
-                train_op = self.model.full_data_trainers_EM.train_op_by_name(optim_algo)
+                if use_batching:
+                    loss = self.model.loss
+                    train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
+                else:
+                    loss = self.model.full_loss
+                    train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
         else:
             if use_batching:
                 loss = self.model.loss
-                train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
+                train_op = self.model.batch_trainers_noweight.train_op_by_name(optim_algo)
             else:
-                loss = self.model.full_loss
-                train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
+                loss = self.model.full_data_model.loss
+                train_op = self.model.full_data_trainers_noweight.train_op_by_name(optim_algo)
 
         super().train(
             *args,

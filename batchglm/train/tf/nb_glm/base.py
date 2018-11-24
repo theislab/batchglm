@@ -6,6 +6,7 @@ import tensorflow as tf
 # import tensorflow_probability as tfp
 
 import numpy as np
+import xarray as xr
 
 from .external import AbstractEstimator
 from .external import nb_utils
@@ -69,12 +70,19 @@ def tf_clip_param(param, name):
 
 def np_clip_param(param, name):
     bounds_min, bounds_max = param_bounds(param.dtype)
-    return np.clip(
-        param,
-        bounds_min[name],
-        bounds_max[name],
-        # out=param
-    )
+    if isinstance(param, xr.DataArray):
+        return param.clip(
+            bounds_min[name],
+            bounds_max[name],
+            # out=param
+        )
+    else:
+        return np.clip(
+            param,
+            bounds_min[name],
+            bounds_max[name],
+            # out=param
+        )
 
 
 def apply_constraints(constraints: np.ndarray, var: tf.Variable, dtype: str):

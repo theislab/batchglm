@@ -8,10 +8,11 @@ import tensorflow as tf
 # import tensorflow_probability as tfp
 
 import numpy as np
+import xarray as xr
 
 from .external import AbstractEstimator
 from .external import nb_utils, op_utils
-from .external import pkg_constants
+from .external import param_bounds as base_param_bounds
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ ESTIMATOR_PARAMS.update({
 })
 
 
-def param_bounds(dtype):
+def param_bounds(dtype: np.dtype):
     if isinstance(dtype, tf.DType):
         dmin = dtype.min
         dmax = dtype.max
@@ -36,42 +37,7 @@ def param_bounds(dtype):
         dmax = np.finfo(dtype).max
         dtype = dtype.type
 
-    sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
-    bounds_min = {
-        "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-        "mu": np.nextafter(0, np.inf, dtype=dtype),
-        "r": np.nextafter(0, np.inf, dtype=dtype),
-        # "probs": dtype(0),
-        "probs": np.nextafter(0, np.inf, dtype=dtype),
-        "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        "mixture_prob": np.nextafter(0, np.inf, dtype=dtype),
-        "mixture_log_prob": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        "mixture_logits": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        # "mixture_weight_constraints": np.nextafter(0, np.inf, dtype=dtype),
-        "mixture_weight_constraints": dtype(0),
-        # "mixture_weight_log_constraints": np.log(np.nextafter(0, np.inf, dtype=dtype)),
-        "mixture_weight_log_constraints": -np.sqrt(dmax),
-    }
-    bounds_max = {
-        "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-        "b": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-        "log_mu": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-        "log_r": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-        "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-        "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-        "probs": dtype(1),
-        "log_probs": dtype(0),
-        "mixture_prob": dtype(1),
-        "mixture_log_prob": dtype(0),
-        "mixture_logits": dtype(0),
-        "mixture_weight_constraints": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-        "mixture_weight_log_constraints": np.log(np.nextafter(np.inf, -np.inf, dtype=dtype)) / sf,
-
-    }
-    return bounds_min, bounds_max
+    return base_param_bounds(dtype, dmin, dmax)
 
 
 def tf_clip_param(param, name):
@@ -85,12 +51,19 @@ def tf_clip_param(param, name):
 
 def np_clip_param(param, name):
     bounds_min, bounds_max = param_bounds(param.dtype)
-    return np.clip(
-        param,
-        bounds_min[name],
-        bounds_max[name],
-        # out=param
-    )
+    if isinstance(param, xr.DataArray):
+        return param.clip(
+            bounds_min[name],
+            bounds_max[name],
+            # out=param
+        )
+    else:
+        return np.clip(
+            param,
+            bounds_min[name],
+            bounds_max[name],
+            # out=param
+        )
 
 
 class MixtureModel:
@@ -421,7 +394,8 @@ class ModelVars:
                     )
                     mixture_weight_constraints = tf_clip_param(mixture_weight_constraints, "mixture_weight_constraints")
 
-                mixture_weight_log_constraints = tf.log(mixture_weight_constraints, name="mixture_weight_log_constraints")
+                mixture_weight_log_constraints = tf.log(mixture_weight_constraints,
+                                                        name="mixture_weight_log_constraints")
             else:
                 mixture_weight_log_constraints = None
 
