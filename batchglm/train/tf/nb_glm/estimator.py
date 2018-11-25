@@ -964,7 +964,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return scaffold
 
     def train(self, *args,
-              learning_rate=0.5,
+              learning_rate=None,
               convergence_criteria="t_test",
               loss_window_size=100,
               stopping_criteria=0.05,
@@ -1018,12 +1018,43 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # check if r was initialized with MLE
             train_r = self._train_r
 
-        if use_batching:
-            loss = self.model.loss
-            if optim_algo.lower() == "newton" or \
+        # Check whether newton-rhapson is desired:
+        newton_rhapson_mode = False
+        if optim_algo.lower() == "newton" or \
                     optim_algo.lower() == "newton-raphson" or \
                     optim_algo.lower() == "newton_raphson" or \
                     optim_algo.lower() == "nr":
+            newton_rhapson_mode = True
+        # Set learning rae defaults if not set by user.
+        if learning_rate is None:
+            if newton_rhapson_mode:
+                learning_rate = 1
+            else:
+                learning_rate = 0.5
+
+        # Check that newton-rhapson is called properly:
+        if newton_rhapson_mode:
+            if learning_rate != 1:
+                logger.warning("Newton-rhapson in nb_glm is used with learing rate " + str(learning_rate) +
+                               ". Newton-rhapson should only be used with learing rate =1.")
+
+        # Report all parameters after all defaults were imputed in settings:
+        logger.debug("Optimizer settings in nb_glm Estimator.train():")
+        logger.debug("learning_rate " + str(learning_rate))
+        logger.debug("convergence_criteria " + str(convergence_criteria))
+        logger.debug("loss_window_size " + str(loss_window_size))
+        logger.debug("stopping_criteria " + str(stopping_criteria))
+        logger.debug("train_mu " + str(train_mu))
+        logger.debug("train_r " + str(train_r))
+        logger.debug("use_batching " + str(use_batching))
+        logger.debug("optim_algo " + str(optim_algo))
+        if len(kwargs) > 0:
+            logger.debug("**kwargs: ")
+            logger.debug(kwargs)
+
+        if use_batching:
+            loss = self.model.loss
+            if newton_rhapson_mode:
                 train_op = self.model.newton_raphson_batched_op
             elif train_mu:
                 if train_r:
@@ -1038,10 +1069,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     return
         else:
             loss = self.model.full_loss
-            if optim_algo.lower() == "newton" or \
-                    optim_algo.lower() == "newton-raphson" or \
-                    optim_algo.lower() == "newton_raphson" or \
-                    optim_algo.lower() == "nr":
+            if newton_rhapson_mode:
                 train_op = self.model.newton_raphson_op
             elif train_mu:
                 if train_r:
