@@ -147,16 +147,16 @@ class InputData(BasicInputData):
 
         return type(self)(data)
 
-    def __str__(self):
-        return "[%s.%s object at %s]: data=%s" % (
-            type(self).__module__,
-            type(self).__name__,
-            hex(id(self)),
-            self.data
-        )
-
-    def __repr__(self):
-        return self.__str__()
+    # def __str__(self):
+    #     return "[%s.%s object at %s]: data=%s" % (
+    #         type(self).__module__,
+    #         type(self).__name__,
+    #         hex(id(self)),
+    #         self.data
+    #     )
+    #
+    # def __repr__(self):
+    #     return self.__str__()
 
 
 class Model(BasicModel, metaclass=abc.ABCMeta):
@@ -216,8 +216,7 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
         return self.mu + ((self.mu * self.mu) / self.r)
 
     def probs(self) -> xr.DataArray:
-        X = self.X
-        return rand_utils.NegativeBinomial(mean=self.mu, r=self.r).prob(X)
+        return np.exp(self.log_probs())
 
     def log_probs(self) -> xr.DataArray:
         X = self.X

@@ -10,5 +10,6 @@ from batchglm.train.tf.base import TFEstimatorGraph, MonitoredTFEstimator
 
 # from train.tf.nb import EstimatorGraph as NegativeBinomialEstimatorGraph
 
+import batchglm.models.nb_glm.utils as nb_glm_utils
 import batchglm.utils.random as rand_utils
 from batchglm import pkg_constants
