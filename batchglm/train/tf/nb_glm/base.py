@@ -171,18 +171,38 @@ class BasicModelGraph:
         # to yield dependent set of parameters of model for each location
         # and scale model.
         if a is None:
-            assert a_var is not None
             if constraints_loc is not None:
-                a = apply_constraints(constraints=constraints_loc, var_indep=a_var, dtype=dtype)
+                a = apply_constraints(
+                    constraints=constraints_loc,
+                    var_indep=a_var,
+                    dtype=dtype
+                )
             else:
                 a = a_var
+        else:
+            if constraints_loc is not None:
+                a = apply_constraints(
+                    constraints=constraints_loc,
+                    var_all=a,
+                    dtype=dtype
+                )
 
         if b is None:
-            assert b_var is not None
             if constraints_scale is not None:
-                b = apply_constraints(constraints=constraints_scale, var_indep=b_var, dtype=dtype)
+                b = apply_constraints(
+                    constraints=constraints_scale,
+                    var_indep=b_var,
+                    dtype=dtype
+                )
             else:
                 b = b_var
+        else:
+            if constraints_scale is not None:
+                b = apply_constraints(
+                    constraints=constraints_scale,
+                    var_all=b,
+                    dtype=dtype
+                )
 
         dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
                                                r=tf.exp(tf.gather(b, 0)),
@@ -332,12 +352,20 @@ class ModelVars:
         # and scale model.
 
         if constraints_loc is not None:
-            a = apply_constraints(constraints_loc, a_var, dtype=dtype)
+            a = apply_constraints(
+                constraints=constraints_loc,
+                var_indep=a_var,
+                dtype=dtype
+            )
         else:
             a = a_var
 
         if constraints_scale is not None:
-            b = apply_constraints(constraints_scale, b_var, dtype=dtype)
+            b = apply_constraints(
+                constraints=constraints_scale,
+                var_indep=b_var,
+                dtype=dtype
+            )
         else:
             b = b_var
 
