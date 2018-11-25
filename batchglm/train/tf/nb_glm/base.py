@@ -123,8 +123,6 @@ def apply_constraints(
     if var_all is None:
         x = var_indep
     elif var_indep is None:
-        print(idx_indep)
-        print(var_all.shape)
         x = tf.gather(params=var_all, indices=idx_indep, axis=0)
     else:
         raise ValueError("only give var_all or var_indep to apply_constraints.")
