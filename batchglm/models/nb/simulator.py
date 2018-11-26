@@ -61,7 +61,7 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
         """
 
         mean = np.random.uniform(min_mean, max_mean, [self.num_features])
-        r = np.round(np.random.uniform(min_r, max_r, [self.num_features]))
+        r = np.random.uniform(min_r, max_r, [self.num_features])
 
         # dist = rand_utils.NegativeBinomial(
         #     mean=mean,
