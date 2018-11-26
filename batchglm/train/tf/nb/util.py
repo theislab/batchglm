@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow_probability.python.distributions.negative_binomial import NegativeBinomial as TFNegativeBinomial
 
 from batchglm.train.tf.ops import reduce_weighted_mean
+from batchglm.train.tf.ops import logit
 
 
 class NegativeBinomial(TFNegativeBinomial):
@@ -21,7 +22,7 @@ class NegativeBinomial(TFNegativeBinomial):
                     raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
                 probs = p
             if probs is not None:  # probs is alias for p
-                logits = tf.log(probs)
+                logits = logit(probs)
 
             if r is None:
                 if variance is None:
@@ -32,7 +33,10 @@ class NegativeBinomial(TFNegativeBinomial):
                         raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
 
                     with tf.name_scope("reparametrize"):
-                        logits = tf.log(variance - mean) - tf.log(variance)
+                        log_p = tf.log(variance - mean) - tf.log(variance)
+
+                        one = tf.ones(shape=(), dtype=log_p.dtype)
+                        logits = log_p - tf.log(one - tf.exp(log_p))
                         logits = tf.identity(logits, "logits")
 
                         r = mean * mean / (variance - mean)
@@ -42,7 +46,10 @@ class NegativeBinomial(TFNegativeBinomial):
                     raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
 
                 with tf.name_scope("reparametrize"):
-                    logits = tf.log(mean) - tf.log(r + mean)
+                    log_p = tf.log(mean) - tf.log(r + mean)
+
+                    one = tf.ones(shape=(), dtype=log_p.dtype)
+                    logits = log_p - tf.log(one - tf.exp(log_p))
                     logits = tf.identity(logits, "logits")
 
             super().__init__(r, logits=logits)
