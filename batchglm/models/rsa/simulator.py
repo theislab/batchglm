@@ -400,11 +400,11 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
 
     @property
     def mixture_weight_constraints(self):
-        return self.data["mixture_weight_constraints"]
+        return self.data.get("mixture_weight_constraints")
 
     @property
     def initial_mixture_weights(self):
-        return self.data["initial_mixture_weights"]
+        return self.data.get("initial_mixture_weights")
 
 
 def sim_test():
