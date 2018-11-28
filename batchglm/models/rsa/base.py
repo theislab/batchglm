@@ -13,7 +13,7 @@ import patsy
 
 import batchglm.pkg_constants as pkg_constants
 import batchglm.utils.random as rand_utils
-from batchglm.utils.numeric import softmax
+from batchglm.utils.numeric import softmax, logsumexp
 from ..base import BasicEstimator
 from ..glm import parse_design
 from ..mixture import Model as MixtureModel
@@ -86,8 +86,8 @@ def param_bounds(dtype: np.dtype, dmin=None, dmax=None):
         "mixture_weight_log_constraints": -np.sqrt(dmax),
     }
     bounds_min.update({
-        "mu" : np.exp(bounds_min["log_mu"]),
-        "r" : np.exp(bounds_min["log_r"]),
+        "mu": np.exp(bounds_min["log_mu"]),
+        "r": np.exp(bounds_min["log_r"]),
     })
     bounds_max = {
         "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
@@ -105,8 +105,8 @@ def param_bounds(dtype: np.dtype, dmin=None, dmax=None):
         "mixture_weight_log_constraints": np.log(np.nextafter(np.inf, -np.inf, dtype=dtype)) / sf,
     }
     bounds_max.update({
-        "mu" : np.exp(bounds_max["log_mu"]),
-        "r" : np.exp(bounds_max["log_r"]),
+        "mu": np.exp(bounds_max["log_mu"]),
+        "r": np.exp(bounds_max["log_r"]),
     })
 
     return bounds_min, bounds_max
@@ -345,19 +345,23 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
         r = self.clip_param(self.r, "r")
         log_probs = rand_utils.NegativeBinomial(mean=mu, r=r).log_prob(X)
         log_probs: xr.DataArray = self.clip_param(log_probs, "log_probs")
+
+        if self.mixture_weight_constraints is not None:
+            with np.errstate(divide='ignore'):
+                log_probs += np.log(self.mixture_weight_constraints).compute()
+
         return log_probs
 
     def log_probs(self) -> xr.DataArray:
-        return self.mixture_log_prob.dot(self.elemwise_log_prob(), dims="mixtures")
+        return logsumexp(
+            self.elemwise_log_prob() + self.mixture_log_prob,
+            axis=0
+        )
 
     def expected_mixture_prob(self):
         log_probs = self.elemwise_log_prob()
 
         retval = log_probs.sum(dim="features")
-        if self.mixture_weight_constraints is not None:
-            with np.errstate(divide='ignore'):
-                retval += np.log(self.mixture_weight_constraints).compute()
-
         retval = softmax(retval, axis=0).transpose(
             *self.param_shapes()["mixture_prob"]
         )
@@ -526,3 +530,7 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
     # @property
     # def fisher_inv(self):
     #     return self.params["fisher_inv"]
+
+    @property
+    def mixture_weight_constraints(self):
+        return self.input_data.mixture_weight_constraints

@@ -28,12 +28,16 @@ class NegativeBinomial(TFNegativeBinomial):
                 if variance is None:
                     raise ValueError("Must pass shape 'r' / 'total_count' or variance")
 
+                log_var = tf.log(variance, name="log_variance")
+
                 if logits is None:
                     if mean is None:
                         raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
 
                     with tf.name_scope("reparametrize"):
-                        log_p = tf.log(variance - mean) - tf.log(variance)
+                        log_mean = tf.log(mean, name="log_mean")
+                        log_p = tf.log(variance - mean) - log_var
+                        log_1p = log_mean - log_var
 
                         one = tf.ones(shape=(), dtype=log_p.dtype)
                         logits = log_p - tf.log(one - tf.exp(log_p))
@@ -41,19 +45,41 @@ class NegativeBinomial(TFNegativeBinomial):
 
                         r = mean * mean / (variance - mean)
                         r = tf.identity(r, "r")
+                        log_r = tf.log(r, name="log_r")
+                else:
+                    log_p = tf.log_sigmoid(logits)
+                    log_1p = logits - tf.log(1 + tf.exp(logits))
+
+                    mean = variance * (1 - tf.exp(log_p))
+                    r = mean * mean / (variance - mean)
             elif logits is None:
                 if mean is None:
                     raise ValueError("Must pass 'probs' / 'p', 'logits' or 'mean'")
 
                 with tf.name_scope("reparametrize"):
-                    log_p = tf.log(mean) - tf.log(r + mean)
+                    log_r_mu = tf.log(r + mean)
+                    log_mean = tf.log(mean, name="log_mean")
+                    log_r = tf.log(r, name="log_r")
+
+                    log_p = log_mean - log_r_mu
+                    log_1p = log_r - log_r_mu
 
                     one = tf.ones(shape=(), dtype=log_p.dtype)
                     logits = log_p - tf.log(one - tf.exp(log_p))
                     logits = tf.identity(logits, "logits")
+            else:
+                log_p = tf.log_sigmoid(logits)
+                log_1p = logits - tf.log(1 + tf.exp(logits))
+
+                log_mean = None
+                log_r = None
 
             super().__init__(r, logits=logits)
 
+            self._log_p = log_p
+            self._log_1p = log_1p
+            self._log_mean = log_mean
+            self._log_r = log_r
             self.__mean = mean
             self.__variance = variance
 
@@ -73,12 +99,66 @@ class NegativeBinomial(TFNegativeBinomial):
         return self.__variance
 
     @property
+    def log_mu(self) -> tf.Tensor:
+        if self._log_mean is None:
+            self._log_mean = tf.log(self.mean())
+
+        return self._log_mean
+
+    @property
+    def log_r(self) -> tf.Tensor:
+        if self._log_r is None:
+            self._log_r = tf.log(self.r)
+
+        return self._log_r
+
+    @property
     def r(self) -> tf.Tensor:
         return self.total_count
 
     @property
     def p(self) -> tf.Tensor:
         return self.probs
+
+    @property
+    def log_p(self):
+        return self._log_p
+
+    @property
+    def log_1p(self):
+        return self._log_1p
+
+    def prob(self, X, name="prob"):
+        """
+        Calculate the probability of each value in `X` given this distribution
+
+        :param X: The data
+        :return: numpy array of probabilitites
+
+        """
+        # p = self.p
+        # r = self.r
+        # return scipy.stats.nbinom(n=r, p=1 - p).pmf(X)
+        # return binom(X + r - 1, X) * np.power(p, X) * np.power(1 - p, r)
+        return tf.exp(self.log_prob(X))
+
+    def log_prob(self, X, name="log_prob"):
+        """
+        Calculate the log-probability of each value in `X` given this distribution
+
+        :param X: The data
+        :return: numpy array of log-probabilitites
+
+        """
+        mu = self.mean()
+        r = self.r
+
+        div = tf.log(r + mu)
+        log_p = self.log_mu - div
+        log_1p = self.log_r - div
+
+        coeff = tf.lgamma(r + X) - tf.lgamma(X + 1) - tf.lgamma(r)
+        return coeff + r * log_1p + X * log_p
 
 
 def fit_partitioned(X: tf.Tensor, partitions: tf.Tensor,

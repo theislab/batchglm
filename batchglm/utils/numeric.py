@@ -149,3 +149,38 @@ def softmax(X, theta=1.0, axis=None):
     p = X / ax_sum
 
     return p
+
+
+def logsumexp(X, axis=None):
+    """
+    Computes log(sum(exp(x)) of the entries in x in a numerically stable way.
+    Uses logsumexp.
+    Compatible with xr.DataArrays.
+
+    :param X: a list, array or matrix of numbers
+    :param axis: axis along which the sum is applied
+    :return: an array containing the results
+    """
+
+    if isinstance(X, xr.DataArray):
+        x_max = np.max(X, axis) - 1.
+    else:
+        x_max = np.max(X, axis=axis, keepdims=True)
+
+    return x_max + np.log(np.sum(np.exp(X - x_max), axis=axis))
+
+
+def logmeanexp(x, axis=None):
+    """
+    Computes log(mean(exp(x)) of the entries in x in a numerically stable way.
+    Uses logsumexp.
+    Compatible with xr.DataArrays.
+
+    :param X: a list, array or matrix of numbers
+    :param axis: axis along which the sum is applied
+    :return: an array containing the results
+    """
+
+    n = x.size if axis is None else x.shape[axis]
+
+    return logsumexp(x, axis) - np.log(n)

@@ -154,7 +154,7 @@ class BasicModelGraph:
         )
         design_scale_bcast = tf.tile(
             tf.expand_dims(design_scale, axis=0),
-            multiples=[par_link_loc.shape[0], 1, 1]
+            multiples=[par_link_scale.shape[0], 1, 1]
         )
 
         with tf.name_scope("mu"):
@@ -183,18 +183,22 @@ class BasicModelGraph:
 
         # calculate probability of observations:
         with tf.name_scope("log_probs"):
-            log_probs = dist_obs.log_prob(tf.expand_dims(X, 0), name="log_count_probs")
-            log_probs = tf_clip_param(log_probs, "log_probs")
+            elemwise_log_probs = dist_obs.log_prob(tf.expand_dims(X, 0), name="log_count_probs")
+            elemwise_log_probs = tf_clip_param(elemwise_log_probs, "log_probs")
 
             # add mixture weight constraints if specified
             if mixture_weight_log_constraints is not None:
-                log_probs = log_probs + tf.expand_dims(tf.transpose(mixture_weight_log_constraints), -1)
+                elemwise_log_probs = elemwise_log_probs + tf.expand_dims(
+                    tf.transpose(mixture_weight_log_constraints),
+                    axis=-1
+                )
 
         # calculate joint probability of mixture distributions
         with tf.name_scope("joint_log_probs"):
             # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
+
             joint_log_probs = tf.reduce_logsumexp(
-                log_probs + tf.expand_dims(tf.transpose(log_mixture_weights), -1),
+                elemwise_log_probs + tf.expand_dims(tf.transpose(log_mixture_weights), -1),
                 axis=-3,
                 # name="joint_log_probs"
             )
@@ -209,10 +213,8 @@ class BasicModelGraph:
         #     log_probs = tf_clip_param(log_probs, "log_probs")
 
         with tf.name_scope("estimated_mixture_log_prob"):
-            expected_mixture_logits = tf.reduce_sum(log_probs, axis=-1)
-            # if mixture_weight_log_constraints is not None:
-            #     expected_mixture_logits = tf.add(expected_mixture_logits, tf.transpose(mixture_weight_log_constraints))
-            expected_mixture_log_prob = tf.nn.log_softmax(expected_mixture_logits, axis=0)
+            expected_mixture_log_prob = tf.reduce_sum(elemwise_log_probs, axis=-1)
+            expected_mixture_log_prob = tf.nn.log_softmax(expected_mixture_log_prob, axis=0)
             expected_mixture_log_prob = tf_clip_param(expected_mixture_log_prob, "mixture_log_prob")
 
         expected_mixture_prob = tf.exp(expected_mixture_log_prob, name="estimated_mixture_prob")
@@ -246,11 +248,11 @@ class BasicModelGraph:
         self.r = r
         self.sigma2 = dist_obs.variance()
 
-        self.probs = tf.exp(log_probs, name="probs")
-        self.log_probs = log_probs
-        self.joint_log_probs = joint_log_probs
-        self.log_likelihood = tf.reduce_sum(self.joint_log_probs, axis=0, name="log_likelihood")
-        self.norm_log_likelihood = tf.reduce_mean(self.joint_log_probs, axis=0, name="log_likelihood")
+        self.elemwise_probs = tf.exp(elemwise_log_probs, name="probs")
+        self.elemwise_log_probs = elemwise_log_probs
+        self.log_probs = joint_log_probs
+        self.log_likelihood = tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
+        self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
         self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
         with tf.name_scope("loss"):

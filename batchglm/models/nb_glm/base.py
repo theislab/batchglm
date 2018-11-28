@@ -307,9 +307,6 @@ class Model(GeneralizedLinearModel, NegativeBinomialModel, metaclass=abc.ABCMeta
         log_retval = self.design_scale.dot(self.par_link_scale, dims="design_scale_params")
         log_retval = log_retval.transpose(*self.param_shapes()["r"])
 
-        if self.size_factors is not None:
-            log_retval += self.link_loc(self.size_factors)
-
         return np.exp(log_retval)
 
     @property

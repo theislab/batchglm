@@ -158,6 +158,8 @@ class FullDataModelGraph:
             with tf.name_scope("loss"):
                 loss_EM_with_grad = tf.reduce_sum(norm_neg_log_likelihood_EM_with_grad)
 
+            self.model = model
+
             self.X = model.X
             self.design_loc = model.design_loc
             self.design_scale = model.design_scale
@@ -174,8 +176,8 @@ class FullDataModelGraph:
             self.r = model.r
             self.sigma2 = model.sigma2
 
-            self.probs = tf.exp(model.log_probs)
-            self.log_probs = model.log_probs
+            self.probs = tf.exp(model.elemwise_log_probs)
+            self.log_probs = model.elemwise_log_probs
             self.expected_mixture_log_prob = model.expected_mixture_log_prob
 
             # custom
@@ -550,8 +552,8 @@ class EstimatorGraph(TFEstimatorGraph):
 
             self.batch_sample_index = batch_sample_index
             self.batch_data = batch_data
-            self.batch_probs = batch_model.probs
-            self.batch_log_probs = batch_model.log_probs
+            self.batch_probs = batch_model.elemwise_probs
+            self.batch_log_probs = batch_model.elemwise_log_probs
             self.batch_log_likelihood = batch_model.norm_log_likelihood
 
             self.sample_selection = sample_selection
@@ -591,7 +593,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 if extended_summary:
                     tf.summary.scalar('median_ll',
                                       tf.contrib.distributions.percentile(
-                                          tf.reduce_sum(batch_model.log_probs, axis=1),
+                                          tf.reduce_sum(batch_model.elemwise_log_probs, axis=1),
                                           50.)
                                       )
                     tf.summary.histogram('gradient_a', tf.gradients(batch_loss, model_vars.a))
