@@ -363,8 +363,9 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
     def expected_mixture_prob(self):
         log_probs = self.elemwise_log_prob()
 
-        retval = log_probs.sum(dim="features")
-        retval = softmax(retval, axis=0).transpose(
+        log_pi = logsumexp(log_probs, axis=-1)
+        log_pi = log_pi - logsumexp(log_pi, axis=0)
+        retval = log_pi.transpose(
             *self.param_shapes()["mixture_prob"]
         )
 

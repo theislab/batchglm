@@ -216,8 +216,11 @@ class BasicModelGraph:
         #     log_probs = tf_clip_param(log_probs, "log_probs")
 
         with tf.name_scope("estimated_mixture_log_prob"):
-            expected_mixture_log_prob = tf.reduce_sum(elemwise_log_probs, axis=-1)
-            expected_mixture_log_prob = tf.nn.log_softmax(expected_mixture_log_prob, axis=0)
+            expected_mixture_log_prob = tf.reduce_logsumexp(elemwise_log_probs, axis=-1)
+            expected_mixture_log_prob = tf.subtract(
+                expected_mixture_log_prob,
+                tf.reduce_logsumexp(expected_mixture_log_prob, axis=0, keepdims=True)
+            )
             expected_mixture_log_prob = tf_clip_param(expected_mixture_log_prob, "mixture_log_prob")
 
         expected_mixture_prob = tf.exp(expected_mixture_log_prob, name="estimated_mixture_prob")
