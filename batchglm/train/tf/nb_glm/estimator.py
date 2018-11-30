@@ -149,6 +149,7 @@ class EstimatorGraph(TFEstimatorGraph):
             num_design_scale_params,
             graph: tf.Graph = None,
             batch_size=500,
+            feature_batch_size=None,
             init_a=None,
             init_b=None,
             constraints_loc=None,
@@ -162,6 +163,7 @@ class EstimatorGraph(TFEstimatorGraph):
         self.num_design_loc_params = num_design_loc_params
         self.num_design_scale_params = num_design_scale_params
         self.batch_size = batch_size
+        self.feature_batch_size = feature_batch_size
 
         # initial graph elements
         with self.graph.as_default():
@@ -861,7 +863,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_b = init_scale
 
         # ### prepare fetch_fn:
-        def fetch_fn(idx):
+        def fetch_fn(idx_obs, idx_genes=None):
             r"""
             Documentation of tensorflow coding style in this function:
             tf.py_func defines a python function (the getters of the InputData object slots)
@@ -870,8 +872,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             as explained below.
             """
             # Catch dimension collapse error if idx is only one element long, ie. 0D:
-            if len(idx.shape) == 0:
-                idx = tf.expand_dims(idx, axis=0)
+            if len(idx_obs.shape) == 0:
+                idx_obs = tf.expand_dims(idx_obs, axis=0)
+            if idx_genes is None:
+                idx_genes = ...
+            else:
+                if len(idx_genes.shape) == 0:
+                    idx_genes = tf.expand_dims(idx_genes, axis=0)
 
             X_tensor = tf.py_func(
                 func=input_data.fetch_X,
