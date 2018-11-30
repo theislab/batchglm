@@ -192,13 +192,16 @@ class BasicModelGraph:
                     tf.transpose(mixture_weight_log_constraints),
                     axis=-1
                 )
-
+            elemwise_log_probs = elemwise_log_probs + tf.expand_dims(
+                tf.transpose(log_mixture_weights),
+                axis=-1
+            )
         # calculate joint probability of mixture distributions
         with tf.name_scope("joint_log_probs"):
             # sum up: for k in num_mixtures: mixture_prob(k) * P(r_k, mu_k, sample_data)
 
             joint_log_probs = tf.reduce_logsumexp(
-                elemwise_log_probs + tf.expand_dims(tf.transpose(log_mixture_weights), -1),
+                elemwise_log_probs,
                 axis=-3,
                 # name="joint_log_probs"
             )

@@ -350,6 +350,8 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
             with np.errstate(divide='ignore'):
                 log_probs += np.log(self.mixture_weight_constraints).compute()
 
+        log_probs += self.mixture_log_prob
+
         return log_probs
 
     def log_probs(self) -> xr.DataArray:

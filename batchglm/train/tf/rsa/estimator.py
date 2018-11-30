@@ -958,7 +958,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     batch_size=batch_size,
                     init_a=init_a,
                     init_b=init_b,
-                    init_mixture_weights=init_mixture_weights,
+                    init_mixture_weights=tf.div(
+                        tf.ones([input_data.num_observations, input_data.num_mixtures], dtype=dtype),
+                        tf.constant(input_data.num_mixtures, dtype=dtype)
+                    ),
                     summary_mixture_image=summary_mixture_image,
                     extended_summary=extended_summary,
                     dtype=dtype
