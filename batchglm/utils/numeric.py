@@ -111,47 +111,7 @@ def combine_matrices(list_of_matrices: List):
     return retval
 
 
-def softmax(X, theta=1.0, axis=None):
-    """
-    Compute the softmax of each element along an axis of X.
-    Compatible with xr.DataArrays.
-
-    :param X: input data
-    :param theta: float parameter, used as a multiplier prior to exponentiation. Default = 1.0
-    :param axis: axis to compute values along. Default is the first non-singleton axis.
-    :returns: array of the same size as X. The result will sum to 1 along the specified axis.
-    """
-
-    if theta != 1:
-        # multiply y against the theta parameter,
-        X = X * theta
-
-    # find axis
-    if axis is None:
-        axis = next(j[0] for j in enumerate(X.shape) if j[1] > 1)
-
-    # take the max along the specified axis
-    if isinstance(X, xr.DataArray):
-        ax_max = np.max(X, axis=axis)
-    else:
-        ax_max = np.max(X, axis=axis, keepdims=True)
-
-    # subtract the max for numerical stability
-    X = np.exp(X - ax_max)
-
-    # take the sum along the specified axis
-    if isinstance(X, xr.DataArray):
-        ax_sum = np.sum(X, axis=axis)
-    else:
-        ax_sum = np.sum(X, axis=axis, keepdims=True)
-
-    # divide elementwise
-    p = X / ax_sum
-
-    return p
-
-
-def logsumexp(X, axis=None):
+def logsumexp(X, axis=None, keepdims=False):
     """
     Computes log(sum(exp(x)) of the entries in x in a numerically stable way.
     Uses logsumexp.
@@ -164,13 +124,13 @@ def logsumexp(X, axis=None):
 
     if isinstance(X, xr.DataArray):
         x_max = np.max(X, axis) - 1.
+        return x_max + np.log(np.sum(np.exp(X - x_max), axis=axis))
     else:
         x_max = np.max(X, axis=axis, keepdims=True)
+        return x_max + np.log(np.sum(np.exp(X - x_max), axis=axis, keepdims=keepdims))
 
-    return x_max + np.log(np.sum(np.exp(X - x_max), axis=axis))
 
-
-def logmeanexp(x, axis=None):
+def logmeanexp(x, axis=None, keepdims=False):
     """
     Computes log(mean(exp(x)) of the entries in x in a numerically stable way.
     Uses logsumexp.
@@ -184,3 +144,68 @@ def logmeanexp(x, axis=None):
     n = x.size if axis is None else x.shape[axis]
 
     return logsumexp(x, axis) - np.log(n)
+
+
+def logsoftmax(X, axis=None):
+    """
+    Compute the log-softmax of each element along an axis of X.
+    Compatible with xr.DataArrays.
+
+    :param X: input data
+    :param axis: axis to compute values along. Default is the first non-singleton axis.
+    :returns: array of the same size as X. exp(result) will sum to 1 along the specified axis.
+    """
+
+    return X - logsumexp(X, axis=axis, keepdims=True)
+
+
+# def softmax(X, theta=1.0, axis=None):
+#     """
+#     Compute the softmax of each element along an axis of X.
+#     Compatible with xr.DataArrays.
+#
+#     :param X: input data
+#     :param theta: float parameter, used as a multiplier prior to exponentiation. Default = 1.0
+#     :param axis: axis to compute values along. Default is the first non-singleton axis.
+#     :returns: array of the same size as X. The result will sum to 1 along the specified axis.
+#     """
+#
+#     if theta != 1:
+#         # multiply y against the theta parameter,
+#         X = X * theta
+#
+#     # find axis
+#     if axis is None:
+#         axis = next(j[0] for j in enumerate(X.shape) if j[1] > 1)
+#
+#     # take the max along the specified axis
+#     if isinstance(X, xr.DataArray):
+#         ax_max = np.max(X, axis=axis)
+#     else:
+#         ax_max = np.max(X, axis=axis, keepdims=True)
+#
+#     # subtract the max for numerical stability
+#     X = np.exp(X - ax_max)
+#
+#     # take the sum along the specified axis
+#     if isinstance(X, xr.DataArray):
+#         ax_sum = np.sum(X, axis=axis)
+#     else:
+#         ax_sum = np.sum(X, axis=axis, keepdims=True)
+#
+#     # divide elementwise
+#     p = X / ax_sum
+#
+#     return p
+
+def softmax(X, axis=None):
+    """
+    Compute the softmax of each element along an axis of X.
+    Compatible with xr.DataArrays.
+
+    :param X: input data
+    :param axis: axis to compute values along. Default is the first non-singleton axis.
+    :returns: array of the same size as X. The result will sum to 1 along the specified axis.
+    """
+
+    return np.exp(logsoftmax(X, axis))

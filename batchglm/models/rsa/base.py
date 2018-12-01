@@ -13,7 +13,7 @@ import patsy
 
 import batchglm.pkg_constants as pkg_constants
 import batchglm.utils.random as rand_utils
-from batchglm.utils.numeric import softmax, logsumexp
+from batchglm.utils.numeric import logsumexp, softmax, logsoftmax
 from ..base import BasicEstimator
 from ..glm import parse_design
 from ..mixture import Model as MixtureModel
@@ -350,26 +350,41 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
             with np.errstate(divide='ignore'):
                 log_probs += np.log(self.mixture_weight_constraints).compute()
 
-        log_probs += self.mixture_log_prob
+        log_probs += self.mixture_log_weights
 
         return log_probs
 
     def log_probs(self) -> xr.DataArray:
         return logsumexp(
-            self.elemwise_log_prob() + self.mixture_log_prob,
+            self.elemwise_log_prob(),
             axis=0
         )
 
-    def expected_mixture_prob(self):
+    def mixture_log_prob(self):
         log_probs = self.elemwise_log_prob()
 
-        log_pi = logsumexp(log_probs, axis=-1)
-        log_pi = log_pi - logsumexp(log_pi, axis=0)
-        retval = log_pi.transpose(
+        retval = log_probs.sum(dim="features")
+        retval = logsoftmax(retval, axis=0).transpose(
             *self.param_shapes()["mixture_prob"]
         )
 
         return retval
+
+    def mixture_prob(self):
+        return np.exp(self.mixture_log_prob())
+
+    def weight_update(self):
+        log_probs = self.elemwise_log_prob()
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            log_pi = logsumexp(log_probs, axis=-1)
+            log_pi = log_pi - logsumexp(log_pi, axis=0)
+            log_pi = log_pi.compute()
+        retval = log_pi.transpose(
+            *self.param_shapes()["mixture_prob"]
+        )
+
+        return np.exp(retval)
 
     # @property
     # def mu(self) -> xr.DataArray:
@@ -385,12 +400,12 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
                 # append_to.obsm["design"] = self.design
                 append_to.varm["a"] = np.transpose(self.a)
                 append_to.varm["b"] = np.transpose(self.b)
-                append_to.obsm["mixture_log_prob"] = self.mixture_log_prob
+                append_to.obsm["mixture_log_prob"] = self.mixture_log_weights
             elif isinstance(append_to, xr.Dataset):
                 # append_to["design"] = (self.param_shapes()["design"], self.design)
                 append_to["a"] = (self.param_shapes()["a"], self.a)
                 append_to["b"] = (self.param_shapes()["b"], self.b)
-                append_to["mixture_log_prob"] = (self.param_shapes()["mixture_log_prob"], self.mixture_log_prob)
+                append_to["mixture_log_prob"] = (self.param_shapes()["mixture_log_prob"], self.mixture_log_weights)
             else:
                 raise ValueError("Unsupported data type: %s" % str(type(append_to)))
         else:
@@ -398,7 +413,7 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
                 # "design": (self.param_shapes()["design"], self.design),
                 "a": (self.param_shapes()["a"], self.a),
                 "b": (self.param_shapes()["b"], self.b),
-                "mixture_log_prob": (self.param_shapes()["mixture_log_prob"], self.mixture_log_prob),
+                "mixture_log_prob": (self.param_shapes()["mixture_log_prob"], self.mixture_log_weights),
             })
             return ds
 
@@ -417,7 +432,7 @@ def _model_from_params(
             params = xr.Dataset({
                 "a": data.a,
                 "b": data.b,
-                "mixture_log_prob": data.mixture_log_prob,
+                "mixture_log_prob": data.mixture_log_weights,
             })
         elif anndata is not None and isinstance(data, anndata.AnnData):
             params = xr.Dataset({
@@ -464,7 +479,7 @@ class XArrayModel(Model):
         return self.params['b']
 
     @property
-    def mixture_log_prob(self):
+    def mixture_log_weights(self):
         return self.params["mixture_log_prob"]
 
     def __str__(self):

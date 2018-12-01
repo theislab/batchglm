@@ -396,7 +396,7 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         return self.params['b']
 
     @property
-    def mixture_log_prob(self):
+    def mixture_log_weights(self):
         return self.params["mixture_log_prob"]
 
     @property

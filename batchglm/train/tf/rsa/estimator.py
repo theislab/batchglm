@@ -1136,7 +1136,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     #     return self.run(self.model.mixture_prob)
 
     @property
-    def mixture_log_prob(self):
+    def mixture_log_weights(self):
         return self.to_xarray("mixture_log_prob", coords=self.input_data.data.coords)
 
     # @property
