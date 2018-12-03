@@ -349,8 +349,8 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
         self.data["X"] = (
             self.param_shapes()["X"],
             rand_utils.NegativeBinomial(
-                mean=self.mu[self.mixture_assignment, range(self.num_observations)],
-                r=self.r[self.mixture_assignment, range(self.num_observations)],
+                mean=self.mu[self.params.mixture_assignment, range(self.num_observations)],
+                r=self.r[self.params.mixture_assignment, range(self.num_observations)],
             ).sample()
         )
 
