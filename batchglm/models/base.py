@@ -79,6 +79,10 @@ class BasicInputData:
             engine=pkg_constants.XARRAY_NETCDF_ENGINE
         )
 
+    @property
+    def coords(self):
+        return self.data.coords
+
     def __str__(self):
         return "[%s.%s object at %s]: data=%s" % (
             type(self).__module__,
@@ -115,27 +119,46 @@ class BasicModel(metaclass=abc.ABCMeta):
         """
         raise NotImplementedError()
 
-    def to_xarray(self, parm: Union[str, list], coords=None):
+    @property
+    def coords(self):
+        return self.input_data.coords
+
+    def to_xarray(self, parm: Union[str, list], coords=None, data=None):
         """
         Converts the specified parameters into an xr.Dataset or xr.DataArray object
 
         :param parm: string or list of strings specifying parameters which can be fetched by `self.get(params)`
         :param coords: optional dict-like object with arrays corresponding to dimension names
+        :param data: optional data which will be used instead of parm if specified
         """
-        # fetch data
-        data = self.get(parm)
+        if data is None:
+            # fetch data
+            data = self.get(parm)
 
         # get shape of params
         shapes = self.param_shapes()
 
         if isinstance(parm, str):
-            output = xr.DataArray(data, dims=shapes[parm])
+            if isinstance(data, xr.DataArray):
+                output = data
+            else:
+                output = xr.DataArray(data, dims=shapes[parm])
+
             if coords is not None:
                 for i in output.dims:
                     if i in coords:
                         output.coords[i] = coords[i]
         else:
-            output = {key: (shapes[key], data[key]) for key in parm}
+            output = {}
+            for k in parm:
+                v = data[k]
+                if isinstance(v, xr.DataArray):
+                    output[k] = v
+                else:
+                    output[k] = xr.DataArray(
+                        data=v,
+                        dims=shapes[k]
+                    )
             output = xr.Dataset(output)
             if coords is not None:
                 for i in output.dims:

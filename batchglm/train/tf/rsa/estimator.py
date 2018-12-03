@@ -228,7 +228,7 @@ class EstimatorGraph(TFEstimatorGraph):
     sigma2: tf.Tensor
     a: tf.Tensor
     b: tf.Tensor
-    mixture_prob: tf.Tensor
+    mixture_weights: tf.Tensor
     mixture_assignment: tf.Tensor
 
     def __init__(
@@ -545,9 +545,9 @@ class EstimatorGraph(TFEstimatorGraph):
             self.r = r
             self.sigma2 = sigma2
 
-            self.mixture_prob = mixture_model.prob
-            self.mixture_log_prob = mixture_model.log_prob
-            self.mixture_logit_prob = mixture_model.logit_prob
+            self.mixture_weights = mixture_model.prob
+            self.mixture_log_weights = mixture_model.log_prob
+            self.mixture_weight_logits = mixture_model.logit_prob
             self.mixture_assignment = mixture_model.mixture_assignment
 
             self.batch_sample_index = batch_sample_index
@@ -1097,27 +1097,49 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def a(self):
-        return self.to_xarray("a", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="a",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("a")
+        )
 
     @property
     def b(self):
-        return self.to_xarray("b", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="b",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("b")
+        )
 
     @property
     def batch_loss(self):
-        return self.to_xarray("loss")
+        return self.to_xarray(
+            parm="loss",
+            data=self._get_unsafe("loss")
+        )
 
     @property
     def batch_gradient(self):
-        return self.to_xarray("gradient", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="gradient",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("gradient")
+        )
 
     @property
     def loss(self):
-        return self.to_xarray("full_loss")
+        return self.to_xarray(
+            parm="full_loss",
+            data=self._get_unsafe("full_loss")
+        )
 
     @property
     def gradient(self):
-        return self.to_xarray("full_gradient", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="full_gradient",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("full_gradient")
+        )
 
     @property
     def design_mixture_loc(self) -> xr.DataArray:
@@ -1131,13 +1153,21 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def mixture_weight_constraints(self) -> xr.DataArray:
         return self.input_data.mixture_weight_constraints
 
-    # @property
-    # def mixture_prob(self):
-    #     return self.run(self.model.mixture_prob)
+    @property
+    def mixture_weights(self):
+        return self.to_xarray(
+            parm="mixture_weights",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("mixture_weights")
+        )
 
     @property
     def mixture_log_weights(self):
-        return self.to_xarray("mixture_log_prob", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="mixture_log_weights",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("mixture_log_weights")
+        )
 
     # @property
     # def mixture_logit_prob(self):  # not necessary from model

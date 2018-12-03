@@ -41,6 +41,8 @@ MODEL_PARAMS.update({
     "mixture_assignment": ("observations",),
     "mixture_prob": ("observations", "mixtures"),
     "mixture_log_prob": ("observations", "mixtures"),
+    "mixture_weights": ("observations", "mixtures"),
+    "mixture_log_weights": ("observations", "mixtures"),
     "mu": ("mixtures", "observations", "features"),
     "r": ("mixtures", "observations", "features"),
     "sigma2": ("mixtures", "observations", "features"),
@@ -363,8 +365,9 @@ class Model(MixtureModel, NB_GLM_Model, metaclass=abc.ABCMeta):
     def mixture_log_prob(self):
         log_probs = self.elemwise_log_prob()
 
-        retval = log_probs.sum(dim="features")
-        retval = logsoftmax(retval, axis=0).transpose(
+        retval = logsoftmax(log_probs, axis=0)
+        retval = retval.sum(dim="features")
+        retval = retval.transpose(
             *self.param_shapes()["mixture_prob"]
         )
 
@@ -480,7 +483,19 @@ class XArrayModel(Model):
 
     @property
     def mixture_log_weights(self):
-        return self.params["mixture_log_prob"]
+        return self.params["mixture_log_weights"]
+
+    @property
+    def design_mixture_loc(self) -> xr.DataArray:
+        return self.input_data.design_mixture_loc
+
+    @property
+    def design_mixture_scale(self) -> xr.DataArray:
+        return self.input_data.design_mixture_scale
+
+    @property
+    def mixture_weight_constraints(self) -> Union[xr.DataArray, None]:
+        return self.input_data.mixture_weight_constraints
 
     def __str__(self):
         return "[%s.%s object at %s]: data=%s" % (

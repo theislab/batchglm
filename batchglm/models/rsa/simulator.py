@@ -290,8 +290,8 @@ class Simulator(Model, NB_GLM_Simulator, metaclass=abc.ABCMeta):
             }
         )
 
-        initial_mixture_assignment = np.repeat(
-            range(self.num_mixtures), np.ceil(self.num_observations / self.num_mixtures)
+        initial_mixture_assignment = np.tile(
+            np.arange(self.num_mixtures), np.ceil(self.num_observations / self.num_mixtures).astype(int)
         )[:self.num_observations]
 
         real_mixture_assignment = np.random.uniform(0, 1, [self.num_observations])

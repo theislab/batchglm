@@ -1220,35 +1220,63 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def a(self):
-        return self.to_xarray("a", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="a",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("a")
+        )
 
     @property
     def b(self):
-        return self.to_xarray("b", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="b", coords=self.input_data.data.coords,
+            data=self._get_unsafe("b")
+        )
 
     @property
     def batch_loss(self):
-        return self.to_xarray("loss")
+        return self.to_xarray(
+            parm="loss",
+            data=self._get_unsafe("loss")
+        )
 
     @property
     def batch_gradient(self):
-        return self.to_xarray("gradient", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="gradient", coords=self.input_data.data.coords,
+            data=self._get_unsafe("gradient")
+        )
 
     @property
     def loss(self):
-        return self.to_xarray("full_loss")
+        return self.to_xarray(
+            parm="full_loss",
+            data=self._get_unsafe("full_loss")
+        )
 
     @property
     def gradient(self):
-        return self.to_xarray("full_gradient", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="full_gradient",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("full_gradient")
+        )
 
     @property
     def hessians(self):
-        return self.to_xarray("hessians", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="hessians",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("hessians")
+        )
 
     @property
     def fisher_inv(self):
-        return self.to_xarray("fisher_inv", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="fisher_inv",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("fisher_inv")
+        )
 
     def finalize(self):
         logger.debug("Collect and compute ouptut")

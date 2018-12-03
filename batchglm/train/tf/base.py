@@ -150,11 +150,36 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
         if isinstance(key, str):
             if key not in self.param_shapes():
                 raise ValueError("Unknown parameter %s" % key)
-        elif isinstance(key, Iterable):
-            for k in list(key):
-                if k not in self.param_shapes():
-                    raise ValueError("Unknown parameter %s" % k)
-        return self._get_unsafe(key)
+            if hasattr(self, key):
+                attr = self.__getattribute__(key)
+                if callable(attr):
+                    attr = attr()
+
+                return self.to_xarray(parm="key", coords=self.coords, data=attr)
+
+        if not isinstance(key, Iterable):
+            raise ValueError("%s is no string and no iterable" % key)
+
+        retval = {}
+        to_fetch = []
+        for k in list(key):
+            if k not in self.param_shapes():
+                raise ValueError("Unknown parameter %s" % k)
+            if not hasattr(self.model, k):
+                attr = self.__getattribute__(k)
+                if callable(attr):
+                    attr = attr()
+
+                retval[k] = attr
+            else:
+                to_fetch.append(k)
+
+        if len(to_fetch) > 0:
+            for k, v in self._get_unsafe(to_fetch).items():
+                v = self.to_xarray(k, data=v, coords=self.coords)
+                retval[k] = v
+
+        return retval
 
     @property
     def global_step(self):

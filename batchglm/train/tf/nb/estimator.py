@@ -181,11 +181,19 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def mu_raw(self) -> xr.DataArray:
-        return self.to_xarray("mu_raw", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="mu_raw",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("mu_raw")
+        )
 
     @property
     def r_raw(self) -> xr.DataArray:
-        return self.to_xarray("r_raw", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="r_raw",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("r_raw")
+        )
 
     @property
     def sigma2_raw(self) -> xr.DataArray:
@@ -211,15 +219,26 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def loss(self):
-        return self.to_xarray("loss")
+        return self.to_xarray(
+            parm="loss",
+            data=self._get_unsafe("loss")
+        )
 
     @property
     def gradient(self):
-        return self.to_xarray("gradient", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="gradient",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("gradient")
+        )
 
     @property
     def hessian_diagonal(self):
-        return self.to_xarray("hessian_diagonal", coords=self.input_data.data.coords)
+        return self.to_xarray(
+            parm="hessian_diagonal",
+            coords=self.input_data.data.coords,
+            data=self._get_unsafe("hessian_diagonal")
+        )
 
     def finalize(self):
         store = XArrayEstimatorStore(self)
