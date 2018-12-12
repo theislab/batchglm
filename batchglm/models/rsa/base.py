@@ -532,7 +532,7 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
-        params = estim.to_xarray(["a", "b", "mixture_log_prob", "loss", "gradient"], coords=input_data.data)
+        params = estim.to_xarray(["a", "b", "mixture_log_weights", "loss", "gradient"], coords=input_data.data)
 
         XArrayModel.__init__(self, input_data, params)
 
