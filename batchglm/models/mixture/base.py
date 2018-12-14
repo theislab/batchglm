@@ -16,14 +16,14 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
     """
 
     def mixture_assignment(self, flat=True) -> xr.DataArray:
+        mixture_log_prob = self.mixture_log_prob()
         if flat:
-            retval: xr.DataArray = np.squeeze(np.argmax(self.mixture_prob(), axis=-1))
+            retval: xr.DataArray = np.squeeze(np.argmax(mixture_log_prob, axis=-1))
             return retval
         else:
-            mixture_prob = self.mixture_prob()
-            retval = mixture_prob.copy()
-            retval.values = np.zeros_like(mixture_prob)
-            retval[np.arange(np.shape(mixture_prob)[0]), np.argmax(mixture_prob, axis=-1)] = 1
+            retval = mixture_log_prob.copy()
+            retval.values = np.zeros_like(mixture_log_prob)
+            retval[np.arange(np.shape(mixture_log_prob)[0]), np.argmax(mixture_log_prob, axis=-1)] = 1
             return retval
 
     @property
