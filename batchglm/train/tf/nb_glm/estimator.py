@@ -149,7 +149,6 @@ class EstimatorGraph(TFEstimatorGraph):
             num_design_scale_params,
             graph: tf.Graph = None,
             batch_size=500,
-            feature_batch_size=None,
             init_a=None,
             init_b=None,
             constraints_loc=None,
@@ -163,7 +162,6 @@ class EstimatorGraph(TFEstimatorGraph):
         self.num_design_loc_params = num_design_loc_params
         self.num_design_scale_params = num_design_scale_params
         self.batch_size = batch_size
-        self.feature_batch_size = feature_batch_size
 
         # initial graph elements
         with self.graph.as_default():
@@ -305,11 +303,25 @@ class EstimatorGraph(TFEstimatorGraph):
             with tf.name_scope("training"):
                 global_step = tf.train.get_or_create_global_step()
 
-                # set up trainers for different selections of variables to train
-                # set up multiple optimization algorithms for each trainer
+                # Set up trainers for different selections of variables to train.
+                # Set up multiple optimization algorithms for each trainer.
+                # Note that params is tf.Variable and a, b are tensors as they are
+                # slices of a variable! Accordingly, the updates are implemented differently.
                 batch_trainers = train_utils.MultiTrainer(
-                    loss=batch_model.norm_neg_log_likelihood,
-                    variables=[model_vars.params],
+                    #loss=batch_model.norm_neg_log_likelihood,  # add only selected features here TODO
+                    #variables=[model_vars.params],  # tf.gather(model_vars.params, indices=np.where(model_vars.converged == False)[0], axis=1)],
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.gradients(batch_model.norm_neg_log_likelihood,
+                                             model_vars.params_by_gene[i])[0]
+                                if i in np.where(model_vars.converged == False)[0]
+                                else tf.zeros([model_vars.params.shape[0], 1])
+                                for i in range(model_vars.params.shape[1])
+                            ], axis=1),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
@@ -354,8 +366,20 @@ class EstimatorGraph(TFEstimatorGraph):
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
 
                 full_data_trainers = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood,
-                    variables=[model_vars.params],
+                    #loss=full_data_model.norm_neg_log_likelihood,
+                    #variables=[tf.gather(model_vars.params, indices=np.where(model_vars.converged == False)[0], axis=1)],
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                             model_vars.params_by_gene[i])[0]
+                                if i in np.where(model_vars.converged == False)[0]
+                                else tf.zeros([model_vars.params.shape[0], 1])
+                                for i in range(model_vars.params.shape[1])
+                            ], axis=1),
+                            model_vars.params
+                        ),
+                    ],
                     learning_rate=learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
@@ -863,7 +887,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     init_b = init_scale
 
         # ### prepare fetch_fn:
-        def fetch_fn(idx_obs, idx_genes=None):
+        def fetch_fn(idx):
             r"""
             Documentation of tensorflow coding style in this function:
             tf.py_func defines a python function (the getters of the InputData object slots)
@@ -872,13 +896,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             as explained below.
             """
             # Catch dimension collapse error if idx is only one element long, ie. 0D:
-            if len(idx_obs.shape) == 0:
-                idx_obs = tf.expand_dims(idx_obs, axis=0)
-            if idx_genes is None:
-                idx_genes = ...
-            else:
-                if len(idx_genes.shape) == 0:
-                    idx_genes = tf.expand_dims(idx_genes, axis=0)
+            if len(idx.shape) == 0:
+                idx = tf.expand_dims(idx, axis=0)
 
             X_tensor = tf.py_func(
                 func=input_data.fetch_X,

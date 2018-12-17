@@ -235,7 +235,7 @@ class MultiTrainer:
     def __init__(self,
                  learning_rate,
                  loss=None,
-                 variables: List = None,
+                 variables: list = None,
                  gradients: list = None,
                  apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
                  global_step=None,

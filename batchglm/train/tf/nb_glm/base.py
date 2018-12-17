@@ -212,7 +212,9 @@ class BasicModelGraph:
         self.probs = probs
         self.log_probs = log_probs
         self.log_likelihood = tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
-        self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
+        #self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
+        self.norm_log_likelihood_bygene = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
+        self.norm_log_likelihood = tf.reduce_mean(self.norm_log_likelihood_bygene, name="log_likelihood")
         self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
         with tf.name_scope("loss"):
@@ -225,6 +227,8 @@ class ModelVars:
     a_var: tf.Variable
     b_var: tf.Variable
     params: tf.Variable
+    converged: np.ndarray
+
     """ Build tf.Variables to be optimzed and their constraints.
 
     a_var and b_var slices of the tf.Variable params which contains
@@ -309,8 +313,13 @@ class ModelVars:
             axis=0
         ), name="params")
 
-        a_var = params[0:init_a.shape[0]]
-        b_var = params[init_a.shape[0]:]
+        params_by_gene = [tf.expand_dims(params[:, i], axis=-1) for i in range(params.shape[1])]
+        a_by_gene = [x[0:init_a.shape[0],:] for x in params_by_gene]
+        b_by_gene = [x[init_a.shape[0]:, :] for x in params_by_gene]
+        a_var = tf.concat(a_by_gene, axis=1)
+        b_var = tf.concat(b_by_gene, axis=1)
+        #a_var = params[0:init_a.shape[0]]
+        #b_var = params[init_a.shape[0]:]
 
         # Define first layer of computation graph on identifiable variables
         # to yield dependent set of parameters of model for each location
@@ -334,3 +343,9 @@ class ModelVars:
         self.a_var = a_var
         self.b_var = b_var
         self.params = params
+        # Properties to follow gene-wise convergence.
+        self.params_by_gene = params_by_gene
+        self.a_by_gene = a_by_gene
+        self.b_by_gene = b_by_gene
+        self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
+
