@@ -212,9 +212,7 @@ class BasicModelGraph:
         self.probs = probs
         self.log_probs = log_probs
         self.log_likelihood = tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
-        #self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
-        self.norm_log_likelihood_bygene = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
-        self.norm_log_likelihood = tf.reduce_mean(self.norm_log_likelihood_bygene, name="log_likelihood")
+        self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
         self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
         with tf.name_scope("loss"):
@@ -348,4 +346,5 @@ class ModelVars:
         self.a_by_gene = a_by_gene
         self.b_by_gene = b_by_gene
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
+        self.n_features = self.params.shape[1]
 

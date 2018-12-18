@@ -16,18 +16,71 @@ glm.setup_logging(verbosity="INFO", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate(input_data: InputData):
+def estimate_adam_full(input_data: InputData):
 
     estimator = Estimator(input_data, batch_size=500)
     estimator.initialize()
 
-    estimator.train(
-        convergence_criteria="all_converged",
-        use_batching=False
-    )
+    estimator.train_sequence(training_strategy=[
+            {
+                "learning_rate": 0.5,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-1,
+                "use_batching": False,
+                "optim_algo": "ADAM",
+            },
+        ])
 
     return estimator
 
+def estimate_adam_batched(input_data: InputData):
+
+    estimator = Estimator(input_data, batch_size=500)
+    estimator.initialize()
+
+    estimator.train_sequence(training_strategy=[
+            {
+                "learning_rate": 0.5,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-1,
+                "use_batching": True,
+                "optim_algo": "ADAM",
+            },
+        ])
+
+    return estimator
+
+def estimate_nr_full(input_data: InputData):
+
+    estimator = Estimator(input_data, batch_size=500)
+    estimator.initialize()
+
+    estimator.train_sequence(training_strategy=[
+            {
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-1,
+                "use_batching": False,
+                "optim_algo": "newton",
+            },
+        ])
+
+    return estimator
+
+def estimate_nr_batched(input_data: InputData):
+
+    estimator = Estimator(input_data, batch_size=500)
+    estimator.initialize()
+
+    estimator.train_sequence(training_strategy=[
+            {
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-1,
+                "use_batching": True,
+                "optim_algo": "newton",
+            },
+        ])
+
+    return estimator
 
 class NB_GLM_Test(unittest.TestCase):
     sim: Simulator
@@ -35,7 +88,7 @@ class NB_GLM_Test(unittest.TestCase):
     _estims: List[Estimator]
 
     def setUp(self):
-        self.sim = Simulator(num_observations=1000, num_features=20)
+        self.sim = Simulator(num_observations=1000, num_features=5)
         self.sim.generate()
         self._estims = []
 
@@ -43,10 +96,40 @@ class NB_GLM_Test(unittest.TestCase):
         for e in self._estims:
             e.close_session()
 
-    def test_default_fit(self):
+    def test_adam_full(self):
         sim = self.sim.__copy__()
 
-        estimator = estimate(sim.input_data)
+        estimator = estimate_adam_full(sim.input_data)
+        self._estims.append(estimator)
+
+        # test finalizing
+        estimator = estimator.finalize()
+        return estimator, sim
+
+    def test_adam_batch(self):
+        sim = self.sim.__copy__()
+
+        estimator = estimate_adam_batched(sim.input_data)
+        self._estims.append(estimator)
+
+        # test finalizing
+        estimator = estimator.finalize()
+        return estimator, sim
+
+    def test_nr_full(self):
+        sim = self.sim.__copy__()
+
+        estimator = estimate_nr_full(sim.input_data)
+        self._estims.append(estimator)
+
+        # test finalizing
+        estimator = estimator.finalize()
+        return estimator, sim
+
+    def test_nr_batch(self):
+        sim = self.sim.__copy__()
+
+        estimator = estimate_nr_batched(sim.input_data)
         self._estims.append(estimator)
 
         # test finalizing

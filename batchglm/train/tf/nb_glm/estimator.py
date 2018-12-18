@@ -302,20 +302,27 @@ class EstimatorGraph(TFEstimatorGraph):
             # ### management
             with tf.name_scope("training"):
                 global_step = tf.train.get_or_create_global_step()
+                idx_nonconverged = np.where(model_vars.converged == False)[0]
 
                 # Set up trainers for different selections of variables to train.
                 # Set up multiple optimization algorithms for each trainer.
                 # Note that params is tf.Variable and a, b are tensors as they are
                 # slices of a variable! Accordingly, the updates are implemented differently.
                 batch_trainers = train_utils.MultiTrainer(
-                    #loss=batch_model.norm_neg_log_likelihood,  # add only selected features here TODO
-                    #variables=[model_vars.params],  # tf.gather(model_vars.params, indices=np.where(model_vars.converged == False)[0], axis=1)],
+                    loss=batch_model.norm_neg_log_likelihood,
+                    variables=[model_vars.params],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="batch_trainers"
+                )
+                batch_trainers_bygene = train_utils.MultiTrainer(
                     gradients=[
                         (
                             tf.concat([
                                 tf.gradients(batch_model.norm_neg_log_likelihood,
                                              model_vars.params_by_gene[i])[0]
-                                if i in np.where(model_vars.converged == False)[0]
+                                if not model_vars.converged[i]
                                 else tf.zeros([model_vars.params.shape[0], 1])
                                 for i in range(model_vars.params.shape[1])
                             ], axis=1),
@@ -366,14 +373,20 @@ class EstimatorGraph(TFEstimatorGraph):
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
 
                 full_data_trainers = train_utils.MultiTrainer(
-                    #loss=full_data_model.norm_neg_log_likelihood,
-                    #variables=[tf.gather(model_vars.params, indices=np.where(model_vars.converged == False)[0], axis=1)],
+                    loss=full_data_model.norm_neg_log_likelihood,
+                    variables=[model_vars.params],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="full_data_trainers"
+                )
+                full_data_trainers_bygene = train_utils.MultiTrainer(
                     gradients=[
                         (
                             tf.concat([
                                 tf.gradients(full_data_model.norm_neg_log_likelihood,
                                              model_vars.params_by_gene[i])[0]
-                                if i in np.where(model_vars.converged == False)[0]
+                                if not model_vars.converged[i]
                                 else tf.zeros([model_vars.params.shape[0], 1])
                                 for i in range(model_vars.params.shape[1])
                             ], axis=1),
@@ -426,32 +439,56 @@ class EstimatorGraph(TFEstimatorGraph):
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
 
                 with tf.name_scope("newton-raphson"):
-                    # tf.gradients(- full_data_model.log_likelihood, [model_vars.a, model_vars.b])
                     # Full data model:
                     param_grad_vec = full_data_model.neg_jac
-                    # param_grad_vec = tf.gradients(- full_data_model.log_likelihood, model_vars.params)[0]
-                    # param_grad_vec_t = tf.transpose(param_grad_vec)
-
                     delta_t = tf.squeeze(tf.matrix_solve_ls(
                         full_data_model.neg_hessian,
-                        # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2, # don't need this with closed forms
+                        # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
                         tf.expand_dims(param_grad_vec, axis=-1),
                         fast=False
                     ), axis=-1)
                     delta = tf.transpose(delta_t)
                     nr_update = model_vars.params - learning_rate * delta
-                    # nr_update = model_vars.params - delta
                     newton_raphson_op = tf.group(
                         tf.assign(model_vars.params, nr_update),
                         tf.assign_add(global_step, 1)
                     )
 
+                    # Full data model by gene:
+                    # Compute parameter update for non-converged gene only.
+                    delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
+                        tf.gather(
+                            full_data_model.neg_hessian,
+                            indices=idx_nonconverged,
+                            axis=0),
+                        tf.expand_dims(
+                            tf.gather(
+                                param_grad_vec,
+                                indices=idx_nonconverged,
+                                axis=0)
+                            , axis=-1),
+                        fast=False
+                    ), axis=-1)
+                    # Write parameter updates into matrix of size of all parameters which
+                    # contains zero entries for updates of already converged genes.
+                    delta_t_bygene_full = tf.concat([
+                        tf.gather(delta_t_bygene_nonconverged,
+                                  indices=np.where(idx_nonconverged == i)[0],
+                                  axis=0)
+                        if not model_vars.converged[i]
+                        else tf.zeros([1, model_vars.params.shape[0]])
+                        for i in range(model_vars.n_features)
+                    ], axis=0)
+                    delta_bygene_full = tf.transpose(delta_t_bygene_full)
+                    nr_update_bygene = model_vars.params - learning_rate * delta_bygene_full
+                    # Reassign all parameters, converged parameters are assigned to themselves +0.
+                    newton_raphson_bygene_op = tf.group(
+                        tf.assign(model_vars.params, nr_update_bygene),
+                        tf.assign_add(global_step, 1)
+                    )
+
                     # Batched data model:
                     param_grad_vec_batched = batch_jac.neg_jac
-                    # param_grad_vec_batched = tf.gradients(- batch_model.log_likelihood,
-                    #                                      model_vars.params)[0]
-                    # param_grad_vec_batched_t = tf.transpose(param_grad_vec_batched)
-
                     delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
                         batch_hessians.neg_hessian,
                         tf.expand_dims(param_grad_vec_batched, axis=-1),
@@ -461,6 +498,39 @@ class EstimatorGraph(TFEstimatorGraph):
                     nr_update_batched = model_vars.params - delta_batched
                     newton_raphson_batched_op = tf.group(
                         tf.assign(model_vars.params, nr_update_batched),
+                        tf.assign_add(global_step, 1)
+                    )
+
+                    # Batched data model by gene:
+                    # Compute parameter update for non-converged gene only.
+                    delta_batched_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
+                        tf.gather(
+                            batch_hessians.neg_hessian,
+                            indices=idx_nonconverged,
+                            axis=0),
+                        tf.expand_dims(
+                            tf.gather(
+                                param_grad_vec_batched,
+                                indices=idx_nonconverged,
+                                axis=0)
+                            , axis=-1),
+                        fast=False
+                    ), axis=-1)
+                    # Write parameter updates into matrix of size of all parameters which
+                    # contains zero entries for updates of already converged genes.
+                    delta_batched_t_bygene_full = tf.concat([
+                        tf.gather(delta_batched_t_bygene_nonconverged,
+                                  indices=np.where(idx_nonconverged == i)[0],
+                                  axis=0)
+                        if not model_vars.converged[i]
+                        else tf.zeros([1, model_vars.params.shape[0]])
+                        for i in range(model_vars.n_features)
+                    ], axis=0)
+                    delta_batched_bygene_full = tf.transpose(delta_batched_t_bygene_full)
+                    nr_update_batched_bygene = model_vars.params - learning_rate * delta_batched_bygene_full
+                    # Reassign all parameters, converged parameters are assigned to themselves +0.
+                    newton_raphson_batched_bygene_op = tf.group(
+                        tf.assign(model_vars.params, nr_update_batched_bygene),
                         tf.assign_add(global_step, 1)
                     )
 
@@ -523,9 +593,12 @@ class EstimatorGraph(TFEstimatorGraph):
         self.loss = batch_loss
 
         self.batch_trainers = batch_trainers
+        self.batch_trainers_bygene = batch_trainers_bygene
         self.batch_trainers_a_only = batch_trainers_a_only
         self.batch_trainers_b_only = batch_trainers_b_only
+
         self.full_data_trainers = full_data_trainers
+        self.full_data_trainers_bygene = full_data_trainers_bygene
         self.full_data_trainers_a_only = full_data_trainers_a_only
         self.full_data_trainers_b_only = full_data_trainers_b_only
         self.global_step = global_step
@@ -566,7 +639,9 @@ class EstimatorGraph(TFEstimatorGraph):
         self.fisher_inv = fisher_inv
 
         self.newton_raphson_op = newton_raphson_op
+        self.newton_raphson_bygene_op = newton_raphson_bygene_op
         self.newton_raphson_batched_op = newton_raphson_batched_op
+        self.newton_raphson_batched_bygene_op = newton_raphson_batched_bygene_op
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)
@@ -642,6 +717,23 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
+            },
+        ]
+        BY_GENE_ADAM = [
+            {
+                "learning_rate": 0.5,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-5,
+                "use_batching": False,
+                "optim_algo": "ADAM",
+            },
+        ]
+        BY_GENE_NR = [
+            {
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-5,
+                "use_batching": False,
+                "optim_algo": "newton",
             },
         ]
         PRE_INITIALIZED = [
@@ -1081,30 +1173,54 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         if use_batching:
             loss = self.model.loss
             if newton_rhapson_mode:
-                train_op = self.model.newton_raphson_batched_op
+                if convergence_criteria == "all_converged":
+                    train_op = self.model.newton_raphson_batched_bygene_op
+                else:
+                    train_op = self.model.newton_raphson_batched_op
             elif train_mu:
                 if train_r:
-                    train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
+                    if convergence_criteria == "all_converged":
+                        train_op = self.model.batch_trainers_bygene.train_op_by_name(optim_algo)
+                    else:
+                        train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
                 else:
-                    train_op = self.model.batch_trainers_a_only.train_op_by_name(optim_algo)
+                    if convergence_criteria == "all_converged":
+                        assert False
+                    else:
+                        train_op = self.model.batch_trainers_a_only.train_op_by_name(optim_algo)
             else:
                 if train_r:
-                    train_op = self.model.batch_trainers_b_only.train_op_by_name(optim_algo)
+                    if convergence_criteria == "all_converged":
+                        assert False
+                    else:
+                        train_op = self.model.batch_trainers_b_only.train_op_by_name(optim_algo)
                 else:
                     logger.info("No training necessary; returning")
                     return
         else:
             loss = self.model.full_loss
             if newton_rhapson_mode:
-                train_op = self.model.newton_raphson_op
+                if convergence_criteria == "all_converged":
+                    train_op = self.model.newton_raphson_bygene_op
+                else:
+                    train_op = self.model.newton_raphson_op
             elif train_mu:
                 if train_r:
-                    train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
+                    if convergence_criteria == "all_converged":
+                        train_op = self.model.full_data_trainers_bygene.train_op_by_name(optim_algo)
+                    else:
+                        train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
                 else:
-                    train_op = self.model.full_data_trainers_a_only.train_op_by_name(optim_algo)
+                    if convergence_criteria == "all_converged":
+                        assert False
+                    else:
+                        train_op = self.model.full_data_trainers_a_only.train_op_by_name(optim_algo)
             else:
                 if train_r:
-                    train_op = self.model.full_data_trainers_b_only.train_op_by_name(optim_algo)
+                    if convergence_criteria == "all_converged":
+                        assert False
+                    else:
+                        train_op = self.model.full_data_trainers_b_only.train_op_by_name(optim_algo)
                 else:
                     logger.info("No training necessary; returning")
                     return
