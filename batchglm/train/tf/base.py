@@ -287,6 +287,26 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                 )
 
                 tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
+        elif convergence_criteria == "all_converged":
+            theta_current = self.session.run(self.model.model_vars.params)
+            while np.any(self.model.model_vars.converged == False):
+                theta_prev = theta_current
+                train_step, global_loss, _ = self.session.run(
+                    (self.model.global_step, loss, train_op),
+                    feed_dict=feed_dict
+                )
+                theta_current = self.session.run(self.model.model_vars.params)
+                theta_delta = np.abs(theta_prev - theta_current)
+                self.model.model_vars.converged = np.logical_or(  # Only update non-converged.
+                    self.model.model_vars.converged,
+                    np.max(theta_delta, axis=0) < stopping_criteria
+                )
+                tf.logging.info(
+                    "Step: %d\tloss: %f\t models converged %i",
+                    train_step,
+                    global_loss,
+                    np.sum(self.model.model_vars.converged).astype("int32")
+                )
         else:
             self._train_to_convergence(
                 loss=loss,
