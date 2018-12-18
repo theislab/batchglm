@@ -332,7 +332,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     learning_rate=learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers"
+                    name="batch_trainers_bygene"
                 )
                 batch_trainers_a_only = train_utils.MultiTrainer(
                     gradients=[
@@ -349,6 +349,27 @@ class EstimatorGraph(TFEstimatorGraph):
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_a_only"
                 )
+                batch_trainers_a_only_bygene = train_utils.MultiTrainer(
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.concat([
+                                    tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                 model_vars.a_by_gene[i])[0]
+                                    if not model_vars.converged[i]
+                                    else tf.zeros([model_vars.a.shape[0], 1])
+                                    for i in range(model_vars.a.shape[1])
+                                ], axis=1),
+                                tf.zeros_like(model_vars.b)
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="batch_trainers_a_only_bygene"
+                )
                 batch_trainers_b_only = train_utils.MultiTrainer(
                     gradients=[
                         (
@@ -363,6 +384,27 @@ class EstimatorGraph(TFEstimatorGraph):
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="batch_trainers_b_only"
+                )
+                batch_trainers_b_only_bygene = train_utils.MultiTrainer(
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.zeros_like(model_vars.a),
+                                tf.concat([
+                                    tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                 model_vars.b_by_gene[i])[0]
+                                    if not model_vars.converged[i]
+                                    else tf.zeros([model_vars.b.shape[0], 1])
+                                    for i in range(model_vars.b.shape[1])
+                                ], axis=1)
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="batch_trainers_b_only_bygene"
                 )
 
                 with tf.name_scope("batch_gradient"):
@@ -396,7 +438,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     learning_rate=learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers"
+                    name="full_data_trainers_bygene"
                 )
                 full_data_trainers_a_only = train_utils.MultiTrainer(
                     gradients=[
@@ -413,6 +455,27 @@ class EstimatorGraph(TFEstimatorGraph):
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_a_only"
                 )
+                full_data_trainers_a_only_bygene = train_utils.MultiTrainer(
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.concat([
+                                    tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                 model_vars.a_by_gene[i])[0]
+                                    if not model_vars.converged[i]
+                                    else tf.zeros([model_vars.a.shape[0], 1])
+                                    for i in range(model_vars.a.shape[1])
+                                ], axis=1),
+                                tf.zeros_like(model_vars.b)
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="full_data_trainers_a_only_bygene"
+                )
                 full_data_trainers_b_only = train_utils.MultiTrainer(
                     gradients=[
                         (
@@ -428,6 +491,28 @@ class EstimatorGraph(TFEstimatorGraph):
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     name="full_data_trainers_b_only"
                 )
+                full_data_trainers_b_only_bygene = train_utils.MultiTrainer(
+                    gradients=[
+                        (
+                            tf.concat([
+                                tf.zeros_like(model_vars.a),
+                                tf.concat([
+                                    tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                 model_vars.b_by_gene[i])[0]
+                                    if not model_vars.converged[i]
+                                    else tf.zeros([model_vars.b.shape[0], 1])
+                                    for i in range(model_vars.b.shape[1])
+                                ], axis=1)
+                            ], axis=0),
+                            model_vars.params
+                        ),
+                    ],
+                    learning_rate=learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    name="full_data_trainers_b_only_bygene"
+                )
+
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
                     full_gradient = full_data_trainers.plain_gradient_by_variable(model_vars.params)
@@ -595,12 +680,17 @@ class EstimatorGraph(TFEstimatorGraph):
         self.batch_trainers = batch_trainers
         self.batch_trainers_bygene = batch_trainers_bygene
         self.batch_trainers_a_only = batch_trainers_a_only
+        self.batch_trainers_a_only_bygene = batch_trainers_a_only_bygene
         self.batch_trainers_b_only = batch_trainers_b_only
+        self.batch_trainers_b_only_bygene = batch_trainers_b_only_bygene
 
         self.full_data_trainers = full_data_trainers
         self.full_data_trainers_bygene = full_data_trainers_bygene
         self.full_data_trainers_a_only = full_data_trainers_a_only
+        self.full_data_trainers_a_only_bygene = full_data_trainers_a_only_bygene
         self.full_data_trainers_b_only = full_data_trainers_b_only
+        self.full_data_trainers_b_only_bygene = full_data_trainers_b_only_bygene
+
         self.global_step = global_step
 
         self.gradient = batch_gradient
@@ -1185,13 +1275,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
                 else:
                     if convergence_criteria == "all_converged":
-                        assert False
+                        train_op = self.model.batch_trainers_a_only_bygene.train_op_by_name(optim_algo)
                     else:
                         train_op = self.model.batch_trainers_a_only.train_op_by_name(optim_algo)
             else:
                 if train_r:
                     if convergence_criteria == "all_converged":
-                        assert False
+                        train_op = self.model.batch_trainers_b_only_bygene.train_op_by_name(optim_algo)
                     else:
                         train_op = self.model.batch_trainers_b_only.train_op_by_name(optim_algo)
                 else:
@@ -1212,13 +1302,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
                 else:
                     if convergence_criteria == "all_converged":
-                        assert False
+                        train_op = self.model.full_data_trainers_a_only_bygene.train_op_by_name(optim_algo)
                     else:
                         train_op = self.model.full_data_trainers_a_only.train_op_by_name(optim_algo)
             else:
                 if train_r:
                     if convergence_criteria == "all_converged":
-                        assert False
+                        train_op = self.model.full_data_trainers_b_only_bygene.train_op_by_name(optim_algo)
                     else:
                         train_op = self.model.full_data_trainers_b_only.train_op_by_name(optim_algo)
                 else:

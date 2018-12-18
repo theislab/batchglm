@@ -88,7 +88,7 @@ class NB_GLM_Test(unittest.TestCase):
     _estims: List[Estimator]
 
     def setUp(self):
-        self.sim = Simulator(num_observations=1000, num_features=5)
+        self.sim = Simulator(num_observations=1000, num_features=7)
         self.sim.generate()
         self._estims = []
 
