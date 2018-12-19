@@ -37,7 +37,7 @@ def estimate(
 
     estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 0.5,
+                "learning_rate": 0.5 if algo is not "nr" else 1,
                 "convergence_criteria": "all_converged",
                 "stopping_criteria": 1e1,
                 "use_batching": batched,

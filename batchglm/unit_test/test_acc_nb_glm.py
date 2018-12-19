@@ -23,12 +23,11 @@ def estimate(
         quick_scale,
         termination
 ):
-    provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": False}
-    provide_optimizers[algo.lower()] = True
+    provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True}
 
     estimator = Estimator(
         input_data,
-        batch_size=10,
+        batch_size=1000,
         quick_scale=quick_scale,
         provide_optimizers=provide_optimizers,
         termination_type=termination
@@ -37,9 +36,9 @@ def estimate(
 
     estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 0.5,
+                "learning_rate": 0.5 if algo is not "nr" else 1,
                 "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e1,
+                "stopping_criteria": 1e-4,
                 "use_batching": batched,
                 "optim_algo": algo,
             },
@@ -47,6 +46,37 @@ def estimate(
 
     return estimator
 
+def eval_estimation(
+        estimator,
+        sim,
+        threshold_dev_a = 0.001,
+        threshold_dev_b = 0.001,
+        threshold_std_a = 0.1,
+        threshold_std_b = 0.2
+):
+    mean_dev_a = np.mean(estimator.a.values - sim.a.values)
+    std_dev_a = np.std(estimator.a.values - sim.a.values)
+    mean_dev_b = np.mean(estimator.b.values - sim.b.values)
+    std_dev_b = np.std(estimator.b.values - sim.b.values)
+
+    print("\n")
+    print("mean_dev_a %f" % mean_dev_a)
+    print("std_dev_a %f" % std_dev_a)
+    print("mean_dev_b %f" % mean_dev_b)
+    print("std_dev_b %f" % std_dev_b)
+
+    print(np.abs(mean_dev_a) < threshold_dev_a)
+    print(np.abs(mean_dev_b) < threshold_dev_b)
+    print(std_dev_a < threshold_std_a)
+    print(std_dev_b < threshold_std_b)
+
+    if np.abs(mean_dev_a) < threshold_dev_a and \
+            np.abs(mean_dev_b) < threshold_dev_b and \
+            std_dev_a < threshold_std_a and \
+            std_dev_b < threshold_std_b:
+        return True
+    else:
+        return False
 
 class NB_GLM_Test(unittest.TestCase):
     """
@@ -61,11 +91,11 @@ class NB_GLM_Test(unittest.TestCase):
     _estims: List[Estimator]
 
     def setUp(self):
-        self.sim1 = Simulator(num_observations=50, num_features=2)
+        self.sim1 = Simulator(num_observations=1000, num_features=200)
         self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
         self.sim1.generate()
 
-        self.sim2 = Simulator(num_observations=50, num_features=2)
+        self.sim2 = Simulator(num_observations=1000, num_features=200)
         self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
         self.sim2.generate()
 
@@ -78,7 +108,8 @@ class NB_GLM_Test(unittest.TestCase):
     def test_full_byfeature_a_and_b(self):
         sim = self.sim1.__copy__()
 
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+        for algo in ["NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -86,95 +117,22 @@ class NB_GLM_Test(unittest.TestCase):
                 quick_scale=False,
                 termination="by_feature"
             )
-            estimator.finalize()
+            estimator_store = estimator.finalize()
             self._estims.append(estimator)
-
-        return True
-
-    def test_full_byfeature_a_only(self):
-        sim = self.sim1.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=False,
-                quick_scale=True,
-                termination="by_feature"
+            success = eval_estimation(
+                estimator=estimator_store,
+                sim=sim
             )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-
-    def test_full_byfeature_b_only(self):
-        sim = self.sim2.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=False,
-                quick_scale=False,
-                termination="by_feature"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-    def test_batched_byfeature_a_and_b(self):
-        sim = self.sim1.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=True,
-                quick_scale=False,
-                termination="by_feature"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-    def test_batched_byfeature_a_only(self):
-        sim = self.sim1.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data, algo=algo,
-                batched=True,
-                quick_scale=True,
-                termination="by_feature"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-    def test_batched_byfeature_b_only(self):
-        sim = self.sim2.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=True,
-                quick_scale=False,
-                termination="by_feature"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
+            assert success, "%s did not yield exact results" % algo
 
         return True
 
     def test_full_global_a_and_b(self):
         sim = self.sim1.__copy__()
 
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+        all_exact = True
+        for algo in ["NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -182,91 +140,15 @@ class NB_GLM_Test(unittest.TestCase):
                 quick_scale=False,
                 termination="global"
             )
-            estimator.finalize()
+            estimator_store = estimator.finalize()
             self._estims.append(estimator)
-
-        return True
-
-    def test_full_global_a_only(self):
-        sim = self.sim1.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=False,
-                quick_scale=True,
-                termination="global"
+            success = eval_estimation(
+                estimator=estimator_store,
+                sim=sim
             )
-            estimator.finalize()
-            self._estims.append(estimator)
+            assert success, "%s did not yield exact results" % algo
 
         return True
-
-    def test_full_global_b_only(self):
-        sim = self.sim2.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=False,
-                quick_scale=False,
-                termination="global"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-    def test_batched_global_a_and_b(self):
-        sim = self.sim1.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=True,
-                quick_scale=False,
-                termination="global"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-    def test_batched_global_a_only(self):
-        sim = self.sim1.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=True,
-                quick_scale=True,
-                termination="global"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
-    def test_batched_global_b_only(self):
-        sim = self.sim2.__copy__()
-
-        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
-            estimator = estimate(
-                sim.input_data,
-                algo=algo,
-                batched=True,
-                quick_scale=False,
-                termination="global"
-            )
-            estimator.finalize()
-            self._estims.append(estimator)
-
-        return True
-
 
 if __name__ == '__main__':
     unittest.main()
