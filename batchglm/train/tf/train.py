@@ -238,8 +238,10 @@ class MultiTrainer:
                  variables: list = None,
                  gradients: list = None,
                  apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
+                 newton_delta: tf.Tensor = None,
                  global_step=None,
                  apply_train_ops: callable = None,
+                 provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
                  name=None):
         r"""
 
@@ -250,6 +252,7 @@ class MultiTrainer:
         :param apply_gradients: callable(s) appliable to the gradients.
             Can be either a single callable which will be applied to all gradients or a dict of
             {tf.Variable: callable} mappings.
+        :param newton_delta: tensor Precomputed custom newton-rhapson parameter update to apply.
         :param global_step: global step counter
         :param apply_train_ops: callable which will be applied to all train ops
         :param name: optional name scope
@@ -258,37 +261,74 @@ class MultiTrainer:
             if name is not None:
                 gs = stack.enter_context(tf.name_scope(name))
 
-            if gradients is None:
-                if variables is None:
-                    raise ValueError("Either variables and loss or gradients have to be specified")
+            if any([provide_optimizers["gd"],
+                    provide_optimizers["adam"],
+                    provide_optimizers["adagrad"],
+                    provide_optimizers["rmsprop"]]):
+                if gradients is None:
+                    if variables is None:
+                        raise ValueError("Either variables and loss or gradients have to be specified")
 
-                plain_gradients = tf.gradients(loss, variables)
-                plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
+                    plain_gradients = tf.gradients(loss, variables)
+                    plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
+                else:
+                    plain_gradients = gradients
+
+                if callable(apply_gradients):
+                    gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
+                elif isinstance(apply_gradients, dict):
+                    gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
+                else:
+                    gradients = plain_gradients
+
+            # Standard tensorflow optimizers.
+            if provide_optimizers["gd"]:
+                optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+                train_op_GD = optim_GD.apply_gradients(gradients, global_step=global_step)
+                if apply_train_ops is not None:
+                    train_op_GD = apply_train_ops(train_op_GD)
             else:
-                plain_gradients = gradients
+                optim_GD = None
+                train_op_GD = None
 
-            if callable(apply_gradients):
-                gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
-            elif isinstance(apply_gradients, dict):
-                gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
+            if provide_optimizers["adam"]:
+                optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
+                train_op_Adam = optim_Adam.apply_gradients(gradients, global_step=global_step)
+                if apply_train_ops is not None:
+                    train_op_Adam = apply_train_ops(train_op_Adam)
             else:
-                gradients = plain_gradients
+                optim_Adam = None
+                train_op_Adam = None
 
-            optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-            optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
-            optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
-            optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
+            if provide_optimizers["adagrad"]:
+                optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
+                train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
+                if apply_train_ops is not None:
+                    train_op_Adagrad = apply_train_ops(train_op_Adagrad)
+            else:
+                optim_Adagrad = None
+                train_op_Adagrad = None
 
-            train_op_GD = optim_GD.apply_gradients(gradients, global_step=global_step)
-            train_op_Adam = optim_Adam.apply_gradients(gradients, global_step=global_step)
-            train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
-            train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
+            if provide_optimizers["rmsprop"]:
+                optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
+                train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
+                if apply_train_ops is not None:
+                    train_op_RMSProp = apply_train_ops(train_op_RMSProp)
+            else:
+                optim_RMSProp = None
+                train_op_RMSProp = None
 
-            if apply_train_ops is not None:
-                train_op_GD = apply_train_ops(train_op_GD)
-                train_op_Adam = apply_train_ops(train_op_Adam)
-                train_op_Adagrad = apply_train_ops(train_op_Adagrad)
-                train_op_RMSProp = apply_train_ops(train_op_RMSProp)
+            # Custom optimizers.
+            optim_nr = None
+            if provide_optimizers["nr"]:
+                train_op_nr = tf.group(
+                    tf.assign(variables[0], newton_delta),
+                    tf.assign_add(global_step, 1)
+                )
+                if apply_train_ops is not None:
+                    train_op_nr = apply_train_ops(train_op_nr)
+            else:
+                train_op_nr = None
 
             self.global_step = global_step
             self.plain_gradients = plain_gradients
@@ -298,11 +338,13 @@ class MultiTrainer:
             self.optim_Adam = optim_Adam
             self.optim_Adagrad = optim_Adagrad
             self.optim_RMSProp = optim_RMSProp
+            self.optim_NR = optim_nr
 
             self.train_op_GD = train_op_GD
             self.train_op_Adam = train_op_Adam
             self.train_op_Adagrad = train_op_Adagrad
             self.train_op_RMSProp = train_op_RMSProp
+            self.train_op_nr = train_op_nr
 
     def train_op_by_name(self, name: str):
         """
@@ -318,13 +360,28 @@ class MultiTrainer:
         """
         name_lower = name.lower()
         if name_lower == "gradient_descent" or name_lower == "gd":
+            if self.train_op_GD is None:
+                raise ValueError("Gradient decent not provided in initialization.")
             return self.train_op_GD
         elif name_lower == "adam":
+            if self.train_op_Adam is None:
+                raise ValueError("Adam not provided in initialization.")
             return self.train_op_Adam
         elif name_lower == "adagrad":
+            if self.train_op_Adagrad is None:
+                raise ValueError("Adagrad decent not provided in initialization.")
             return self.train_op_Adagrad
         elif name_lower == "rmsprop":
+            if self.train_op_RMSProp is None:
+                raise ValueError("RMSProp decent not provided in initialization.")
             return self.train_op_RMSProp
+        elif name_lower.lower() == "newton" or \
+                    optim_algo.lower() == "newton-raphson" or \
+                    optim_algo.lower() == "newton_raphson" or \
+                    optim_algo.lower() == "nr":
+            if self.train_op_nr is None:
+                raise ValueError("Newton-rhapson not provided in initialization.")
+            return self.train_op_nr
         else:
             raise ValueError("Unknown optimizer: %s" % name)
 

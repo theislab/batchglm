@@ -149,6 +149,10 @@ class EstimatorGraph(TFEstimatorGraph):
             init_b=None,
             constraints_loc=None,
             constraints_scale=None,
+            train_mu=True,
+            train_r=True,
+            provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
+            termination_type: str = "global",
             extended_summary=False,
             dtype="float32"
     ):
@@ -304,316 +308,346 @@ class EstimatorGraph(TFEstimatorGraph):
                 # Set up multiple optimization algorithms for each trainer.
                 # Note that params is tf.Variable and a, b are tensors as they are
                 # slices of a variable! Accordingly, the updates are implemented differently.
-                batch_trainers = train_utils.MultiTrainer(
-                    loss=batch_model.norm_neg_log_likelihood,
-                    variables=[model_vars.params],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers"
-                )
-                batch_trainers_bygene = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.gradients(batch_model.norm_neg_log_likelihood,
-                                             model_vars.params_by_gene[i])[0]
-                                if not model_vars.converged[i]
-                                else tf.zeros([model_vars.params.shape[0], 1])
-                                for i in range(model_vars.params.shape[1])
-                            ], axis=1),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers_bygene"
-                )
-                batch_trainers_a_only = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.a)[0],
-                                tf.zeros_like(model_vars.b),
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers_a_only"
-                )
-                batch_trainers_a_only_bygene = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.concat([
-                                    tf.gradients(batch_model.norm_neg_log_likelihood,
-                                                 model_vars.a_by_gene[i])[0]
-                                    if not model_vars.converged[i]
-                                    else tf.zeros([model_vars.a.shape[0], 1])
-                                    for i in range(model_vars.a.shape[1])
-                                ], axis=1),
-                                tf.zeros_like(model_vars.b)
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers_a_only_bygene"
-                )
-                batch_trainers_b_only = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.zeros_like(model_vars.a),
-                                tf.gradients(batch_model.norm_neg_log_likelihood, model_vars.b)[0],
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers_b_only"
-                )
-                batch_trainers_b_only_bygene = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.zeros_like(model_vars.a),
-                                tf.concat([
-                                    tf.gradients(batch_model.norm_neg_log_likelihood,
-                                                 model_vars.b_by_gene[i])[0]
-                                    if not model_vars.converged[i]
-                                    else tf.zeros([model_vars.b.shape[0], 1])
-                                    for i in range(model_vars.b.shape[1])
-                                ], axis=1)
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="batch_trainers_b_only_bygene"
-                )
 
+                if train_mu:
+                    if train_r:
+                        if termination_type == "by_feature":
+                            if provide_optimizers["nr"]:
+                                # Full data model by gene:
+                                param_grad_vec = full_data_model.neg_jac
+                                # Compute parameter update for non-converged gene only.
+                                delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
+                                    tf.gather(
+                                        full_data_model.neg_hessian,
+                                        indices=idx_nonconverged,
+                                        axis=0),
+                                    tf.expand_dims(
+                                        tf.gather(
+                                            param_grad_vec,
+                                            indices=idx_nonconverged,
+                                            axis=0)
+                                        , axis=-1),
+                                    fast=False
+                                ), axis=-1)
+                                # Write parameter updates into matrix of size of all parameters which
+                                # contains zero entries for updates of already converged genes.
+                                delta_t_bygene_full = tf.concat([
+                                    tf.gather(delta_t_bygene_nonconverged,
+                                              indices=np.where(idx_nonconverged == i)[0],
+                                              axis=0)
+                                    if not model_vars.converged[i]
+                                    else tf.zeros([1, model_vars.params.shape[0]])
+                                    for i in range(model_vars.n_features)
+                                ], axis=0)
+                                delta_bygene_full = tf.transpose(delta_t_bygene_full)
+                                nr_update = model_vars.params - learning_rate * delta_bygene_full
+
+                                # Batched data model by gene:
+                                param_grad_vec_batched = batch_jac.neg_jac
+                                # Compute parameter update for non-converged gene only.
+                                delta_batched_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
+                                    tf.gather(
+                                        batch_hessians.neg_hessian,
+                                        indices=idx_nonconverged,
+                                        axis=0),
+                                    tf.expand_dims(
+                                        tf.gather(
+                                            param_grad_vec_batched,
+                                            indices=idx_nonconverged,
+                                            axis=0)
+                                        , axis=-1),
+                                    fast=False
+                                ), axis=-1)
+                                # Write parameter updates into matrix of size of all parameters which
+                                # contains zero entries for updates of already converged genes.
+                                delta_batched_t_bygene_full = tf.concat([
+                                    tf.gather(delta_batched_t_bygene_nonconverged,
+                                              indices=np.where(idx_nonconverged == i)[0],
+                                              axis=0)
+                                    if not model_vars.converged[i]
+                                    else tf.zeros([1, model_vars.params.shape[0]])
+                                    for i in range(model_vars.n_features)
+                                ], axis=0)
+                                delta_batched_bygene_full = tf.transpose(delta_batched_t_bygene_full)
+                                nr_update_batched = model_vars.params - learning_rate * delta_batched_bygene_full
+
+                            trainer_batch = train_utils.MultiTrainer(
+                                variables=[model_vars.params],
+                                gradients=[
+                                    (
+                                        tf.concat([
+                                            tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                         model_vars.params_by_gene[i])[0]
+                                            if not model_vars.converged[i]
+                                            else tf.zeros([model_vars.params.shape[0], 1], dtype=dtype)
+                                            for i in range(model_vars.params.shape[1])
+                                        ], axis=1),
+                                        model_vars.params
+                                    ),
+                                ],
+                                newton_delta=nr_update_batched,
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="batch_trainers_bygene"
+                            )
+                            trainer_full = train_utils.MultiTrainer(
+                                variables=[model_vars.params],
+                                gradients=[
+                                    (
+                                        tf.concat([
+                                            tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                         model_vars.params_by_gene[i])[0]
+                                            if not model_vars.converged[i]
+                                            else tf.zeros([model_vars.params.shape[0], 1], dtype=dtype)
+                                            for i in range(model_vars.params.shape[1])
+                                        ], axis=1),
+                                        model_vars.params
+                                    ),
+                                ],
+                                newton_delta=nr_update,
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="full_data_trainers_bygene"
+                            )
+                        elif termination_type == "global":
+                            if provide_optimizers["nr"]:
+                                # Full data model:
+                                param_grad_vec = full_data_model.neg_jac
+                                delta_t = tf.squeeze(tf.matrix_solve_ls(
+                                    full_data_model.neg_hessian,
+                                    # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
+                                    tf.expand_dims(param_grad_vec, axis=-1),
+                                    fast=False
+                                ), axis=-1)
+                                delta = tf.transpose(delta_t)
+                                nr_update = model_vars.params - learning_rate * delta
+
+                                # Batched data model:
+                                param_grad_vec_batched = batch_jac.neg_jac
+                                delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
+                                    batch_hessians.neg_hessian,
+                                    tf.expand_dims(param_grad_vec_batched, axis=-1),
+                                    fast=False
+                                ), axis=-1)
+                                delta_batched = tf.transpose(delta_batched_t)
+                                nr_update_batched = model_vars.params - delta_batched
+                            else:
+                                nr_update = None
+                                nr_update_batched = None
+
+                            trainer_batch = train_utils.MultiTrainer(
+                                loss=batch_model.norm_neg_log_likelihood,
+                                variables=[model_vars.params],
+                                newton_delta=nr_update_batched,
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="batch_trainers"
+                            )
+                            trainer_full = train_utils.MultiTrainer(
+                                loss=full_data_model.norm_neg_log_likelihood,
+                                variables=[model_vars.params],
+                                newton_delta=nr_update,
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="full_data_trainers"
+                            )
+                        else:
+                            raise ValueError("convergence_type %s not recognized." % termination_type)
+                    else:
+                        if termination_type == "by_feature":
+                            trainer_batch = train_utils.MultiTrainer(
+                                gradients=[
+                                    (
+                                        tf.concat([
+                                            tf.concat([
+                                                tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                             model_vars.a_by_gene[i])[0]
+                                                if not model_vars.converged[i]
+                                                else tf.zeros([model_vars.a.shape[0], 1], dtype=dtype)
+                                                for i in range(model_vars.a.shape[1])
+                                            ], axis=1),
+                                            tf.zeros_like(model_vars.b)
+                                        ], axis=0),
+                                        model_vars.params
+                                    ),
+                                ],
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="batch_trainers_a_only_bygene"
+                            )
+                            trainer_full = train_utils.MultiTrainer(
+                                gradients=[
+                                    (
+                                        tf.concat([
+                                            tf.concat([
+                                                tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                             model_vars.a_by_gene[i])[0]
+                                                if not model_vars.converged[i]
+                                                else tf.zeros([model_vars.a.shape[0], 1], dtype=dtype)
+                                                for i in range(model_vars.a.shape[1])
+                                            ], axis=1),
+                                            tf.zeros_like(model_vars.b)
+                                        ], axis=0),
+                                        model_vars.params
+                                    ),
+                                ],
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="full_data_trainers_a_only_bygene"
+                            )
+                        elif termination_type == "global":
+                            trainer_batch = train_utils.MultiTrainer(
+                                gradients=[
+                                    (
+                                        tf.concat([
+                                            tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                         model_vars.a)[0],
+                                            tf.zeros_like(model_vars.b, dtype=dtype),
+                                        ], axis=0),
+                                        model_vars.params
+                                    ),
+                                ],
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="batch_trainers_a_only"
+                            )
+                            trainer_full = full_data_trainers_a_only = train_utils.MultiTrainer(
+                                gradients=[
+                                    (
+                                        tf.concat([
+                                            tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                         model_vars.a)[0],
+                                            tf.zeros_like(model_vars.b),
+                                        ], axis=0),
+                                        model_vars.params
+                                    ),
+                                ],
+                                learning_rate=learning_rate,
+                                global_step=global_step,
+                                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                                provide_optimizers=provide_optimizers,
+                                name="full_data_trainers_a_only"
+                            )
+                        else:
+                            raise ValueError("convergence_type %s not recognized." % termination_type)
+                elif train_r:
+                    if termination_type == "by_feature":
+                        trainer_batch = train_utils.MultiTrainer(
+                            gradients=[
+                                (
+                                    tf.concat([
+                                        tf.zeros_like(model_vars.a),
+                                        tf.concat([
+                                            tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                         model_vars.b_by_gene[i])[0]
+                                            if not model_vars.converged[i]
+                                            else tf.zeros([model_vars.b.shape[0], 1], dtype=dtype)
+                                            for i in range(model_vars.b.shape[1])
+                                        ], axis=1)
+                                    ], axis=0),
+                                    model_vars.params
+                                ),
+                            ],
+                            learning_rate=learning_rate,
+                            global_step=global_step,
+                            apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                            provide_optimizers=provide_optimizers,
+                            name="batch_trainers_b_only_bygene"
+                        )
+                        trainer_full = train_utils.MultiTrainer(
+                            gradients=[
+                                (
+                                    tf.concat([
+                                        tf.zeros_like(model_vars.a),
+                                        tf.concat([
+                                            tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                         model_vars.b_by_gene[i])[0]
+                                            if not model_vars.converged[i]
+                                            else tf.zeros([model_vars.b.shape[0], 1], dtype=dtype)
+                                            for i in range(model_vars.b.shape[1])
+                                        ], axis=1)
+                                    ], axis=0),
+                                    model_vars.params
+                                ),
+                            ],
+                            learning_rate=learning_rate,
+                            global_step=global_step,
+                            apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                            provide_optimizers=provide_optimizers,
+                            name="full_data_trainers_b_only_bygene"
+                        )
+                    elif termination_type == "global":
+                        trainer_batch = train_utils.MultiTrainer(
+                            gradients=[
+                                (
+                                    tf.concat([
+                                        tf.zeros_like(model_vars.a),
+                                        tf.gradients(batch_model.norm_neg_log_likelihood,
+                                                     model_vars.b)[0],
+                                    ], axis=0),
+                                    model_vars.params
+                                ),
+                            ],
+                            learning_rate=learning_rate,
+                            global_step=global_step,
+                            apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                            provide_optimizers=provide_optimizers,
+                            name="batch_trainers_b_only"
+                        )
+                        trainer_full = train_utils.MultiTrainer(
+                            gradients=[
+                                (
+                                    tf.concat([
+                                        tf.zeros_like(model_vars.a),
+                                        tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                                     model_vars.b)[0],
+                                    ], axis=0),
+                                    model_vars.params
+                                ),
+                            ],
+                            learning_rate=learning_rate,
+                            global_step=global_step,
+                            apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                            provide_optimizers=provide_optimizers,
+                            name="full_data_trainers_b_only"
+                        )
+                    else:
+                        raise ValueError("convergence_type %s not recognized." % termination_type)
+                else:
+                    logger.info("No training necessary; returning")
+                    return False
+
+                # Set up model gradient computation:
                 with tf.name_scope("batch_gradient"):
-                    batch_gradient = batch_trainers.plain_gradient_by_variable(model_vars.params)
+                    batch_gradient = trainer_batch.plain_gradient_by_variable(model_vars.params)
                     batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
 
                     # batch_gradient = tf.add_n(
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
 
-                full_data_trainers = train_utils.MultiTrainer(
-                    loss=full_data_model.norm_neg_log_likelihood,
-                    variables=[model_vars.params],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers"
-                )
-                full_data_trainers_bygene = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.gradients(full_data_model.norm_neg_log_likelihood,
-                                             model_vars.params_by_gene[i])[0]
-                                if not model_vars.converged[i]
-                                else tf.zeros([model_vars.params.shape[0], 1])
-                                for i in range(model_vars.params.shape[1])
-                            ], axis=1),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers_bygene"
-                )
-                full_data_trainers_a_only = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.a)[0],
-                                tf.zeros_like(model_vars.b),
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers_a_only"
-                )
-                full_data_trainers_a_only_bygene = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.concat([
-                                    tf.gradients(full_data_model.norm_neg_log_likelihood,
-                                                 model_vars.a_by_gene[i])[0]
-                                    if not model_vars.converged[i]
-                                    else tf.zeros([model_vars.a.shape[0], 1])
-                                    for i in range(model_vars.a.shape[1])
-                                ], axis=1),
-                                tf.zeros_like(model_vars.b)
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers_a_only_bygene"
-                )
-                full_data_trainers_b_only = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.zeros_like(model_vars.a),
-                                tf.gradients(full_data_model.norm_neg_log_likelihood, model_vars.b)[0],
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers_b_only"
-                )
-                full_data_trainers_b_only_bygene = train_utils.MultiTrainer(
-                    gradients=[
-                        (
-                            tf.concat([
-                                tf.zeros_like(model_vars.a),
-                                tf.concat([
-                                    tf.gradients(full_data_model.norm_neg_log_likelihood,
-                                                 model_vars.b_by_gene[i])[0]
-                                    if not model_vars.converged[i]
-                                    else tf.zeros([model_vars.b.shape[0], 1])
-                                    for i in range(model_vars.b.shape[1])
-                                ], axis=1)
-                            ], axis=0),
-                            model_vars.params
-                        ),
-                    ],
-                    learning_rate=learning_rate,
-                    global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                    name="full_data_trainers_b_only_bygene"
-                )
-
                 with tf.name_scope("full_gradient"):
                     # use same gradient as the optimizers
-                    full_gradient = full_data_trainers.plain_gradient_by_variable(model_vars.params)
+                    full_gradient = trainer_full.plain_gradient_by_variable(model_vars.params)
                     full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
 
                     # # the analytic Jacobian
                     # full_gradient = tf.reduce_sum(full_data_model.neg_jac, axis=0)
                     # full_gradient = tf.add_n(
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
-
-                with tf.name_scope("newton-raphson"):
-                    # Full data model:
-                    param_grad_vec = full_data_model.neg_jac
-                    delta_t = tf.squeeze(tf.matrix_solve_ls(
-                        full_data_model.neg_hessian,
-                        # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
-                        tf.expand_dims(param_grad_vec, axis=-1),
-                        fast=False
-                    ), axis=-1)
-                    delta = tf.transpose(delta_t)
-                    nr_update = model_vars.params - learning_rate * delta
-                    newton_raphson_op = tf.group(
-                        tf.assign(model_vars.params, nr_update),
-                        tf.assign_add(global_step, 1)
-                    )
-
-                    # Full data model by gene:
-                    # Compute parameter update for non-converged gene only.
-                    delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
-                        tf.gather(
-                            full_data_model.neg_hessian,
-                            indices=idx_nonconverged,
-                            axis=0),
-                        tf.expand_dims(
-                            tf.gather(
-                                param_grad_vec,
-                                indices=idx_nonconverged,
-                                axis=0)
-                            , axis=-1),
-                        fast=False
-                    ), axis=-1)
-                    # Write parameter updates into matrix of size of all parameters which
-                    # contains zero entries for updates of already converged genes.
-                    delta_t_bygene_full = tf.concat([
-                        tf.gather(delta_t_bygene_nonconverged,
-                                  indices=np.where(idx_nonconverged == i)[0],
-                                  axis=0)
-                        if not model_vars.converged[i]
-                        else tf.zeros([1, model_vars.params.shape[0]])
-                        for i in range(model_vars.n_features)
-                    ], axis=0)
-                    delta_bygene_full = tf.transpose(delta_t_bygene_full)
-                    nr_update_bygene = model_vars.params - learning_rate * delta_bygene_full
-                    # Reassign all parameters, converged parameters are assigned to themselves +0.
-                    newton_raphson_bygene_op = tf.group(
-                        tf.assign(model_vars.params, nr_update_bygene),
-                        tf.assign_add(global_step, 1)
-                    )
-
-                    # Batched data model:
-                    param_grad_vec_batched = batch_jac.neg_jac
-                    delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
-                        batch_hessians.neg_hessian,
-                        tf.expand_dims(param_grad_vec_batched, axis=-1),
-                        fast=False
-                    ), axis=-1)
-                    delta_batched = tf.transpose(delta_batched_t)
-                    nr_update_batched = model_vars.params - delta_batched
-                    newton_raphson_batched_op = tf.group(
-                        tf.assign(model_vars.params, nr_update_batched),
-                        tf.assign_add(global_step, 1)
-                    )
-
-                    # Batched data model by gene:
-                    # Compute parameter update for non-converged gene only.
-                    delta_batched_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
-                        tf.gather(
-                            batch_hessians.neg_hessian,
-                            indices=idx_nonconverged,
-                            axis=0),
-                        tf.expand_dims(
-                            tf.gather(
-                                param_grad_vec_batched,
-                                indices=idx_nonconverged,
-                                axis=0)
-                            , axis=-1),
-                        fast=False
-                    ), axis=-1)
-                    # Write parameter updates into matrix of size of all parameters which
-                    # contains zero entries for updates of already converged genes.
-                    delta_batched_t_bygene_full = tf.concat([
-                        tf.gather(delta_batched_t_bygene_nonconverged,
-                                  indices=np.where(idx_nonconverged == i)[0],
-                                  axis=0)
-                        if not model_vars.converged[i]
-                        else tf.zeros([1, model_vars.params.shape[0]])
-                        for i in range(model_vars.n_features)
-                    ], axis=0)
-                    delta_batched_bygene_full = tf.transpose(delta_batched_t_bygene_full)
-                    nr_update_batched_bygene = model_vars.params - learning_rate * delta_batched_bygene_full
-                    # Reassign all parameters, converged parameters are assigned to themselves +0.
-                    newton_raphson_batched_bygene_op = tf.group(
-                        tf.assign(model_vars.params, nr_update_batched_bygene),
-                        tf.assign_add(global_step, 1)
-                    )
 
                 # # ### BFGS implementation using SciPy L-BFGS
                 # with tf.name_scope("bfgs"):
@@ -673,27 +707,15 @@ class EstimatorGraph(TFEstimatorGraph):
         self.learning_rate = learning_rate
         self.loss = batch_loss
 
-        self.batch_trainers = batch_trainers
-        self.batch_trainers_bygene = batch_trainers_bygene
-        self.batch_trainers_a_only = batch_trainers_a_only
-        self.batch_trainers_a_only_bygene = batch_trainers_a_only_bygene
-        self.batch_trainers_b_only = batch_trainers_b_only
-        self.batch_trainers_b_only_bygene = batch_trainers_b_only_bygene
-
-        self.full_data_trainers = full_data_trainers
-        self.full_data_trainers_bygene = full_data_trainers_bygene
-        self.full_data_trainers_a_only = full_data_trainers_a_only
-        self.full_data_trainers_a_only_bygene = full_data_trainers_a_only_bygene
-        self.full_data_trainers_b_only = full_data_trainers_b_only
-        self.full_data_trainers_b_only_bygene = full_data_trainers_b_only_bygene
-
+        self.trainer_batch = trainer_batch
+        self.trainer_full = trainer_full
         self.global_step = global_step
 
         self.gradient = batch_gradient
         # self.gradient_a = batch_gradient_a
         # self.gradient_b = batch_gradient_b
 
-        self.train_op = batch_trainers.train_op_GD
+        self.train_op = trainer_full.train_op_GD
 
         self.init_ops = []
         self.init_op = init_op
@@ -723,11 +745,6 @@ class EstimatorGraph(TFEstimatorGraph):
 
         self.hessians = full_data_model.hessian
         self.fisher_inv = fisher_inv
-
-        self.newton_raphson_op = newton_raphson_op
-        self.newton_raphson_bygene_op = newton_raphson_bygene_op
-        self.newton_raphson_batched_op = newton_raphson_batched_op
-        self.newton_raphson_batched_bygene_op = newton_raphson_batched_bygene_op
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a', model_vars.a)

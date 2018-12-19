@@ -147,6 +147,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
             model: EstimatorGraph = None,
+            provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
+            convergence_type: str = "global_cost",
             extended_summary=False,
             dtype="float64",
     ):
@@ -421,6 +423,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 init_b=init_b,
                 constraints_loc=input_data.constraints_loc,
                 constraints_scale=input_data.constraints_scale,
+                provide_optimizers=provide_optimizers,
+                train_mu=self._train_mu,
+                train_r=self._train_r,
+                termination_type=convergence_type,
                 extended_summary=extended_summary,
                 dtype=dtype
             )
@@ -526,69 +532,22 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             logger.debug("**kwargs: ")
             logger.debug(kwargs)
 
-        if use_batching:
-            loss = self.model.loss
-            if newton_rhapson_mode:
-                if convergence_criteria == "all_converged":
-                    train_op = self.model.newton_raphson_batched_bygene_op
-                else:
-                    train_op = self.model.newton_raphson_batched_op
-            elif train_mu:
-                if train_r:
-                    if convergence_criteria == "all_converged":
-                        train_op = self.model.batch_trainers_bygene.train_op_by_name(optim_algo)
-                    else:
-                        train_op = self.model.batch_trainers.train_op_by_name(optim_algo)
-                else:
-                    if convergence_criteria == "all_converged":
-                        train_op = self.model.batch_trainers_a_only_bygene.train_op_by_name(optim_algo)
-                    else:
-                        train_op = self.model.batch_trainers_a_only.train_op_by_name(optim_algo)
+        if train_mu or train_r:
+            if use_batching:
+                loss = self.model.loss
+                train_op = self.model.trainer_batch.train_op_by_name(optim_algo)
             else:
-                if train_r:
-                    if convergence_criteria == "all_converged":
-                        train_op = self.model.batch_trainers_b_only_bygene.train_op_by_name(optim_algo)
-                    else:
-                        train_op = self.model.batch_trainers_b_only.train_op_by_name(optim_algo)
-                else:
-                    logger.info("No training necessary; returning")
-                    return
-        else:
-            loss = self.model.full_loss
-            if newton_rhapson_mode:
-                if convergence_criteria == "all_converged":
-                    train_op = self.model.newton_raphson_bygene_op
-                else:
-                    train_op = self.model.newton_raphson_op
-            elif train_mu:
-                if train_r:
-                    if convergence_criteria == "all_converged":
-                        train_op = self.model.full_data_trainers_bygene.train_op_by_name(optim_algo)
-                    else:
-                        train_op = self.model.full_data_trainers.train_op_by_name(optim_algo)
-                else:
-                    if convergence_criteria == "all_converged":
-                        train_op = self.model.full_data_trainers_a_only_bygene.train_op_by_name(optim_algo)
-                    else:
-                        train_op = self.model.full_data_trainers_a_only.train_op_by_name(optim_algo)
-            else:
-                if train_r:
-                    if convergence_criteria == "all_converged":
-                        train_op = self.model.full_data_trainers_b_only_bygene.train_op_by_name(optim_algo)
-                    else:
-                        train_op = self.model.full_data_trainers_b_only.train_op_by_name(optim_algo)
-                else:
-                    logger.info("No training necessary; returning")
-                    return
+                loss = self.model.full_loss
+                train_op = self.model.trainer_full.train_op_by_name(optim_algo)
 
-        super().train(*args,
-                      feed_dict={"learning_rate:0": learning_rate},
-                      convergence_criteria=convergence_criteria,
-                      loss_window_size=loss_window_size,
-                      stopping_criteria=stopping_criteria,
-                      loss=loss,
-                      train_op=train_op,
-                      **kwargs)
+            super().train(*args,
+                          feed_dict={"learning_rate:0": learning_rate},
+                          convergence_criteria=convergence_criteria,
+                          loss_window_size=loss_window_size,
+                          stopping_criteria=stopping_criteria,
+                          loss=loss,
+                          train_op=train_op,
+                          **kwargs)
 
     @property
     def input_data(self) -> InputData:
