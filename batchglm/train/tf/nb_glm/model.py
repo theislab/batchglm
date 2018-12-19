@@ -187,13 +187,19 @@ class BasicModelGraph:
 
         dist_obs = nb_utils.NegativeBinomial(mean=mu, r=r, name="dist_obs")
 
-        with tf.name_scope("probs"):
-            probs = dist_obs.prob(X)
-            probs = tf_clip_param(probs, "probs")
-
         with tf.name_scope("log_probs"):
-            log_probs = dist_obs.log_prob(X)
+            log_r_plus_mu = tf.log(r+mu)
+            log_probs = tf.math.lgamma(r+X) - \
+                     tf.math.lgamma(X+1) - tf.math.lgamma(r) + \
+                     tf.multiply(X, log_mu - log_r_plus_mu) + \
+                     tf.multiply(r, log_r - log_r_plus_mu)
+            #log_probs = dist_obs.log_prob(X)
             log_probs = tf_clip_param(log_probs, "log_probs")
+
+        with tf.name_scope("probs"):
+            probs = tf.exp(log_probs)
+            #probs = dist_obs.prob(X)
+            probs = tf_clip_param(probs, "probs")
 
         self.X = X
         self.design_loc = design_loc
