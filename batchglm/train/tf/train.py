@@ -1,5 +1,6 @@
 from typing import Union, Dict, Callable, List
 import contextlib
+import logging
 
 import time
 import threading
@@ -7,27 +8,7 @@ import threading
 import tensorflow as tf
 import numpy as np
 
-
-# class StepTimeMonitorHook(tf.train.SessionRunHook):
-#     """Measures the time needed for every step"""
-#
-#     measures: list
-#     _start_time: float
-#
-#     def __init__(self):
-#         self.measures = []
-#
-#     def before_run(self, run_context):
-#         self._start_time = time.time()
-#
-#     def after_run(self, run_context: tf.train.SessionRunContext, run_values: tf.train.SessionRunValues):
-#
-#     def __str__(self):
-#         return "%s: measures=%s" % (self.__class__, str(self.measures))
-#
-#     def __repr__(self):
-#         return self.__str__()
-
+logger = logging.getLogger(__name__)
 
 class TimedRunHook(tf.train.SessionRunHook):
     """Runs ops or functions every N steps or seconds."""
@@ -265,6 +246,7 @@ class MultiTrainer:
                 if variables is None:
                     raise ValueError("Either variables and loss or gradients have to be specified")
 
+                logger.debug(" **** Compute gradients using tensorflow")
                 plain_gradients = tf.gradients(loss, variables)
                 plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
             else:
@@ -279,6 +261,7 @@ class MultiTrainer:
 
             # Standard tensorflow optimizers.
             if provide_optimizers["gd"]:
+                logger.debug(" **** Building optimizer: GD")
                 optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
                 train_op_GD = optim_GD.apply_gradients(gradients, global_step=global_step)
                 if apply_train_ops is not None:
@@ -288,6 +271,7 @@ class MultiTrainer:
                 train_op_GD = None
 
             if provide_optimizers["adam"]:
+                logger.debug(" **** Building optimizer: ADAM")
                 optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
                 train_op_Adam = optim_Adam.apply_gradients(gradients, global_step=global_step)
                 if apply_train_ops is not None:
@@ -297,6 +281,7 @@ class MultiTrainer:
                 train_op_Adam = None
 
             if provide_optimizers["adagrad"]:
+                logger.debug(" **** Building optimizer: ADAGRAD")
                 optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
                 train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
                 if apply_train_ops is not None:
@@ -306,6 +291,7 @@ class MultiTrainer:
                 train_op_Adagrad = None
 
             if provide_optimizers["rmsprop"]:
+                logger.debug(" **** Building optimizer: RMSPROP")
                 optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
                 train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
                 if apply_train_ops is not None:
@@ -317,6 +303,7 @@ class MultiTrainer:
             # Custom optimizers.
             optim_nr = None
             if provide_optimizers["nr"] and newton_delta is not None:
+                logger.debug(" **** Building optimizer: NR")
                 train_op_nr = tf.group(
                     tf.assign(variables[0], newton_delta),
                     tf.assign_add(global_step, 1)
