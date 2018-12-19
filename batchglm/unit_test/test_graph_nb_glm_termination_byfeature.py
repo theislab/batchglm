@@ -28,7 +28,7 @@ def estimate(
 
     estimator = Estimator(
         input_data,
-        batch_size=200,
+        batch_size=10,
         quick_scale=quick_scale,
         provide_optimizers=provide_optimizers,
         termination_type=termination
@@ -39,7 +39,7 @@ def estimate(
             {
                 "learning_rate": 0.5,
                 "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-1,
+                "stopping_criteria": 1e1,
                 "use_batching": batched,
                 "optim_algo": algo,
             },
@@ -61,11 +61,11 @@ class NB_GLM_Test(unittest.TestCase):
     _estims: List[Estimator]
 
     def setUp(self):
-        self.sim1 = Simulator(num_observations=500, num_features=3)
+        self.sim1 = Simulator(num_observations=50, num_features=2)
         self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
         self.sim1.generate()
 
-        self.sim2 = Simulator(num_observations=500, num_features=3)
+        self.sim2 = Simulator(num_observations=50, num_features=2)
         self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
         self.sim2.generate()
 
@@ -163,7 +163,7 @@ class NB_GLM_Test(unittest.TestCase):
                 sim.input_data,
                 algo=algo,
                 batched=True,
-                uick_scale=False,
+                quick_scale=False,
                 termination="by_feature"
             )
             estimator.finalize()
