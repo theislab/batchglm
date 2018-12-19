@@ -10,8 +10,8 @@ try:
 except ImportError:
     anndata = None
 
-from .model_vars import BasicModelGraph, ModelVars
-from .model_vars import param_bounds
+from .model import BasicModelGraph, ModelVars
+from .model import param_bounds
 
 from .external import TFEstimatorGraph
 from .external import nb_utils, train_utils, op_utils
