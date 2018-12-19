@@ -148,7 +148,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             quick_scale: bool = False,
             model: EstimatorGraph = None,
             provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
-            convergence_type: str = "global_cost",
+            termination_type: str = "global",
             extended_summary=False,
             dtype="float64",
     ):
@@ -426,7 +426,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 provide_optimizers=provide_optimizers,
                 train_mu=self._train_mu,
                 train_r=self._train_r,
-                termination_type=convergence_type,
+                termination_type=termination_type,
                 extended_summary=extended_summary,
                 dtype=dtype
             )

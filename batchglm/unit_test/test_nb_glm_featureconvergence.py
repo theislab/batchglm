@@ -20,7 +20,7 @@ def estimate_adam_full(input_data: InputData):
 
     estimator = Estimator(input_data, batch_size=500,
                           provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
-                          convergence_type="by_feature")
+                          termination_type="by_feature")
     estimator.initialize()
 
     estimator.train_sequence(training_strategy=[
@@ -37,7 +37,9 @@ def estimate_adam_full(input_data: InputData):
 
 def estimate_adam_batched(input_data: InputData):
 
-    estimator = Estimator(input_data, batch_size=500)
+    estimator = Estimator(input_data, batch_size=500,
+                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
+                          termination_type="by_feature")
     estimator.initialize()
 
     estimator.train_sequence(training_strategy=[
@@ -54,7 +56,9 @@ def estimate_adam_batched(input_data: InputData):
 
 def estimate_nr_full(input_data: InputData):
 
-    estimator = Estimator(input_data, batch_size=500)
+    estimator = Estimator(input_data, batch_size=500,
+                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
+                          termination_type="by_feature")
     estimator.initialize()
 
     estimator.train_sequence(training_strategy=[
@@ -70,7 +74,9 @@ def estimate_nr_full(input_data: InputData):
 
 def estimate_nr_batched(input_data: InputData):
 
-    estimator = Estimator(input_data, batch_size=500)
+    estimator = Estimator(input_data, batch_size=500,
+                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
+                          termination_type="by_feature")
     estimator.initialize()
 
     estimator.train_sequence(training_strategy=[
