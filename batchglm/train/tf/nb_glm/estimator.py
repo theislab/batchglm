@@ -33,63 +33,18 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         AUTO = None
         DEFAULT = [
             {
-                "learning_rate": 0.5,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-5,
-                "loss_window_size": 10,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-            {
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "newton",
-            },
-        ]
-        EXACT = [
-            {
-                "learning_rate": 0.5,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-5,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-            {
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "newton",
+                "optim_algo": "Newton",
             },
         ]
         QUICK = [
             {
-                "learning_rate": 0.5,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-        ]
-        BY_GENE_ADAM = [
-            {
-                "learning_rate": 0.5,
                 "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-5,
+                "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-        ]
-        BY_GENE_NR = [
-            {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-5,
-                "use_batching": False,
-                "optim_algo": "newton",
+                "optim_algo": "Newton",
             },
         ]
         PRE_INITIALIZED = [
@@ -104,8 +59,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         CONSTRAINED = [  # Should not contain newton-rhapson right now.
             {
                 "learning_rate": 0.5,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-6,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
@@ -113,20 +68,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         ]
         CONTINUOUS = [
             {
-                "learning_rate": 0.5,
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-5,
-                "loss_window_size": 10,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-            {
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "newton",
-            },
+                "optim_algo": "Newton",
+            }
         ]
 
     model: EstimatorGraph
@@ -407,7 +353,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         else:
             init_b = init_b.astype(dtype)
 
-        logger.debug(" * Start creating model")
+        logger.debug(" * Building graph")
         with graph.as_default():
             # create model
             model = EstimatorGraph(
@@ -430,8 +376,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 extended_summary=extended_summary,
                 dtype=dtype
             )
-        logger.debug(" * Finished creating model")
 
+        logger.debug(" * Initialize graph")
         MonitoredTFEstimator.__init__(self, model)
 
     def _scaffold(self):

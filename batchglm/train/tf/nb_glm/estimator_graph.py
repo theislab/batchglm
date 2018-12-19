@@ -173,6 +173,7 @@ class EstimatorGraph(TFEstimatorGraph):
             buffer_size = 4
 
             with tf.name_scope("input_pipeline"):
+                logger.debug(" ** Build input pipeline")
                 data_indices = tf.data.Dataset.from_tensor_slices((
                     tf.range(num_observations, name="sample_index")
                 ))
@@ -221,6 +222,7 @@ class EstimatorGraph(TFEstimatorGraph):
             )
 
             with tf.name_scope("batch"):
+                logger.debug(" ** Build batched data model")
                 # Batch model:
                 #   only `batch_size` observations will be used;
                 #   All per-sample variables have to be passed via `data`.
@@ -267,6 +269,7 @@ class EstimatorGraph(TFEstimatorGraph):
                 )
 
             with tf.name_scope("full_data"):
+                logger.debug(" ** Build full data model")
                 # ### alternative definitions for custom observations:
                 sample_selection = tf.placeholder_with_default(tf.range(num_observations),
                                                                shape=(None,),
@@ -301,6 +304,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
             # ### management
             with tf.name_scope("training"):
+                logger.debug(" ** Build training graphs")
                 global_step = tf.train.get_or_create_global_step()
                 idx_nonconverged = np.where(model_vars.converged == False)[0]
 
@@ -313,6 +317,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     if train_r:
                         if termination_type == "by_feature":
                             if provide_optimizers["nr"]:
+                                logger.debug(" ** Build newton training graph: by_feature, train mu and r")
                                 # Full data model by gene:
                                 param_grad_vec = full_data_model.neg_jac
                                 # Compute parameter update for non-converged gene only.
@@ -370,7 +375,11 @@ class EstimatorGraph(TFEstimatorGraph):
                                 ], axis=0)
                                 delta_batched_bygene_full = tf.transpose(delta_batched_t_bygene_full)
                                 nr_update_batched = model_vars.params - learning_rate * delta_batched_bygene_full
+                            else:
+                                nr_update = None
+                                nr_update_batched = None
 
+                            logger.debug(" ** Build training graph: by_feature, train mu and r")
                             trainer_batch = train_utils.MultiTrainer(
                                 variables=[model_vars.params],
                                 gradients=[
@@ -415,6 +424,7 @@ class EstimatorGraph(TFEstimatorGraph):
                             )
                         elif termination_type == "global":
                             if provide_optimizers["nr"]:
+                                logger.debug(" ** Build newton training graph: global, train mu and r")
                                 # Full data model:
                                 param_grad_vec = full_data_model.neg_jac
                                 delta_t = tf.squeeze(tf.matrix_solve_ls(
@@ -439,6 +449,7 @@ class EstimatorGraph(TFEstimatorGraph):
                                 nr_update = None
                                 nr_update_batched = None
 
+                            logger.debug(" ** Build training graph: global, train mu and r")
                             trainer_batch = train_utils.MultiTrainer(
                                 loss=batch_model.norm_neg_log_likelihood,
                                 variables=[model_vars.params],
@@ -463,6 +474,7 @@ class EstimatorGraph(TFEstimatorGraph):
                             raise ValueError("convergence_type %s not recognized." % termination_type)
                     else:
                         if termination_type == "by_feature":
+                            logger.debug(" ** Build training graph: by_feature, train mu only")
                             trainer_batch = train_utils.MultiTrainer(
                                 gradients=[
                                     (
@@ -508,6 +520,7 @@ class EstimatorGraph(TFEstimatorGraph):
                                 name="full_data_trainers_a_only_bygene"
                             )
                         elif termination_type == "global":
+                            logger.debug(" ** Build training graph: global, train mu only")
                             trainer_batch = train_utils.MultiTrainer(
                                 gradients=[
                                     (
@@ -546,6 +559,7 @@ class EstimatorGraph(TFEstimatorGraph):
                             raise ValueError("convergence_type %s not recognized." % termination_type)
                 elif train_r:
                     if termination_type == "by_feature":
+                        logger.debug(" ** Build training graph: by_feature, train r only")
                         trainer_batch = train_utils.MultiTrainer(
                             gradients=[
                                 (
@@ -591,6 +605,7 @@ class EstimatorGraph(TFEstimatorGraph):
                             name="full_data_trainers_b_only_bygene"
                         )
                     elif termination_type == "global":
+                        logger.debug(" ** Build training graph: global, train r only")
                         trainer_batch = train_utils.MultiTrainer(
                             gradients=[
                                 (
@@ -633,6 +648,7 @@ class EstimatorGraph(TFEstimatorGraph):
 
                 # Set up model gradient computation:
                 with tf.name_scope("batch_gradient"):
+                    logger.debug(" ** Build training graph: batched data model gradients")
                     batch_gradient = trainer_batch.plain_gradient_by_variable(model_vars.params)
                     batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
 
@@ -640,6 +656,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
 
                 with tf.name_scope("full_gradient"):
+                    logger.debug(" ** Build training graph: full data model gradients")
                     # use same gradient as the optimizers
                     full_gradient = trainer_full.plain_gradient_by_variable(model_vars.params)
                     full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
@@ -665,11 +682,13 @@ class EstimatorGraph(TFEstimatorGraph):
                 #         options={'maxiter': maxiter})
 
             with tf.name_scope("init_op"):
+                logger.debug(" ** Build training graph: initialization operation")
                 init_op = tf.global_variables_initializer()
 
             # ### output values:
             #       override all-zero features with lower bound coefficients
             with tf.name_scope("output"):
+                logger.debug(" ** Build training graph: output")
                 bounds_min, bounds_max = param_bounds(dtype)
 
                 param_nonzero_a = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
@@ -700,6 +719,7 @@ class EstimatorGraph(TFEstimatorGraph):
                     name="b"
                 )
 
+        logger.debug(" ** Build training graph: setting class attributes")
         self.fetch_fn = fetch_fn
         self.model_vars = model_vars
         self.batch_model = batch_model

@@ -261,25 +261,21 @@ class MultiTrainer:
             if name is not None:
                 gs = stack.enter_context(tf.name_scope(name))
 
-            if any([provide_optimizers["gd"],
-                    provide_optimizers["adam"],
-                    provide_optimizers["adagrad"],
-                    provide_optimizers["rmsprop"]]):
-                if gradients is None:
-                    if variables is None:
-                        raise ValueError("Either variables and loss or gradients have to be specified")
+            if gradients is None:
+                if variables is None:
+                    raise ValueError("Either variables and loss or gradients have to be specified")
 
-                    plain_gradients = tf.gradients(loss, variables)
-                    plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
-                else:
-                    plain_gradients = gradients
+                plain_gradients = tf.gradients(loss, variables)
+                plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
+            else:
+                plain_gradients = gradients
 
-                if callable(apply_gradients):
-                    gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
-                elif isinstance(apply_gradients, dict):
-                    gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
-                else:
-                    gradients = plain_gradients
+            if callable(apply_gradients):
+                gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
+            elif isinstance(apply_gradients, dict):
+                gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
+            else:
+                gradients = plain_gradients
 
             # Standard tensorflow optimizers.
             if provide_optimizers["gd"]:
@@ -320,7 +316,7 @@ class MultiTrainer:
 
             # Custom optimizers.
             optim_nr = None
-            if provide_optimizers["nr"]:
+            if provide_optimizers["nr"] and newton_delta is not None:
                 train_op_nr = tf.group(
                     tf.assign(variables[0], newton_delta),
                     tf.assign_add(global_step, 1)
@@ -376,9 +372,9 @@ class MultiTrainer:
                 raise ValueError("RMSProp decent not provided in initialization.")
             return self.train_op_RMSProp
         elif name_lower.lower() == "newton" or \
-                    optim_algo.lower() == "newton-raphson" or \
-                    optim_algo.lower() == "newton_raphson" or \
-                    optim_algo.lower() == "nr":
+                name_lower.lower() == "newton-raphson" or \
+                name_lower.lower() == "newton_raphson" or \
+                name_lower.lower() == "nr":
             if self.train_op_nr is None:
                 raise ValueError("Newton-rhapson not provided in initialization.")
             return self.train_op_nr

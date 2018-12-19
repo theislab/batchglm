@@ -12,15 +12,26 @@ import scipy.sparse
 import batchglm.api as glm
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 
-glm.setup_logging(verbosity="INFO", stream="STDOUT")
+glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate_adam_full(input_data: InputData):
+def estimate(
+        input_data: InputData,
+        algo,
+        batched,
+        quick_scale
+):
+    provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": False}
+    provide_optimizers[algo.lower()] = True
 
-    estimator = Estimator(input_data, batch_size=500,
-                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
-                          termination_type="by_feature")
+    estimator = Estimator(
+        input_data,
+        batch_size=50,
+        quick_scale=quick_scale,
+        provide_optimizers=provide_optimizers,
+        termination_type="by_feature"
+    )
     estimator.initialize()
 
     estimator.train_sequence(training_strategy=[
@@ -28,121 +39,101 @@ def estimate_adam_full(input_data: InputData):
                 "learning_rate": 0.5,
                 "convergence_criteria": "all_converged",
                 "stopping_criteria": 1e-1,
-                "use_batching": False,
-                "optim_algo": "ADAM",
+                "use_batching": batched,
+                "optim_algo": algo,
             },
         ])
 
     return estimator
 
-def estimate_adam_batched(input_data: InputData):
-
-    estimator = Estimator(input_data, batch_size=500,
-                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
-                          termination_type="by_feature")
-    estimator.initialize()
-
-    estimator.train_sequence(training_strategy=[
-            {
-                "learning_rate": 0.5,
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-1,
-                "use_batching": True,
-                "optim_algo": "ADAM",
-            },
-        ])
-
-    return estimator
-
-def estimate_nr_full(input_data: InputData):
-
-    estimator = Estimator(input_data, batch_size=500,
-                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
-                          termination_type="by_feature")
-    estimator.initialize()
-
-    estimator.train_sequence(training_strategy=[
-            {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-1,
-                "use_batching": False,
-                "optim_algo": "newton",
-            },
-        ])
-
-    return estimator
-
-def estimate_nr_batched(input_data: InputData):
-
-    estimator = Estimator(input_data, batch_size=500,
-                          provide_optimizers={"gd": True, "adam": True, "adagrad": False, "rmsprop": False, "nr": True},
-                          termination_type="by_feature")
-    estimator.initialize()
-
-    estimator.train_sequence(training_strategy=[
-            {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-1,
-                "use_batching": True,
-                "optim_algo": "newton",
-            },
-        ])
-
-    return estimator
 
 class NB_GLM_Test(unittest.TestCase):
+    """
+    Test whether feature-wise termination works on all optimizer settings.
+    The unit tests cover a and b traing, a-only traing and b-only training
+    for both updated on the full data and on the batched data.
+    For each scenario, all implemented optimizers are individually required
+    and used once.
+    """
     sim: Simulator
 
     _estims: List[Estimator]
 
     def setUp(self):
-        self.sim = Simulator(num_observations=1000, num_features=7)
-        self.sim.generate()
+        self.sim1 = Simulator(num_observations=200, num_features=7)
+        self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
+        self.sim1.generate()
+
+        self.sim2 = Simulator(num_observations=200, num_features=7)
+        self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
+        self.sim2.generate()
+
         self._estims = []
 
     def tearDown(self):
         for e in self._estims:
             e.close_session()
 
-    def test_adam_full(self):
-        sim = self.sim.__copy__()
+    def test_full_a_and_b(self):
+        sim = self.sim1.__copy__()
 
-        estimator = estimate_adam_full(sim.input_data)
-        self._estims.append(estimator)
+        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            estimator = estimate(sim.input_data, algo=algo, batched=False, quick_scale=False)
+            estimator.finalize()
+            self._estims.append(estimator)
 
-        # test finalizing
-        estimator = estimator.finalize()
-        return estimator, sim
+        return True
 
-    def test_adam_batch(self):
-        sim = self.sim.__copy__()
+    def test_full_a_only(self):
+        sim = self.sim1.__copy__()
 
-        estimator = estimate_adam_batched(sim.input_data)
-        self._estims.append(estimator)
+        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            estimator = estimate(sim.input_data, algo=algo, batched=False, quick_scale=True)
+            estimator.finalize()
+            self._estims.append(estimator)
 
-        # test finalizing
-        estimator = estimator.finalize()
-        return estimator, sim
+        return True
 
-    def test_nr_full(self):
-        sim = self.sim.__copy__()
 
-        estimator = estimate_nr_full(sim.input_data)
-        self._estims.append(estimator)
+    def test_full_b_only(self):
+        sim = self.sim2.__copy__()
 
-        # test finalizing
-        estimator = estimator.finalize()
-        return estimator, sim
+        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            estimator = estimate(sim.input_data, algo=algo, batched=False, quick_scale=False)
+            estimator.finalize()
+            self._estims.append(estimator)
 
-    def test_nr_batch(self):
-        sim = self.sim.__copy__()
+        return True
 
-        estimator = estimate_nr_batched(sim.input_data)
-        self._estims.append(estimator)
+    def test_batched_a_and_b(self):
+        sim = self.sim1.__copy__()
 
-        # test finalizing
-        estimator = estimator.finalize()
-        return estimator, sim
+        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            estimator = estimate(sim.input_data, algo=algo, batched=True, quick_scale=False)
+            estimator.finalize()
+            self._estims.append(estimator)
+
+        return True
+
+    def test_batched_a_only(self):
+        sim = self.sim1.__copy__()
+
+        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            estimator = estimate(sim.input_data, algo=algo, batched=True, quick_scale=True)
+            estimator.finalize()
+            self._estims.append(estimator)
+
+        return True
+
+    def test_batched_b_only(self):
+        sim = self.sim2.__copy__()
+
+        for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            estimator = estimate(sim.input_data, algo=algo, batched=True, quick_scale=False)
+            estimator.finalize()
+            self._estims.append(estimator)
+
+        return True
 
 
 if __name__ == '__main__':
