@@ -13,8 +13,8 @@ try:
 except ImportError:
     anndata = None
 
-from .base import ESTIMATOR_PARAMS
-from .base import np_clip_param
+from .model_vars import ESTIMATOR_PARAMS
+from .model_vars import np_clip_param
 
 from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator
 from .external import data_utils, nb_glm_utils

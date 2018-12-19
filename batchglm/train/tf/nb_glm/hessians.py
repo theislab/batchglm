@@ -5,7 +5,7 @@ import tensorflow as tf
 
 import logging
 
-from .base import BasicModelGraph, ModelVars
+from .model_vars import BasicModelGraph, ModelVars
 
 from .external import op_utils
 from .external import pkg_constants
