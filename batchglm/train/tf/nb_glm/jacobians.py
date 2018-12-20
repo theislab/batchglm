@@ -208,7 +208,7 @@ class Jacobians:
         # Assign jacobian blocks.
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         if self._compute_jac_a and self._compute_jac_b:
-            J_a = J[:, p_shape_a]
+            J_a = J[:, :p_shape_a]
             J_b = J[:, p_shape_a:]
             negJ = tf.negative(J)
             negJ_a = tf.negative(J_a)
@@ -336,9 +336,6 @@ class Jacobians:
             """
             return tf.add(prev, cur)
 
-        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
-
         if iterator:
             J = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
@@ -438,9 +435,6 @@ class Jacobians:
             stored.
             """
             return tf.add(prev, cur)
-
-        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
         if iterator == True and batch_model is None:
             J = op_utils.map_reduce(
