@@ -31,6 +31,8 @@ class FullDataModelGraph:
             model_vars,
             constraints_loc,
             constraints_scale,
+            train_a,
+            train_b,
             dtype
     ):
         num_features = model_vars.a.shape[-1]
@@ -91,6 +93,8 @@ class FullDataModelGraph:
                 model_vars=model_vars,
                 mode=pkg_constants.JACOBIAN_MODE,
                 iterator=True,
+                jac_a=train_a,
+                jac_b=train_b,
                 dtype=dtype
             )
 
@@ -253,6 +257,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     model_vars=model_vars,
                     mode=pkg_constants.JACOBIAN_MODE,  #"analytic",
                     iterator=False,
+                    jac_a=train_mu,
+                    jac_b=train_r,
                     dtype=dtype
                 )
 
@@ -281,6 +287,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     model_vars=model_vars,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
+                    train_a=train_mu,
+                    train_b=train_r,
                     dtype=dtype,
                 )
                 full_data_loss = full_data_model.loss
@@ -455,7 +463,7 @@ class EstimatorGraph(TFEstimatorGraph):
                             logger.debug(" *** Build training graph: batched data")
                             gradients_batch = tf.transpose(batch_jac.neg_jac)
                             trainer_batch = train_utils.MultiTrainer(
-                                lvariables=[model_vars.params],
+                                variables=[model_vars.params],
                                 gradients=[(gradients_batch, model_vars.params)],
                                 newton_delta=nr_update_batched,
                                 learning_rate=learning_rate,

@@ -35,7 +35,7 @@ class NB_GLM_jac_Test(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_compute_jacobians(self):
+    def test_compute_jacobians_a_and_b(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
 

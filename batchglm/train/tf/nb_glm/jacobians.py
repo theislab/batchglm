@@ -123,7 +123,9 @@ class Jacobians:
             model_vars: ModelVars,
             dtype,
             mode="analytic",
-            iterator=False
+            iterator=False,
+            jac_a=True,
+            jac_b=True
     ):
         """ Return computational graph for jacobian based on mode choice.
 
@@ -156,15 +158,22 @@ class Jacobians:
             "tf" allows for evaluation of the jacobian via the tf.gradients function.
         :param iterator: bool
             Whether an iterator or a tensor (single yield of an iterator) is given
-            in
+            in.
+        :param jac_a: bool
+            Wether to compute Jacobian for a parameters.
+        :param jac_b: bool
+            Wether to compute Jacobian for b parameters.
         """
         if constraints_loc is not None and mode != "tf":
             raise ValueError("closed form jacobians do not work if constraints_loc is not None")
         if constraints_scale is not None and mode != "tf":
             raise ValueError("closed form jacobians do not work if constraints_scale is not None")
 
+        self._compute_jac_a = jac_a
+        self._compute_jac_b = jac_b
+
         if mode == "analytic":
-            self.jac = self.analytic(
+            self._analytic(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -173,12 +182,11 @@ class Jacobians:
                 iterator=iterator,
                 dtype=dtype
             )
-            self.neg_jac = tf.negative(self.jac)
         elif mode == "tf":
-            # tensorflow computes the jacobian based on the objective,
+            # Tensorflow computes the jacobian based on the objective,
             # which is the negative log-likelihood. Accordingly, the jacobian
             # is the negative jacobian computed here.
-            self.jac = self.tf(
+            self._tf(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 batch_model=batch_model,
@@ -188,11 +196,10 @@ class Jacobians:
                 iterator=iterator,
                 dtype=dtype
             )
-            self.neg_jac = tf.negative(self.jac)
         else:
             raise ValueError("mode not recognized in Jacobian: " + mode)
 
-    def analytic(
+    def _analytic(
             self,
             batched_data,
             sample_indices,
@@ -268,10 +275,17 @@ class Jacobians:
             mu = model.mu
             r = model.r
 
-            J_a = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-            J_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            if self._compute_jac_a and self._compute_jac_b:
+                J_a = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                J_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                J = tf.concat([J_a, J_b], axis=1)
+            elif self._compute_jac_a and not self._compute_jac_b:
+                J = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            elif not self._compute_jac_a and self._compute_jac_b:
+                J = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+            else:
+                raise ValueError("either require jac_a or jac_b")
 
-            J = tf.concat([J_a, J_b], axis=1)
             return J
 
         def _red(prev, cur):
@@ -303,9 +317,28 @@ class Jacobians:
                 data=batched_data
             )
 
-        return J
+        if self._compute_jac_a and self._compute_jac_b:
+            J_a = J[:, p_shape_a]
+            J_b = J[:, p_shape_a:]
+        elif self._compute_jac_a and not self._compute_jac_b:
+            J_a = J
+            J_b = None
+            J = None
+        elif not self._compute_jac_a and self._compute_jac_b:
+            J_a = None
+            J_b = J
+            J = None
+        else:
+            raise ValueError("either require jac_a or jac_b")
 
-    def tf(
+        self.jac = J
+        self.jac_a = J_a
+        self.jac_b = J_b
+        self.neg_jac = tf.negative(J)
+        self.neg_jac_a = tf.negative(J_a)
+        self.neg_jac_b = tf.negative(J_b)
+
+    def _tf(
             self,
             batched_data,
             sample_indices,
@@ -324,6 +357,16 @@ class Jacobians:
             J = tf.gradients(batch_model.log_likelihood, model_vars.params)[0]
             J = tf.transpose(J)
             return J
+
+        def _jac_a(batch_model, model_vars):
+            J_a = tf.gradients(batch_model.log_likelihood, model_vars.a_var)[0]
+            J_a = tf.transpose(J)
+            return J_a
+
+        def _jac_b(batch_model, model_vars):
+            J_b = tf.gradients(batch_model.log_likelihood, model_vars.b_var)[0]
+            J_b = tf.transpose(J)
+            return J_b
 
         def _assemble_bybatch(idx, data):
             """
@@ -359,7 +402,14 @@ class Jacobians:
                 size_factors=size_factors
             )
 
-            J = _jac(batch_model=model, model_vars=model_vars)
+            if self._compute_jac_a and self._compute_jac_b:
+                J = _jac(batch_model=model, model_vars=model_vars)
+            elif self._compute_jac_a and not self._compute_jac_b:
+                J = _jac_a(batch_model=model, model_vars=model_vars)
+            elif not self._compute_jac_a and self._compute_jac_b:
+                J = _jac_b(batch_model=model, model_vars=model_vars)
+            else:
+                raise ValueError("either require jac_a or jac_b")
             return J
 
         def _red(prev, cur):
@@ -393,4 +443,23 @@ class Jacobians:
         else:
             J = _jac(batch_model=batch_model, model_vars=model_vars)
 
-        return J
+        if self._compute_jac_a and self._compute_jac_b:
+            J_a = J[:, p_shape_a]
+            J_b = J[:, p_shape_a:]
+        elif self._compute_jac_a and not self._compute_jac_b:
+            J_a = J
+            J_b = None
+            J = None
+        elif not self._compute_jac_a and self._compute_jac_b:
+            J_a = None
+            J_b = J
+            J = None
+        else:
+            raise ValueError("either require jac_a or jac_b")
+
+        self.jac = J
+        self.jac_a = J_a
+        self.jac_b = J_b
+        self.neg_jac = tf.negative(J)
+        self.neg_jac_a = tf.negative(J_a)
+        self.neg_jac_b = tf.negative(J_b)
