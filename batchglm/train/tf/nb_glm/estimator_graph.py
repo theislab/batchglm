@@ -382,26 +382,19 @@ class EstimatorGraph(TFEstimatorGraph):
                             logger.debug(" ** Build training graph: by_feature, train mu and r")
                             logger.debug(" *** Build training graph: full data")
                             logger.debug(" **** Compute gradients using tensorflow")
-                            gradients_batch_all = tf.gradients(
-                                batch_model.norm_neg_log_likelihood,
-                                model_vars.params)[0]
+                            gradients_batch_all = tf.transpose(batch_jac.neg_jac)
                             logger.debug(" **** Build gradient graph")
-                            gradients_batch = [
-                                    (
-                                        tf.concat([
-                                            #tf.gradients(batch_model.norm_neg_log_likelihood,
-                                            #             model_vars.params_by_gene[i])[0]
-                                            tf.expand_dims(gradients_batch_all[:, i], axis=-1)
-                                            if not model_vars.converged[i]
-                                            else tf.zeros([model_vars.params.shape[0], 1], dtype=dtype)
-                                            for i in range(model_vars.params.shape[1])
-                                        ], axis=1),
-                                        model_vars.params
-                                    )
-                                ]
+                            gradients_batch = tf.concat([
+                                #tf.gradients(batch_model.norm_neg_log_likelihood,
+                                #             model_vars.params_by_gene[i])[0]
+                                tf.expand_dims(gradients_batch_all[:, i], axis=-1)
+                                if not model_vars.converged[i]
+                                else tf.zeros([model_vars.params.shape[0], 1], dtype=dtype)
+                                for i in range(model_vars.params.shape[1])
+                            ], axis=1)
                             trainer_batch = train_utils.MultiTrainer(
                                 variables=[model_vars.params],
-                                gradients=gradients_batch,
+                                gradients=[(gradients_batch, model_vars.params)],
                                 newton_delta=nr_update_batched,
                                 learning_rate=learning_rate,
                                 global_step=global_step,
@@ -409,28 +402,21 @@ class EstimatorGraph(TFEstimatorGraph):
                                 provide_optimizers=provide_optimizers,
                                 name="batch_trainers_bygene"
                             )
-                            logger.debug(" *** Build training graph: batched data")
+                            logger.debug(" *** Build training graph: full data")
                             logger.debug(" **** Compute gradients using tensorflow")
-                            gradients_full_all = tf.gradients(
-                                full_data_model.norm_neg_log_likelihood,
-                                model_vars.params)[0]
+                            gradients_full_all = tf.transpose(full_data_model.neg_jac)
                             logger.debug(" **** Build gradient graph")
-                            gradients_full = [
-                                    (
-                                        tf.concat([
-                                            #tf.gradients(full_data_model.norm_neg_log_likelihood,
-                                            #             model_vars.params_by_gene[i])[0]
-                                            tf.expand_dims(gradients_full_all[:, i], axis=-1)
-                                            if not model_vars.converged[i]
-                                            else tf.zeros([model_vars.params.shape[0], 1], dtype=dtype)
-                                            for i in range(model_vars.params.shape[1])
-                                        ], axis=1),
-                                        model_vars.params
-                                    )
-                                ]
+                            gradients_full = tf.concat([
+                                #tf.gradients(full_data_model.norm_neg_log_likelihood,
+                                #             model_vars.params_by_gene[i])[0]
+                                tf.expand_dims(gradients_full_all[:, i], axis=-1)
+                                if not model_vars.converged[i]
+                                else tf.zeros([model_vars.params.shape[0], 1], dtype=dtype)
+                                for i in range(model_vars.params.shape[1])
+                            ], axis=1)
                             trainer_full = train_utils.MultiTrainer(
                                 variables=[model_vars.params],
-                                gradients=gradients_full,
+                                gradients=[(gradients_full, model_vars.params)],
                                 newton_delta=nr_update,
                                 learning_rate=learning_rate,
                                 global_step=global_step,
@@ -467,9 +453,10 @@ class EstimatorGraph(TFEstimatorGraph):
 
                             logger.debug(" ** Build training graph: global, train mu and r")
                             logger.debug(" *** Build training graph: batched data")
+                            gradients_batch = tf.transpose(batch_jac.neg_jac)
                             trainer_batch = train_utils.MultiTrainer(
-                                loss=batch_model.norm_neg_log_likelihood,
-                                variables=[model_vars.params],
+                                lvariables=[model_vars.params],
+                                gradients=[(gradients_batch, model_vars.params)],
                                 newton_delta=nr_update_batched,
                                 learning_rate=learning_rate,
                                 global_step=global_step,
@@ -478,9 +465,10 @@ class EstimatorGraph(TFEstimatorGraph):
                                 name="batch_trainers"
                             )
                             logger.debug(" *** Build training graph: full data")
+                            gradients_full = tf.transpose(full_data_model.neg_jac)
                             trainer_full = train_utils.MultiTrainer(
-                                loss=full_data_model.norm_neg_log_likelihood,
                                 variables=[model_vars.params],
+                                gradients=[(gradients_full, model_vars.params)],
                                 newton_delta=nr_update,
                                 learning_rate=learning_rate,
                                 global_step=global_step,

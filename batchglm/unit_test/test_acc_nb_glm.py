@@ -57,10 +57,10 @@ def estimate(
 def eval_estimation(
         estimator,
         sim,
-        threshold_dev_a = 0.001,
-        threshold_dev_b = 0.001,
-        threshold_std_a = 0.1,
-        threshold_std_b = 0.2
+        threshold_dev_a = 0.01,
+        threshold_dev_b = 0.01,
+        threshold_std_a = 0.5,
+        threshold_std_b = 0.5
 ):
     mean_dev_a = np.mean(estimator.a.values - sim.a.values)
     std_dev_a = np.std(estimator.a.values - sim.a.values)
@@ -111,7 +111,7 @@ class NB_GLM_Test(unittest.TestCase):
     def test_full_byfeature_a_and_b(self):
         sim = self.sim1.__copy__()
 
-        for algo in ["NR"]:
+        for algo in ["ADAM", "NR"]:
             print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
@@ -162,7 +162,7 @@ class NB_GLM_Test(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         all_exact = True
-        for algo in ["NR"]:
+        for algo in ["ADAM", "NR"]:
             print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
@@ -170,7 +170,7 @@ class NB_GLM_Test(unittest.TestCase):
                 batched=False,
                 quick_scale=False,
                 termination="global",
-                acc=1e-4
+                acc=1e-3
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
