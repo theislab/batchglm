@@ -21,24 +21,32 @@ def estimate(
         algo,
         batched,
         quick_scale,
-        termination
+        termination,
+        acc,
 ):
     provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True}
 
     estimator = Estimator(
         input_data,
-        batch_size=1000,
+        batch_size=900,
         quick_scale=quick_scale,
         provide_optimizers=provide_optimizers,
         termination_type=termination
     )
     estimator.initialize()
 
+    # Choose learning rate based on optimizer
+    if algo.lower() is "nr":
+        lr = 1
+    elif algo.lower() is "gd":
+        lr = 0.05
+    else:
+        lr = 0.5
     estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 0.5 if algo is not "nr" else 1,
+                "learning_rate": lr,
                 "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-4,
+                "stopping_criteria": acc,
                 "use_batching": batched,
                 "optim_algo": algo,
             },
@@ -64,11 +72,6 @@ def eval_estimation(
     print("std_dev_a %f" % std_dev_a)
     print("mean_dev_b %f" % mean_dev_b)
     print("std_dev_b %f" % std_dev_b)
-
-    print(np.abs(mean_dev_a) < threshold_dev_a)
-    print(np.abs(mean_dev_b) < threshold_dev_b)
-    print(std_dev_a < threshold_std_a)
-    print(std_dev_b < threshold_std_b)
 
     if np.abs(mean_dev_a) < threshold_dev_a and \
             np.abs(mean_dev_b) < threshold_dev_b and \
@@ -115,13 +118,41 @@ class NB_GLM_Test(unittest.TestCase):
                 algo=algo,
                 batched=False,
                 quick_scale=False,
-                termination="by_feature"
+                termination="by_feature",
+                acc=1e-4
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
             success = eval_estimation(
                 estimator=estimator_store,
                 sim=sim
+            )
+            assert success, "%s did not yield exact results" % algo
+
+        return True
+
+    def test_batched_byfeature_a_and_b(self):
+        sim = self.sim1.__copy__()
+
+        for algo in ["ADAM", "ADAGRAD", "RMSPROP", "NR"]: # GD does not work well yet
+            print("algorithm: %s" % algo)
+            estimator = estimate(
+                sim.input_data,
+                algo=algo,
+                batched=True,
+                quick_scale=False,
+                termination="by_feature",
+                acc=1e-1
+            )
+            estimator_store = estimator.finalize()
+            self._estims.append(estimator)
+            success = eval_estimation(
+                estimator=estimator_store,
+                sim=sim,
+                threshold_dev_a=1,
+                threshold_dev_b=1,
+                threshold_std_a=1,
+                threshold_std_b=1
             )
             assert success, "%s did not yield exact results" % algo
 
@@ -138,13 +169,41 @@ class NB_GLM_Test(unittest.TestCase):
                 algo=algo,
                 batched=False,
                 quick_scale=False,
-                termination="global"
+                termination="global",
+                acc=1e-4
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
             success = eval_estimation(
                 estimator=estimator_store,
                 sim=sim
+            )
+            assert success, "%s did not yield exact results" % algo
+
+        return True
+
+    def test_batched_global_a_and_b(self):
+        sim = self.sim1.__copy__()
+
+        for algo in ["ADAM", "ADAGRAD", "RMSPROP", "NR"]: # GD does not work well yet
+            print("algorithm: %s" % algo)
+            estimator = estimate(
+                sim.input_data,
+                algo=algo,
+                batched=True,
+                quick_scale=False,
+                termination="global",
+                acc=1e-1
+            )
+            estimator_store = estimator.finalize()
+            self._estims.append(estimator)
+            success = eval_estimation(
+                estimator=estimator_store,
+                sim=sim,
+                threshold_dev_a=1,
+                threshold_dev_b=1,
+                threshold_std_a=1,
+                threshold_std_b=1
             )
             assert success, "%s did not yield exact results" % algo
 
