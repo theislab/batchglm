@@ -1,13 +1,9 @@
 from typing import List
 
-import os
-# import sys
 import unittest
-import tempfile
 import logging
 
 import numpy as np
-import scipy.sparse
 
 import batchglm.api as glm
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
@@ -111,7 +107,7 @@ class NB_GLM_Test(unittest.TestCase):
     def test_full_byfeature_a_and_b(self):
         sim = self.sim1.__copy__()
 
-        for algo in ["ADAM", "NR"]:
+        for algo in ["NR"]:
             print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,

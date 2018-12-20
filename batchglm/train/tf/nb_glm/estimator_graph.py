@@ -72,7 +72,8 @@ class FullDataModelGraph:
             loss = tf.reduce_sum(norm_neg_log_likelihood)
 
         with tf.name_scope("hessians"):
-            hessians = Hessians(
+            # Hessian of full model for reporting.
+            hessians_full = Hessians(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -80,11 +81,41 @@ class FullDataModelGraph:
                 model_vars=model_vars,
                 mode=pkg_constants.HESSIAN_MODE,
                 iterator=True,
+                hess_a=True,
+                hess_b=True,
+                dtype=dtype
+            )
+            # Hessian of submodel which is to be trained.
+            hessians_train = Hessians(
+                batched_data=batched_data,
+                sample_indices=sample_indices,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                model_vars=model_vars,
+                mode=pkg_constants.HESSIAN_MODE,
+                iterator=True,
+                hess_a=train_a,
+                hess_b=train_b,
                 dtype=dtype
             )
 
         with tf.name_scope("jacobians"):
-            jacobians = Jacobians(
+            # Jacobian of full model for reporting.
+            jacobian_full = Jacobians(
+                batched_data=batched_data,
+                sample_indices=sample_indices,
+                batch_model=None,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                model_vars=model_vars,
+                mode=pkg_constants.JACOBIAN_MODE,
+                iterator=True,
+                jac_a=True,
+                jac_b=True,
+                dtype=dtype
+            )
+            # Jacobian of submodel which is to be trained.
+            jacobian_train = Jacobians(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 batch_model=None,
@@ -125,11 +156,13 @@ class FullDataModelGraph:
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
 
-        self.jac = jacobians.jac
-        self.neg_jac = jacobians.neg_jac
-        self.hessian = hessians.hessian
-        self.neg_hessian = hessians.neg_hessian
+        self.jac = jacobian_full.jac
+        self.neg_jac = jacobian_full.neg_jac
+        self.hessian = hessians_full.hessian
+        self.neg_hessian = hessians_full.neg_hessian
 
+        self.neg_jac_train = jacobian_train.neg_jac
+        self.neg_hessian_train = hessians_train.neg_hessian
 
 class EstimatorGraph(TFEstimatorGraph):
     X: tf.Tensor
@@ -271,6 +304,8 @@ class EstimatorGraph(TFEstimatorGraph):
                     model_vars=model_vars,
                     mode=pkg_constants.HESSIAN_MODE,  #"obs_batched",
                     iterator=False,
+                    hess_a=train_mu,
+                    hess_b=train_r,
                     dtype=dtype
                 )
 

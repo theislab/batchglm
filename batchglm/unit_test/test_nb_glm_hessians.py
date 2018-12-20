@@ -1,26 +1,28 @@
-from typing import List
-
 import logging
-import os
 import unittest
-import tempfile
 import time
 
-import numpy as np
-import scipy.sparse
-
+import batchglm.api as glm
 import batchglm.data as data_utils
 from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 import batchglm.pkg_constants as pkg_constants
 
-
-# from utils.config import getConfig
+glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
 def estimate(input_data: InputData):
     estimator = Estimator(input_data)
     estimator.initialize()
-    estimator.train_sequence(training_strategy="QUICK")
+    estimator.train_sequence(training_strategy=[
+            {
+                "learning_rate": 1,
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-2,
+                "use_batching": False,
+                "optim_algo": "ADAM",
+            },
+        ])
     return estimator
 
 

@@ -181,7 +181,9 @@ class Hessians:
             model_vars: ModelVars,
             dtype,
             mode="obs",
-            iterator=True
+            iterator=True,
+            hess_a=True,
+            hess_b=True
     ):
         """ Return computational graph for hessian based on mode choice.
 
@@ -217,14 +219,23 @@ class Hessians:
             which is done by feature for implementation reasons.
         :param iterator: bool
             Whether batched_data is an iterator or a tensor (such as single yield of an iterator).
+        :param hess_a: bool
+            Wether to compute Hessian block for a parameters. If both hess_a and hess_b are true,
+            the entire hessian with the off-diagonal a-b block is computed in self.hessian.
+        :param hess_b: bool
+            Wether to compute Hessian block for b parameters. If both hess_a and hess_b are true,
+            the entire hessian with the off-diagonal a-b block is computed in self.hessian.
         """
         if constraints_loc is not None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_loc is not None")
         if constraints_scale is not None and mode != "tf":
             raise ValueError("closed form hessian does not work if constraints_scale is not None")
 
+        self._compute_hess_a = hess_a
+        self._compute_hess_b = hess_b
+
         if mode == "obs_batched":
-            self.hessian = self.byobs(
+            H = self.byobs(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -234,9 +245,8 @@ class Hessians:
                 iterator=iterator,
                 dtype=dtype
             )
-            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "feature":
-            self.hessian = self.byfeature(
+            H = self.byfeature(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -245,12 +255,11 @@ class Hessians:
                 iterator=iterator,
                 dtype=dtype
             )
-            self.neg_hessian = tf.negative(self.hessian)
         elif mode == "tf":
             # tensorflow computes the hessian based on the objective,
             # which is the negative loglikelihood. Accordingly, the hessian
             # is the negative hessian.
-            self.neg_hessian = self.tf_byfeature(
+            H = self.tf_byfeature(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -259,9 +268,40 @@ class Hessians:
                 iterator=iterator,
                 dtype=dtype
             )
-            self.hessian = tf.negative(self.neg_hessian)
         else:
             raise ValueError("mode not recognized in hessian_nb_glm: " + mode)
+
+        # Assign jacobian blocks.
+        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        if self._compute_hess_a and self._compute_hess_b:
+            H_a = H[:, :p_shape_a, :p_shape_a]
+            H_b = H[:, p_shape_a:, p_shape_a:]
+            negH = tf.negative(H)
+            negH_a = tf.negative(H_a)
+            negH_b = tf.negative(H_b)
+        elif self._compute_hess_a and not self._compute_hess_b:
+            H_a = H
+            H_b = None
+            H = None
+            negH = None
+            negH_a = tf.negative(H_a)
+            negH_b = None
+        elif not self._compute_hess_a and self._compute_hess_b:
+            H_a = None
+            H_b = H
+            H = None
+            negH = None
+            negH_a = None
+            negH_b = tf.negative(H_b)
+        else:
+            raise ValueError("either require jac_a or jac_b")
+
+        self.hessian = H
+        self.hessian_aa = H_a
+        self.hessian_bb = H_b
+        self.neg_hessian = negH
+        self.neg_hessian_aa = negH_a
+        self.neg_hessian_bb = negH_b
 
     def byobs(
             self,
@@ -474,20 +514,40 @@ class Hessians:
             r = model.r
 
             if batched:
-                H_aa = _aa_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_bb = _bb_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_ab = _ab_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                if self._compute_hess_a and self._compute_hess_b:
+                    H_aa = _aa_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_bb = _bb_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_ab = _ab_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_ba = tf.transpose(H_ab, perm=[0, 2, 1])
+                    H = tf.concat(
+                        [tf.concat([H_aa, H_ab], axis=2),
+                         tf.concat([H_ba, H_bb], axis=2)],
+                        axis=1
+                    )
+                elif self._compute_hess_a and not self._compute_hess_b:
+                    H = _aa_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                elif not self._compute_hess_a and self._compute_hess_b:
+                    H = _bb_byobs_batched(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                else:
+                    raise ValueError("either require hess_a or hess_b")
             else:
-                H_aa = _aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_bb = _bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_ab = _ab_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                if self._compute_hess_a and self._compute_hess_b:
+                    H_aa = _aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_bb = _bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_ab = _ab_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_ba = tf.transpose(H_ab, perm=[0, 2, 1])
+                    H = tf.concat(
+                        [tf.concat([H_aa, H_ab], axis=2),
+                         tf.concat([H_ba, H_bb], axis=2)],
+                        axis=1
+                    )
+                elif self._compute_hess_a and not self._compute_hess_b:
+                    H = _aa_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                elif not self._compute_hess_a and self._compute_hess_b:
+                    H = _bb_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                else:
+                    raise ValueError("either require hess_a or hess_b")
 
-            H_ba = tf.transpose(H_ab, perm=[0, 2, 1])
-            H = tf.concat(
-                [tf.concat([H_aa, H_ab], axis=2),
-                 tf.concat([H_ba, H_bb], axis=2)],
-                axis=1
-            )
             return H
 
         def _red(prev, cur):
@@ -518,6 +578,7 @@ class Hessians:
                 idx=sample_indices,
                 data=batched_data
             )
+
         return H
 
     def byfeature(
@@ -641,16 +702,23 @@ class Hessians:
                 mu = model.mu
                 r = model.r
 
-                H_aa = _aa_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_bb = _bb_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_ab = _ab_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                H_ba = tf.transpose(H_ab, perm=[1, 0])
+                if self._compute_hess_a and self._compute_hess_b:
+                    H_aa = _aa_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_bb = _bb_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_ab = _ab_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                    H_ba = tf.transpose(H_ab, perm=[1, 0])
+                    H = tf.concat(
+                        [tf.concat([H_aa, H_ab], axis=1),
+                         tf.concat([H_ba, H_bb], axis=1)],
+                        axis=0
+                    )
+                elif self._compute_hess_a and self._compute_hess_b:
+                    H = _aa_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                elif self._compute_hess_a and self._compute_hess_b:
+                    H = _bb_byfeature(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                else:
+                    raise ValueError("either require hess_a or hess_b")
 
-                H = tf.concat(
-                    [tf.concat([H_aa, H_ab], axis=1),
-                     tf.concat([H_ba, H_bb], axis=1)],
-                    axis=0
-                )
                 return [H]
 
             X, design_loc, design_scale, size_factors = data
@@ -773,14 +841,22 @@ class Hessians:
                 )
 
                 # Compute the hessian of the model of the given gene:
-                H = tf.hessians(- model.log_likelihood, params)
+                if self._compute_hess_a and self._compute_hess_b:
+                    H = tf.hessians(model.log_likelihood, params)
+                elif self._compute_hess_a and not self._compute_hess_b:
+                    H = tf.hessians(model.log_likelihood, a_split)
+                elif not self._compute_hess_a and self._compute_hess_b:
+                    H = tf.hessians(model.log_likelihood, b_split)
+                else:
+                    raise ValueError("either require hess_a or hess_b")
+
                 return H
 
             # Map hessian computation across genes
             H = tf.map_fn(
                 fn=hessian,
                 elems=(X_t, size_factors_t, params_t),
-                dtype=[dtype],  # hessians of [a, b]
+                dtype=[dtype],
                 parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
             )
 
