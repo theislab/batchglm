@@ -160,20 +160,26 @@ class Jacobians:
             Whether an iterator or a tensor (single yield of an iterator) is given
             in.
         :param jac_a: bool
-            Wether to compute Jacobian for a parameters.
+            Wether to compute Jacobian for a parameters. If both jac_a and jac_b are true,
+            the entire jacobian is computed in self.jac.
         :param jac_b: bool
-            Wether to compute Jacobian for b parameters.
+            Wether to compute Jacobian for b parameters. If both jac_a and jac_b are true,
+            the entire jacobian is computed in self.jac.
         """
         if constraints_loc is not None and mode != "tf":
             raise ValueError("closed form jacobians do not work if constraints_loc is not None")
         if constraints_scale is not None and mode != "tf":
             raise ValueError("closed form jacobians do not work if constraints_scale is not None")
 
+        logger.debug("jacobian mode: %s" % mode)
+        logger.debug("compute jacobian for a model: %s" % str(jac_a))
+        logger.debug("compute jacobian for b model: %s" % str(jac_b))
+
         self._compute_jac_a = jac_a
         self._compute_jac_b = jac_b
 
         if mode == "analytic":
-            self._analytic(
+            J = self._analytic(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -186,7 +192,7 @@ class Jacobians:
             # Tensorflow computes the jacobian based on the objective,
             # which is the negative log-likelihood. Accordingly, the jacobian
             # is the negative jacobian computed here.
-            self._tf(
+            J = self._tf(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 batch_model=batch_model,
@@ -198,6 +204,38 @@ class Jacobians:
             )
         else:
             raise ValueError("mode not recognized in Jacobian: " + mode)
+
+        # Assign jacobian blocks.
+        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        if self._compute_jac_a and self._compute_jac_b:
+            J_a = J[:, p_shape_a]
+            J_b = J[:, p_shape_a:]
+            negJ = tf.negative(J)
+            negJ_a = tf.negative(J_a)
+            negJ_b = tf.negative(J_b)
+        elif self._compute_jac_a and not self._compute_jac_b:
+            J_a = J
+            J_b = None
+            J = None
+            negJ = None
+            negJ_a = tf.negative(J_a)
+            negJ_b = None
+        elif not self._compute_jac_a and self._compute_jac_b:
+            J_a = None
+            J_b = J
+            J = None
+            negJ = None
+            negJ_a = None
+            negJ_b = tf.negative(J_b)
+        else:
+            raise ValueError("either require jac_a or jac_b")
+
+        self.jac = J
+        self.jac_a = J_a
+        self.jac_b = J_b
+        self.neg_jac = negJ
+        self.neg_jac_a = negJ_a
+        self.neg_jac_b = negJ_b
 
     def _analytic(
             self,
@@ -259,7 +297,6 @@ class Jacobians:
                 Jacobian evaluated on a single observation, provided in data.
             """
             X, design_loc, design_scale, size_factors = data
-            a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
             model = BasicModelGraph(
                 X=X,
@@ -267,8 +304,8 @@ class Jacobians:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=a_split,
-                b=b_split,
+                a=model_vars.a,
+                b=model_vars.b,
                 dtype=dtype,
                 size_factors=size_factors
             )
@@ -299,7 +336,6 @@ class Jacobians:
             """
             return tf.add(prev, cur)
 
-        params = model_vars.params
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
@@ -317,26 +353,7 @@ class Jacobians:
                 data=batched_data
             )
 
-        if self._compute_jac_a and self._compute_jac_b:
-            J_a = J[:, p_shape_a]
-            J_b = J[:, p_shape_a:]
-        elif self._compute_jac_a and not self._compute_jac_b:
-            J_a = J
-            J_b = None
-            J = None
-        elif not self._compute_jac_a and self._compute_jac_b:
-            J_a = None
-            J_b = J
-            J = None
-        else:
-            raise ValueError("either require jac_a or jac_b")
-
-        self.jac = J
-        self.jac_a = J_a
-        self.jac_b = J_b
-        self.neg_jac = tf.negative(J)
-        self.neg_jac_a = tf.negative(J_a)
-        self.neg_jac_b = tf.negative(J_b)
+        return J
 
     def _tf(
             self,
@@ -360,12 +377,12 @@ class Jacobians:
 
         def _jac_a(batch_model, model_vars):
             J_a = tf.gradients(batch_model.log_likelihood, model_vars.a_var)[0]
-            J_a = tf.transpose(J)
+            J_a = tf.transpose(J_a)
             return J_a
 
         def _jac_b(batch_model, model_vars):
             J_b = tf.gradients(batch_model.log_likelihood, model_vars.b_var)[0]
-            J_b = tf.transpose(J)
+            J_b = tf.transpose(J_b)
             return J_b
 
         def _assemble_bybatch(idx, data):
@@ -388,7 +405,6 @@ class Jacobians:
                 Jacobian evaluated on a single observation, provided in data.
             """
             X, design_loc, design_scale, size_factors = data
-            a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
             model = BasicModelGraph(
                 X=X,
@@ -396,8 +412,8 @@ class Jacobians:
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=a_split,
-                b=b_split,
+                a=model_vars.a,
+                b=model_vars.b,
                 dtype=dtype,
                 size_factors=size_factors
             )
@@ -423,7 +439,6 @@ class Jacobians:
             """
             return tf.add(prev, cur)
 
-        params = model_vars.params
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
@@ -443,23 +458,4 @@ class Jacobians:
         else:
             J = _jac(batch_model=batch_model, model_vars=model_vars)
 
-        if self._compute_jac_a and self._compute_jac_b:
-            J_a = J[:, p_shape_a]
-            J_b = J[:, p_shape_a:]
-        elif self._compute_jac_a and not self._compute_jac_b:
-            J_a = J
-            J_b = None
-            J = None
-        elif not self._compute_jac_a and self._compute_jac_b:
-            J_a = None
-            J_b = J
-            J = None
-        else:
-            raise ValueError("either require jac_a or jac_b")
-
-        self.jac = J
-        self.jac_a = J_a
-        self.jac_b = J_b
-        self.neg_jac = tf.negative(J)
-        self.neg_jac_a = tf.negative(J_a)
-        self.neg_jac_b = tf.negative(J_b)
+        return J
