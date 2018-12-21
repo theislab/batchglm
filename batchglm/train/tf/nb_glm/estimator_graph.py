@@ -499,8 +499,12 @@ class EstimatorGraph(TFEstimatorGraph):
                     if train_r:
                         gradients_batch_all = gradients_batch
                         gradients_full_all = gradients_full
-                        nr_update_batched_all = nr_update_batched
-                        nr_update_full_all = nr_update_full
+                        if provide_optimizers["nr"]:
+                            nr_update_batched_all = nr_update_batched
+                            nr_update_full_all = nr_update_full
+                        else:
+                            nr_update_batched_all = None
+                            nr_update_full_all = None
                     else:
                         gradients_batch_all = tf.concat([
                             gradients_batch,
@@ -510,14 +514,18 @@ class EstimatorGraph(TFEstimatorGraph):
                             gradients_full,
                             tf.zeros_like(model_vars.b)
                         ], axis=0)
-                        nr_update_batched_all = tf.concat([
-                            nr_update_batched,
-                            tf.zeros_like(model_vars.b)
-                        ], axis=0)
-                        nr_update_full_all = tf.concat([
-                            nr_update_full,
-                            tf.zeros_like(model_vars.b)
-                        ], axis=0)
+                        if provide_optimizers["nr"]:
+                            nr_update_batched_all = tf.concat([
+                                nr_update_batched,
+                                tf.zeros_like(model_vars.b)
+                            ], axis=0)
+                            nr_update_full_all = tf.concat([
+                                nr_update_full,
+                                tf.zeros_like(model_vars.b)
+                            ], axis=0)
+                        else:
+                            nr_update_batched_all = None
+                            nr_update_full_all = None
                 elif train_r:
                     gradients_batch_all = tf.concat([
                         tf.zeros_like(model_vars.a),
@@ -527,14 +535,18 @@ class EstimatorGraph(TFEstimatorGraph):
                         tf.zeros_like(model_vars.a),
                         gradients_full
                     ], axis=0)
-                    nr_update_batched_all = tf.concat([
-                        tf.zeros_like(model_vars.a),
-                        nr_update_batched
-                    ], axis=0)
-                    nr_update_full_all = tf.concat([
-                        tf.zeros_like(model_vars.a),
-                        nr_update_full
-                    ], axis=0)
+                    if provide_optimizers["nr"]:
+                        nr_update_batched_all = tf.concat([
+                            tf.zeros_like(model_vars.a),
+                            nr_update_batched
+                        ], axis=0)
+                        nr_update_full_all = tf.concat([
+                            tf.zeros_like(model_vars.a),
+                            nr_update_full
+                        ], axis=0)
+                    else:
+                        nr_update_batched_all = None
+                        nr_update_full_all = None
                 else:
                     logger.info("No training necessary; returning")
                     return
