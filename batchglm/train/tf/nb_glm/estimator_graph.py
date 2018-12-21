@@ -161,8 +161,17 @@ class FullDataModelGraph:
         self.hessian = hessians_full.hessian
         self.neg_hessian = hessians_full.neg_hessian
 
-        self.neg_jac_train = jacobian_train.neg_jac
-        self.neg_hessian_train = hessians_train.neg_hessian
+        if train_a and train_b:
+            self.neg_jac_train = jacobian_train.neg_jac
+            self.neg_hessian_train = hessians_train.neg_hessian
+        elif train_a and train_b:
+            self.neg_jac_train = jacobian_train.neg_jac_a
+            self.neg_hessian_train = hessians_train.neg_hessian_aa
+        elif not train_a and train_b:
+            self.neg_jac_train = jacobian_train.neg_jac_b
+            self.neg_hessian_train = hessians_train.neg_hessian_bb
+        else:
+            raise ValueError("either require train_a or train_b")
 
 class EstimatorGraph(TFEstimatorGraph):
     X: tf.Tensor
@@ -362,11 +371,11 @@ class EstimatorGraph(TFEstimatorGraph):
                             if provide_optimizers["nr"]:
                                 logger.debug(" ** Build newton training graph: by_feature, train mu and r")
                                 # Full data model by gene:
-                                param_grad_vec = full_data_model.neg_jac
+                                param_grad_vec = full_data_model.neg_jac_train
                                 # Compute parameter update for non-converged gene only.
                                 delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
                                     tf.gather(
-                                        full_data_model.neg_hessian,
+                                        full_data_model.neg_hessian_train,
                                         indices=idx_nonconverged,
                                         axis=0),
                                     tf.expand_dims(
