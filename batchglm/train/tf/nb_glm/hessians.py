@@ -282,15 +282,15 @@ class Hessians:
         elif self._compute_hess_a and not self._compute_hess_b:
             H_a = H
             H_b = None
-            H = None
-            negH = None
+            H = H
+            negH = tf.negative(H)
             negH_a = tf.negative(H_a)
             negH_b = None
         elif not self._compute_hess_a and self._compute_hess_b:
             H_a = None
             H_b = H
-            H = None
-            negH = None
+            H = H
+            negH = tf.negative(H)
             negH_a = None
             negH_b = tf.negative(H_b)
         else:

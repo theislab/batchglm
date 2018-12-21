@@ -216,15 +216,15 @@ class Jacobians:
         elif self._compute_jac_a and not self._compute_jac_b:
             J_a = J
             J_b = None
-            J = None
-            negJ = None
+            J = J
+            negJ = tf.negative(J)
             negJ_a = tf.negative(J_a)
             negJ_b = None
         elif not self._compute_jac_a and self._compute_jac_b:
             J_a = None
             J_b = J
-            J = None
-            negJ = None
+            J = J
+            negJ = tf.negative(J)
             negJ_a = None
             negJ_b = tf.negative(J_b)
         else:
@@ -450,6 +450,13 @@ class Jacobians:
                 data=batched_data
             )
         else:
-            J = _jac(batch_model=batch_model, model_vars=model_vars)
+            if self._compute_jac_a and self._compute_jac_b:
+                J = _jac(batch_model=batch_model, model_vars=model_vars)
+            elif self._compute_jac_a and not self._compute_jac_b:
+                J = _jac_a(batch_model=batch_model, model_vars=model_vars)
+            elif not self._compute_jac_a and self._compute_jac_b:
+                J = _jac_b(batch_model=batch_model, model_vars=model_vars)
+            else:
+                raise ValueError("either require jac_a or jac_b")
 
         return J

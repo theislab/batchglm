@@ -304,8 +304,9 @@ class MultiTrainer:
             optim_nr = None
             if provide_optimizers["nr"] and newton_delta is not None:
                 logger.debug(" **** Building optimizer: NR")
+                theta_new = variables[0] - learning_rate * newton_delta
                 train_op_nr = tf.group(
-                    tf.assign(variables[0], newton_delta),
+                    tf.assign(variables[0], theta_new),
                     tf.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:

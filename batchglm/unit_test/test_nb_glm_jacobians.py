@@ -26,6 +26,7 @@ def compare_jacs(sim, design, quick_scale):
 
     input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 
+    print("--- Running analytic Jacobian test")
     pkg_constants.JACOBIAN_MODE = "analytic"
     estimator_analytic = estimate(input_data, quick_scale)
     t0_analytic = time.time()
@@ -36,6 +37,7 @@ def compare_jacs(sim, design, quick_scale):
     estimator_analytic.close_session()
     t_analytic = t1_analytic - t0_analytic
 
+    print("--- Running tensorflow Jacobian test")
     pkg_constants.JACOBIAN_MODE = "tf"
     estimator_tf = estimate(input_data, quick_scale)
     t0_tf = time.time()
