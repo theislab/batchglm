@@ -191,6 +191,15 @@ class FullDataModelGraph:
         self.neg_hessian_train = hessians_train.neg_hessian
 
 class EstimatorGraph(TFEstimatorGraph):
+    """
+    The estimator graphs are all graph necessary to perform parameter updates and to
+    summarise a current parameter estimate.
+
+    The estimator graph class is divided into the following major sub graphs:
+
+        - The input pipeline: Feed data for parameter updates.
+        -
+    """
     X: tf.Tensor
 
     mu: tf.Tensor

@@ -50,14 +50,34 @@ def estimate(
 
 class NB_GLM_Test_Graph(unittest.TestCase):
     """
-    Test whether feature-wise termination works on all optimizer settings.
-    The unit tests cover a and b traing, a-only traing and b-only training
-    for both updated on the full data and on the batched data.
-    For each scenario, all implemented optimizers are individually required
-    and used once.
+    Test whether training graph work.
+
+    Quick tests which simply passes small data sets through
+    all possible training graphs to check whether there are graph
+    bugs. This is all tested in test_acc_nb_glm.py but this
+    set of unit_tests runs much faster and does not abort due
+    to accuracy outliers. The training graphs covered are:
+
+    - termination by feature
+        - full data model
+            - train a and b model: test_full_byfeature_a_and_b()
+            - train a model only: test_full_byfeature_a_only()
+            - train b model only: test_full_byfeature_b_only()
+        - batched data model
+            - train a and b model: test_batched_byfeature_a_and_b()
+            - train a model only: test_batched_byfeature_a_only()
+            - train b model only: test_batched_byfeature_b_only()
+    - termination global
+        - full data model
+            - train a and b model: test_full_global_a_and_b()
+            - train a model only: test_full_global_a_only()
+            - train b model only: test_full_global_b_only()
+        - batched data model
+            - train a and b model: test_batched_global_a_and_b()
+            - train a model only: test_batched_global_a_only()
+            - train b model only: test_batched_global_b_only()
     """
     sim: Simulator
-
     _estims: List[Estimator]
 
     def setUp(self):

@@ -1,9 +1,6 @@
 from typing import List
 
-import os
-# import sys
 import unittest
-import tempfile
 import logging
 
 import numpy as np
@@ -16,61 +13,60 @@ glm.setup_logging(verbosity="INFO", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate(input_data: InputData, working_dir: str):
-    print(input_data.X)
-
+def estimate(input_data: InputData):
     estimator = Estimator(
         input_data,
         batch_size=500,
         init_a="standard",
         init_b="standard",
-        termination_type="global"
+        termination_type="by_feature"
     )
-    estimator.initialize(
-        working_dir=working_dir,
-        save_checkpoint_steps=20,
-        save_summaries_steps=20,
-        export=["a", "b", "mu", "r", "loss"],
-        export_steps=20
-    )
-    input_data.save(os.path.join(working_dir, "input_data.h5"))
+    estimator.initialize()
 
-    estimator.train_sequence(training_strategy="DEFAULT")
+    estimator.train_sequence(training_strategy=[
+            {
+                "convergence_criteria": "all_converged",
+                "stopping_criteria": 1e-4,
+                "use_batching": False,
+                "optim_algo": "Newton",
+            },
+        ])
 
     return estimator
 
 
-class NB_GLM_Test(unittest.TestCase):
-    sim: Simulator
-    working_dir: tempfile.TemporaryDirectory
+class NB_GLM_Test_DataTypes(unittest.TestCase):
+    """
+    Test various input data types including outlier features.
 
+    These unit tests cover a range of input data and check whether
+    the overall graph works with different inputs. Only one
+    training strategy is tested here. The cases tested are:
+
+        - Dense X matrix: test_default_fit()
+        - Sparse X matrix: test_sparse_fit()
+        - Dense X in anndata: test_anndata()
+        - Sparse X in anndata: test_anndata_sparse()
+        - Zero variance features: test_zero_variance()
+        - Low mean features: test_low_values()
+    """
+    sim: Simulator
     _estims: List[Estimator]
 
     def setUp(self):
-        self.sim = Simulator(num_observations=2000, num_features=100)
+        self.sim = Simulator(num_observations=1000, num_features=2)
+        self.sim.generate_sample_description(num_batches=0, num_conditions=2)
         self.sim.generate()
-        self.working_dir = tempfile.TemporaryDirectory()
-
         self._estims = []
-        print("working_dir: %s" % self.working_dir)
 
     def tearDown(self):
         for e in self._estims:
             e.close_session()
 
-        self.working_dir.cleanup()
-
     def test_default_fit(self):
         sim = self.sim.__copy__()
-        print(sim.input_data[2:4, [5, 6, 7]])
-
-        wd = os.path.join(self.working_dir.name, "default_fit")
-        os.makedirs(wd, exist_ok=True)
-
-        estimator = estimate(sim.input_data, wd)
+        estimator = estimate(sim.input_data)
         self._estims.append(estimator)
-
-        # test finalizing
         estimator = estimator.finalize()
 
         return estimator, sim
@@ -84,11 +80,7 @@ class NB_GLM_Test(unittest.TestCase):
             design_loc=design_loc,
             design_scale=design_scale,
         )
-
-        wd = os.path.join(self.working_dir.name, "anndata")
-        os.makedirs(wd, exist_ok=True)
-
-        estimator = estimate(idata, wd)
+        estimator = estimate(idata)
         self._estims.append(estimator)
 
         return estimator, idata
@@ -102,14 +94,8 @@ class NB_GLM_Test(unittest.TestCase):
             design_loc=design_loc,
             design_scale=design_scale,
         )
-
-        wd = os.path.join(self.working_dir.name, "anndata")
-        os.makedirs(wd, exist_ok=True)
-
-        print(adata)
-        estimator = estimate(idata, wd)
+        estimator = estimate(idata)
         self._estims.append(estimator)
-
         return estimator, adata
 
     def test_anndata_sparse(self):
@@ -122,35 +108,23 @@ class NB_GLM_Test(unittest.TestCase):
             design_loc=design_loc,
             design_scale=design_scale,
         )
-
-        wd = os.path.join(self.working_dir.name, "anndata")
-        os.makedirs(wd, exist_ok=True)
-
-        estimator = estimate(idata, wd)
+        estimator = estimate(idata)
         self._estims.append(estimator)
 
         return estimator, adata
 
-    def test_zero_variance(self):
+    def test_low_values(self):
         sim = self.sim.__copy__()
-        sim.data.X[:, 0] = np.exp(sim.a)[0, 0]
-
-        wd = os.path.join(self.working_dir.name, "zero_variance")
-        os.makedirs(wd, exist_ok=True)
-
-        estimator = estimate(sim.input_data, wd)
+        sim.data.X[:, 0] = 0
+        estimator = estimate(sim.input_data)
         self._estims.append(estimator)
 
         return estimator, sim
 
-    def test_low_values(self):
+    def test_zero_variance(self):
         sim = self.sim.__copy__()
-        sim.data.X[:, 0] = 0
-
-        wd = os.path.join(self.working_dir.name, "low_values")
-        os.makedirs(wd, exist_ok=True)
-
-        estimator = estimate(sim.input_data, wd)
+        sim.data.X[:, 0] = np.exp(sim.a)[0, 0]
+        estimator = estimate(sim.input_data)
         self._estims.append(estimator)
 
         return estimator, sim
