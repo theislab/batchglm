@@ -17,8 +17,6 @@ def estimate(input_data: InputData):
     estimator = Estimator(
         input_data,
         batch_size=500,
-        init_a="standard",
-        init_b="standard",
         termination_type="by_feature"
     )
     estimator.initialize()
@@ -47,8 +45,6 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
         - Sparse X matrix: test_sparse_fit()
         - Dense X in anndata: test_anndata()
         - Sparse X in anndata: test_anndata_sparse()
-        - Zero variance features: test_zero_variance()
-        - Low mean features: test_low_values()
     """
     sim: Simulator
     _estims: List[Estimator]
@@ -112,22 +108,6 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
         self._estims.append(estimator)
 
         return estimator, adata
-
-    def test_low_values(self):
-        sim = self.sim.__copy__()
-        sim.data.X[:, 0] = 0
-        estimator = estimate(sim.input_data)
-        self._estims.append(estimator)
-
-        return estimator, sim
-
-    def test_zero_variance(self):
-        sim = self.sim.__copy__()
-        sim.data.X[:, 0] = np.exp(sim.a)[0, 0]
-        estimator = estimate(sim.input_data)
-        self._estims.append(estimator)
-
-        return estimator, sim
 
 
 if __name__ == '__main__':

@@ -54,7 +54,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
 
     Quick tests which simply passes small data sets through
     all possible training graphs to check whether there are graph
-    bugs. This is all tested in test_acc_nb_glm.py but this
+    bugs. This is all tested in test_nb_glm_acc.py but this
     set of unit_tests runs much faster and does not abort due
     to accuracy outliers. The training graphs covered are:
 
