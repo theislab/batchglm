@@ -48,7 +48,7 @@ def estimate(
     return estimator
 
 
-class NB_GLM_Test(unittest.TestCase):
+class NB_GLM_Test_Graph(unittest.TestCase):
     """
     Test whether feature-wise termination works on all optimizer settings.
     The unit tests cover a and b traing, a-only traing and b-only training
