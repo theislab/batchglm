@@ -41,7 +41,7 @@ def estimate(
     estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": lr,
-                "convergence_criteria": "all_converged" if termination == "by_feature" else "scaled_moving_average",
+                "convergence_criteria": "all_converged_ll" if termination == "by_feature" else "scaled_moving_average",
                 "stopping_criteria": acc,
                 "use_batching": batched,
                 "optim_algo": algo,
@@ -148,7 +148,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=False,
                 quick_scale=False,
                 termination="by_feature",
-                acc=1e-4 if algo == "NR" else 1e-3
+                acc=1e-6 if algo == "NR" else 1e-3
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -172,7 +172,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=False,
                 quick_scale=True,
                 termination="by_feature",
-                acc=1e-4 if algo == "NR" else 1e-3
+                acc=1e-6 if algo == "NR" else 1e-3
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -196,7 +196,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=False,
                 quick_scale=False,
                 termination="by_feature",
-                acc=1e-4 if algo == "NR" else 1e-3
+                acc=1e-6 if algo == "NR" else 1e-3
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -220,7 +220,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=True,
                 quick_scale=False,
                 termination="by_feature",
-                acc=1e-1
+                acc=1e-2
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -244,7 +244,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=True,
                 quick_scale=True,
                 termination="by_feature",
-                acc=1e-1
+                acc=1e-2
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -268,7 +268,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=True,
                 quick_scale=False,
                 termination="by_feature",
-                acc=1e-1
+                acc=1e-2
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -364,7 +364,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=True,
                 quick_scale=False,
                 termination="global",
-                acc=1e-1
+                acc=1e-2
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -388,7 +388,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=True,
                 quick_scale=True,
                 termination="global",
-                acc=1e-1
+                acc=1e-2
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)
@@ -412,7 +412,7 @@ class NB_GLM_Test_Accuracy(unittest.TestCase):
                 batched=True,
                 quick_scale=False,
                 termination="global",
-                acc=1e-1
+                acc=1e-2
             )
             estimator_store = estimator.finalize()
             self._estims.append(estimator)

@@ -287,20 +287,40 @@ class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
                 )
 
                 tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
-        elif convergence_criteria == "all_converged":
-            theta_current = self.session.run(self.model.model_vars.params)
+        elif convergence_criteria in ["all_converged_ll", "all_converged_theta"]:
+            # Evaluate initial value of convergence metric:
+            if convergence_criteria == "all_converged_theta":
+                metric_current = self.session.run(self.model.model_vars.params)
+            elif convergence_criteria == "all_converged_ll":
+                metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+            else:
+                raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+
             while np.any(self.model.model_vars.converged == False):
-                theta_prev = theta_current
+                # Update convergence metric reference:
+                metric_prev = metric_current
                 train_step, global_loss, _ = self.session.run(
                     (self.model.global_step, loss, train_op),
                     feed_dict=feed_dict
                 )
-                theta_current = self.session.run(self.model.model_vars.params)
-                theta_delta = np.abs(theta_prev - theta_current)
-                self.model.model_vars.converged = np.logical_or(  # Only update non-converged.
+                # Evaluate convergence metric:
+                if convergence_criteria == "all_converged_theta":
+                    metric_current = self.session.run(self.model.model_vars.params)
+                    metric_delta = np.abs(np.exp(metric_prev) - np.exp(metric_current))
+                    # Evaluate convergence based on maximally varying parameter per gene:
+                    metric_delta = np.max(metric_delta, axis=0)
+                elif convergence_criteria == "all_converged_ll":
+                    metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                    metric_delta = np.abs(metric_current - metric_prev)
+                else:
+                    raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+
+                # Update convergence status of non-converged features:
+                self.model.model_vars.converged = np.logical_or(
                     self.model.model_vars.converged,
-                    np.max(theta_delta, axis=0) < stopping_criteria
+                    metric_delta < stopping_criteria
                 )
+
                 tf.logging.info(
                     "Step: %d\tloss: %f\t models converged %i",
                     train_step,

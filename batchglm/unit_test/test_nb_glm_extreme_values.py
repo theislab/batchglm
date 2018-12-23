@@ -13,7 +13,7 @@ glm.setup_logging(verbosity="INFO", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate(input_data: InputData, quick_scale):
+def estimate_byfeature(input_data: InputData, quick_scale):
     estimator = Estimator(
         input_data,
         batch_size=500,
@@ -24,8 +24,29 @@ def estimate(input_data: InputData, quick_scale):
 
     estimator.train_sequence(training_strategy=[
             {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-4,
+                "convergence_criteria": "all_converged_ll",
+                "stopping_criteria": 1e-8,
+                "use_batching": False,
+                "optim_algo": "Newton",
+            },
+        ])
+
+    return estimator
+
+def estimate_global(input_data: InputData, quick_scale):
+    estimator = Estimator(
+        input_data,
+        batch_size=500,
+        quick_scale=quick_scale,
+        termination_type="global"
+    )
+    estimator.initialize()
+
+    estimator.train_sequence(training_strategy=[
+            {
+                "convergence_criteria": "scaled_moving_average",
+                "stopping_criteria": 1e-6,
+                "loss_window_size": 20,
                 "use_batching": False,
                 "optim_algo": "Newton",
             },
@@ -34,7 +55,7 @@ def estimate(input_data: InputData, quick_scale):
     return estimator
 
 
-class NB_GLM_Test_DataTypes(unittest.TestCase):
+class NB_GLM_Test_ExtremValues(unittest.TestCase):
     """
     Test various input data types including outlier features.
 
@@ -70,7 +91,9 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
     def test_low_values_a_and_b(self):
         sim = self.sim1.__copy__()
         sim.data.X[:, 0] = 0
-        estimator = estimate(sim.input_data, quick_scale=False)
+        estimator = estimate_byfeature(sim.input_data, quick_scale=False)
+        self._estims.append(estimator)
+        estimator = estimate_global(sim.input_data, quick_scale=False)
         self._estims.append(estimator)
 
         return estimator, sim
@@ -78,15 +101,19 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
     def test_low_values_a_only(self):
         sim = self.sim1.__copy__()
         sim.data.X[:, 0] = 0
-        estimator = estimate(sim.input_data, quick_scale=False)
+        estimator = estimate_byfeature(sim.input_data, quick_scale=True)
+        self._estims.append(estimator)
+        estimator = estimate_global(sim.input_data, quick_scale=True)
         self._estims.append(estimator)
 
         return estimator, sim
 
     def test_low_values_b_only(self):
-        sim = self.sim.__copy__()
+        sim = self.sim2.__copy__()
         sim.data.X[:, 0] = 0
-        estimator = estimate(sim.input_data, quick_scale=True)
+        estimator = estimate_byfeature(sim.input_data, quick_scale=False)
+        self._estims.append(estimator)
+        estimator = estimate_global(sim.input_data, quick_scale=False)
         self._estims.append(estimator)
 
         return estimator, sim
@@ -94,7 +121,9 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
     def test_zero_variance_a_and_b(self):
         sim = self.sim1.__copy__()
         sim.data.X[:, 0] = np.exp(sim.a)[0, 0]
-        estimator = estimate(sim.input_data, quick_scale=False)
+        estimator = estimate_byfeature(sim.input_data, quick_scale=False)
+        self._estims.append(estimator)
+        estimator = estimate_global(sim.input_data, quick_scale=False)
         self._estims.append(estimator)
 
         return estimator, sim
@@ -102,7 +131,9 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
     def test_zero_variance_a_only(self):
         sim = self.sim1.__copy__()
         sim.data.X[:, 0] = np.exp(sim.a)[0, 0]
-        estimator = estimate(sim.input_data, quick_scale=True)
+        estimator = estimate_byfeature(sim.input_data, quick_scale=True)
+        self._estims.append(estimator)
+        estimator = estimate_global(sim.input_data, quick_scale=True)
         self._estims.append(estimator)
 
         return estimator, sim
@@ -110,7 +141,9 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
     def test_zero_variance_b_only(self):
         sim = self.sim2.__copy__()
         sim.data.X[:, 0] = np.exp(sim.a)[0, 0]
-        estimator = estimate(sim.input_data, quick_scale=False)
+        estimator = estimate_byfeature(sim.input_data, quick_scale=False)
+        self._estims.append(estimator)
+        estimator = estimate_global(sim.input_data, quick_scale=False)
         self._estims.append(estimator)
 
         return estimator, sim

@@ -33,16 +33,16 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         AUTO = None
         DEFAULT = [
             {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-6,
+                "convergence_criteria": "all_converged_ll",
+                "stopping_criteria": 1e-8,
                 "use_batching": False,
                 "optim_algo": "Newton",
             },
         ]
         QUICK = [
             {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-4,
+                "convergence_criteria": "all_converged_ll",
+                "stopping_criteria": 1e-6,
                 "use_batching": False,
                 "optim_algo": "Newton",
             },
@@ -59,8 +59,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         CONSTRAINED = [  # Should not contain newton-rhapson right now.
             {
                 "learning_rate": 0.5,
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-6,
+                "convergence_criteria": "all_converged_ll",
+                "stopping_criteria": 1e-8,
                 "loss_window_size": 10,
                 "use_batching": False,
                 "optim_algo": "ADAM",
@@ -68,8 +68,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         ]
         CONTINUOUS = [
             {
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-6,
+                "convergence_criteria": "all_converged_ll",
+                "stopping_criteria": 1e-8,
                 "use_batching": False,
                 "optim_algo": "Newton",
             }

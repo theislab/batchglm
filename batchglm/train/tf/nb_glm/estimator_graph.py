@@ -695,10 +695,7 @@ class EstimatorGraph(TFEstimatorGraph):
         self.full_data_model = full_data_model
 
         self.full_loss = full_data_loss
-
         self.full_gradient = full_gradient
-        # self.full_gradient_a = full_gradient_a
-        # self.full_gradient_b = full_gradient_b
 
         self.hessians = full_data_model.hessian
         self.fisher_inv = fisher_inv

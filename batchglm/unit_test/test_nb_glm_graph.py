@@ -38,7 +38,7 @@ def estimate(
     estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": 0.5 if algo is not "nr" else 1,
-                "convergence_criteria": "all_converged",
+                "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e1,
                 "use_batching": batched,
                 "optim_algo": algo,
@@ -99,6 +99,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -115,6 +116,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -132,6 +134,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim2.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -148,6 +151,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -164,6 +168,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data, algo=algo,
                 batched=True,
@@ -179,6 +184,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim2.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -195,6 +201,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -211,6 +218,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -227,6 +235,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim2.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -243,6 +252,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -259,6 +269,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim1.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
@@ -275,6 +286,7 @@ class NB_GLM_Test_Graph(unittest.TestCase):
         sim = self.sim2.__copy__()
 
         for algo in ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR"]:
+            print("algorithm: %s" % algo)
             estimator = estimate(
                 sim.input_data,
                 algo=algo,
