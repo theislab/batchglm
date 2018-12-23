@@ -46,62 +46,6 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
 
 
 class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
-    class TrainingStrategy(Enum):
-        AUTO = None
-        DEFAULT = [
-            {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 200,
-                "optim_algo": "ADAM"
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
-                "loss_window_size": 100,
-                "optim_algo": "GD"
-            },
-        ]
-        EXACT = [
-            {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 200,
-                "optim_algo": "ADAM"
-            },
-            {
-                "learning_rate": 0.05,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 100,
-            },
-            {
-                "learning_rate": 0.005,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
-                "loss_window_size": 25,
-            },
-        ]
-        QUICK = [
-            {
-                "learning_rate": 0.1,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.05,
-                "loss_window_size": 200,
-                "optim_algo": "ADAM"
-            },
-        ]
-        PRE_INITIALIZED = [
-            {
-                "learning_rate": 0.01,
-                "convergence_criteria": "t_test",
-                "stopping_criteria": 0.25,
-                "loss_window_size": 25,
-            },
-        ]
 
     model: TFEstimatorGraph
     session: tf.Session
