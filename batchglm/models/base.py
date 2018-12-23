@@ -1,5 +1,5 @@
 import abc
-from typing import Union, Any, Dict, Iterable, TypeVar, Type
+from typing import Union, Any, Dict, Iterable
 from enum import Enum
 
 import os
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class BasicInputData:
     """
-    base class for all input data types
+    Base class for all input data types.
     """
     data: xr.Dataset
 
@@ -228,7 +228,7 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
     convention: N features with M observations each => (M, N) matrix
     """
 
-    def __init__(self, num_observations=2000, num_features=10000):
+    def __init__(self, num_observations=1000, num_features=100):
         self.num_observations = num_observations
         self.num_features = num_features
 
@@ -241,6 +241,10 @@ class BasicSimulator(BasicModel, metaclass=abc.ABCMeta):
         """
         self.generate_params()
         self.generate_data()
+
+    @property
+    def X(self):
+        return self.data["X"]
 
     @property
     def num_observations(self):
@@ -379,21 +383,6 @@ class BasicEstimator(BasicModel, metaclass=abc.ABCMeta):
 
     class TrainingStrategy(Enum):
         AUTO = None
-        DEFAULT = [
-            {"learning_rate": 0.5, },
-            {"learning_rate": 0.05, },
-        ]
-        EXACT = [
-            {"learning_rate": 0.5, },
-            {"learning_rate": 0.05, },
-            {"learning_rate": 0.005, },
-        ]
-        QUICK = [
-            {"learning_rate": 0.5, },
-        ]
-        PRE_INITIALIZED = [
-            {"learning_rate": 0.005, },
-        ]
 
     def validate_data(self, **kwargs):
         raise NotImplementedError()

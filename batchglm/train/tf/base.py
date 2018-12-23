@@ -13,25 +13,6 @@ from .external import BasicEstimator, pkg_constants, stat_utils
 from .train import StopAtLossHook, TimedRunHook
 
 
-# def model_param(f: callable, key: str, param_dict):
-#     """
-#     Special decorator for TFEstimator's model params.
-#
-#     :param f: the function to decorate
-#     :param key: the name of the data item to fetch
-#     :param param_dict: the dict where to add the function
-#     :return: decorated function without the "data" parameter
-#     """
-#
-#     def wrap_fn(self, *args, **kwargs):
-#         data = self._get_unsafe(key)
-#         return f(self, data, *args, **kwargs)
-#
-#     param_dict[key] = wrap_fn
-#
-#     return wrap_fn
-
-
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
     graph: tf.Graph
     loss: tf.Tensor

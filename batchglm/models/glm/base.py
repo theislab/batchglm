@@ -1,15 +1,19 @@
 import abc
 
-from ..base import BasicModel
 
-
-class Model(BasicModel, metaclass=abc.ABCMeta):
+class BasicGLM(metaclass=abc.ABCMeta):
     """
     Generalized Linear Model base class.
 
-    Every GLM has the parameters `link_loc` and `link_scale` and model-specific
-    matrices `design_loc` and `design_scale`.
-    They are linked to `location` and `scale` by a linker function, e.g. `location = exp(design_loc * link_loc)`.
+    Every GLM contains parameters for a location and a scale model
+    in a parameter specific linker space and a design matrix for
+    each location and scale model.
+
+        - par_link_loc, par_link_scale: Model parameters in linker space.
+        - location, scale: Model parameters in output space.
+        - link_loc, link_scale: Transform output support to model parameter support.
+        - inverse_link_loc: Transform model parameter support to output support.
+        - design_loc, design_scale: design matrices
     """
 
     @property
@@ -22,12 +26,14 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
     def design_scale(self):
         pass
 
+    @property
     @abc.abstractmethod
-    def link_loc(self, data):
+    def par_link_loc(self):
         pass
 
+    @property
     @abc.abstractmethod
-    def inverse_link_loc(self, data):
+    def par_link_scale(self):
         pass
 
     @property
@@ -35,8 +41,11 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
         return self.inverse_link_loc(self.design_loc @ self.par_link_loc)
 
     @property
+    def scale(self):
+        return self.inverse_link_scale(self.design_scale @ self.par_link_scale)
+
     @abc.abstractmethod
-    def par_link_loc(self):
+    def link_loc(self, data):
         pass
 
     @abc.abstractmethod
@@ -44,14 +53,10 @@ class Model(BasicModel, metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def inverse_link_loc(self, data):
+        pass
+
+    @abc.abstractmethod
     def inverse_link_scale(self, data):
         pass
 
-    @property
-    def scale(self):
-        return self.inverse_link_scale(self.design_scale @ self.par_link_scale)
-
-    @property
-    @abc.abstractmethod
-    def par_link_scale(self):
-        pass

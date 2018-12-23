@@ -285,21 +285,6 @@ def pinv(matrix, threshold=1e-5):
     return v @ (s_inv @ swap_dims(u, axis0=-1, axis1=-2))
 
 
-# def jacobian(fx, x, **kwargs):
-#     """
-#     Given a tensor fx, which is a function of x, vectorize fx (via tf.reshape(fx, [-1])),
-#     and then compute the jacobian of each entry of fx with respect to x.
-#     Specifically, if x has shape (m,n,...,p), and fx has L entries (tf.size(fx)=L), then
-#     the output will be (L,m,n,...,p), where output[i] will be (m,n,...,p), with each entry denoting the
-#     gradient of output[i] wrt the corresponding element of x.
-#     """
-#     return tf.map_fn(
-#         fn=lambda fxi: tf.gradients(fxi, x)[0],
-#         elems=tf.reshape(fx, [-1]),
-#         dtype=x.dtype,
-#         **kwargs
-#     )
-
 def stacked_lstsq(L, b, rcond=1e-10, name="stacked_lstsq"):
     r"""
     Solve `Lx = b`, via SVD least squares cutting of small singular values
@@ -322,7 +307,5 @@ def stacked_lstsq(L, b, rcond=1e-10, name="stacked_lstsq"):
             v,
             tf.einsum('...K,...MK,...MN->...KN', inv_s, u, b)
         )
-
-        # rank = tf.sum(s > rcond)
 
         return tf.conj(x)

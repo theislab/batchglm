@@ -3,9 +3,9 @@ from typing import Union
 import numpy as np
 import xarray as xr
 
-from batchglm.utils.linalg import groupwise_solve_lm
-from batchglm.utils.numeric import weighted_mean
-from batchglm.models.glm import closedform_glm_mean
+from .external import groupwise_solve_lm
+from .external import weighted_mean
+from .external import closedform_glm_mean
 
 
 def closedform_nb_glm_logmu(

@@ -3,12 +3,10 @@ import abc
 import math
 import numpy as np
 import xarray as xr
-# import pandas as pd
-# import patsy
 
-from ..nb.simulator import Simulator as NegativeBinomialSimulator
-from ..external import data_utils
-from .base import Model, InputData
+from .input import InputData
+from .model import Model
+from .external import data_utils, BasicSimulator
 
 
 def generate_sample_description(
@@ -59,31 +57,23 @@ def generate_sample_description(
     return sample_description
 
 
-class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
+class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
     """
     Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
     """
 
-    def __init__(self, *args, **kwargs):
-        NegativeBinomialSimulator.__init__(self, *args, **kwargs)
+    def __init__(
+            self,
+            num_observations=1000,
+            num_features=100
+    ):
+        BasicSimulator.__init__(
+            self,
+            num_observations=num_observations,
+            num_features=num_features
+        )
         Model.__init__(self)
-
-    @property
-    def num_observations(self):
-        return self._num_observations
-
-    @num_observations.setter
-    def num_observations(self, data):
-        self._num_observations = data
-
-    @property
-    def num_features(self):
-        return self._num_features
-
-    @num_features.setter
-    def num_features(self, data):
-        self._num_features = data
 
     def generate_sample_description(self, num_conditions=2, num_batches=4, **kwargs):
         sample_description = generate_sample_description(
@@ -137,8 +127,6 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
         :param rand_fn_scale: random function taking one argument `shape`.
             If not provided, will use `rand_fn` instead.
         """
-        super().generate_params(*args, **kwargs)
-
         if rand_fn_loc is None:
             rand_fn_loc = rand_fn
         if rand_fn_scale is None:
@@ -182,16 +170,15 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
             coords={"design_scale_params": self.data.design_scale_params}
         )
 
-        del self.params["mu"]
-        del self.params["r"]
+    def generate_data(self):
+        self.data["X"] = (
+            self.param_shapes()["X"],
+            rand_utils.NegativeBinomial(mean=self.mu, r=self.r).sample()
+        )
 
     @property
     def input_data(self) -> InputData:
         return InputData.new(self.data)
-
-    @property
-    def X(self):
-        return self.data["X"]
 
     @property
     def design_loc(self):
@@ -213,9 +200,3 @@ class Simulator(Model, NegativeBinomialSimulator, metaclass=abc.ABCMeta):
     def b(self):
         return self.params['b']
 
-
-def sim_test():
-    sim = Simulator()
-    sim.generate()
-    sim.save("unit_test.h5")
-    return sim

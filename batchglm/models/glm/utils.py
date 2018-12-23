@@ -10,8 +10,8 @@ import pandas as pd
 
 import patsy
 
-from batchglm.utils.linalg import groupwise_solve_lm
-from batchglm.utils.numeric import weighted_mean, weighted_variance
+from .external import groupwise_solve_lm
+from .external import weighted_mean, weighted_variance
 
 
 def parse_design(
@@ -113,11 +113,7 @@ def closedform_glm_mean(
                     axis=0
                 ) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
             ], dim="group")
-            # groupwise_means = groupwise_means.values
-
-        # # clipping
-        # groupwise_means = np.nextafter(0, 1, out=groupwise_means, where=groupwise_means == 0,
-        #                                dtype=groupwise_means.dtype)
+            groupwise_means = groupwise_means.values
 
         if link_fn is None:
             return groupwise_means
@@ -172,10 +168,6 @@ def closedform_glm_var(
                 weighted_variance(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
             ], dim="group")
             groupwise_variance = groupwise_variance.values
-
-        # # clipping
-        # groupwise_variance = np.nextafter(0, 1, out=groupwise_variance, where=groupwise_variance == 0,
-        #                                   dtype=groupwise_variance.dtype)
 
         if link_fn is None:
             return groupwise_variance
