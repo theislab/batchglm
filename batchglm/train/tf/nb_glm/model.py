@@ -8,7 +8,6 @@ import tensorflow as tf
 import numpy as np
 
 from .external import AbstractEstimator
-from .external import nb_utils
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
@@ -86,14 +85,16 @@ def apply_constraints(
     """ Iteratively build depend variables from other variables via constraints
 
     :type var_all: object
-    :param constraints: Array with constraints in rows and model parameters in columns.
-        Each constraint contains non-zero entries for the a of parameters that
-        has to sum to zero. This constraint is enforced by binding one parameter
-        to the negative sum of the other parameters, effectively representing that
-        parameter as a function of the other parameters. This dependent
-        parameter is indicated by a -1 in this array, the independent parameters
-        of that constraint (which may be dependent at an earlier constraint)
-        are indicated by a 1.
+    :param constraints: np.ndarray (constraints on model x model parameters)
+            Constraints for a submodel (dispersion or location).
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
     :param var_all: Variable tensor features x independent parameters.
         All model parameters.
     :param var_all: Variable tensor features x independent parameters.
@@ -160,10 +161,40 @@ class BasicModelGraph:
             dtype,
             size_factors=None
     ):
-        dist_estim = nb_utils.NegativeBinomial(mean=tf.exp(tf.gather(a, 0)),
-                                               r=tf.exp(tf.gather(b, 0)),
-                                               name="dist_estim")
+        """
 
+        :param X: tensor (observations x features)
+            The input data.
+        :param design_loc: Some matrix format (observations x mean model parameters)
+            The location design model. Optional if already specified in `data`
+        :param design_scale: Some matrix format (observations x dispersion model parameters)
+            The scale design model. Optional if already specified in `data`
+        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for location model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for scale model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param b: tf.Variable or tensor (dispersion model size x features)
+            Dispersion model variables.
+        :param dtype: Precision used in tensorflow.
+        :param size_factors: tensor (observations x features)
+            Constant scaling factors for mean model, such as library size factors.
+        """
         # Define first layer of computation graph on identifiable variables
         # to yield dependent set of parameters of model for each location
         # and scale model.
@@ -185,7 +216,8 @@ class BasicModelGraph:
             log_r = tf_clip_param(log_r, "log_r")
             r = tf.exp(log_r)
 
-        dist_obs = nb_utils.NegativeBinomial(mean=mu, r=r, name="dist_obs")
+        with tf.name_scope("sigma2"):
+            sigma2 = mu + tf.multiply(tf.square(mu), r)
 
         with tf.name_scope("log_probs"):
             log_r_plus_mu = tf.log(r+mu)
@@ -193,27 +225,19 @@ class BasicModelGraph:
                      tf.math.lgamma(X+1) - tf.math.lgamma(r) + \
                      tf.multiply(X, log_mu - log_r_plus_mu) + \
                      tf.multiply(r, log_r - log_r_plus_mu)
-            #log_probs = dist_obs.log_prob(X)
             log_probs = tf_clip_param(log_probs, "log_probs")
 
         with tf.name_scope("probs"):
             probs = tf.exp(log_probs)
-            #probs = dist_obs.prob(X)
             probs = tf_clip_param(probs, "probs")
 
         self.X = X
         self.design_loc = design_loc
         self.design_scale = design_scale
 
-        self.dist_estim = dist_estim
-        self.mu_estim = dist_estim.mean()
-        self.r_estim = dist_estim.r
-        self.sigma2_estim = dist_estim.variance()
-
-        self.dist_obs = dist_obs
         self.mu = mu
         self.r = r
-        self.sigma2 = dist_obs.variance()
+        self.sigma2 = sigma2
 
         self.probs = probs
         self.log_probs = log_probs
@@ -246,51 +270,47 @@ class ModelVars:
 
     def __init__(
             self,
-            init_dist: nb_utils.NegativeBinomial,
             dtype,
-            num_design_loc_params,
-            num_design_scale_params,
-            num_features,
-            init_a=None,
-            init_b=None,
+            init_a,
+            init_b,
             constraints_loc=None,
             constraints_scale=None,
             name="ModelVars",
     ):
+        """
+
+        :param dtype: Precision used in tensorflow.
+        :param init_a: nd.array (mean model size x features)
+            Initialisation for all parameters of mean model.
+        :param init_b: nd.array (dispersion model size x features)
+            Initialisation for all parameters of dispersion model.
+        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for location model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for scale model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param name: tensorflow subgraph name.
+        """
         with tf.name_scope(name):
             with tf.name_scope("initialization"):
 
-                if init_a is None:
-                    # initialize with observed mean over all observations
-                    intercept = tf.log(init_dist.mean())
-                    slope = tf.random_uniform(
-                        tf.TensorShape([num_design_loc_params - 1, num_features]),
-                        minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
-                        maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
-                        dtype=dtype
-                    )
-                    init_a = tf.concat([
-                        intercept,
-                        slope,
-                    ], axis=-2)
-                else:
-                    init_a = tf.convert_to_tensor(init_a, dtype=dtype)
-
-                if init_b is None:
-                    # initialize with observed variance over all observations
-                    intercept = tf.log(init_dist.r)
-                    slope = tf.random_uniform(
-                        tf.TensorShape([num_design_scale_params - 1, num_features]),
-                        minval=np.nextafter(0, 1, dtype=dtype.as_numpy_dtype),
-                        maxval=np.sqrt(np.nextafter(0, 1, dtype=dtype.as_numpy_dtype)),
-                        dtype=dtype
-                    )
-                    init_b = tf.concat([
-                        intercept,
-                        slope,
-                    ], axis=-2)
-                else:
-                    init_b = tf.convert_to_tensor(init_b, dtype=dtype)
+                init_a = tf.convert_to_tensor(init_a, dtype=dtype)
+                init_b = tf.convert_to_tensor(init_b, dtype=dtype)
 
                 init_a = tf_clip_param(init_a, "a")
                 init_b = tf_clip_param(init_b, "b")

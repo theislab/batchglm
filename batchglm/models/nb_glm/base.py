@@ -76,25 +76,27 @@ class InputData(NegativeBinomialInputData):
         Create a new InputData object.
 
         :param data: Some data object.
-
-        Can be either:
-            - np.ndarray: NumPy array containing the raw data
-            - anndata.AnnData: AnnData object containing the count data and optional the design models
-                stored as data.obsm[design_loc] and data.obsm[design_scale]
-            - xr.DataArray: DataArray of shape ("observations", "features") containing the raw data
-            - xr.Dataset: Dataset containing the raw data as data["X"] and optional the design models
-                stored as data[design_loc] and data[design_scale]
-        :param design_loc: Some matrix containing the location design model.
-            Optional, if already specified in `data`
-        :param design_loc_names: (optional) names of the design_loc parameters.
+            Can be either:
+                - np.ndarray: NumPy array containing the raw data
+                - anndata.AnnData: AnnData object containing the count data and optional the design models
+                    stored as data.obsm[design_loc] and data.obsm[design_scale]
+                - xr.DataArray: DataArray of shape ("observations", "features") containing the raw data
+                - xr.Dataset: Dataset containing the raw data as data["X"] and optional the design models
+                    stored as data[design_loc] and data[design_scale]
+        :param design_loc: Some matrix format (observations x mean model parameters)
+            The location design model. Optional if already specified in `data`
+        :param design_loc_names: (optional)
+            Names of the design_loc parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
-        :param design_scale: Some matrix containing the scale design model.
-            Optional, if already specified in `data`
-        :param design_scale_names: (optional) names of the design_scale parameters.
+        :param design_scale: Some matrix format (observations x dispersion model parameters)
+            The scale design model. Optional if already specified in `data`
+        :param design_scale_names: (optional)
+            Names of the design_scale parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
-        :param constraints_loc: Constraints for location model.
+        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for location model.
             Array with constraints in rows and model parameters in columns.
             Each constraint contains non-zero entries for the a of parameters that 
             has to sum to zero. This constraint is enforced by binding one parameter
@@ -103,7 +105,8 @@ class InputData(NegativeBinomialInputData):
             parameter is indicated by a -1 in this array, the independent parameters
             of that constraint (which may be dependent at an earlier constraint)
             are indicated by a 1.
-        :param constraints_scale: Constraints for scale model.
+        :param constraints_scale: np.ndarray (constraints on dispersion model x dispersion model parameters)
+            Constraints for scale model.
             Array with constraints in rows and model parameters in columns.
             Each constraint contains non-zero entries for the a of parameters that 
             has to sum to zero. This constraint is enforced by binding one parameter
@@ -112,12 +115,18 @@ class InputData(NegativeBinomialInputData):
             parameter is indicated by a -1 in this array, the independent parameters
             of that constraint (which may be dependent at an earlier constraint)
             are indicated by a 1.
-        :param size_factors: Some size factor to scale the raw data in link-space.
-        :param observation_names: (optional) names of the observations.
-        :param feature_names: (optional) names of the features.
-        :param design_loc_key: Where to find `design_loc` if `data` is some anndata.AnnData or xarray.Dataset.
-        :param design_scale_key: Where to find `design_scale` if `data` is some anndata.AnnData or xarray.Dataset.
-        :param cast_dtype: If this option is set, all provided data will be casted to this data type.
+        :param size_factors: np.ndarray (observations)
+            Constant scale factors of the mean model in the linker space.
+        :param observation_names: (optional)
+            Names of the observations.
+        :param feature_names: (optional)
+            Names of the features.
+        :param design_loc_key:
+            Where to find `design_loc` if `data` is some anndata.AnnData or xarray.Dataset.
+        :param design_scale_key:
+            Where to find `design_scale` if `data` is some anndata.AnnData or xarray.Dataset.
+        :param cast_dtype:
+            If this option is set, all provided data will be casted to this data type.
         :return: InputData object
         """
         retval = super(InputData, cls).new(

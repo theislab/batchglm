@@ -87,8 +87,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self,
             input_data: InputData,
             batch_size: int = 500,
-            init_model: Model = None,
             graph: tf.Graph = None,
+            init_model: Model = None,
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
@@ -101,13 +101,15 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         """
         Create a new Estimator
 
-        :param input_data: The input data
-        :param batch_size: The batch size to use for minibatch SGD.
-            Defaults to '500'
+        :param input_data: InputData
+            The input data
+        :param batch_size: int
+            Size of mini-batches used.
         :param graph: (optional) tf.Graph
-        :param init_model: (optional) If provided, this model will be used to initialize this Estimator.
-        :param init_a: (Optional) Low-level initial values for a.
-            Can be:
+        :param init_model: (optional)
+            If provided, this model will be used to initialize this Estimator.
+        :param init_a: (Optional)
+            Low-level initial values for a. Can be:
 
             - str:
                 * "auto": automatically choose best initialization
@@ -116,8 +118,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 * "init_model": initialize with another model (see `ìnit_model` parameter)
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'a'
-        :param init_b: (Optional) Low-level initial values for b
-            Can be:
+        :param init_b: (Optional)
+            Low-level initial values for b. Can be:
 
             - str:
                 * "auto": automatically choose best initialization
@@ -126,8 +128,14 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 * "init_model": initialize with another model (see `ìnit_model` parameter)
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'b'
-        :param model: (optional) EstimatorGraph to use. Basically for debugging.
-        :param quick_scale: `scale` will be fitted faster and maybe less accurate.
+        :param quick_scale: bool
+            Whether `scale` will be fitted faster and maybe less accurate.
+        :param model: EstimatorGraph
+            EstimatorGraph to use. Basically for debugging.
+        :param provide_optimizers:
+        :param termination_type:
+        :param extended_summary:
+        :param dtype: Precision used in tensorflow.
 
         Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param extended_summary: Include detailed information in the summaries.

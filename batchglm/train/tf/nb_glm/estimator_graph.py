@@ -14,7 +14,7 @@ from .model import BasicModelGraph, ModelVars
 from .model import param_bounds
 
 from .external import TFEstimatorGraph
-from .external import nb_utils, train_utils, op_utils
+from .external import train_utils, op_utils
 from .external import pkg_constants
 from .hessians import Hessians
 from .jacobians import Jacobians
@@ -55,7 +55,41 @@ class FullDataModelGraph:
             train_b,
             dtype
     ):
-        num_features = model_vars.a.shape[-1]
+        """
+        :param sample_indices:
+            TODO
+        :param fetch_fn:
+            TODO
+        :param batch_size: int
+            Size of mini-batches used.
+        :param model_vars: ModelVars
+            Variables of model. Contains tf.Variables which are optimized.
+        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for location model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for scale model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param train_mu: bool
+            Whether to train mean model. If False, the initialisation is kept.
+        :param train_r: bool
+            Whether to train dispersion model. If False, the initialisation is kept.
+        :param dtype: Precision used in tensorflow.
+        """
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
 
         batched_data = dataset.batch(batch_size)
@@ -161,12 +195,6 @@ class FullDataModelGraph:
 
         self.batched_data = batched_data
 
-        self.dist_estim = model.dist_estim
-        self.mu_estim = model.mu_estim
-        self.r_estim = model.r_estim
-        self.sigma2_estim = model.sigma2_estim
-
-        self.dist_obs = model.dist_obs
         self.mu = model.mu
         self.r = model.r
         self.sigma2 = model.sigma2
@@ -228,6 +256,55 @@ class EstimatorGraph(TFEstimatorGraph):
             extended_summary=False,
             dtype="float32"
     ):
+        """
+
+        :param fetch_fn:
+            TODO
+        :param feature_isnonzero:
+            Whether all observations of a feature are zero. Features for which this
+            is the case are not fitted.
+        :param num_observations: int
+            Number of observations.
+        :param num_features: int
+            Number of features.
+        :param num_design_loc_params: int
+            Number of parameters per feature in mean model.
+        :param num_design_scale_params: int
+            Number of parameters per feature in scale model.
+        :param graph: tf.Graph
+        :param batch_size: int
+            Size of mini-batches used.
+        :param init_a: nd.array (mean model size x features)
+            Initialisation for all parameters of mean model.
+        :param init_b: nd.array (dispersion model size x features)
+            Initialisation for all parameters of dispersion model.
+        :param constraints_loc: Constraints for location model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param constraints_scale: Constraints for scale model.
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1.
+        :param train_mu: bool
+            Whether to train mean model. If False, the initialisation is kept.
+        :param train_r: bool
+            Whether to train dispersion model. If False, the initialisation is kept.
+        :param provide_optimizers:
+        :param termination_type:
+        :param extended_summary:
+        :param dtype: Precision used in tensorflow.
+        """
         super().__init__(graph)
         self.num_observations = num_observations
         self.num_features = num_features
@@ -260,28 +337,8 @@ class EstimatorGraph(TFEstimatorGraph):
                 batch_sample_index, batch_data = iterator.get_next()
                 (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
-            init_dist = nb_utils.NegativeBinomial(
-                mean=tf.random_uniform(
-                    minval=10,
-                    maxval=1000,
-                    shape=[1, num_features],
-                    dtype=dtype
-                ),
-                r=tf.random_uniform(
-                    minval=1,
-                    maxval=10,
-                    shape=[1, num_features],
-                    dtype=dtype
-                ),
-            )
-            assert init_dist.r.shape == [1, num_features]
-
             model_vars = ModelVars(
-                init_dist=init_dist,
                 dtype=dtype,
-                num_design_loc_params=num_design_loc_params,
-                num_design_scale_params=num_design_scale_params,
-                num_features=num_features,
                 init_a=init_a,
                 init_b=init_b,
                 constraints_loc=constraints_loc,

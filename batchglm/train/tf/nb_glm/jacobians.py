@@ -38,7 +38,7 @@ def _coef_invariant_a(
         Value of mean model by observation and feature.
     :param r: tf.tensor observations x features
         Value of dispersion model by observation and feature.
-    :param dtype: dtype
+
     :return const: tf.tensor observations x features
         Coefficient invariant terms of hessian of
         given observations and features.
@@ -84,6 +84,7 @@ def _coef_invariant_b(
         Value of mean model by observation and feature.
     :param r: tf.tensor observations x features
         Value of dispersion model by observation and feature.
+
     :return const: tf.tensor observations x features
         Coefficient invariant terms of hessian of
         given observations and features.
@@ -131,10 +132,12 @@ class Jacobians:
 
         :param batched_data:
             Dataset iterator over mini-batches of data (used for training) or tf.Tensors of mini-batch.
-        :param sample_indices: Indices of samples to be used.
+        :param sample_indices:
+            Indices of samples to be used.
         :param batch_model: BasicModelGraph instance
             Allows evaluation of jacobian via tf.gradients as it contains model graph.
-        :param constraints_loc: Constraints for location model.
+        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for location model.
             Array with constraints in rows and model parameters in columns.
             Each constraint contains non-zero entries for the a of parameters that
             has to sum to zero. This constraint is enforced by binding one parameter
@@ -143,7 +146,8 @@ class Jacobians:
             parameter is indicated by a -1 in this array, the independent parameters
             of that constraint (which may be dependent at an earlier constraint)
             are indicated by a 1.
-        :param constraints_scale: Constraints for scale model.
+        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
+            Constraints for scale model.
             Array with constraints in rows and model parameters in columns.
             Each constraint contains non-zero entries for the a of parameters that
             has to sum to zero. This constraint is enforced by binding one parameter
@@ -152,6 +156,7 @@ class Jacobians:
             parameter is indicated by a -1 in this array, the independent parameters
             of that constraint (which may be dependent at an earlier constraint)
             are indicated by a 1.
+        :param dtype: Precision used in tensorflow.
         :param mode: str
             Mode by with which hessian is to be evaluated,
             "analytic" uses a closed form solution of the jacobian,
