@@ -3,9 +3,8 @@ from typing import Union
 import numpy as np
 import xarray as xr
 
-from .external import groupwise_solve_lm
+from .external import closedform_glm_mean, groupwise_solve_lm
 from .external import weighted_mean
-from .external import closedform_glm_mean
 
 
 def closedform_nb_glm_logmu(

@@ -3,17 +3,16 @@ from typing import List
 import unittest
 import logging
 
-import numpy as np
 import scipy.sparse
 
 import batchglm.api as glm
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 
-glm.setup_logging(verbosity="INFO", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.INFO)
+glm.setup_logging(verbosity="ERROR", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 
-def estimate(input_data: InputData_NBGLM):
+def estimate(input_data: InputData):
     estimator = Estimator(
         input_data,
         batch_size=500,
@@ -71,7 +70,7 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
         X = scipy.sparse.csr_matrix(self.sim.X)
         design_loc = self.sim.design_loc
         design_scale = self.sim.design_scale
-        idata = InputData_NBGLM.new(
+        idata = InputData.new(
             data=X,
             design_loc=design_loc,
             design_scale=design_scale,
@@ -85,7 +84,7 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
         adata = self.sim.data_to_anndata()
         design_loc = self.sim.design_loc
         design_scale = self.sim.design_scale
-        idata = InputData_NBGLM.new(
+        idata = InputData.new(
             data=adata,
             design_loc=design_loc,
             design_scale=design_scale,
@@ -99,7 +98,7 @@ class NB_GLM_Test_DataTypes(unittest.TestCase):
         adata.X = scipy.sparse.csr_matrix(adata.X)
         design_loc = self.sim.design_loc
         design_scale = self.sim.design_scale
-        idata = InputData_NBGLM.new(
+        idata = InputData.new(
             data=adata,
             design_loc=design_loc,
             design_scale=design_scale,

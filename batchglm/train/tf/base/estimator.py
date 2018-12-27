@@ -9,8 +9,8 @@ import numpy as np
 import xarray as xr
 import tensorflow as tf
 
-from .external import BasicEstimator, pkg_constants, stat_utils
-from .train import StopAtLossHook, TimedRunHook
+from .external import _Estimator_Base, pkg_constants, stat_utils
+from batchglm.train.tf.train import StopAtLossHook, TimedRunHook
 
 
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
@@ -26,7 +26,7 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
         self.graph = graph
 
 
-class TFEstimator(BasicEstimator, metaclass=abc.ABCMeta):
+class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
     model: TFEstimatorGraph
     session: tf.Session

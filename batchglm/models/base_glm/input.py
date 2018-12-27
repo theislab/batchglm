@@ -9,18 +9,18 @@ import numpy as np
 import pandas as pd
 
 from .utils import parse_design
-from .external import BasicInputData
+from .external import _InputData_Base, INPUT_DATA_PARAMS
 
 import patsy
 
-INPUT_DATA_PARAMS = {
-    "X": ("observations", "features"),
+INPUT_DATA_PARAMS = INPUT_DATA_PARAMS
+INPUT_DATA_PARAMS.update({
     "design_loc": ("observations", "design_loc_params"),
     "design_scale": ("observations", "design_scale_params"),
     "size_factors": ("observations",),
-}
+})
 
-class InputData_GLM(BasicInputData):
+class _InputData_GLM(_InputData_Base):
     """
     Input data for Generalized Linear Models (GLMs).
     """
@@ -105,7 +105,7 @@ class InputData_GLM(BasicInputData):
             If this option is set, all provided data will be casted to this data type.
         :return: InputData object
         """
-        retval = super(InputData_GLM, cls).new(
+        retval = super(_InputData_GLM, cls).new(
             data=data,
             observation_names=observation_names,
             feature_names=feature_names,

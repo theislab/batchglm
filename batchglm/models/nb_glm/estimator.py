@@ -6,7 +6,7 @@ except ImportError:
     anndata = None
 
 from .model import Model, XArrayModel, MODEL_PARAMS
-from .external import BasicEstimator
+from .external import _Estimator_Base
 
 ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
 ESTIMATOR_PARAMS.update({
@@ -16,7 +16,7 @@ ESTIMATOR_PARAMS.update({
     "fisher_inv": ("features", "delta_var0", "delta_var1"),
 })
 
-class AbstractEstimator(Model, BasicEstimator, metaclass=abc.ABCMeta):
+class AbstractEstimator(Model, _Estimator_Base, metaclass=abc.ABCMeta):
 
     @classmethod
     def param_shapes(cls) -> dict:

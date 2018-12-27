@@ -4,14 +4,14 @@ import unittest
 import logging
 
 import batchglm.api as glm
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 
-glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.INFO)
+glm.setup_logging(verbosity="ERROR", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 
 def estimate(
-        input_data: InputData_NBGLM,
+        input_data: InputData,
         algo,
         batched,
         quick_scale,

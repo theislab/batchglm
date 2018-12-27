@@ -16,8 +16,9 @@ except ImportError:
 from .estimator_graph import EstimatorGraph
 from .model import ESTIMATOR_PARAMS
 from .model import np_clip_param
-from .external import AbstractEstimator, XArrayEstimatorStore, InputData_NBGLM, Model, MonitoredTFEstimator
-from .external import data_utils, nb_glm_utils
+from .external import AbstractEstimator, InputData, Model, MonitoredTFEstimator, XArrayEstimatorStore
+from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi, groupwise_solve_lm
+from .external import data_utils
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            input_data: InputData_NBGLM,
+            input_data: InputData,
             batch_size: int = 500,
             graph: tf.Graph = None,
             init_model: Model = None,
@@ -189,7 +190,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
                 if init_a.lower() == "closed_form":
                     try:
-                        groupwise_means, init_a, rmsd_a = nb_glm_utils.closedform_nb_glm_logmu(
+                        groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
                             X=input_data.X,
                             design_loc=input_data.design_loc,
                             constraints=input_data.constraints_loc,
@@ -233,7 +234,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                         init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
                         init_mu = np.exp(input_data.design_loc.dot(init_a_xr))
 
-                        groupwise_scales, init_b, rmsd_b = nb_glm_utils.closedform_nb_glm_logphi(
+                        groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
                             X=input_data.X,
                             mu=init_mu,
                             design_scale=input_data.design_scale,
@@ -503,7 +504,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           **kwargs)
 
     @property
-    def input_data(self) -> InputData_NBGLM:
+    def input_data(self) -> InputData:
         return self._input_data
 
     def train_sequence(self, training_strategy=TrainingStrategy.AUTO):

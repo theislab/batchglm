@@ -4,14 +4,14 @@ import time
 
 import batchglm.api as glm
 import batchglm.data as data_utils
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
 import batchglm.pkg_constants as pkg_constants
 
-glm.setup_logging(verbosity="INFO", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.INFO)
+glm.setup_logging(verbosity="ERROR", stream="STDOUT")
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 
-def estimate(input_data: InputData_NBGLM):
+def estimate(input_data: InputData):
     estimator = Estimator(input_data, termination_type="by_feature")
     estimator.initialize()
     estimator.train_sequence(training_strategy=[
@@ -51,7 +51,7 @@ class NB_GLM_Test_Hessians(unittest.TestCase):
         design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
-        input_data = InputData_NBGLM.new(sim.X, design_loc=design_loc, design_scale=design_scale)
+        input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 
         pkg_constants.HESSIAN_MODE = "obs_batched"
         self.estimator_ob = estimate(input_data)

@@ -1,7 +1,8 @@
 import abc
 
+from .external import _Model_Base
 
-class BasicGLM(metaclass=abc.ABCMeta):
+class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     """
     Generalized Linear Model base class.
 

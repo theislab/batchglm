@@ -8,8 +8,8 @@ except ImportError:
 import xarray as xr
 import numpy as np
 
-from .input import InputData_NBGLM, INPUT_DATA_PARAMS
-from .external import BasicGLM, BasicModel
+from .input import InputData, INPUT_DATA_PARAMS
+from .external import _Model_GLM
 
 # Define distribution parameters:
 MODEL_PARAMS = INPUT_DATA_PARAMS.copy()
@@ -26,7 +26,7 @@ MODEL_PARAMS.update({
     "par_link_scale": ("design_scale_params", "features"),
 })
 
-class Model(BasicGLM, BasicModel, metaclass=abc.ABCMeta):
+class Model(_Model_GLM, metaclass=abc.ABCMeta):
     """
     Generalized Linear Model (GLM) with negative binomial noise.
     """
@@ -37,7 +37,7 @@ class Model(BasicGLM, BasicModel, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def input_data(self) -> InputData_NBGLM:
+    def input_data(self) -> InputData:
         pass
 
     @property
@@ -165,15 +165,15 @@ def model_from_params(*args, **kwargs) -> Model:
 
 
 class XArrayModel(Model):
-    _input_data: InputData_NBGLM
+    _input_data: InputData
     params: xr.Dataset
 
-    def __init__(self, input_data: InputData_NBGLM, params: xr.Dataset):
+    def __init__(self, input_data: InputData, params: xr.Dataset):
         self._input_data = input_data
         self.params = params
 
     @property
-    def input_data(self) -> InputData_NBGLM:
+    def input_data(self) -> InputData:
         return self._input_data
 
     @property
