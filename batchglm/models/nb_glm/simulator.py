@@ -110,7 +110,7 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
     def generate_params(
             self,
             *args,
-            rand_fn_ave=lambda shape: np.random.poisson(2, shape)+1,
+            rand_fn_ave=lambda shape: np.random.poisson(500, shape)+1,
             rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
             rand_fn_loc=None,
             rand_fn_scale=None,

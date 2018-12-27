@@ -4,16 +4,15 @@ import unittest
 import logging
 
 import numpy as np
-import scipy.sparse
 
 import batchglm.api as glm
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
 
 glm.setup_logging(verbosity="INFO", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate_byfeature(input_data: InputData, quick_scale):
+def estimate_byfeature(input_data: InputData_NBGLM, quick_scale):
     estimator = Estimator(
         input_data,
         batch_size=500,
@@ -25,7 +24,7 @@ def estimate_byfeature(input_data: InputData, quick_scale):
     estimator.train_sequence(training_strategy=[
             {
                 "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
+                "stopping_criteria": 1e-4,
                 "use_batching": False,
                 "optim_algo": "Newton",
             },
@@ -33,7 +32,7 @@ def estimate_byfeature(input_data: InputData, quick_scale):
 
     return estimator
 
-def estimate_global(input_data: InputData, quick_scale):
+def estimate_global(input_data: InputData_NBGLM, quick_scale):
     estimator = Estimator(
         input_data,
         batch_size=500,
@@ -45,7 +44,7 @@ def estimate_global(input_data: InputData, quick_scale):
     estimator.train_sequence(training_strategy=[
             {
                 "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-6,
+                "stopping_criteria": 1e-4,
                 "loss_window_size": 20,
                 "use_batching": False,
                 "optim_algo": "Newton",

@@ -4,29 +4,29 @@ import time
 
 import batchglm.api as glm
 import batchglm.data as data_utils
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
 import batchglm.pkg_constants as pkg_constants
 
-glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
+glm.setup_logging(verbosity="INFO", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate(input_data: InputData):
-    estimator = Estimator(input_data)
+def estimate(input_data: InputData_NBGLM):
+    estimator = Estimator(input_data, termination_type="by_feature")
     estimator.initialize()
     estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 1,
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e-2,
+                "learning_rate": 0.1,
+                "convergence_criteria": "all_converged_ll",
+                "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "ADAM",
+                "optim_algo": "ADAM"  # Newton is very slow if hessian is evaluated through tf
             },
         ])
     return estimator
 
 
-class NB_GLM_hessian_Test(unittest.TestCase):
+class NB_GLM_Test_Hessians(unittest.TestCase):
     sim: Simulator
     estimator_fw: Estimator
     estimator_ow: Estimator
@@ -40,9 +40,6 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         pass
 
     def test_compute_hessians(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-
         num_observations = 500
         num_conditions = 2
 
@@ -54,17 +51,7 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
-        input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
-
-        pkg_constants.HESSIAN_MODE = "tf"
-        self.estimator_tf = estimate(input_data)
-        t0_tf = time.time()
-        # tensorflow computes the negative hessian as the
-        # objective is the negative log-likelihood.
-        self.H_tf = self.estimator_tf.hessians
-        t1_tf = time.time()
-        self.estimator_tf.close_session()
-        self.t_tf = t1_tf - t0_tf
+        input_data = InputData_NBGLM.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 
         pkg_constants.HESSIAN_MODE = "obs_batched"
         self.estimator_ob = estimate(input_data)
@@ -81,6 +68,16 @@ class NB_GLM_hessian_Test(unittest.TestCase):
         t1_fw = time.time()
         self.estimator_fw.close_session()
         self.t_fw = t1_fw - t0_fw
+
+        pkg_constants.HESSIAN_MODE = "tf"
+        self.estimator_tf = estimate(input_data)
+        t0_tf = time.time()
+        # tensorflow computes the negative hessian as the
+        # objective is the negative log-likelihood.
+        self.H_tf = self.estimator_tf.hessians
+        t1_tf = time.time()
+        self.estimator_tf.close_session()
+        self.t_tf = t1_tf - t0_tf
 
         i = 1
         print("\n")

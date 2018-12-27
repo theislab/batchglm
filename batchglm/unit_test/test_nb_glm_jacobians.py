@@ -6,14 +6,14 @@ import numpy as np
 
 import batchglm.api as glm
 import batchglm.data as data_utils
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
 import batchglm.pkg_constants as pkg_constants
 
 glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
-def estimate(input_data: InputData, quick_scale):
+def estimate(input_data: InputData_NBGLM, quick_scale):
     estimator = Estimator(input_data, quick_scale=quick_scale)
     estimator.initialize()
     # Do not train, evalute at initialization!
@@ -24,7 +24,7 @@ def compare_jacs(sim, design, quick_scale):
     design_loc = data_utils.design_matrix(sample_description, formula=design)
     design_scale = data_utils.design_matrix(sample_description, formula=design)
 
-    input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
+    input_data = InputData_NBGLM.new(sim.X, design_loc=design_loc, design_scale=design_scale)
 
     print("--- Running analytic Jacobian test")
     pkg_constants.JACOBIAN_MODE = "analytic"
@@ -63,7 +63,7 @@ def compare_jacs(sim, design, quick_scale):
     assert max_rel_dev < 1e-10
     return True
 
-class NB_GLM_jac_Test(unittest.TestCase):
+class NB_GLM_Test_Jacobians(unittest.TestCase):
     def setUp(self):
         pass
 
