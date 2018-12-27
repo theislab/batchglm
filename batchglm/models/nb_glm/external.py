@@ -1,5 +1,5 @@
 from batchglm.models import BasicEstimator, BasicInputData, BasicModel, BasicSimulator
-from batchglm.models.glm import parse_design, BasicGLM
+from batchglm.models.glm import parse_design, BasicGLM, InputData_GLM, INPUT_DATA_PARAMS
 import batchglm.utils.random as rand_utils
 import batchglm.data as data_utils
 

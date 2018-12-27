@@ -12,7 +12,7 @@ try:
 except ImportError:
     anndata = None
 
-from .external import pkg_constants
+from .external import pkg_constants, data_utils
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,46 @@ class BasicInputData:
         raise NotImplementedError()
 
     @classmethod
-    @abc.abstractmethod
-    def new(cls, *args, **kwargs):
-        pass
+    def new(cls, data, observation_names=None, feature_names=None, cast_dtype=None):
+        """
+        Create a new InputData object.
+
+        :param data: Some data object.
+
+        Can be either:
+            - np.ndarray: NumPy array containing the raw data
+            - anndata.AnnData: AnnData object containing the count data and optional the design models
+                stored as data.obsm[design_loc] and data.obsm[design_scale]
+            - xr.DataArray: DataArray of shape ("observations", "features") containing the raw data
+            - xr.Dataset: Dataset containing the raw data as data["X"] and optional the design models
+                stored as data[design_loc] and data[design_scale]
+        :param observation_names: (optional) names of the observations.
+        :param feature_names: (optional) names of the features.
+        :param cast_dtype: data type of all data; should be either float32 or float64
+        :return: InputData object
+        """
+        X = data_utils.xarray_from_data(data)
+
+        if cast_dtype is not None:
+            X = X.astype(cast_dtype)
+            # X = X.chunk({"observations": 1})
+
+        retval = cls(xr.Dataset({
+            "X": X,
+        }, coords={
+            "feature_allzero": ~X.any(dim="observations")
+        }))
+        if observation_names is not None:
+            retval.observations = observation_names
+        elif "observations" not in retval.data.coords:
+            retval.observations = retval.data.coords["observations"]
+
+        if feature_names is not None:
+            retval.features = feature_names
+        elif "features" not in retval.data.coords:
+            retval.features = retval.data.coords["features"]
+
+        return retval
 
     @classmethod
     def from_file(cls, path, group=""):
@@ -79,12 +116,71 @@ class BasicInputData:
             engine=pkg_constants.XARRAY_NETCDF_ENGINE
         )
 
+    @property
+    def X(self) -> xr.DataArray:
+        return self.data.X
+
+    @X.setter
+    def X(self, data):
+        self.data["X"] = data
+
+    @property
+    def num_observations(self):
+        return self.data.dims["observations"]
+
+    @property
+    def num_features(self):
+        return self.data.dims["features"]
+
+    @property
+    def observations(self):
+        return self.data.coords["observations"]
+
+    @observations.setter
+    def observations(self, data):
+        self.data.coords["observations"] = data
+
+    @property
+    def features(self):
+        return self.data.coords["features"]
+
+    @features.setter
+    def features(self, data):
+        self.data.coords["features"] = data
+
+    @property
+    def feature_isnonzero(self):
+        return ~self.feature_isallzero
+
+    @property
+    def feature_isallzero(self):
+        return self.data.coords["feature_allzero"]
+
+    def fetch_X(self, idx):
+        return self.X[idx].values
+
+    def set_chunk_size(self, cs: int):
+        self.X = self.X.chunk({"observations": cs})
+
+    def __copy__(self):
+        return type(self)(self.data)
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            data = self.data.isel(observations=item)
+        elif isinstance(item, tuple):
+            data = self.data.isel(observations=item[0], features=item[1])
+        else:
+            data = self.data.isel(observations=item)
+
+        return type(self)(data)
+
     def __str__(self):
         return "[%s.%s object at %s]: data=%s" % (
             type(self).__module__,
             type(self).__name__,
             hex(id(self)),
-            str(self.data).replace("\n", "\n    "),
+            self.data
         )
 
     def __repr__(self):

@@ -1,23 +1,17 @@
 from typing import List
 
-import os
-# import sys
 import unittest
-import tempfile
 import logging
 
-import numpy as np
-import scipy.sparse
-
 import batchglm.api as glm
-from batchglm.api.models.nb_glm import Simulator, Estimator, InputData
+from batchglm.api.models.nb_glm import Simulator, Estimator, InputData_NBGLM
 
 glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.INFO)
 
 
 def estimate(
-        input_data: InputData,
+        input_data: InputData_NBGLM,
         algo,
         batched,
         quick_scale,

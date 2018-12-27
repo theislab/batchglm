@@ -73,7 +73,7 @@ def groupwise_solve_lm(
     if constraints is not None:
         design_constraints = constraints.copy()
         # -1 in the constraint matrix is used to indicate which variable
-        # is made dependent so that the constrained is fullfilled.
+        # is made dependent so that the constrained is fulfilled.
         # This has to be rewritten here so that the design matrix is full rank
         # which is necessary so that it can be inverted for parameter
         # initialisation.

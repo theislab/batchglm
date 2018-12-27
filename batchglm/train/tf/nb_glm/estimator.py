@@ -13,12 +13,11 @@ try:
 except ImportError:
     anndata = None
 
+from .estimator_graph import EstimatorGraph
 from .model import ESTIMATOR_PARAMS
 from .model import np_clip_param
-
-from .external import AbstractEstimator, XArrayEstimatorStore, InputData, Model, MonitoredTFEstimator
+from .external import AbstractEstimator, XArrayEstimatorStore, InputData_NBGLM, Model, MonitoredTFEstimator
 from .external import data_utils, nb_glm_utils
-from .estimator_graph import EstimatorGraph
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +84,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: InputData_NBGLM,
             batch_size: int = 500,
             graph: tf.Graph = None,
             init_model: Model = None,
@@ -504,7 +503,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           **kwargs)
 
     @property
-    def input_data(self) -> InputData:
+    def input_data(self) -> InputData_NBGLM:
         return self._input_data
 
     def train_sequence(self, training_strategy=TrainingStrategy.AUTO):

@@ -8,7 +8,7 @@ except ImportError:
 import xarray as xr
 import numpy as np
 
-from .input import InputData, INPUT_DATA_PARAMS
+from .input import InputData_NBGLM, INPUT_DATA_PARAMS
 from .external import BasicGLM, BasicModel
 
 # Define distribution parameters:
@@ -37,7 +37,7 @@ class Model(BasicGLM, BasicModel, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def input_data(self) -> InputData:
+    def input_data(self) -> InputData_NBGLM:
         pass
 
     @property
@@ -165,15 +165,15 @@ def model_from_params(*args, **kwargs) -> Model:
 
 
 class XArrayModel(Model):
-    _input_data: InputData
+    _input_data: InputData_NBGLM
     params: xr.Dataset
 
-    def __init__(self, input_data: InputData, params: xr.Dataset):
+    def __init__(self, input_data: InputData_NBGLM, params: xr.Dataset):
         self._input_data = input_data
         self.params = params
 
     @property
-    def input_data(self) -> InputData:
+    def input_data(self) -> InputData_NBGLM:
         return self._input_data
 
     @property

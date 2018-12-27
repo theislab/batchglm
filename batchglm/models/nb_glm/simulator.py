@@ -4,9 +4,9 @@ import math
 import numpy as np
 import xarray as xr
 
-from .input import InputData
+from .input import InputData_NBGLM
 from .model import Model
-from .external import data_utils, BasicSimulator
+from .external import data_utils, rand_utils, BasicSimulator
 
 
 def generate_sample_description(
@@ -110,7 +110,8 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
     def generate_params(
             self,
             *args,
-            rand_fn=lambda shape: np.random.uniform(0.5, 2, shape),
+            rand_fn_ave=lambda shape: np.random.poisson(2, shape)+1,
+            rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
             rand_fn_loc=None,
             rand_fn_scale=None,
             **kwargs):
@@ -120,6 +121,8 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
         :param max_mean: maximum mean value
         :param min_r: minimum r value
         :param max_r: maximum r value
+        :param rand_fn_ave: function which generates random numbers for intercept.
+            Takes one location parameter of intercept distribution across features.
         :param rand_fn: random function taking one argument `shape`.
             default: rand_fn = lambda shape: np.random.uniform(0.5, 2, shape)
         :param rand_fn_loc: random function taking one argument `shape`.
@@ -153,9 +156,9 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
             dims=self.param_shapes()["a"],
             data=np.log(
                 np.concatenate([
-                    np.expand_dims(self.params["mu"], 0),
+                    np.expand_dims(rand_fn_ave(self.num_features), axis=0),  # intercept
                     rand_fn_loc((self.data.design_loc.shape[1] - 1, self.num_features))
-                ])
+                ], axis=0)
             ),
             coords={"design_loc_params": self.data.design_loc_params}
         )
@@ -163,9 +166,8 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
             dims=self.param_shapes()["b"],
             data=np.log(
                 np.concatenate([
-                    np.expand_dims(self.params["r"], 0),
-                    rand_fn_scale((self.data.design_scale.shape[1] - 1, self.num_features))
-                ])
+                    rand_fn_scale((self.data.design_scale.shape[1], self.num_features))
+                ], axis=0)
             ),
             coords={"design_scale_params": self.data.design_scale_params}
         )
@@ -177,8 +179,8 @@ class Simulator(Model, BasicSimulator, metaclass=abc.ABCMeta):
         )
 
     @property
-    def input_data(self) -> InputData:
-        return InputData.new(self.data)
+    def input_data(self) -> InputData_NBGLM:
+        return InputData_NBGLM.new(self.data)
 
     @property
     def design_loc(self):
