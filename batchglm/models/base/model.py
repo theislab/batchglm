@@ -132,3 +132,28 @@ class _Model_Base(metaclass=abc.ABCMeta):
 
     def __getitem__(self, item):
         return self.get(item)
+
+
+class _Model_XArray_Base():
+    _input_data: _InputData_Base
+    params: xr.Dataset
+
+    def __init__(self, input_data: _InputData_Base, params: xr.Dataset):
+        self._input_data = input_data
+        self.params = params
+
+    @property
+    def input_data(self) -> _InputData_Base:
+        return self._input_data
+
+    def __str__(self):
+        return "[%s.%s object at %s]: data=%s" % (
+            type(self).__module__,
+            type(self).__name__,
+            hex(id(self)),
+            self.params
+        )
+
+    def __repr__(self):
+        return self.__str__()
+

@@ -5,37 +5,22 @@ try:
 except ImportError:
     anndata = None
 
-from .model import Model, XArrayModel, MODEL_PARAMS
-from .external import _Estimator_Base
+from .model import Model, Model_XArray
+from .external import _Estimator_GLM, _EstimatorStore_XArray_GLM, ESTIMATOR_PARAMS
 
-ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
-ESTIMATOR_PARAMS.update({
-    "loss": (),
-    "gradient": ("features",),
-    "hessians": ("features", "delta_var0", "delta_var1"),
-    "fisher_inv": ("features", "delta_var0", "delta_var1"),
-})
 
-class AbstractEstimator(Model, _Estimator_Base, metaclass=abc.ABCMeta):
+class AbstractEstimator(Model, _Estimator_GLM, metaclass=abc.ABCMeta):
+    r"""
+    Estimator base class for generalized linear models (GLMs) with
+    negative binomial noise.
+    """
 
     @classmethod
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
 
-class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
-
-    def initialize(self, **kwargs):
-        raise NotImplementedError("This object only stores estimated values")
-
-    def train(self, **kwargs):
-        raise NotImplementedError("This object only stores estimated values")
-
-    def finalize(self, **kwargs) -> AbstractEstimator:
-        return self
-
-    def validate_data(self, **kwargs):
-        raise NotImplementedError("This object only stores estimated values")
+class EstimatorStore_XArray(_EstimatorStore_XArray_GLM, AbstractEstimator, Model_XArray):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data
@@ -44,24 +29,4 @@ class XArrayEstimatorStore(AbstractEstimator, XArrayModel):
         # training, such as the hessian.
         params = estim.to_xarray(["a", "b", "loss", "gradient", "hessians", "fisher_inv"], coords=input_data.data)
 
-        XArrayModel.__init__(self, input_data, params)
-
-    @property
-    def input_data(self):
-        return self._input_data
-
-    @property
-    def loss(self):
-        return self.params["loss"]
-
-    @property
-    def gradient(self):
-        return self.params["gradient"]
-
-    @property
-    def hessians(self):
-        return self.params["hessians"]
-
-    @property
-    def fisher_inv(self):
-        return self.params["fisher_inv"]
+        Model_XArray.__init__(self, input_data, params)

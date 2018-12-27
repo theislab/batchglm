@@ -1,4 +1,7 @@
-from batchglm.models.base import _Estimator_Base, _InputData_Base, _Model_Base, _Simulator_Base
+from batchglm.models.base import _Estimator_Base, _EstimatorStore_XArray_Base
+from batchglm.models.base import _InputData_Base
+from batchglm.models.base import _Model_Base, _Model_XArray_Base
+from batchglm.models.base import _Simulator_Base
 from batchglm.models.base import INPUT_DATA_PARAMS
 
 from batchglm.utils.linalg import groupwise_solve_lm

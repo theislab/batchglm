@@ -82,3 +82,25 @@ class _Estimator_Base(_Model_Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def gradient(self):
         pass
+
+
+class _EstimatorStore_XArray_Base():
+
+    def __init__(self):
+        pass
+
+    def initialize(self, **kwargs):
+        raise NotImplementedError("This object only stores estimated values")
+
+    def train(self, **kwargs):
+        raise NotImplementedError("This object only stores estimated values")
+
+    def finalize(self, **kwargs):
+        return self
+
+    def validate_data(self, **kwargs):
+        raise NotImplementedError("This object only stores estimated values")
+
+    @property
+    def input_data(self):
+        return self._input_data

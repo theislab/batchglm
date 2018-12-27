@@ -2,7 +2,7 @@ import numpy as np
 import xarray as xr
 
 from .input import InputData
-from .model import Model, XArrayModel
+from .model import Model
 from .external import data_utils, rand_utils, _Simulator_GLM
 
 

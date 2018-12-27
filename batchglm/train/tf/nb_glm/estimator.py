@@ -16,8 +16,8 @@ except ImportError:
 from .estimator_graph import EstimatorGraph
 from .model import ESTIMATOR_PARAMS
 from .model import np_clip_param
-from .external import AbstractEstimator, InputData, Model, MonitoredTFEstimator, XArrayEstimatorStore
-from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi, groupwise_solve_lm
+from .external import AbstractEstimator, InputData, Model, MonitoredTFEstimator, EstimatorStore_XArray
+from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 from .external import data_utils
 
 logger = logging.getLogger(__name__)
@@ -526,18 +526,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self.train(**d)
             logger.info("Training sequence #%d complete", idx + 1)
 
-    # @property
-    # def mu(self):
-    #     return self.to_xarray("mu")
-    #
-    # @property
-    # def r(self):
-    #     return self.to_xarray("r")
-    #
-    # @property
-    # def sigma2(self):
-    #     return self.to_xarray("sigma2")
-
     @property
     def a(self):
         return self.to_xarray("a", coords=self.input_data.data.coords)
@@ -572,7 +560,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     def finalize(self):
         logger.debug("Collect and compute ouptut")
-        store = XArrayEstimatorStore(self)
+        store = EstimatorStore_XArray(self)
         logger.debug("Closing session")
         self.close_session()
         return store

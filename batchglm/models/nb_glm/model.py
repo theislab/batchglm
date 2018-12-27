@@ -8,22 +8,14 @@ except ImportError:
 import xarray as xr
 import numpy as np
 
-from .input import InputData, INPUT_DATA_PARAMS
-from .external import _Model_GLM
+from .input import InputData
+from .external import _Model_GLM, _Model_XArray_GLM, MODEL_PARAMS
 
 # Define distribution parameters:
-MODEL_PARAMS = INPUT_DATA_PARAMS.copy()
+MODEL_PARAMS = MODEL_PARAMS.copy()
 MODEL_PARAMS.update({
     "mu": ("observations", "features"),
     "r": ("observations", "features"),
-    "sigma2": ("observations", "features"),
-    "probs": ("observations", "features"),
-    "log_probs": ("observations", "features"),
-    "log_likelihood": (),
-    "a": ("design_loc_params", "features"),
-    "b": ("design_scale_params", "features"),
-    "par_link_loc": ("design_loc_params", "features"),
-    "par_link_scale": ("design_scale_params", "features"),
 })
 
 class Model(_Model_GLM, metaclass=abc.ABCMeta):
@@ -164,25 +156,13 @@ def model_from_params(*args, **kwargs) -> Model:
     return XArrayModel(input_data, params)
 
 
-class XArrayModel(Model):
+class Model_XArray(_Model_XArray_GLM, Model):
     _input_data: InputData
     params: xr.Dataset
 
     def __init__(self, input_data: InputData, params: xr.Dataset):
-        self._input_data = input_data
-        self.params = params
-
-    @property
-    def input_data(self) -> InputData:
-        return self._input_data
-
-    @property
-    def a(self):
-        return self.params['a']
-
-    @property
-    def b(self):
-        return self.params['b']
+        super(_Model_XArray_GLM, self).__init__(input_data=input_data, params=params)
+        super(Model, self).__init__()
 
     def __str__(self):
         return "[%s.%s object at %s]: data=%s" % (

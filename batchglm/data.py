@@ -151,20 +151,6 @@ def design_matrix(
         return dmat
 
 
-#
-# def _factors(formula_like: Union[str, patsy.design_info.DesignInfo]):
-#     if isinstance(formula_like, str):
-#         desc = patsy.desc.ModelDesc.from_formula(formula_like)
-#
-#         factors = set()
-#         for l in [list(t.factors) for t in desc.rhs_termlist]:
-#             for i in l:
-#                 factors.add(i.name())
-#
-#         return factors
-#     else:
-#         return formula_like.term_names
-
 def sample_description_from_xarray(
         dataset: xr.Dataset,
         dim: str,
