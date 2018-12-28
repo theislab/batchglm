@@ -52,7 +52,6 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     _estims: List[_Estimator_GLM]
 
     def setUp(self):
-        self.simulate()
         self._estims = []
 
     def tearDown(self):
@@ -60,11 +59,11 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             e.estimator.close_session()
 
     @abc.abstractmethod
-    def simulate(self):
+    def get_simulator(self):
         pass
 
-    def _simulate(self, sim):
-        self.sim = sim
+    def simulate(self):
+        self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=2, num_conditions=2)
         self.sim.generate()
 

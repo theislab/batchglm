@@ -3,7 +3,7 @@ import unittest
 import logging
 
 import batchglm.api as glm
-from batchglm.api.models.nb_glm import Simulator, Estimator
+from batchglm.models.base_glm import _Estimator_GLM
 
 from .external import Test_Graph_GLM, _Test_Graph_GLM_Estim
 
@@ -18,8 +18,17 @@ class _Test_Graph_GLM_NB_Estim(_Test_Graph_GLM_Estim):
             simulator,
             quick_scale,
             termination,
-            algo
+            algo,
+            noise_model
     ):
+        if noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if noise_model=="nb":
+                from batchglm.api.models.nb_glm import Estimator
+            else:
+                raise ValueError("noise_model not recognized")
+
         batch_size = 10
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": False}
         provide_optimizers[algo.lower()] = True
@@ -37,12 +46,12 @@ class _Test_Graph_GLM_NB_Estim(_Test_Graph_GLM_Estim):
             algo=algo
         )
 
-class Test_Graph_GLM_NB(
+class Test_Graph_GLM_ALL(
     Test_Graph_GLM,
     unittest.TestCase
 ):
     """
-    Test whether training graph work.
+    Test whether training graphs work.
 
     Quick tests which simply passes small data sets through
     all possible training graphs to check whether there are graph
@@ -69,13 +78,19 @@ class Test_Graph_GLM_NB(
             - train a model only: test_batched_global_a_only()
             - train b model only: test_batched_global_b_only()
     """
-    _estims: List[Estimator]
+    noise_model: str
+    _estims: List[_Estimator_GLM]
 
-    def simulate1(self):
-        self._simulate1(sim=Simulator(num_observations=50, num_features=2))
+    def get_simulator(self):
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model == "nb":
+                from batchglm.api.models.nb_glm import Simulator
+            else:
+                raise ValueError("noise_model not recognized")
 
-    def simulate2(self):
-        self._simulate2(sim=Simulator(num_observations=50, num_features=2))
+        return Simulator(num_observations=50, num_features=2)
 
     def basic_test_one_algo(
             self,
@@ -89,7 +104,8 @@ class Test_Graph_GLM_NB(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             termination=termination,
-            algo=algo
+            algo=algo,
+            noise_model=self.noise_model
         )
         return self._basic_test_one_algo(
             estimator=estimator,
@@ -113,41 +129,54 @@ class Test_Graph_GLM_NB(
             algos=algos
     )
 
-    def test_full_byfeature_a_and_b(self):
+    def _test_full_byfeature(self):
+        self.simulate()
         super()._test_full_byfeature_a_and_b()
-
-    def test_full_byfeature_a_only(self):
         super()._test_full_byfeature_a_only()
-
-    def test_full_byfeature_b_only(self):
         super()._test_full_byfeature_b_only()
 
-    def test_batched_byfeature_a_and_b(self):
+    def _test_batched_byfeature(self):
+        self.simulate()
         super()._test_batched_byfeature_a_and_b()
-
-    def test_batched_byfeature_a_only(self):
         super()._test_batched_byfeature_a_only()
-
-    def test_batched_byfeature_b_only(self):
         super()._test_batched_byfeature_b_only()
 
-    def test_full_global_a_and_b(self):
+    def _test_full_global(self):
+        self.simulate()
         super()._test_full_global_a_and_b()
-
-    def test_full_global_a_only(self):
         super()._test_full_global_a_only()
-
-    def test_full_global_b_only(self):
         super()._test_full_global_b_only()
 
-    def test_batched_global_a_and_b(self):
+    def _test_batched_global(self):
+        self.simulate()
         super()._test_batched_global_a_and_b()
-
-    def test_batched_global_a_only(self):
         super()._test_batched_global_a_only()
-
-    def test_batched_global_b_only(self):
         super()._test_batched_global_b_only()
+
+
+class Test_Graph_GLM_NB(
+    Test_Graph_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether training graphs work for negative binomial noise.
+    """
+
+    def test_full_byfeature_nb(self):
+        self.noise_model = "nb"
+        self._test_full_byfeature()
+
+    def test_batched_byfeature_nb(self):
+        self.noise_model = "nb"
+        self._test_batched_byfeature()
+
+    def test_full_global_nb(self):
+        self.noise_model = "nb"
+        self._test_full_global()
+
+    def test_batched_global_nb(self):
+        self.noise_model = "nb"
+        self._test_batched_global()
 
 if __name__ == '__main__':
     unittest.main()

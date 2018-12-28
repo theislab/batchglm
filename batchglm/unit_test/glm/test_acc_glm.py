@@ -121,29 +121,27 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     _estims: List[_Test_Accuracy_GLM_Estim]
 
     def setUp(self):
-        self.simulate1()
-        self.simulate2()
         self._estims = []
 
     def tearDown(self):
         for e in self._estims:
             e.estimator.close_session()
 
+    def simulate(self):
+        self.simulate1()
+        self.simulate2()
+
     @abc.abstractmethod
-    def simulate1(self):
+    def get_simulator(self):
         pass
 
-    def _simulate1(self, sim):
-        self.sim1 = sim
+    def simulate1(self):
+        self.sim1 = self.get_simulator()
         self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
         self.sim1.generate()
 
-    @abc.abstractmethod
     def simulate2(self):
-        pass
-
-    def _simulate2(self, sim):
-        self.sim2 = sim
+        self.sim2 = self.get_simulator()
         self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
         self.sim2.generate()
 

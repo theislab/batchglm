@@ -469,11 +469,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         # Check that newton-rhapson is called properly:
         if newton_rhapson_mode:
             if learning_rate != 1:
-                logger.warning("Newton-rhapson in nb_glm is used with learing rate " + str(learning_rate) +
+                logger.warning("Newton-rhapson in glm_all is used with learing rate " + str(learning_rate) +
                                ". Newton-rhapson should only be used with learing rate =1.")
 
         # Report all parameters after all defaults were imputed in settings:
-        logger.debug("Optimizer settings in nb_glm Estimator.train():")
+        logger.debug("Optimizer settings in glm_all Estimator.train():")
         logger.debug("learning_rate " + str(learning_rate))
         logger.debug("convergence_criteria " + str(convergence_criteria))
         logger.debug("loss_window_size " + str(loss_window_size))
