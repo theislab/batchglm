@@ -1,8 +1,13 @@
 import abc
+import logging
 from typing import List
 import unittest
 
+import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+
+glm.setup_logging(verbosity="WARNING", stream="STDOUT")
+logger = logging.getLogger(__name__)
 
 
 class _Test_Graph_GLM_Estim():
@@ -22,9 +27,10 @@ class _Test_Graph_GLM_Estim():
             batched
         ):
         self.estimator.initialize()
+
         self.estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 0.5 if self.algo is not "nr" else 1,
+                "learning_rate": 1,
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e1,
                 "use_batching": batched,
@@ -109,8 +115,7 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def _basic_test_one_algo(
             self,
             estimator,
-            batched,
-            termination
+            batched
     ):
         estimator.estimate(batched=batched)
         estimator.estimator.finalize()
@@ -137,7 +142,7 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            print("algorithm: %s" % algo)
+            logger.debug("algorithm: %s" % algo)
             self.basic_test_one_algo(
                 batched=batched,
                 termination=termination,

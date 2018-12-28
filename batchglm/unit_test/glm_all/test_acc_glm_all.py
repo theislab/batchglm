@@ -7,8 +7,8 @@ from batchglm.models.base_glm import _Estimator_GLM
 
 from .external import Test_Accuracy_GLM, _Test_Accuracy_GLM_Estim
 
-glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
+glm.setup_logging(verbosity="WARNING", stream="STDOUT")
+logger = logging.getLogger(__name__)
 
 
 class _Test_Accuracy_GLM_NB_Estim(_Test_Accuracy_GLM_Estim):
@@ -116,26 +116,42 @@ class Test_Accuracy_GLM_ALL(
 
     def _test_full_byfeature(self):
         self.simulate()
+        logger.debug("* Running tests for full data and feature-wise termination")
+        logger.debug("** Running tests for a and b training")
         super()._test_full_byfeature_a_and_b()
+        logger.debug("** Running tests for a only training")
         super()._test_full_byfeature_a_only()
+        logger.debug("** Running tests for b only training")
         super()._test_full_byfeature_b_only()
 
     def _test_batched_byfeature(self):
         self.simulate()
+        logger.debug("* Running tests for batched data and feature-wise termination")
+        logger.debug("** Running tests for a and b training")
         super()._test_batched_byfeature_a_and_b()
+        logger.debug("** Running tests for a only training")
         super()._test_batched_byfeature_a_only()
+        logger.debug("** Running tests for b only training")
         super()._test_batched_byfeature_b_only()
 
     def _test_full_global(self):
         self.simulate()
+        logger.debug("* Running tests for full data and global termination")
+        logger.debug("** Running tests for a and b training")
         super()._test_full_global_a_and_b()
+        logger.debug("** Running tests for a only training")
         super()._test_full_global_a_only()
+        logger.debug("** Running tests for b only training")
         super()._test_full_global_b_only()
 
     def _test_batched_global(self):
         self.simulate()
+        logger.debug("* Running tests for batched data and global termination")
+        logger.debug("** Running tests for a and b training")
         super()._test_batched_global_a_and_b()
+        logger.debug("** Running tests for a only training")
         super()._test_batched_global_a_only()
+        logger.debug("** Running tests for b only training")
         super()._test_batched_global_b_only()
 
 class Test_Accuracy_GLM_NB(
@@ -147,18 +163,30 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_byfeature_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_full_byfeature()
 
     def test_batched_byfeature_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_batched_byfeature()
 
     def test_full_global_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_full_global()
 
     def test_batched_global_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_batched_global()
 

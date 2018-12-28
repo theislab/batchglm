@@ -1,5 +1,4 @@
 from typing import List
-
 import unittest
 import logging
 
@@ -8,8 +7,8 @@ from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
 
 from .external import Test_ExtremValues_GLM, _Test_ExtremValues_GLM_Estim
 
-glm.setup_logging(verbosity="ERROR", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
+glm.setup_logging(verbosity="WARNING", stream="STDOUT")
+logger = logging.getLogger(__name__)
 
 
 class _Test_ExtremValues_GLM_NB_Estim(_Test_ExtremValues_GLM_Estim):
@@ -87,14 +86,22 @@ class Test_ExtremValues_GLM_ALL(Test_ExtremValues_GLM, unittest.TestCase):
 
     def _test_low_values(self):
         self.simulate()
+        logger.debug("** Running tests for low values")
+        logger.debug("** Running a and b training test")
         self._test_low_values_a_and_b()
+        logger.debug("** Running a only training test")
         self._test_low_values_a_only()
+        logger.debug("** Running b only training test")
         self._test_low_values_b_only()
 
     def _test_zero_variance(self):
         self.simulate()
+        logger.debug("** Running tests for zero-variance features")
+        logger.debug("** Running a and b training test")
         self._test_zero_variance_a_and_b()
+        logger.debug("** Running a only training test")
         self._test_zero_variance_a_only()
+        logger.debug("** Running b only training test")
         self._test_zero_variance_b_only()
 
 
@@ -107,10 +114,16 @@ class Test_ExtremValues_GLM_NB(
     """
 
     def test_low_values_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_low_values()
 
     def test_zero_variance_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_zero_variance()
 

@@ -1,5 +1,4 @@
 from typing import List
-
 import unittest
 import logging
 
@@ -8,8 +7,8 @@ from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
 
 from .external import Test_DataTypes_GLM, _Test_DataTypes_GLM_Estim
 
-glm.setup_logging(verbosity="ERROR", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
+glm.setup_logging(verbosity="WARNING", stream="STDOUT")
+logger = logging.getLogger(__name__)
 
 
 class _Test_DataTypes_GLM_NB_Estim(_Test_DataTypes_GLM_Estim):
@@ -101,12 +100,18 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
 
     def _test_standard(self):
         self.simulate()
+        logger.debug("* Running tests on numpy/scipy")
+        logger.debug("** Running dense test")
         self._test_numpy_dense()
+        logger.debug("** Running sparse test")
         self._test_scipy_sparse()
 
     def _test_anndata(self):
         self.simulate()
+        logger.debug("* Running tests on anndata")
+        logger.debug("** Running dense test")
         self._test_anndata_dense()
+        logger.debug("** Running sparse test")
         self._test_anndata_sparse()
 
 
@@ -119,10 +124,16 @@ class Test_DataTypes_GLM_NB(
     """
 
     def test_standard_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_standard()
 
     def test_anndata_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+
         self.noise_model = "nb"
         self._test_anndata()
 

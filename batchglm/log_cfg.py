@@ -27,7 +27,7 @@ def setup_logging(verbosity="WARNING", stream=None, format=logging.BASIC_FORMAT)
         if isinstance(stream, str):
             if stream.lower() == "stdout":
                 stream = sys.stdout
-            elif stream.lower() == "sterr":
+            elif stream.lower() == "stderr":
                 stream = sys.stderr
             else:
                 raise ValueError("Unknown stream %s" % stream)

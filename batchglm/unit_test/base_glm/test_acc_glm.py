@@ -1,9 +1,15 @@
 import abc
+import logging
 from typing import List
 import unittest
 import numpy as np
 
+import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+
+glm.setup_logging(verbosity="WARNING", stream="STDOUT")
+logger = logging.getLogger(__name__)
+
 
 class _Test_Accuracy_GLM_Estim():
 
@@ -25,9 +31,9 @@ class _Test_Accuracy_GLM_Estim():
         self.estimator.initialize()
 
         # Choose learning rate based on optimizer
-        if algo.lower() is "nr":
+        if algo.lower() == "nr":
             lr = 1
-        elif algo.lower() is "gd":
+        elif algo.lower() == "gd":
             lr = 0.05
         else:
             lr = 0.5
@@ -63,11 +69,10 @@ class _Test_Accuracy_GLM_Estim():
         mean_dev_b = np.mean(estimator_store.b.values - self.sim.b.values)
         std_dev_b = np.std(estimator_store.b.values - self.sim.b.values)
 
-        print("\n")
-        print("mean_dev_a %f" % mean_dev_a)
-        print("std_dev_a %f" % std_dev_a)
-        print("mean_dev_b %f" % mean_dev_b)
-        print("std_dev_b %f" % std_dev_b)
+        logger.warning("mean_dev_a %f" % mean_dev_a)
+        logger.warning("std_dev_a %f" % std_dev_a)
+        logger.warning("mean_dev_b %f" % mean_dev_b)
+        logger.warning("std_dev_b %f" % std_dev_b)
 
         if np.abs(mean_dev_a) < threshold_dev_a and \
                 np.abs(mean_dev_b) < threshold_dev_b and \
@@ -153,7 +158,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            print("algorithm: %s" % algo)
+            logger.warning("algorithm: %s" % algo)
             estimator.estimate(
                 algo=algo,
                 batched=batched,
