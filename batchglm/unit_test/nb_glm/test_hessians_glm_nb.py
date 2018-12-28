@@ -26,7 +26,7 @@ def estimate(input_data: InputData):
     return estimator
 
 
-class NB_GLM_Test_Hessians(unittest.TestCase):
+class Test_Hessians_GLM_NB(unittest.TestCase):
     sim: Simulator
     estimator_fw: Estimator
     estimator_ow: Estimator

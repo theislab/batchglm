@@ -63,7 +63,7 @@ def compare_jacs(sim, design, quick_scale):
     assert max_rel_dev < 1e-10
     return True
 
-class NB_GLM_Test_Jacobians(unittest.TestCase):
+class Test_Jacobians_GLM_NB(unittest.TestCase):
     def setUp(self):
         pass
 
