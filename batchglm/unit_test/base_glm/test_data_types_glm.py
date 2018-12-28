@@ -1,15 +1,9 @@
 import abc
 from typing import List
 import unittest
-import logging
-
 import scipy.sparse
 
-import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, _InputData_GLM, _Simulator_GLM
-
-glm.setup_logging(verbosity="ERROR", stream="STDOUT")
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 
 class _Test_DataTypes_GLM_Estim():

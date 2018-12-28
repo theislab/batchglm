@@ -7,7 +7,7 @@ from batchglm.models.base_glm import _Estimator_GLM
 
 from .external import Test_Accuracy_GLM, _Test_Accuracy_GLM_Estim
 
-glm.setup_logging(verbosity="ERROR", stream="STDOUT")
+glm.setup_logging(verbosity="DEBUG", stream="STDOUT")
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 
