@@ -1,4 +1,5 @@
 import abc
+from typing import Union
 
 import xarray as xr
 
@@ -34,32 +35,38 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     """
 
     @property
+    def design_loc(self) -> xr.DataArray:
+        return self.input_data.design_loc
+
+    @property
+    def design_scale(self) -> xr.DataArray:
+        return self.input_data.design_scale
+
+    @property
     @abc.abstractmethod
-    def design_loc(self):
+    def a(self) -> xr.DataArray:
         pass
 
     @property
     @abc.abstractmethod
-    def design_scale(self):
+    def b(self) -> xr.DataArray:
         pass
 
     @property
-    @abc.abstractmethod
     def par_link_loc(self):
-        pass
+        return self.a
 
     @property
-    @abc.abstractmethod
     def par_link_scale(self):
+        return self.b
+
+    @abc.abstractmethod
+    def location(self):
         pass
 
-    @property
-    def location(self):
-        return self.inverse_link_loc(self.design_loc @ self.par_link_loc)
-
-    @property
+    @abc.abstractmethod
     def scale(self):
-        return self.inverse_link_scale(self.design_scale @ self.par_link_scale)
+        pass
 
     @abc.abstractmethod
     def link_loc(self, data):
@@ -76,6 +83,10 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def inverse_link_scale(self, data):
         pass
+
+    @property
+    def size_factors(self) -> Union[xr.DataArray, None]:
+        return self.input_data.size_factors
 
 
 class _Model_XArray_GLM(_Model_XArray_Base):

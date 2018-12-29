@@ -27,27 +27,6 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
     def param_shapes(cls) -> dict:
         return MODEL_PARAMS
 
-    @property
-    @abc.abstractmethod
-    def input_data(self) -> InputData:
-        pass
-
-    @property
-    def design_loc(self) -> xr.DataArray:
-        return self.input_data.design_loc
-
-    @property
-    def design_scale(self) -> xr.DataArray:
-        return self.input_data.design_scale
-
-    @property
-    def par_link_loc(self):
-        return self.a
-
-    @property
-    def par_link_scale(self):
-        return self.b
-
     def link_loc(self, data):
         return np.log(data)
 
@@ -67,20 +46,6 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
     @property
     def scale(self):
         return self.r
-
-    @property
-    def size_factors(self) -> Union[xr.DataArray, None]:
-        return self.input_data.size_factors
-
-    @property
-    @abc.abstractmethod
-    def a(self) -> xr.DataArray:
-        pass
-
-    @property
-    @abc.abstractmethod
-    def b(self) -> xr.DataArray:
-        pass
 
     @property
     def mu(self) -> xr.DataArray:
