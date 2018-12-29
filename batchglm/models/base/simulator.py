@@ -9,7 +9,6 @@ try:
 except ImportError:
     anndata = None
 
-from .model import _Model_Base
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
@@ -73,14 +72,14 @@ class _Simulator_Base(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def generate_data(self, *args, **kwargs):
         """
-        Should sample random data using the pre-defined / sampled parameters
+        Should sample random data based on distribution and parameters.
         """
         pass
 
     @abc.abstractmethod
     def generate_params(self, *args, **kwargs):
         """
-        Should generate all necessary parameters
+        Should generate all necessary parameters.
         """
         pass
 

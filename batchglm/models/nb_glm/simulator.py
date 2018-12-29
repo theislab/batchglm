@@ -1,8 +1,7 @@
 import numpy as np
 import xarray as xr
 
-from .input import InputData
-from .model import Model
+from .model import Model, Model_XArray
 from .external import data_utils, rand_utils, _Simulator_GLM
 
 
@@ -33,6 +32,7 @@ class Simulator(_Simulator_GLM, Model):
             rand_fn_scale=None,
             **kwargs):
         """
+        Generate all necessary parameters
         
         :param min_mean: minimum mean value
         :param max_mean: maximum mean value
@@ -90,11 +90,10 @@ class Simulator(_Simulator_GLM, Model):
         )
 
     def generate_data(self):
+        """
+        Sample random data based on negative binomial distribution and parameters.
+        """
         self.data["X"] = (
             self.param_shapes()["X"],
             rand_utils.NegativeBinomial(mean=self.mu, r=self.r).sample()
         )
-
-    @property
-    def input_data(self) -> InputData:
-        return InputData.new(self.data)

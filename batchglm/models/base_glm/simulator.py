@@ -5,7 +5,6 @@ import numpy as np
 import xarray as xr
 
 from .input import _InputData_GLM
-from .model import _Model_GLM
 from .external import _Simulator_Base
 
 
@@ -105,14 +104,6 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
         dmat_ar.coords["design_scale_params"] = ["p" + str(i) for i in range(dmat.shape[1])]
         self.data["design_scale"] = dmat_ar
 
-    @abc.abstractmethod
-    def generate_params(self, *args, **kwargs):
-        pass
-
-    @abc.abstractmethod
-    def generate_data(self):
-        pass
-
     @property
     def input_data(self) -> _InputData_GLM:
         return _InputData_GLM.new(self.data)
@@ -127,7 +118,18 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
 
     @property
     def size_factors(self):
-        return None
+        return self.data.coords.get("size_factors")
+
+    @size_factors.setter
+    def size_factors(self, data):
+        if data is None and "size_factors" in self.data.coords:
+            del self.data.coords["size_factors"]
+        else:
+            dims = self.param_shapes()["size_factors"]
+            self.data.coords["size_factors"] = xr.DataArray(
+                dims=dims,
+                data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
+            )
 
     @property
     def a(self):

@@ -11,7 +11,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_Accuracy_GLM_Estim():
+class _Test_AccuracySizeFactors_GLM_Estim():
 
     def __init__(
             self,
@@ -59,8 +59,8 @@ class _Test_Accuracy_GLM_Estim():
             threshold_std_a = 1
             threshold_std_b = 20
         else:
-            threshold_dev_a = 0.2
-            threshold_dev_b = 0.2
+            threshold_dev_a = 0.3
+            threshold_dev_b = 0.3
             threshold_std_a = 1
             threshold_std_b = 2
 
@@ -83,9 +83,9 @@ class _Test_Accuracy_GLM_Estim():
             return False
 
 
-class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
+class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     """
-    Test whether optimizers yield exact results.
+    Test whether optimizers yield exact results if size factors are used.
 
     Accuracy is evaluted via deviation of simulated ground truth.
     The unit tests test individual training graphs and multiple optimizers
@@ -94,22 +94,13 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
 
     - termination by feature
         - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
+            - train a and b model: test_full_a_and_b()
+            - train a model only: test_full_a_only()
+            - train b model only: test_full_b_only()
         - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
+            - train a and b model: test_batched_a_and_b()
+            - train a model only: test_batched_a_only()
+            - train b model only: test_batched_b_only()
 
     The unit tests throw an assertion error if the required accuracy is
     not met. Accuracy thresholds are fairly lenient so that unit_tests
@@ -117,7 +108,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     initialisation in simulation. Still, large biases (i.e. graph errors)
     should be discovered here.
     """
-    _estims: List[_Test_Accuracy_GLM_Estim]
+    _estims: List[_Test_AccuracySizeFactors_GLM_Estim]
 
     def setUp(self):
         self._estims = []
@@ -134,15 +125,20 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def get_simulator(self):
         pass
 
+    def _simulate(self, num_batches):
+        sim = self.get_simulator()
+        sim.generate_sample_description(num_batches=num_batches, num_conditions=2)
+        sim.generate_params()
+        sim.size_factors = np.random.uniform(0.1, 2, size=sim.num_observations)
+        sim.generate_data()
+        logger.debug(" Size factor standard deviation % f" % np.std(sim.size_factors.data))
+        return sim
+
     def simulate1(self):
-        self.sim1 = self.get_simulator()
-        self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
-        self.sim1.generate()
+        self.sim1 = self._simulate(num_batches=2)
 
     def simulate2(self):
-        self.sim2 = self.get_simulator()
-        self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
-        self.sim2.generate()
+        self.sim2 = self._simulate(num_batches=0)
 
     def simulator(self, train_loc):
         if train_loc:
@@ -185,7 +181,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     ):
         pass
 
-    def _test_full_byfeature_a_and_b(self):
+    def _test_full_a_and_b(self):
         return self.basic_test(
             batched=False,
             termination="by_feature",
@@ -193,7 +189,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=True
         )
 
-    def _test_full_byfeature_a_only(self):
+    def _test_full_a_only(self):
         return self.basic_test(
             batched=False,
             termination="by_feature",
@@ -201,7 +197,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=False
         )
 
-    def _test_full_byfeature_b_only(self):
+    def _test_full_b_only(self):
         return self.basic_test(
             batched=False,
             termination="by_feature",
@@ -209,7 +205,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=True
         )
 
-    def _test_batched_byfeature_a_and_b(self):
+    def _test_batched_a_and_b(self):
         return self.basic_test(
             batched=True,
             termination="by_feature",
@@ -217,7 +213,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=True
         )
 
-    def _test_batched_byfeature_a_only(self):
+    def _test_batched_a_only(self):
         return self.basic_test(
             batched=True,
             termination="by_feature",
@@ -225,7 +221,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=False
         )
 
-    def _test_batched_byfeature_b_only(self):
+    def _test_batched_b_only(self):
         return self.basic_test(
             batched=True,
             termination="by_feature",
@@ -233,53 +229,6 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=True
         )
 
-    def _test_full_global_a_and_b(self):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=True,
-            train_scale=True
-        )
-
-    def _test_full_global_a_only(self):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=True,
-            train_scale=False
-        )
-
-    def _test_full_global_b_only(self):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=False,
-            train_scale=True
-        )
-
-    def _test_batched_global_a_and_b(self):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=True,
-            train_scale=True
-        )
-
-    def _test_batched_global_a_only(self):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=True,
-            train_scale=False
-        )
-
-    def _test_batched_global_b_only(self):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=False,
-            train_scale=True
-        )
 
 if __name__ == '__main__':
     unittest.main()
