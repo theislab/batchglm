@@ -11,7 +11,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_ExtremValues_GLM_NB_Estim(_Test_ExtremValues_GLM_Estim):
+class _Test_ExtremValues_GLM_ALL_Estim(_Test_ExtremValues_GLM_Estim):
 
     def __init__(
             self,
@@ -77,7 +77,7 @@ class Test_ExtremValues_GLM_ALL(Test_ExtremValues_GLM, unittest.TestCase):
             termination,
             quick_scale
     ):
-        return _Test_ExtremValues_GLM_NB_Estim(
+        return _Test_ExtremValues_GLM_ALL_Estim(
             input_data=input_data,
             termination=termination,
             quick_scale=quick_scale,

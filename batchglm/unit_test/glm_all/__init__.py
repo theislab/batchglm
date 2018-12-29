@@ -1,4 +1,5 @@
 from .test_acc_glm_all import Test_Accuracy_GLM_NB
+from .test_acc_analytic_glm_all import Test_AccuracyAnalytic_GLM_NB
 from .test_graph_glm_all import Test_Graph_GLM_NB
 from .test_data_types_glm_all import Test_DataTypes_GLM_NB
 from .test_extreme_values_glm_all import Test_ExtremValues_GLM_NB

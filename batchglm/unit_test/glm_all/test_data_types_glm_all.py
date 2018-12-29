@@ -11,7 +11,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_DataTypes_GLM_NB_Estim(_Test_DataTypes_GLM_Estim):
+class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
 
     def __init__(
             self,
@@ -93,7 +93,7 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             self,
             input_data
     ):
-        return _Test_DataTypes_GLM_NB_Estim(
+        return _Test_DataTypes_GLM_ALL_Estim(
             input_data=input_data,
             noise_model=self.noise_model
         )

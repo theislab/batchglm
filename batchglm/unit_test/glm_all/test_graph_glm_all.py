@@ -11,7 +11,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_Graph_GLM_NB_Estim(_Test_Graph_GLM_Estim):
+class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
 
     def __init__(
             self,
@@ -100,7 +100,7 @@ class Test_Graph_GLM_ALL(
             train_scale,
             algo
     ):
-        estimator = _Test_Graph_GLM_NB_Estim(
+        estimator = _Test_Graph_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             termination=termination,
