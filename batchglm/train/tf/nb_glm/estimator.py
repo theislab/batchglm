@@ -14,8 +14,7 @@ except ImportError:
     anndata = None
 
 from .estimator_graph import EstimatorGraph
-from .model import ESTIMATOR_PARAMS
-from .model import np_clip_param
+from .model import ESTIMATOR_PARAMS, ProcessModel
 from .external import AbstractEstimator, InputData, Model, MonitoredTFEstimator, EstimatorStore_XArray
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 from .external import data_utils
@@ -23,7 +22,7 @@ from .external import data_utils
 logger = logging.getLogger(__name__)
 
 
-class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
+class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
@@ -195,7 +194,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             design_loc=input_data.design_loc,
                             constraints=input_data.constraints_loc,
                             size_factors=size_factors_init,
-                            link_fn=lambda mu: np.log(np_clip_param(mu, "mu"))
+                            link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
                         )
 
                         # train mu, if the closed-form solution is inaccurate
@@ -213,7 +212,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 elif init_a.lower() == "standard":
                     overall_means = input_data.X.mean(dim="observations").values  # directly calculate the mean
                     # clipping
-                    overall_means = np_clip_param(overall_means, "mu")
+                    overall_means = self.np_clip_param(overall_means, "mu")
                     # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
 
                     init_a = np.zeros([input_data.num_design_loc_params, input_data.num_features])
@@ -241,7 +240,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                             constraints=input_data.constraints_scale,
                             size_factors=size_factors_init,
                             groupwise_means=None,  # Could only use groupwise_means from a init if design_loc and design_scale were the same.
-                            link_fn=lambda r: np.log(np_clip_param(r, "r"))
+                            link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                         )
 
                         logger.info("Using closed-form MME initialization for dispersion")
