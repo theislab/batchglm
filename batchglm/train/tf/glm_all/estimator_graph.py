@@ -10,39 +10,19 @@ try:
 except ImportError:
     anndata = None
 
-from .model import BasicModelGraph, ModelVars, ProcessModel
-
-from .external import GradientGraph, NewtonGraph, TrainerGraph
-from .external import TFEstimatorGraph
-from .external import train_utils, op_utils
+from .external import EstimatorGraph_GLM, GradientGraph, NewtonGraph, _TrainerGraph
+from .external import FullDataModelGraph_GLM
+from .external import op_utils
 from .external import pkg_constants
-from .hessians import Hessians
-from .jacobians import Jacobians
 
 logger = logging.getLogger(__name__)
 
 
-class FullDataModelGraph:
+class FullDataModelGraph(FullDataModelGraph_GLM):
     """
-    Computational graph to evaluate model on full data set.
-
-    Here, we assume that the model cannot be executed on the full data set
-    for memory reasons and therefore divide the data set into batches,
-    execute the model on these batches and summarise the resulting metrics
-    across batches. FullDataModelGraph is therefore an extension of
-    BasicModelGraph that distributes operations across batches of observations.
-
-    The distribution is performed by the function map_model().
-    The model metrics which can be collected are:
-
-        - The model likelihood (cost function value).
-        - Model Jacobian matrix for trainer parameters (for training).
-        - Model Jacobian matrix for all parameters (for downstream usage,
-        e.g. hypothesis tests which can also be performed on closed form MLEs).
-        - Model Hessian matrix for trainer parameters (for training).
-        - Model Hessian matrix for all parameters (for downstream usage,
-        e.g. hypothesis tests which can also be performed on closed form MLEs).
+    Computational graph to evaluate negative binomial GLM on full data set.
     """
+
     def __init__(
             self,
             sample_indices: tf.Tensor,
@@ -53,6 +33,7 @@ class FullDataModelGraph:
             constraints_scale,
             train_a,
             train_b,
+            noise_model: str = None,
             dtype
     ):
         """
@@ -90,6 +71,12 @@ class FullDataModelGraph:
             Whether to train dispersion model. If False, the initialisation is kept.
         :param dtype: Precision used in tensorflow.
         """
+        if noise_model == "nb":
+            from .external_nb import BasicModelGraph, Jacobians, Hessians
+        else:
+            raise ValueError("noise model not rewcognized")
+        self.noise_model = noise_model
+
         dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
 
         batched_data = dataset.batch(batch_size)
@@ -218,23 +205,27 @@ class FullDataModelGraph:
         self.neg_jac_train = jacobian_train.neg_jac
         self.neg_hessian_train = hessians_train.neg_hessian
 
-
-class EstimatorGraph(GradientGraph, NewtonGraph, TrainerGraph, TFEstimatorGraph):
+class TrainerGraph(_TrainerGraph, ProcessModel):
     """
-    The estimator graphs are all graph necessary to perform parameter updates and to
-    summarise a current parameter estimate.
 
-    The estimator graph class is divided into the following major sub graphs:
-
-        - The input pipeline: Feed data for parameter updates.
-        -
     """
-    X: tf.Tensor
 
+    def __init__(
+            self,
+            **args
+    ):
+        # TODO chose correct ProcessModel here
+        _TrainerGraph.__init__(
+            self=self,
+            **args
+        )
+
+class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
+    """
+
+    """
     mu: tf.Tensor
     sigma2: tf.Tensor
-    a: tf.Tensor
-    b: tf.Tensor
 
     def __init__(
             self,
@@ -245,16 +236,17 @@ class EstimatorGraph(GradientGraph, NewtonGraph, TrainerGraph, TFEstimatorGraph)
             num_design_loc_params,
             num_design_scale_params,
             graph: tf.Graph = None,
-            batch_size=500,
+            batch_size: int = None,
             init_a=None,
             init_b=None,
-            constraints_loc=None,
-            constraints_scale=None,
-            train_mu=True,
-            train_r=True,
+            constraints_loc: Union[np.ndarray, None] = None,
+            constraints_scale: Union[np.ndarray, None] = None,
+            train_mu: bool = True,
+            train_r: bool = True,
             provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
             termination_type: str = "global",
             extended_summary=False,
+            noise_model: str = None,
             dtype="float32"
     ):
         """
@@ -306,13 +298,21 @@ class EstimatorGraph(GradientGraph, NewtonGraph, TrainerGraph, TFEstimatorGraph)
         :param extended_summary:
         :param dtype: Precision used in tensorflow.
         """
-        TFEstimatorGraph.__init__(graph)
+        if noise_model == "nb":
+            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians
+        else:
+            raise ValueError("noise model not rewcognized")
+        self.noise_model = noise_model
 
-        self.num_observations = num_observations
-        self.num_features = num_features
-        self.num_design_loc_params = num_design_loc_params
-        self.num_design_scale_params = num_design_scale_params
-        self.batch_size = batch_size
+        EstimatorGraph_GLM.__init__(
+            self=self,
+            num_observations=num_observations,
+            num_features=num_features,
+            num_design_loc_params=num_design_loc_params,
+            num_design_scale_params=num_design_scale_params,
+            graph=graph,
+            batch_size=batch_size
+        )
 
         # initial graph elements
         with self.graph.as_default():
@@ -446,6 +446,9 @@ class EstimatorGraph(GradientGraph, NewtonGraph, TrainerGraph, TFEstimatorGraph)
                 self.learning_rate = learning_rate
                 self.loss = batch_loss
 
+                self.batch_jac = batch_jac
+                self.batch_hessians = batch_hessians
+
                 self.mu = mu
                 self.r = r
                 self.sigma2 = sigma2
@@ -458,26 +461,29 @@ class EstimatorGraph(GradientGraph, NewtonGraph, TrainerGraph, TFEstimatorGraph)
                 self.full_data_model = full_data_model
 
                 self.full_loss = full_data_loss
-                self.full_gradient = full_gradient
-
                 self.hessians = full_data_model.hessian
                 self.fisher_inv = fisher_inv
 
                 self.idx_nonconverged = idx_nonconverged
 
                 GradientGraph.__init__(
+                    self=self,
                     termination_type=termination_type,
                     train_mu=train_mu,
                     train_r=train_r
                 )
                 NewtonGraph.__init__(
+                    self=self,
                     termination_type=termination_type,
                     provide_optimizers=provide_optimizers,
                     train_mu=train_mu,
                     train_r=train_r
                 )
                 TrainerGraph.__init__(
-                    feature_isnonzero=feature_isnonzero
+                    self=self,
+                    feature_isnonzero=feature_isnonzero,
+                    provide_optimizers=provide_optimizers,
+                    dtype=dtype
                 )
 
         with tf.name_scope('summaries'):

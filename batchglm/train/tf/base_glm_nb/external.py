@@ -6,7 +6,7 @@ from batchglm.models.nb_glm.utils import closedform_nb_glm_logmu, closedform_nb_
 import batchglm.train.tf.ops as op_utils
 import batchglm.train.tf.train as train_utils
 from batchglm.train.tf.base import TFEstimatorGraph, MonitoredTFEstimator
-from batchglm.train.tf.base_glm import GradientGraph, NewtonGraph, TrainerGraph
+from batchglm.train.tf.base_glm import GradientGraph, NewtonGraph, _TrainerGraph, EstimatorGraph_GLM, FullDataModelGraph_GLM, BasicModelGraph_GLM
 
 from batchglm.train.tf.base_glm import ESTIMATOR_PARAMS, _ProcessModel, _ModelVars
 

@@ -14,15 +14,13 @@ except ImportError:
     anndata = None
 
 from .estimator_graph import EstimatorGraph
-from .model import ESTIMATOR_PARAMS, ProcessModel
-from .external import AbstractEstimator, InputData, Model, MonitoredTFEstimator, EstimatorStore_XArray
-from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
+from .external import MonitoredTFEstimator
 from .external import data_utils
 
 logger = logging.getLogger(__name__)
 
 
-class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass=abc.ABCMeta):
+class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
@@ -95,6 +93,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass
             provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
             termination_type: str = "global",
             extended_summary=False,
+            noise_model: str = None,
             dtype="float64",
     ):
         """
@@ -140,6 +139,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass
         :param extended_summary: Include detailed information in the summaries.
             Will drastically increase runtime of summary writer, use only for debugging.
         """
+        if noise_model == "nb":
+            from .external_nb import InputData, Model, AbstractEstimator, EstimatorStore_XArray
+            from .external_nb import closedform_nb_glm_logmu, closedform_nb_glm_logphi
+        else:
+            raise ValueError("noise model not rewcognized")
+        self.noise_model = noise_model
+
         # validate design matrix:
         if np.linalg.matrix_rank(input_data.design_loc) != np.linalg.matrix_rank(input_data.design_loc.T):
             raise ValueError("design_loc matrix is not full rank")
@@ -155,139 +161,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass
             self._train_mu = True
             self._train_r = not quick_scale
 
-            r"""
-            standard:
-            Only initialise intercept and keep other coefficients as zero.
-
-            closed-form:
-            Initialize with Maximum Likelihood / Maximum of Momentum estimators
-
-            Idea:
-            $$
-                \theta &= f(x) \\
-                \Rightarrow f^{-1}(\theta) &= x \\
-                    &= (D \cdot D^{+}) \cdot x \\
-                    &= D \cdot (D^{+} \cdot x) \\
-                    &= D \cdot x' = f^{-1}(\theta)
-            $$
-            """
-            size_factors_init = input_data.size_factors
-            if size_factors_init is not None:
-                size_factors_init = np.expand_dims(size_factors_init, axis=1)
-                size_factors_init = np.broadcast_to(
-                    array=size_factors_init,
-                    shape=[input_data.num_observations, input_data.num_features]
-                )
-
-            groupwise_means = None  # [groups, features]
-            overall_means = None  # [1, features]
-            logger.debug(" * Initialize mean model")
-            if isinstance(init_a, str):
-                # Chose option if auto was chosen
-                if init_a.lower() == "auto":
-                    init_a = "closed_form"
-
-                if init_a.lower() == "closed_form":
-                    try:
-                        groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
-                            X=input_data.X,
-                            design_loc=input_data.design_loc,
-                            constraints=input_data.constraints_loc,
-                            size_factors=size_factors_init,
-                            link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
-                        )
-
-                        # train mu, if the closed-form solution is inaccurate
-                        self._train_mu = not np.all(rmsd_a == 0)
-
-                        # Temporal fix: train mu if size factors are given as closed form may be different:
-                        if input_data.size_factors is not None:
-                            self._train_mu = True
-
-                        logger.info("Using closed-form MLE initialization for mean")
-                        logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
-                        logger.info("Should train mu: %s", self._train_mu)
-                    except np.linalg.LinAlgError:
-                        logger.warning("Closed form initialization failed!")
-                elif init_a.lower() == "standard":
-                    overall_means = input_data.X.mean(dim="observations").values  # directly calculate the mean
-                    # clipping
-                    overall_means = self.np_clip_param(overall_means, "mu")
-                    # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
-
-                    init_a = np.zeros([input_data.num_design_loc_params, input_data.num_features])
-                    init_a[0, :] = np.log(overall_means)
-                    self._train_mu = True
-
-                    logger.info("Using standard initialization for mean")
-                    logger.info("Should train mu: %s", self._train_mu)
-
-            logger.debug(" * Initialize dispersion model")
-            if isinstance(init_b, str):
-                if init_b.lower() == "auto":
-                    init_b = "closed_form"
-
-                if init_b.lower() == "closed_form":
-                    try:
-                        init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
-                        init_a_xr.coords["design_loc_params"] = input_data.design_loc.coords["design_loc_params"]
-                        init_mu = np.exp(input_data.design_loc.dot(init_a_xr))
-
-                        groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
-                            X=input_data.X,
-                            mu=init_mu,
-                            design_scale=input_data.design_scale,
-                            constraints=input_data.constraints_scale,
-                            size_factors=size_factors_init,
-                            groupwise_means=None,  # Could only use groupwise_means from a init if design_loc and design_scale were the same.
-                            link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
-                        )
-
-                        logger.info("Using closed-form MME initialization for dispersion")
-                        logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_b)
-                        logger.info("Should train r: %s", self._train_r)
-                    except np.linalg.LinAlgError:
-                        logger.warning("Closed form initialization failed!")
-                elif init_b.lower() == "standard":
-                    init_b = np.zeros([input_data.design_scale.shape[1], input_data.X.shape[1]])
-
-                    logger.info("Using standard initialization for dispersion")
-                    logger.info("Should train r: %s", self._train_r)
-
-            if init_model is not None:
-                if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
-                    # location
-                    my_loc_names = set(input_data.design_loc_names.values)
-                    my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
-
-                    init_loc = np.random.uniform(
-                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                        size=(input_data.num_design_loc_params, input_data.num_features)
-                    )
-                    for parm in my_loc_names:
-                        init_idx = np.where(init_model.input_data.design_loc_names == parm)
-                        my_idx = np.where(input_data.design_loc_names == parm)
-                        init_loc[my_idx] = init_model.par_link_loc[init_idx]
-
-                    init_a = init_loc
-
-                if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
-                    # scale
-                    my_scale_names = set(input_data.design_scale_names.values)
-                    my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
-
-                    init_scale = np.random.uniform(
-                        low=np.nextafter(0, 1, dtype=input_data.X.dtype),
-                        high=np.sqrt(np.nextafter(0, 1, dtype=input_data.X.dtype)),
-                        size=(input_data.num_design_scale_params, input_data.num_features)
-                    )
-                    for parm in my_scale_names:
-                        init_idx = np.where(init_model.input_data.design_scale_names == parm)
-                        my_idx = np.where(input_data.design_scale_names == parm)
-                        init_scale[my_idx] = init_model.par_link_scale[init_idx]
-
-                    init_b = init_scale
+            (init_a, init_b) = self.init(
+                init_a=init_a,
+                init_b=init_b,
+                init_model=init_models
+            )
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
@@ -381,6 +259,7 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass
                 train_r=self._train_r,
                 termination_type=termination_type,
                 extended_summary=extended_summary,
+                noise_model=self.noise_model,
                 dtype=dtype
             )
 
@@ -395,6 +274,157 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, ProcessModel, metaclass
                 saver=self.model.saver,
             )
         return scaffold
+
+    @abc.abstractmethod
+    def init(
+            self,
+            init_a,
+            init_b
+    ):
+        pass
+
+    def init(
+            self,
+            init_a,
+            init_b,
+            init_model
+    ):
+        r"""
+        standard:
+        Only initialise intercept and keep other coefficients as zero.
+
+        closed-form:
+        Initialize with Maximum Likelihood / Maximum of Momentum estimators
+
+        Idea:
+        $$
+            \theta &= f(x) \\
+            \Rightarrow f^{-1}(\theta) &= x \\
+                &= (D \cdot D^{+}) \cdot x \\
+                &= D \cdot (D^{+} \cdot x) \\
+                &= D \cdot x' = f^{-1}(\theta)
+        $$
+        """
+
+        size_factors_init = input_data.size_factors
+        if size_factors_init is not None:
+            size_factors_init = np.expand_dims(size_factors_init, axis=1)
+            size_factors_init = np.broadcast_to(
+                array=size_factors_init,
+                shape=[input_data.num_observations, input_data.num_features]
+            )
+
+        # TODO do init noise model specific
+        logger.debug(" * Initialize mean model")
+        if isinstance(init_a, str):
+            # Chose option if auto was chosen
+            if init_a.lower() == "auto":
+                init_a = "closed_form"
+
+            if init_a.lower() == "closed_form":
+                try:
+                    groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
+                        X=self._input_data.X,
+                        design_loc=self._input_data.design_loc,
+                        constraints=self._input_data.constraints_loc,
+                        size_factors=size_factors_init,
+                        link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
+                    )
+
+                    # train mu, if the closed-form solution is inaccurate
+                    self._train_mu = not np.all(rmsd_a == 0)
+
+                    # Temporal fix: train mu if size factors are given as closed form may be different:
+                    if self._input_data.size_factors is not None:
+                        self._train_mu = True
+
+                    logger.info("Using closed-form MLE initialization for mean")
+                    logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
+                    logger.info("Should train mu: %s", self._train_mu)
+                except np.linalg.LinAlgError:
+                    logger.warning("Closed form initialization failed!")
+            elif init_a.lower() == "standard":
+                overall_means = self._input_data.X.mean(dim="observations").values  # directly calculate the mean
+                # clipping
+                overall_means = self.np_clip_param(overall_means, "mu")
+                # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
+
+                init_a = np.zeros([self._input_data.num_design_loc_params, input_data.num_features])
+                init_a[0, :] = np.log(overall_means)
+                self._train_mu = True
+
+                logger.info("Using standard initialization for mean")
+                logger.info("Should train mu: %s", self._train_mu)
+
+        logger.debug(" * Initialize dispersion model")
+        if isinstance(init_b, str):
+            if init_b.lower() == "auto":
+                init_b = "closed_form"
+
+            if init_b.lower() == "closed_form":
+                try:
+                    init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
+                    init_a_xr.coords["design_loc_params"] = self._input_data.design_loc.coords["design_loc_params"]
+                    init_mu = np.exp(self._input_data.design_loc.dot(init_a_xr))
+
+                    groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
+                        X=self._input_data.X,
+                        mu=init_mu,
+                        design_scale=self._input_data.design_scale,
+                        constraints=self._input_data.constraints_scale,
+                        size_factors=size_factors_init,
+                        groupwise_means=None,
+                        # Could only use groupwise_means from a init if design_loc and design_scale were the same.
+                        link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
+                    )
+
+                    logger.info("Using closed-form MME initialization for dispersion")
+                    logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_b)
+                    logger.info("Should train r: %s", self._train_r)
+                except np.linalg.LinAlgError:
+                    logger.warning("Closed form initialization failed!")
+            elif init_b.lower() == "standard":
+                init_b = np.zeros([self._input_data.design_scale.shape[1], self._input_data.X.shape[1]])
+
+                logger.info("Using standard initialization for dispersion")
+                logger.info("Should train r: %s", self._train_r)
+
+        if init_model is not None:
+            if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
+                # location
+                my_loc_names = set(self._input_data.design_loc_names.values)
+                my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
+
+                init_loc = np.random.uniform(
+                    low=np.nextafter(0, 1, dtype=self._input_data.X.dtype),
+                    high=np.sqrt(np.nextafter(0, 1, dtype=self._input_data.X.dtype)),
+                    size=(self._input_data.num_design_loc_params, self._input_data.num_features)
+                )
+                for parm in my_loc_names:
+                    init_idx = np.where(init_model.input_data.design_loc_names == parm)
+                    my_idx = np.where(input_data.design_loc_names == parm)
+                    init_loc[my_idx] = init_model.par_link_loc[init_idx]
+
+                init_a = init_loc
+
+            if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
+                # scale
+                my_scale_names = set(input_data.design_scale_names.values)
+                my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
+
+                init_scale = np.random.uniform(
+                    low=np.nextafter(0, 1, dtype=self._input_data.X.dtype),
+                    high=np.sqrt(np.nextafter(0, 1, dtype=self._input_data.X.dtype)),
+                    size=(self._input_data.num_design_scale_params, self._input_data.num_features)
+                )
+                for parm in my_scale_names:
+                    init_idx = np.where(init_model.input_data.design_scale_names == parm)
+                    my_idx = np.where(input_data.design_scale_names == parm)
+                    init_scale[my_idx] = init_model.par_link_scale[init_idx]
+
+                init_b = init_scale
+
+        return (init_a, init_b)
 
     def train(self, *args,
               learning_rate=None,

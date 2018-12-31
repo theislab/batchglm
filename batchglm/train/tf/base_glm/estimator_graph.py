@@ -1,4 +1,3 @@
-import abc
 import logging
 from typing import Union
 
@@ -11,9 +10,51 @@ try:
 except ImportError:
     anndata = None
 
-from .external import train_utils, op_utils
+from .model import _ProcessModel, _ModelVars, BasicModelGraph_GLM
+from .external import TFEstimatorGraph
+from .external import train_utils
 
 logger = logging.getLogger(__name__)
+
+
+
+class FullDataModelGraph_GLM:
+    """
+    Computational graph to evaluate model on full data set.
+
+    Here, we assume that the model cannot be executed on the full data set
+    for memory reasons and therefore divide the data set into batches,
+    execute the model on these batches and summarise the resulting metrics
+    across batches. FullDataModelGraph is therefore an extension of
+    BasicModelGraph that distributes operations across batches of observations.
+
+    The distribution is performed by the function map_model().
+    The model metrics which can be collected are:
+
+        - The model likelihood (cost function value).
+        - Model Jacobian matrix for trainer parameters (for training).
+        - Model Jacobian matrix for all parameters (for downstream usage,
+        e.g. hypothesis tests which can also be performed on closed form MLEs).
+        - Model Hessian matrix for trainer parameters (for training).
+        - Model Hessian matrix for all parameters (for downstream usage,
+        e.g. hypothesis tests which can also be performed on closed form MLEs).
+    """
+    log_likelihood: tf.Tensor
+    norm_log_likelihood: tf.Tensor
+    norm_neg_log_likelihood: tf.Tensor
+    loss: tf.Tensor
+
+    jac: tf.Tensor
+    neg_jac: tf.Tensor
+    hessian: tf.Tensor
+    neg_hessian: tf.Tensor
+    neg_jac_train: tf.Tensor
+    neg_hessian_train: tf.Tensor
+
+    noise_model: str
+
+    def __init__(self):
+        pass
 
 
 class GradientGraph:
@@ -27,6 +68,11 @@ class GradientGraph:
     The latter have to be distinguished as there are different jacobians
     and hessians for the full and the batched data.
     """
+    model_vars: tf.Tensor
+    full_data_model: tf.Tensor
+    batched_data_model: tf.Tensor
+    batch_jac: tf.Tensor
+
     nr_update_full: Union[tf.Tensor, None]
     nr_update_batched: Union[tf.Tensor, None]
 
@@ -38,59 +84,44 @@ class GradientGraph:
     ):
         if termination_type == "by_feature":
             logger.debug(" ** Build gradients for training graph: by_feature")
-            gradients_full = self.gradients_full_byfeature
-            gradients_batch = self.gradients_batched_byfeature
+            self.gradients_full_byfeature()
+            self.gradients_batched_byfeature()
         elif termination_type == "global":
             logger.debug(" ** Build gradients for training graph: global")
-            gradients_full = self.gradients_full_global
-            gradients_batch = self.gradients_batched_global
+            self.gradients_full_global()
+            self.gradients_batched_global()
         else:
             raise ValueError("convergence_type %s not recognized." % termination_type)
 
         # Pad gradients to receive update tensors that match
         # the shape of model_vars.params.
-        if train_mu and not train_r:
+        if train_mu:
             if train_r:
-                pass
+                gradients_batch = self.gradients_batch_raw
+                gradients_full = self.gradients_full_raw
             else:
                 gradients_batch = tf.concat([
-                    gradients_batch,
+                    self.gradients_batch_raw,
                     tf.zeros_like(self.model_vars.b)
                 ], axis=0)
                 gradients_full = tf.concat([
-                    gradients_full,
+                    self.gradients_full_raw,
                     tf.zeros_like(self.model_vars.b)
                 ], axis=0)
         elif train_r:
             gradients_batch = tf.concat([
                 tf.zeros_like(self.model_vars.a),
-                gradients_batch
+                self.gradients_batch_raw
             ], axis=0)
             gradients_full = tf.concat([
                 tf.zeros_like(self.model_vars.a),
-                gradients_full
+                self.gradients_full_raw
             ], axis=0)
         else:
             raise ValueError("No training necessary")
 
         self.gradients_full = gradients_full
         self.gradients_batch = gradients_batch
-
-    @abc.abstractmethod
-    def model_vars(self):
-        pass
-
-    @abc.abstractmethod
-    def full_data_model(self):
-        pass
-
-    @abc.abstractmethod
-    def batched_data_model(self):
-        pass
-
-    @abc.abstractmethod
-    def batch_jac(self):
-        pass
 
     def gradients_full_byfeature(self):
         gradients_full_all = tf.transpose(self.full_data_model.neg_jac_train)
@@ -103,7 +134,7 @@ class GradientGraph:
             for i in range(self.model_vars.n_features)
         ], axis=1)
 
-        return gradients_full
+        self.gradients_full_raw = gradients_full
 
     def gradients_batched_byfeature(self):
         gradients_batch_all = tf.transpose(self.batch_jac.neg_jac)
@@ -116,15 +147,15 @@ class GradientGraph:
             for i in range(self.model_vars.n_features)
         ], axis=1)
 
-        return gradients_batch
+        self.gradients_batch_raw = gradients_batch
 
     def gradients_full_global(self):
         gradients_full = tf.transpose(self.full_data_model.neg_jac_train)
-        return gradients_full
+        self.gradients_full_raw = gradients_full
 
     def gradients_batched_global(self):
         gradients_batch = tf.transpose(self.batch_jac.neg_jac)
-        return gradients_batch
+        self.gradients_batch_raw = gradients_batch
 
 
 class NewtonGraph:
@@ -138,6 +169,12 @@ class NewtonGraph:
     The latter have to be distinguished as there are different jacobians
     and hessians for the full and the batched data.
     """
+    model_vars: tf.Tensor
+    full_data_model: tf.Tensor
+    batched_data_model: tf.Tensor
+    batch_jac: tf.Tensor
+    batch_hessians: tf.Tensor
+
     nr_update_full: Union[tf.Tensor, None]
     nr_update_batched: Union[tf.Tensor, None]
 
@@ -148,78 +185,51 @@ class NewtonGraph:
             train_mu,
             train_r
     ):
-        if termination_type == "by_feature":
-            if provide_optimizers["nr"]:
+        if provide_optimizers["nr"]:
+            if termination_type == "by_feature":
                 logger.debug(" ** Build newton training graph: by_feature, train mu and r")
-                nr_update_full = self.nr_update_full_byfeature
-                nr_update_batched = self.nr_update_batched_byfeature
-            else:
-                nr_update_full = None
-                nr_update_batched = None
-        elif termination_type == "global":
-            if provide_optimizers["nr"]:
+                self.nr_update_full_byfeature()
+                self.nr_update_batched_byfeature()
+            elif termination_type == "global":
                 logger.debug(" ** Build newton training graph: global, train mu and r")
-                nr_update_full = self.nr_update_full_byfeature
-                nr_update_batched = self.nr_update_batched_byfeature
+                self.nr_update_full_global()
+                self.nr_update_batched_global()
             else:
-                nr_update_full = None
-                nr_update_batched = None
-        else:
-            raise ValueError("convergence_type %s not recognized." % termination_type)
+                raise ValueError("convergence_type %s not recognized." % termination_type)
 
-        # Pad update vectors to receive update tensors that match
-        # the shape of model_vars.params.
-        if train_mu:
-            if train_r:
-                if provide_optimizers["nr"]:
-                    pass
-            else:
-                if provide_optimizers["nr"]:
+            # Pad update vectors to receive update tensors that match
+            # the shape of model_vars.params.
+            if train_mu:
+                if train_r:
+                    nr_update_full = self.nr_update_full_raw
+                    nr_update_batched = self.nr_update_batched_raw
+                else:
                     nr_update_full = tf.concat([
-                        nr_update_full,
+                        self.nr_update_full_raw,
                         tf.zeros_like(self.model_vars.b)
                     ], axis=0)
                     nr_update_batched = tf.concat([
-                        nr_update_batched,
+                        self.nr_update_batched_raw,
                         tf.zeros_like(self.model_vars.b)
                     ], axis=0)
-        elif train_r:
-            if provide_optimizers["nr"]:
+            elif train_r:
                 nr_update_full = tf.concat([
                     tf.zeros_like(self.model_vars.a),
-                    nr_update_full
+                    self.nr_update_full_raw
                 ], axis=0)
                 nr_update_batched = tf.concat([
                     tf.zeros_like(self.model_vars.a),
-                    nr_update_batched
+                    self.nr_update_batched_raw
                 ], axis=0)
+            else:
+                raise ValueError("No training necessary")
         else:
-            raise ValueError("No training necessary")
+            nr_update_full = None
+            nr_update_batched = None
 
         self.nr_update_full = nr_update_full
         self.nr_update_batched = nr_update_batched
 
-    @abc.abstractmethod
-    def model_vars(self):
-        pass
-
-    @abc.abstractmethod
-    def full_data_model(self):
-        pass
-
-    @abc.abstractmethod
-    def batched_data_model(self):
-        pass
-
-    @abc.abstractmethod
-    def batch_jac(self):
-        pass
-
-    @abc.abstractmethod
-    def batch_hessians(self):
-        pass
-
-    @property
     def nr_update_full_byfeature(self):
         # Full data model by gene:
         param_grad_vec = self.full_data_model.neg_jac_train
@@ -243,15 +253,15 @@ class NewtonGraph:
             tf.gather(delta_t_bygene_nonconverged,
                       indices=np.where(self.idx_nonconverged == i)[0],
                       axis=0)
-            if not model_vars.converged[i]
+            if not self.model_vars.converged[i]
             else tf.zeros([1, param_grad_vec.shape[1]])
             for i in range(self.model_vars.n_features)
         ], axis=0)
         nr_update_full = tf.transpose(delta_t_bygene_full)
 
-        return nr_update_full
+        self.nr_update_full_raw = nr_update_full
+        return
 
-    @property
     def nr_update_batched_byfeature(self):
         # Batched data model by gene:
         param_grad_vec_batched = self.batch_jac.neg_jac
@@ -281,9 +291,9 @@ class NewtonGraph:
         ], axis=0)
         nr_update_batched = tf.transpose(delta_batched_t_bygene_full)
 
-        return nr_update_batched
+        self.nr_update_batched_raw = nr_update_batched
+        return
 
-    @property
     def nr_update_full_global(self):
         # Full data model:
         param_grad_vec = self.full_data_model.neg_jac_train
@@ -295,9 +305,9 @@ class NewtonGraph:
         ), axis=-1)
         nr_update_full = tf.transpose(delta_t)
 
-        return nr_update_full
+        self.nr_update_full_raw = nr_update_full
+        return
 
-    @property
     def nr_update_batched_global(self):
         # Batched data model:
         param_grad_vec_batched = self.batch_jac.neg_jac
@@ -308,13 +318,26 @@ class NewtonGraph:
         ), axis=-1)
         nr_update_batched = tf.transpose(delta_batched_t)
 
-        return nr_update_batched
+        self.nr_update_batched_raw = nr_update_batched
+        return
 
-class TrainerGraph:
+class _TrainerGraph:
+    """
+
+    """
+    model_vars: _ModelVars
+    full_data_model: FullDataModelGraph_GLM
+    batched_data_model: BasicModelGraph_GLM
+    gradients_full: tf.Tensor
+    gradients_batch: tf.Tensor
+    nr_update_full: tf.Tensor
+    nr_update_batched: tf.Tensor
 
     def __init__(
             self,
-            feature_isnonzero
+            feature_isnonzero,
+            provide_optimizers,
+            dtype
     ):
         with tf.name_scope("training_graphs"):
             logger.debug(" ** Build training graphs")
@@ -388,30 +411,30 @@ class TrainerGraph:
             logger.debug(" ** Build training graph: output")
             bounds_min, bounds_max = self.param_bounds(dtype)
 
-            param_nonzero_a = tf.broadcast_to(feature_isnonzero, [num_design_loc_params, num_features])
+            param_nonzero_a = tf.broadcast_to(feature_isnonzero, [self.num_design_loc_params, self.num_features])
             alt_a = tf.concat([
                 # intercept
-                tf.broadcast_to(bounds_min["a"], [1, num_features]),
+                tf.broadcast_to(bounds_min["a"], [1, self.num_features]),
                 # slope
-                tf.zeros(shape=[num_design_loc_params - 1, num_features], dtype=model_vars.a.dtype),
+                tf.zeros(shape=[self.num_design_loc_params - 1, self.num_features], dtype=self.model_vars.a.dtype),
             ], axis=0, name="alt_a")
             a = tf.where(
                 param_nonzero_a,
-                model_vars.a,
+                self.model_vars.a,
                 alt_a,
                 name="a"
             )
 
-            param_nonzero_b = tf.broadcast_to(feature_isnonzero, [num_design_scale_params, num_features])
+            param_nonzero_b = tf.broadcast_to(feature_isnonzero, [self.num_design_scale_params, self.num_features])
             alt_b = tf.concat([
                 # intercept
-                tf.broadcast_to(bounds_max["b"], [1, num_features]),
+                tf.broadcast_to(bounds_max["b"], [1, self.num_features]),
                 # slope
-                tf.zeros(shape=[num_design_scale_params - 1, num_features], dtype=model_vars.b.dtype),
+                tf.zeros(shape=[self.num_design_scale_params - 1, self.num_features], dtype=self.model_vars.b.dtype),
             ], axis=0, name="alt_b")
             b = tf.where(
                 param_nonzero_b,
-                model_vars.b,
+                self.model_vars.b,
                 alt_b,
                 name="b"
             )
@@ -429,33 +452,56 @@ class TrainerGraph:
         # # ### set up class attributes
         self.a = a
         self.b = b
-        assert (self.a.shape == (num_design_loc_params, num_features))
-        assert (self.b.shape == (num_design_scale_params, num_features))
+        assert (self.a.shape == (self.num_design_loc_params, self.num_features))
+        assert (self.b.shape == (self.num_design_scale_params, self.num_features))
 
-    @abc.abstractmethod
-    def model_vars(self):
-        pass
 
-    @abc.abstractmethod
-    def full_data_model(self):
-        pass
+class EstimatorGraph_GLM(TFEstimatorGraph, GradientGraph, NewtonGraph):
+    """
+    The estimator graphs are all graph necessary to perform parameter updates and to
+    summarise a current parameter estimate.
 
-    @abc.abstractmethod
-    def batched_data_model(self):
-        pass
+    The estimator graph class is divided into the following major sub graphs:
 
-    @abc.abstractmethod
-    def gradients_full(self):
-        pass
+        - The input pipeline: Feed data for parameter updates.
+        -
+    """
+    X: tf.Tensor
 
-    @abc.abstractmethod
-    def gradients_batch(self):
-        pass
+    a: tf.Tensor
+    b: tf.Tensor
 
-    @abc.abstractmethod
-    def nr_update_full(self):
-        pass
+    noise_model: str
 
-    @abc.abstractmethod
-    def nr_update_batched(self):
-        pass
+    def __init__(
+            self,
+            num_observations,
+            num_features,
+            num_design_loc_params,
+            num_design_scale_params,
+            graph: tf.Graph = None,
+            batch_size: int = None,
+    ):
+        """
+
+        :param num_observations: int
+            Number of observations.
+        :param num_features: int
+            Number of features.
+        :param num_design_loc_params: int
+            Number of parameters per feature in mean model.
+        :param num_design_scale_params: int
+            Number of parameters per feature in scale model.
+        :param graph: tf.Graph
+        """
+        TFEstimatorGraph.__init__(
+            self=self,
+            graph=graph
+        )
+
+        self.num_observations = num_observations
+        self.num_features = num_features
+        self.num_design_loc_params = num_design_loc_params
+        self.num_design_scale_params = num_design_scale_params
+        self.batch_size = batch_size
+

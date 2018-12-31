@@ -245,3 +245,18 @@ class _ModelVars:
         #self.a_by_gene = a_by_gene
         #self.b_by_gene = b_by_gene
 
+
+class BasicModelGraph_GLM:
+    """
+
+    """
+    X: tf.Tensor
+    design_loc: tf.Tensor
+    design_scale: tf.Tensor
+
+    probs: tf.Tensor
+    log_probs: tf.Tensor
+    log_likelihood: tf.Tensor
+    norm_log_likelihood: tf.Tensor
+    norm_neg_log_likelihood: tf.Tensor
+    loss: tf.Tensor

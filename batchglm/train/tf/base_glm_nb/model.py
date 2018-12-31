@@ -4,7 +4,7 @@ import tensorflow as tf
 
 import numpy as np
 
-from .external import ESTIMATOR_PARAMS, _ProcessModel, _ModelVars
+from .external import ESTIMATOR_PARAMS, _ProcessModel, _ModelVars, BasicModelGraph_GLM
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class ModelVars(_ModelVars, ProcessModel):
     Full class.
     """
 
-class BasicModelGraph(ProcessModel):
+class BasicModelGraph(ProcessModel, BasicModelGraph_GLM):
 
     def __init__(
             self,
