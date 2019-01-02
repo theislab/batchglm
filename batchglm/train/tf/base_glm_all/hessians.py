@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class HessianTF:
     """
-    Compute the model hessian by gene using gradients from tensorflow.
+    Compute the Hessian matrix for a GLM by gene using gradients from tensorflow.
     """
 
     noise_model: str
@@ -46,6 +46,10 @@ class HessianTF:
             a function that performs the reduction of the hessians across hessians
             into a single hessian during the iteration over batches.
         """
+        if self.noise_model == "nb":
+            from .external_nb import BasicModelGraph
+        else:
+            raise ValueError("noise model %s was not recognized" % self.noise_model)
 
         def feature_wises_batch(
                 X,
@@ -63,10 +67,6 @@ class HessianTF:
             Compute hessians via tf.hessian for all gene-wise models separately
             for a given batch of data.
             """
-            if self.noise_model == "nb":
-                from .external_nb import BasicModelGraph
-            else:
-                raise ValueError("noise model %s was not recognized" % self.noise_model)
 
             dtype = X.dtype
 

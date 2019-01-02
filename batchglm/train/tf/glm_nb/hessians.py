@@ -630,6 +630,6 @@ class HessianAnalytic:
 
 class Hessians(HessianTF, HessianAnalytic, HessiansGLM):
     """
-    Hessian computation interface for negative binomial GLMs.
+    Hessian matrix computation interface for negative binomial GLMs.
     """
 
