@@ -1,2 +1,2 @@
-from .estimator_graph import GradientGraph, NewtonGraph, _TrainerGraph, EstimatorGraph_GLM, FullDataModelGraph_GLM
-from .model import ESTIMATOR_PARAMS, _ProcessModel, _ModelVars, BasicModelGraph_GLM
+from .estimator_graph import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM, EstimatorGraphGLM, FullDataModelGraphGLM
+from .model import ESTIMATOR_PARAMS, ProcessModelGLM, ModelVarsGLM, BasicModelGraphGLM

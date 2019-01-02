@@ -34,7 +34,8 @@ class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
             batch_size=batch_size,
             quick_scale=True,
             provide_optimizers=provide_optimizers,
-            termination_type="by_feature"
+            termination_type="by_feature",
+            noise_model=noise_model
         )
         super().__init__(
             estimator=estimator

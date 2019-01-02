@@ -8,88 +8,35 @@ import tensorflow as tf
 
 import numpy as np
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
-from .estimator_graph import EstimatorGraph
-from .external import MonitoredTFEstimator
-from .external import data_utils
+from .estimator_graph import EstimatorGraphAll
+from .external import MonitoredTFEstimator, _InputData_GLM, _Model_GLM
 
 logger = logging.getLogger(__name__)
 
 
-class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
+class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
     """
 
     class TrainingStrategy(Enum):
-        AUTO = None
-        DEFAULT = [
-            {
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
-                "use_batching": False,
-                "optim_algo": "Newton",
-            },
-        ]
-        QUICK = [
-            {
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-6,
-                "use_batching": False,
-                "optim_algo": "Newton",
-            },
-        ]
-        PRE_INITIALIZED = [
-            {
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "newton",
-            },
-        ]
-        CONSTRAINED = [  # Should not contain newton-rhapson right now.
-            {
-                "learning_rate": 0.5,
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-        ]
-        CONTINUOUS = [
-            {
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
-                "use_batching": False,
-                "optim_algo": "Newton",
-            }
-        ]
+        pass
 
-    model: EstimatorGraph
-    _train_mu: bool
-    _train_r: bool
-
-    @classmethod
-    def param_shapes(cls) -> dict:
-        return ESTIMATOR_PARAMS
+    model: EstimatorGraphAll
+    _train_loc: bool
+    _train_scale: bool
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: _InputData_GLM,
             batch_size: int = 500,
             graph: tf.Graph = None,
-            init_model: Model = None,
+            init_model: _Model_GLM = None,
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
-            model: EstimatorGraph = None,
+            model: EstimatorGraphAll = None,
             provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
             termination_type: str = "global",
             extended_summary=False,
@@ -140,10 +87,9 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             Will drastically increase runtime of summary writer, use only for debugging.
         """
         if noise_model == "nb":
-            from .external_nb import InputData, Model, AbstractEstimator, EstimatorStore_XArray
-            from .external_nb import closedform_nb_glm_logmu, closedform_nb_glm_logphi
+            from .external_nb import EstimatorGraph
         else:
-            raise ValueError("noise model not rewcognized")
+            raise ValueError("noise model %s was not recognized" % noise_model)
         self.noise_model = noise_model
 
         # validate design matrix:
@@ -158,13 +104,13 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 graph = tf.Graph()
 
             self._input_data = input_data
-            self._train_mu = True
-            self._train_r = not quick_scale
+            self._train_loc = True
+            self._train_scale = not quick_scale
 
             (init_a, init_b) = self.init(
                 init_a=init_a,
                 init_b=init_b,
-                init_model=init_models
+                init_model=init_model
             )
 
         # ### prepare fetch_fn:
@@ -255,8 +201,8 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 constraints_loc=input_data.constraints_loc,
                 constraints_scale=input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
-                train_mu=self._train_mu,
-                train_r=self._train_r,
+                train_loc=self._train_loc,
+                train_scale=self._train_scale,
                 termination_type=termination_type,
                 extended_summary=extended_summary,
                 noise_model=self.noise_model,
@@ -274,157 +220,6 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 saver=self.model.saver,
             )
         return scaffold
-
-    @abc.abstractmethod
-    def init(
-            self,
-            init_a,
-            init_b
-    ):
-        pass
-
-    def init(
-            self,
-            init_a,
-            init_b,
-            init_model
-    ):
-        r"""
-        standard:
-        Only initialise intercept and keep other coefficients as zero.
-
-        closed-form:
-        Initialize with Maximum Likelihood / Maximum of Momentum estimators
-
-        Idea:
-        $$
-            \theta &= f(x) \\
-            \Rightarrow f^{-1}(\theta) &= x \\
-                &= (D \cdot D^{+}) \cdot x \\
-                &= D \cdot (D^{+} \cdot x) \\
-                &= D \cdot x' = f^{-1}(\theta)
-        $$
-        """
-
-        size_factors_init = input_data.size_factors
-        if size_factors_init is not None:
-            size_factors_init = np.expand_dims(size_factors_init, axis=1)
-            size_factors_init = np.broadcast_to(
-                array=size_factors_init,
-                shape=[input_data.num_observations, input_data.num_features]
-            )
-
-        # TODO do init noise model specific
-        logger.debug(" * Initialize mean model")
-        if isinstance(init_a, str):
-            # Chose option if auto was chosen
-            if init_a.lower() == "auto":
-                init_a = "closed_form"
-
-            if init_a.lower() == "closed_form":
-                try:
-                    groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
-                        X=self._input_data.X,
-                        design_loc=self._input_data.design_loc,
-                        constraints=self._input_data.constraints_loc,
-                        size_factors=size_factors_init,
-                        link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
-                    )
-
-                    # train mu, if the closed-form solution is inaccurate
-                    self._train_mu = not np.all(rmsd_a == 0)
-
-                    # Temporal fix: train mu if size factors are given as closed form may be different:
-                    if self._input_data.size_factors is not None:
-                        self._train_mu = True
-
-                    logger.info("Using closed-form MLE initialization for mean")
-                    logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
-                    logger.info("Should train mu: %s", self._train_mu)
-                except np.linalg.LinAlgError:
-                    logger.warning("Closed form initialization failed!")
-            elif init_a.lower() == "standard":
-                overall_means = self._input_data.X.mean(dim="observations").values  # directly calculate the mean
-                # clipping
-                overall_means = self.np_clip_param(overall_means, "mu")
-                # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
-
-                init_a = np.zeros([self._input_data.num_design_loc_params, input_data.num_features])
-                init_a[0, :] = np.log(overall_means)
-                self._train_mu = True
-
-                logger.info("Using standard initialization for mean")
-                logger.info("Should train mu: %s", self._train_mu)
-
-        logger.debug(" * Initialize dispersion model")
-        if isinstance(init_b, str):
-            if init_b.lower() == "auto":
-                init_b = "closed_form"
-
-            if init_b.lower() == "closed_form":
-                try:
-                    init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
-                    init_a_xr.coords["design_loc_params"] = self._input_data.design_loc.coords["design_loc_params"]
-                    init_mu = np.exp(self._input_data.design_loc.dot(init_a_xr))
-
-                    groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
-                        X=self._input_data.X,
-                        mu=init_mu,
-                        design_scale=self._input_data.design_scale,
-                        constraints=self._input_data.constraints_scale,
-                        size_factors=size_factors_init,
-                        groupwise_means=None,
-                        # Could only use groupwise_means from a init if design_loc and design_scale were the same.
-                        link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
-                    )
-
-                    logger.info("Using closed-form MME initialization for dispersion")
-                    logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_b)
-                    logger.info("Should train r: %s", self._train_r)
-                except np.linalg.LinAlgError:
-                    logger.warning("Closed form initialization failed!")
-            elif init_b.lower() == "standard":
-                init_b = np.zeros([self._input_data.design_scale.shape[1], self._input_data.X.shape[1]])
-
-                logger.info("Using standard initialization for dispersion")
-                logger.info("Should train r: %s", self._train_r)
-
-        if init_model is not None:
-            if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
-                # location
-                my_loc_names = set(self._input_data.design_loc_names.values)
-                my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
-
-                init_loc = np.random.uniform(
-                    low=np.nextafter(0, 1, dtype=self._input_data.X.dtype),
-                    high=np.sqrt(np.nextafter(0, 1, dtype=self._input_data.X.dtype)),
-                    size=(self._input_data.num_design_loc_params, self._input_data.num_features)
-                )
-                for parm in my_loc_names:
-                    init_idx = np.where(init_model.input_data.design_loc_names == parm)
-                    my_idx = np.where(input_data.design_loc_names == parm)
-                    init_loc[my_idx] = init_model.par_link_loc[init_idx]
-
-                init_a = init_loc
-
-            if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
-                # scale
-                my_scale_names = set(input_data.design_scale_names.values)
-                my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
-
-                init_scale = np.random.uniform(
-                    low=np.nextafter(0, 1, dtype=self._input_data.X.dtype),
-                    high=np.sqrt(np.nextafter(0, 1, dtype=self._input_data.X.dtype)),
-                    size=(self._input_data.num_design_scale_params, self._input_data.num_features)
-                )
-                for parm in my_scale_names:
-                    init_idx = np.where(init_model.input_data.design_scale_names == parm)
-                    my_idx = np.where(input_data.design_scale_names == parm)
-                    init_scale[my_idx] = init_model.par_link_scale[init_idx]
-
-                init_b = init_scale
-
-        return (init_a, init_b)
 
     def train(self, *args,
               learning_rate=None,
@@ -476,10 +271,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         """
         if train_mu is None:
             # check if mu was initialized with MLE
-            train_mu = self._train_mu
+            train_mu = self._train_loc
         if train_r is None:
             # check if r was initialized with MLE
-            train_r = self._train_r
+            train_r = self._train_scale
 
         # Check whether newton-rhapson is desired:
         newton_rhapson_mode = False
@@ -498,11 +293,11 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         # Check that newton-rhapson is called properly:
         if newton_rhapson_mode:
             if learning_rate != 1:
-                logger.warning("Newton-rhapson in glm_all is used with learing rate " + str(learning_rate) +
+                logger.warning("Newton-rhapson in base_glm_all is used with learing rate " + str(learning_rate) +
                                ". Newton-rhapson should only be used with learing rate =1.")
 
         # Report all parameters after all defaults were imputed in settings:
-        logger.debug("Optimizer settings in glm_all Estimator.train():")
+        logger.debug("Optimizer settings in base_glm_all Estimator.train():")
         logger.debug("learning_rate " + str(learning_rate))
         logger.debug("convergence_criteria " + str(convergence_criteria))
         logger.debug("loss_window_size " + str(loss_window_size))
@@ -532,18 +327,14 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           train_op=train_op,
                           **kwargs)
 
-    @property
-    def input_data(self) -> InputData:
-        return self._input_data
-
-    def train_sequence(self, training_strategy=TrainingStrategy.AUTO):
+    def train_sequence(self, training_strategy):
         if isinstance(training_strategy, Enum):
             training_strategy = training_strategy.value
         elif isinstance(training_strategy, str):
             training_strategy = self.TrainingStrategy[training_strategy].value
 
         if training_strategy is None:
-            if not self._train_mu:
+            if not self._train_loc:
                 training_strategy = self.TrainingStrategy.PRE_INITIALIZED.value
             else:
                 training_strategy = self.TrainingStrategy.DEFAULT.value
@@ -554,6 +345,10 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
             logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
             logger.info("Training sequence #%d complete", idx + 1)
+
+    @property
+    def input_data(self) -> _InputData_GLM:
+        return self._input_data
 
     @property
     def a(self):
@@ -588,8 +383,22 @@ class Estimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return self.to_xarray("fisher_inv", coords=self.input_data.data.coords)
 
     def finalize(self):
+        if self.noise_model == "nb":
+            from .external_nb import EstimatorStoreXArray
+        else:
+            raise ValueError("noise model not rewcognized")
+
         logger.debug("Collect and compute ouptut")
-        store = EstimatorStore_XArray(self)
+        store = EstimatorStoreXArray(self)
         logger.debug("Closing session")
         self.close_session()
         return store
+
+    @abc.abstractmethod
+    def init(
+            self,
+            init_a,
+            init_b,
+            init_model
+    ):
+        pass

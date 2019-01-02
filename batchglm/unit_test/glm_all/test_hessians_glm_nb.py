@@ -37,7 +37,11 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        estimator = Estimator(input_data, termination_type="by_feature")
+        estimator = Estimator(
+            input_data=input_data,
+            termination_type="by_feature",
+            noise_model=self.noise_model
+        )
         estimator.initialize()
         estimator.train_sequence(training_strategy=[
             {

@@ -37,7 +37,8 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             provide_optimizers=provide_optimizers,
             termination_type=termination,
             init_a="standard",
-            init_b="standard"
+            init_b="standard",
+            noise_model=noise_model
         )
         super().__init__(
             estimator=estimator,

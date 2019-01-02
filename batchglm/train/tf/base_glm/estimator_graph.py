@@ -1,3 +1,4 @@
+import abc
 import logging
 from typing import Union
 
@@ -10,15 +11,14 @@ try:
 except ImportError:
     anndata = None
 
-from .model import _ProcessModel, _ModelVars, BasicModelGraph_GLM
+from .model import ModelVarsGLM, BasicModelGraphGLM
 from .external import TFEstimatorGraph
 from .external import train_utils
 
 logger = logging.getLogger(__name__)
 
 
-
-class FullDataModelGraph_GLM:
+class FullDataModelGraphGLM:
     """
     Computational graph to evaluate model on full data set.
 
@@ -53,11 +53,8 @@ class FullDataModelGraph_GLM:
 
     noise_model: str
 
-    def __init__(self):
-        pass
 
-
-class GradientGraph:
+class GradientGraphGLM:
     """
 
     Define newton-rhapson updates and gradients depending on termination type
@@ -79,8 +76,8 @@ class GradientGraph:
     def __init__(
             self,
             termination_type,
-            train_mu,
-            train_r
+            train_loc,
+            train_scale
     ):
         if termination_type == "by_feature":
             logger.debug(" ** Build gradients for training graph: by_feature")
@@ -95,8 +92,8 @@ class GradientGraph:
 
         # Pad gradients to receive update tensors that match
         # the shape of model_vars.params.
-        if train_mu:
-            if train_r:
+        if train_loc:
+            if train_scale:
                 gradients_batch = self.gradients_batch_raw
                 gradients_full = self.gradients_full_raw
             else:
@@ -108,7 +105,7 @@ class GradientGraph:
                     self.gradients_full_raw,
                     tf.zeros_like(self.model_vars.b)
                 ], axis=0)
-        elif train_r:
+        elif train_scale:
             gradients_batch = tf.concat([
                 tf.zeros_like(self.model_vars.a),
                 self.gradients_batch_raw
@@ -158,7 +155,7 @@ class GradientGraph:
         self.gradients_batch_raw = gradients_batch
 
 
-class NewtonGraph:
+class NewtonGraphGLM:
     """
 
     Define newton-rhapson updates and gradients depending on termination type
@@ -177,6 +174,8 @@ class NewtonGraph:
 
     nr_update_full: Union[tf.Tensor, None]
     nr_update_batched: Union[tf.Tensor, None]
+
+    idx_nonconverged: np.ndarray
 
     def __init__(
             self,
@@ -321,17 +320,27 @@ class NewtonGraph:
         self.nr_update_batched_raw = nr_update_batched
         return
 
-class _TrainerGraph:
+
+class TrainerGraphGLM:
     """
 
     """
-    model_vars: _ModelVars
-    full_data_model: FullDataModelGraph_GLM
-    batched_data_model: BasicModelGraph_GLM
-    gradients_full: tf.Tensor
+    model_vars: ModelVarsGLM
+    full_data_model: FullDataModelGraphGLM
+    batched_data_model: BasicModelGraphGLM
     gradients_batch: tf.Tensor
+    gradients_full: tf.Tensor
     nr_update_full: tf.Tensor
     nr_update_batched: tf.Tensor
+
+    gradient: tf.Tensor  # TODO naming convention of gradeints see similar above
+    full_gradient: tf.Tensor
+
+    num_observations: int
+    num_features: int
+    num_design_loc_params: int
+    num_design_scale_params: int
+    batch_size: int
 
     def __init__(
             self,
@@ -444,6 +453,7 @@ class _TrainerGraph:
         self.global_step = global_step
 
         self.gradient = batch_gradient
+        self.full_gradient = full_gradient
 
         self.train_op = trainer_full.train_op_GD
         self.init_ops = []
@@ -455,8 +465,12 @@ class _TrainerGraph:
         assert (self.a.shape == (self.num_design_loc_params, self.num_features))
         assert (self.b.shape == (self.num_design_scale_params, self.num_features))
 
+    @abc.abstractmethod
+    def param_bounds(self):
+        pass
 
-class EstimatorGraph_GLM(TFEstimatorGraph, GradientGraph, NewtonGraph):
+
+class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM):
     """
     The estimator graphs are all graph necessary to perform parameter updates and to
     summarise a current parameter estimate.
@@ -505,3 +519,6 @@ class EstimatorGraph_GLM(TFEstimatorGraph, GradientGraph, NewtonGraph):
         self.num_design_scale_params = num_design_scale_params
         self.batch_size = batch_size
 
+    @abc.abstractmethod
+    def param_bounds(self):
+        pass

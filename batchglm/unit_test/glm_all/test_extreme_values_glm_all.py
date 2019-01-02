@@ -36,7 +36,8 @@ class _Test_ExtremValues_GLM_ALL_Estim(_Test_ExtremValues_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            termination_type=termination
+            termination_type=termination,
+            noise_model=noise_model
         )
         super().__init__(
             estimator=estimator

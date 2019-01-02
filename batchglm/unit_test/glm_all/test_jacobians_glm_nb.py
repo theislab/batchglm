@@ -51,7 +51,11 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        estimator = Estimator(input_data, quick_scale=quick_scale)
+        estimator = Estimator(
+            input_data=input_data,
+            quick_scale=quick_scale,
+            noise_model=self.noise_model
+        )
         estimator.initialize()
         # Do not train, evalute at initialization!
         return estimator
@@ -147,6 +151,7 @@ class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
         self.noise_model = "nb"
         self._test_compute_jacobians()
+
 
 if __name__ == '__main__':
     unittest.main()

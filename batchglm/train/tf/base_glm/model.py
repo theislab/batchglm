@@ -4,7 +4,7 @@ import logging
 import tensorflow as tf
 import numpy as np
 
-from .external import AbstractEstimator
+from .external import AbstractEstimator, ProcessModelBase
 
 logger = logging.getLogger(__name__)
 
@@ -17,37 +17,8 @@ ESTIMATOR_PARAMS.update({
     "full_gradient": ("features",),
 })
 
-class _ProcessModel():
 
-    @abc.abstractmethod
-    def param_bounds(self, dtype):
-        pass
-
-    def tf_clip_param(
-            self,
-            param,
-            name
-    ):
-        bounds_min, bounds_max = self.param_bounds(param.dtype)
-        return tf.clip_by_value(
-            param,
-            bounds_min[name],
-            bounds_max[name]
-        )
-
-    def np_clip_param(
-            self,
-            param,
-            name
-    ):
-        bounds_min, bounds_max = self.param_bounds(param.dtype)
-        return np.clip(
-            param,
-            bounds_min[name],
-            bounds_max[name],
-            # out=param
-        )
-
+class ProcessModelGLM(ProcessModelBase):
 
     def apply_constraints(
             self,
@@ -71,7 +42,7 @@ class _ProcessModel():
                 are indicated by a 1.
         :param var_all: Variable tensor features x independent parameters.
             All model parameters.
-        :param var_all: Variable tensor features x independent parameters.
+        :param var_indep: Variable tensor features x independent parameters.
             Only independent model parameters, ie. not parameters defined by constraints.
         :param dtype: Precision used in tensorflow.
 
@@ -120,24 +91,29 @@ class _ProcessModel():
 
         return x
 
-class _ModelVars:
+    @abc.abstractmethod
+    def param_bounds(self, dtype):
+        pass
+
+
+class ModelVarsGLM(ProcessModelGLM):
+    """ Build tf.Variables to be optimzed and their constraints.
+
+    a_var and b_var slices of the tf.Variable params which contains
+    all parameters to be optimized during model estimation.
+    Params is defined across both location and scale model so that 
+    the hessian can be computed for the entire model.
+    a and b are the clipped parameter values which also contain
+    constraints and constrained dependent coefficients which are not
+    directly optimized.
+    """
+
     a: tf.Tensor
     b: tf.Tensor
     a_var: tf.Variable
     b_var: tf.Variable
     params: tf.Variable
     converged: np.ndarray
-
-    """ Build tf.Variables to be optimzed and their constraints.
-
-    a_var and b_var slices of the tf.Variable params which contains
-    all parameters to be optimzed during model estimation. 
-    Params is defined across both location and scale model so that 
-    the hessian can be computed for the entire model.
-    a and b are the clipped parameter values which also contain
-    constraints and constrained dependent coefficients which are not
-    directrly optimzed.
-    """
 
     def __init__(
             self,
@@ -245,8 +221,12 @@ class _ModelVars:
         #self.a_by_gene = a_by_gene
         #self.b_by_gene = b_by_gene
 
+    @abc.abstractmethod
+    def param_bounds(self, dtype):
+        pass
 
-class BasicModelGraph_GLM:
+
+class BasicModelGraphGLM(ProcessModelGLM):
     """
 
     """
@@ -260,3 +240,7 @@ class BasicModelGraph_GLM:
     norm_log_likelihood: tf.Tensor
     norm_neg_log_likelihood: tf.Tensor
     loss: tf.Tensor
+
+    @abc.abstractmethod
+    def param_bounds(self, dtype):
+        pass

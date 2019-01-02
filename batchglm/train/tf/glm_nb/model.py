@@ -4,13 +4,13 @@ import tensorflow as tf
 
 import numpy as np
 
-from .external import ESTIMATOR_PARAMS, _ProcessModel, _ModelVars, BasicModelGraph_GLM
+from .external import ProcessModelGLM, ModelVarsGLM, BasicModelGraphGLM
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
 
 
-class ProcessModel(_ProcessModel):
+class ProcessModel(ProcessModelGLM):
 
     def param_bounds(
             self,
@@ -50,12 +50,13 @@ class ProcessModel(_ProcessModel):
         return bounds_min, bounds_max
 
 
-class ModelVars(_ModelVars, ProcessModel):
+class ModelVars(ProcessModel, ModelVarsGLM):
     """
     Full class.
     """
 
-class BasicModelGraph(ProcessModel, BasicModelGraph_GLM):
+
+class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
 
     def __init__(
             self,

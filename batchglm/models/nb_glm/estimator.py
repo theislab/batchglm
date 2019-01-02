@@ -1,10 +1,5 @@
 import abc
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 from .model import Model, Model_XArray
 from .external import _Estimator_GLM, _EstimatorStore_XArray_GLM, ESTIMATOR_PARAMS
 
@@ -20,7 +15,7 @@ class AbstractEstimator(Model, _Estimator_GLM, metaclass=abc.ABCMeta):
         return ESTIMATOR_PARAMS
 
 
-class EstimatorStore_XArray(_EstimatorStore_XArray_GLM, AbstractEstimator, Model_XArray):
+class EstimatorStoreXArray(_EstimatorStore_XArray_GLM, AbstractEstimator, Model_XArray):
 
     def __init__(self, estim: AbstractEstimator):
         input_data = estim.input_data

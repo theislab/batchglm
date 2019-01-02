@@ -2,23 +2,17 @@ from typing import Union
 import logging
 
 import tensorflow as tf
-
 import numpy as np
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
-from .external import EstimatorGraph_GLM, GradientGraph, NewtonGraph, _TrainerGraph
-from .external import FullDataModelGraph_GLM
+from .external import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM
+from .external import EstimatorGraphGLM, FullDataModelGraphGLM
 from .external import op_utils
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
 
 
-class FullDataModelGraph(FullDataModelGraph_GLM):
+class FullDataModelGraph(FullDataModelGraphGLM):
     """
     Computational graph to evaluate negative binomial GLM on full data set.
     """
@@ -33,7 +27,7 @@ class FullDataModelGraph(FullDataModelGraph_GLM):
             constraints_scale,
             train_a,
             train_b,
-            noise_model: str = None,
+            noise_model: str,
             dtype
     ):
         """
@@ -205,22 +199,8 @@ class FullDataModelGraph(FullDataModelGraph_GLM):
         self.neg_jac_train = jacobian_train.neg_jac
         self.neg_hessian_train = hessians_train.neg_hessian
 
-class TrainerGraph(_TrainerGraph, ProcessModel):
-    """
 
-    """
-
-    def __init__(
-            self,
-            **args
-    ):
-        # TODO chose correct ProcessModel here
-        _TrainerGraph.__init__(
-            self=self,
-            **args
-        )
-
-class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
+class EstimatorGraphAll(EstimatorGraphGLM):
     """
 
     """
@@ -241,8 +221,8 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
             init_b=None,
             constraints_loc: Union[np.ndarray, None] = None,
             constraints_scale: Union[np.ndarray, None] = None,
-            train_mu: bool = True,
-            train_r: bool = True,
+            train_loc: bool = True,
+            train_scale: bool = True,
             provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
             termination_type: str = "global",
             extended_summary=False,
@@ -289,9 +269,9 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
             parameter is indicated by a -1 in this array, the independent parameters
             of that constraint (which may be dependent at an earlier constraint)
             are indicated by a 1.
-        :param train_mu: bool
+        :param train_loc: bool
             Whether to train mean model. If False, the initialisation is kept.
-        :param train_r: bool
+        :param train_scale: bool
             Whether to train dispersion model. If False, the initialisation is kept.
         :param provide_optimizers:
         :param termination_type:
@@ -304,7 +284,7 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
             raise ValueError("noise model not rewcognized")
         self.noise_model = noise_model
 
-        EstimatorGraph_GLM.__init__(
+        EstimatorGraphGLM.__init__(
             self=self,
             num_observations=num_observations,
             num_features=num_features,
@@ -381,8 +361,8 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
                     model_vars=model_vars,
                     mode=pkg_constants.JACOBIAN_MODE,
                     iterator=False,
-                    jac_a=train_mu,
-                    jac_b=train_r,
+                    jac_a=train_loc,
+                    jac_b=train_scale,
                     dtype=dtype
                 )
 
@@ -397,8 +377,8 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
                     model_vars=model_vars,
                     mode=pkg_constants.HESSIAN_MODE,
                     iterator=False,
-                    hess_a=train_mu,
-                    hess_b=train_r,
+                    hess_a=train_loc,
+                    hess_b=train_scale,
                     dtype=dtype
                 )
 
@@ -415,9 +395,10 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
                     model_vars=model_vars,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
-                    train_a=train_mu,
-                    train_b=train_r,
-                    dtype=dtype,
+                    train_a=train_loc,
+                    train_b=train_scale,
+                    noise_model=noise_model,
+                    dtype=dtype
                 )
                 full_data_loss = full_data_model.loss
                 fisher_inv = op_utils.pinv(full_data_model.neg_hessian)
@@ -466,20 +447,20 @@ class EstimatorGraph(EstimatorGraph_GLM, TrainerGraph):
 
                 self.idx_nonconverged = idx_nonconverged
 
-                GradientGraph.__init__(
+                GradientGraphGLM.__init__(
                     self=self,
                     termination_type=termination_type,
-                    train_mu=train_mu,
-                    train_r=train_r
+                    train_loc=train_loc,
+                    train_scale=train_scale
                 )
-                NewtonGraph.__init__(
+                NewtonGraphGLM.__init__(
                     self=self,
                     termination_type=termination_type,
                     provide_optimizers=provide_optimizers,
-                    train_mu=train_mu,
-                    train_r=train_r
+                    train_mu=train_loc,
+                    train_r=train_scale
                 )
-                TrainerGraph.__init__(
+                TrainerGraphGLM.__init__(
                     self=self,
                     feature_isnonzero=feature_isnonzero,
                     provide_optimizers=provide_optimizers,

@@ -20,7 +20,7 @@ def _coef_invariant_ab(
 ):
     """
     Compute the coefficient index invariant part of the
-    mean-dispersion model block of the hessian of glm_all model.
+    mean-dispersion model block of the hessian of base_glm_all model.
 
     Note that there are two blocks of the same size which can
     be compute from each other with a transpose operation as
@@ -66,7 +66,7 @@ def _coef_invariant_aa(
 ):
     """
     Compute the coefficient index invariant part of the
-    mean model block of the hessian of glm_all model.
+    mean model block of the hessian of base_glm_all model.
 
     Below, X are design matrices of the mean (m)
     and dispersion (r) model respectively, Y are the
@@ -106,7 +106,7 @@ def _coef_invariant_bb(
 ):
     """
     Compute the coefficient index invariant part of the
-    dispersion model block of the hessian of glm_all model.
+    dispersion model block of the hessian of base_glm_all model.
 
     Below, X are design matrices of the mean (m)
     and dispersion (r) model respectively, Y are the
@@ -167,7 +167,7 @@ def _coef_invariant_bb(
 
 
 class Hessians:
-    """ Compute the glm_all model hessian.
+    """ Compute the base_glm_all model hessian.
     """
     hessian: tf.Tensor
     neg_hessian: tf.Tensor
@@ -318,7 +318,7 @@ class Hessians:
             dtype
     ):
         """
-        Compute the closed-form of the glm_all model hessian
+        Compute the closed-form of the base_glm_all model hessian
         by evaluating its terms grouped by observations.
 
         Has three sub-functions which built the specific blocks of the hessian
@@ -339,7 +339,7 @@ class Hessians:
         def _aa_byobs(X, design_loc, design_scale, mu, r):
             """
             Compute the mean model diagonal block of the
-            closed form hessian of glm_all model by observation across features.
+            closed form hessian of base_glm_all model by observation across features.
 
             :param X: tf.tensor observations x features
                 Observation by observation and feature.
@@ -365,7 +365,7 @@ class Hessians:
         def _bb_byobs(X, design_loc, design_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
-            closed form hessian of glm_all model by observation across features.
+            closed form hessian of base_glm_all model by observation across features.
             """
             const = _coef_invariant_bb(  # [observations=1 x features]
                 X=X,
@@ -384,7 +384,7 @@ class Hessians:
         def _ab_byobs(X, design_loc, design_scale, mu, r):
             """
             Compute the mean-dispersion model off-diagonal block of the
-            closed form hessian of glm_all model by observation across features.
+            closed form hessian of base_glm_all model by observation across features.
 
             Note that there are two blocks of the same size which can
             be compute from each other with a transpose operation as
@@ -407,7 +407,7 @@ class Hessians:
         def _aa_byobs_batched(X, design_loc, design_scale, mu, r):
             """
             Compute the mean model diagonal block of the
-            closed form hessian of glm_all model by observation across features
+            closed form hessian of base_glm_all model by observation across features
             for a batch of observations.
 
             :param X: tf.tensor observations x features
@@ -437,7 +437,7 @@ class Hessians:
         def _bb_byobs_batched(X, design_loc, design_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
-            closed form hessian of glm_all model by observation across features.
+            closed form hessian of base_glm_all model by observation across features.
             """
             const = _coef_invariant_bb(  # [observations=1 x features]
                 X=X,
@@ -458,7 +458,7 @@ class Hessians:
         def _ab_byobs_batched(X, design_loc, design_scale, mu, r):
             """
             Compute the mean-dispersion model off-diagonal block of the
-            closed form hessian of glm_all model by observastion across features.
+            closed form hessian of base_glm_all model by observastion across features.
 
             Note that there are two blocks of the same size which can
             be compute from each other with a transpose operation as
@@ -595,7 +595,7 @@ class Hessians:
             dtype
     ):
         """
-        Compute the closed-form of the glm_all model hessian
+        Compute the closed-form of the base_glm_all model hessian
         by evaluating its terms grouped by features.
 
 
@@ -606,7 +606,7 @@ class Hessians:
         def _aa_byfeature(X, design_loc, design_scale, mu, r):
             """
             Compute the mean model diagonal block of the
-            closed form hessian of glm_all model by feature across observation.
+            closed form hessian of base_glm_all model by feature across observation.
 
             :param X: tf.tensor observations x features
                 Observation by observation and feature.
@@ -632,7 +632,7 @@ class Hessians:
         def _bb_byfeature(X, design_loc, design_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
-            closed form hessian of glm_all model by feature across observation.
+            closed form hessian of base_glm_all model by feature across observation.
             """
             const = _coef_invariant_bb(  # [observations x features=1]
                 X=X,
@@ -651,7 +651,7 @@ class Hessians:
         def _ab_byfeature(X, design_loc, design_scale, mu, r):
             """
             Compute the mean-dispersion model off-diagonal block of the
-            closed form hessian of glm_all model by feature across observation.
+            closed form hessian of base_glm_all model by feature across observation.
 
             Note that there are two blocks of the same size which can
             be compute from each other with a transpose operation as

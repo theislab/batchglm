@@ -20,7 +20,7 @@ def _coef_invariant_a(
 ):
     """
     Compute the coefficient index invariant part of the
-    mean model gradient of glm_all model.
+    mean model gradient of base_glm_all model.
 
     Below, X are design matrices of the mean (m)
     and dispersion (r) model respectively, Y are the
@@ -61,7 +61,7 @@ def _coef_invariant_b(
 ):
     """
     Compute the coefficient index invariant part of the
-    dispersion model gradient of glm_all model.
+    dispersion model gradient of base_glm_all model.
 
     Below, X are design matrices of the mean (m)
     and dispersion (r) model respectively, Y are the
@@ -109,7 +109,7 @@ def _coef_invariant_b(
 
 
 class Jacobians:
-    """ Compute the glm_all model jacobian.
+    """ Compute the base_glm_all model jacobian.
     """
     jac: tf.Tensor
     neg_jac: tf.Tensor
@@ -253,7 +253,7 @@ class Jacobians:
             dtype
     ):
         """
-        Compute the closed-form of the glm_all model jacobian
+        Compute the closed-form of the base_glm_all model jacobian
         by evalutating its terms grouped by observations.
         """
 
