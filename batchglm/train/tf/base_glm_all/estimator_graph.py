@@ -115,6 +115,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
                 mode=pkg_constants.HESSIAN_MODE,
+                noise_model=noise_model,
                 iterator=True,
                 hess_a=True,
                 hess_b=True,
@@ -129,6 +130,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                     constraints_scale=constraints_scale,
                     model_vars=model_vars,
                     mode=pkg_constants.HESSIAN_MODE,
+                    noise_model=noise_model,
                     iterator=True,
                     hess_a=train_a,
                     hess_b=train_b,
@@ -376,6 +378,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     constraints_scale=constraints_scale,
                     model_vars=model_vars,
                     mode=pkg_constants.HESSIAN_MODE,
+                    noise_model=noise_model,
                     iterator=False,
                     hess_a=train_loc,
                     hess_b=train_scale,
@@ -418,7 +421,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 mu = full_data_model.mu
                 r = full_data_model.r
                 sigma2 = full_data_model.sigma2
-
 
                 idx_nonconverged = np.where(model_vars.converged == False)[0]
 

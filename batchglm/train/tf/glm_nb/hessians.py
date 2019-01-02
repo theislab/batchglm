@@ -1,310 +1,176 @@
-from typing import List
-
 import tensorflow as tf
-# import numpy as np
 
 import logging
 
 from .model import BasicModelGraph, ModelVars
 
+from .external import HessiansGLM, HessianTF
 from .external import op_utils
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
 
 
-def _coef_invariant_ab(
-        X,
-        mu,
-        r,
-):
+class HessianAnalytic:
     """
-    Compute the coefficient index invariant part of the
-    mean-dispersion model block of the hessian of base_glm_all model.
-
-    Note that there are two blocks of the same size which can
-    be compute from each other with a transpose operation as
-    the hessian is symmetric.
-
-    Below, X are design matrices of the mean (m)
-    and dispersion (r) model respectively, Y are the
-    observed data. Const is constant across all combinations
-    of i and j.
-    .. math::
-
-        &H^{m,r}_{i,j} = X^m_i*X^r_j*mu*\frac{Y-mu}{(1+mu/r)^2} \\
-        &H^{r,m}_{i,j} = X^m_i*X^r_j*r*mu*\frac{Y-mu}{(mu+r)^2} \\
-        &const = r*mu*\frac{Y-mu}{(mu+r)^2} \\
-        &H^{m,r}_{i,j} = X^m_i*X^r_j*const \\
-        &H^{r,m}_{i,j} = X^m_i*X^r_j*const \\
-
-    :param X: tf.tensor observations x features
-        Observation by observation and feature.
-    :param mu: tf.tensor observations x features
-        Value of mean model by observation and feature.
-    :param r: tf.tensor observations x features
-        Value of dispersion model by observation and feature.
-
-    :return const: tf.tensor observations x features
-        Coefficient invariant terms of hessian of
-        given observations and features.
+    Compute the analytic model hessian by gene for a negative binomial GLM.
     """
-    const = tf.multiply(
-        mu * r,  # [observations, features]
-        tf.divide(
-            X - mu,  # [observations, features]
-            tf.square(mu + r)
-        )
-    )
-    return const
 
+    _compute_hess_a: bool
+    _compute_hess_b: bool
 
-def _coef_invariant_aa(
-        X,
-        mu,
-        r,
-):
-    """
-    Compute the coefficient index invariant part of the
-    mean model block of the hessian of base_glm_all model.
-
-    Below, X are design matrices of the mean (m)
-    and dispersion (r) model respectively, Y are the
-    observed data. Const is constant across all combinations
-    of i and j.
-    .. math::
-
-        &H^{m,m}_{i,j} = -X^m_i*X^m_j*mu*\frac{Y/r+1}{(1+mu/r)^2} \\
-        &const = -mu*\frac{Y/r+1}{(1+mu/r)^2} \\
-        &H^{m,m}_{i,j} = X^m_i*X^m_j*const \\
-
-    :param X: tf.tensor observations x features
-        Observation by observation and feature.
-    :param mu: tf.tensor observations x features
-        Value of mean model by observation and feature.
-    :param r: tf.tensor observations x features
-        Value of dispersion model by observation and feature.
-
-    :return const: tf.tensor observations x features
-        Coefficient invariant terms of hessian of
-        given observations and features.
-    """
-    const = tf.negative(tf.multiply(
-        mu,  # [observations, features]
-        tf.divide(
-            (X / r) + 1,
-            tf.square((mu / r) + 1)
-        )
-    ))
-    return const
-
-
-def _coef_invariant_bb(
-        X,
-        mu,
-        r,
-):
-    """
-    Compute the coefficient index invariant part of the
-    dispersion model block of the hessian of base_glm_all model.
-
-    Below, X are design matrices of the mean (m)
-    and dispersion (r) model respectively, Y are the
-    observed data. Const is constant across all combinations
-    of i and j.
-    .. math::
-
-        H^{r,r}_{i,j}&= X^r_i*X^r_j \\
-            &*r*\bigg(psi_0(r+Y)+r*psi_1(r+Y) \\
-            &+psi_0(r)+r*psi_1(r) \\
-            &-\frac{mu*(r+X)+2*r*(r+m)}{(r+mu)^2} \\
-            &+log(r)+1-log(r+mu) \bigg) \\
-        const = r*\bigg(psi_0(r+Y)+r*psi_1(r+Y) \\ const1
-            &+psi_0(r)+r*psi_1(r) \\ const2
-            &-\frac{mu*(r+X)+2*r*(r+m)}{(r+mu)^2} \\ const3
-            &+log(r)+1-log(r+mu) \bigg) \\ const4
-        H^{r,r}_{i,j}&= X^r_i*X^r_j * const \\
-
-    :param X: tf.tensor observations x features
-        Observation by observation and feature.
-    :param mu: tf.tensor observations x features
-        Value of mean model by observation and feature.
-    :param r: tf.tensor observations x features
-        Value of dispersion model by observation and feature.
-
-    :return const: tf.tensor observations x features
-        Coefficient invariant terms of hessian of
-        given observations and features.
-    """
-    scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
-    scalar_two = tf.constant(2, shape=(), dtype=X.dtype)
-    # Pre-define sub-graphs that are used multiple times:
-    r_plus_mu = r + mu
-    r_plus_x = r + X
-    # Define graphs for individual terms of constant term of hessian:
-    const1 = tf.add(  # [observations, features]
-        tf.math.digamma(x=r_plus_x),
-        r * tf.math.polygamma(a=scalar_one, x=r_plus_x)
-    )
-    const2 = tf.negative(tf.add(  # [observations, features]
-        tf.math.digamma(x=r),
-        r * tf.math.polygamma(a=scalar_one, x=r)
-    ))
-    const3 = tf.negative(tf.divide(
-        tf.add(
-            mu * r_plus_x,
-            scalar_two * r * r_plus_mu
-        ),
-        tf.square(r_plus_mu)
-    ))
-    const4 = tf.add(  # [observations, features]
-        tf.log(r),
-        scalar_two - tf.log(r_plus_mu)
-    )
-    const = tf.add_n([const1, const2, const3, const4])  # [observations, features]
-    const = tf.multiply(r, const)
-    return const
-
-
-class Hessians:
-    """ Compute the base_glm_all model hessian.
-    """
-    hessian: tf.Tensor
-    neg_hessian: tf.Tensor
-
-    def __init__(
+    def _coef_invariant_ab(
             self,
-            batched_data: tf.data.Dataset,
-            sample_indices: tf.Tensor,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVars,
-            dtype,
-            mode="obs",
-            iterator=True,
-            hess_a=True,
-            hess_b=True
+            X,
+            mu,
+            r,
     ):
-        """ Return computational graph for hessian based on mode choice.
-
-        :param batched_data:
-            Dataset iterator over mini-batches of data (used for training) or tf.Tensors of mini-batch.
-        :param sample_indices: Indices of samples to be used.
-        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for location model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
-        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for scale model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
-        :param dtype: Precision used in tensorflow.
-        :param mode: str
-            Mode by with which hessian is to be evaluated,
-            for analytic solutions of the hessian one can either chose by
-            "feature" or by "obs" (observation). Note that sparse
-            observation matrices X are often csr, ie. slicing is
-            faster by row/observation, so that hessian evaluation
-            by observation is much faster. "tf" allows for
-            evaluation of the hessian via the tf.hessian function,
-            which is done by feature for implementation reasons.
-        :param iterator: bool
-            Whether batched_data is an iterator or a tensor (such as single yield of an iterator).
-        :param hess_a: bool
-            Wether to compute Hessian block for a parameters. If both hess_a and hess_b are true,
-            the entire hessian with the off-diagonal a-b block is computed in self.hessian.
-        :param hess_b: bool
-            Wether to compute Hessian block for b parameters. If both hess_a and hess_b are true,
-            the entire hessian with the off-diagonal a-b block is computed in self.hessian.
         """
-        if constraints_loc is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_loc is not None")
-        if constraints_scale is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_scale is not None")
+        Compute the coefficient index invariant part of the
+        mean-dispersion model block of the hessian of base_glm_all model.
 
-        self._compute_hess_a = hess_a
-        self._compute_hess_b = hess_b
+        Note that there are two blocks of the same size which can
+        be compute from each other with a transpose operation as
+        the hessian is symmetric.
 
-        if mode == "obs_batched":
-            H = self.byobs(
-                batched_data=batched_data,
-                sample_indices=sample_indices,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                model_vars=model_vars,
-                batched=True,
-                iterator=iterator,
-                dtype=dtype
+        Below, X are design matrices of the mean (m)
+        and dispersion (r) model respectively, Y are the
+        observed data. Const is constant across all combinations
+        of i and j.
+        .. math::
+
+            &H^{m,r}_{i,j} = X^m_i*X^r_j*mu*\frac{Y-mu}{(1+mu/r)^2} \\
+            &H^{r,m}_{i,j} = X^m_i*X^r_j*r*mu*\frac{Y-mu}{(mu+r)^2} \\
+            &const = r*mu*\frac{Y-mu}{(mu+r)^2} \\
+            &H^{m,r}_{i,j} = X^m_i*X^r_j*const \\
+            &H^{r,m}_{i,j} = X^m_i*X^r_j*const \\
+
+        :param X: tf.tensor observations x features
+            Observation by observation and feature.
+        :param mu: tf.tensor observations x features
+            Value of mean model by observation and feature.
+        :param r: tf.tensor observations x features
+            Value of dispersion model by observation and feature.
+
+        :return const: tf.tensor observations x features
+            Coefficient invariant terms of hessian of
+            given observations and features.
+        """
+        const = tf.multiply(
+            mu * r,  # [observations, features]
+            tf.divide(
+                X - mu,  # [observations, features]
+                tf.square(mu + r)
             )
-        elif mode == "feature":
-            H = self.byfeature(
-                batched_data=batched_data,
-                sample_indices=sample_indices,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                model_vars=model_vars,
-                iterator=iterator,
-                dtype=dtype
-            )
-        elif mode == "tf":
-            # tensorflow computes the hessian based on the objective,
-            # which is the negative loglikelihood. Accordingly, the hessian
-            # is the negative hessian.
-            H = self.tf_byfeature(
-                batched_data=batched_data,
-                sample_indices=sample_indices,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                model_vars=model_vars,
-                iterator=iterator,
-                dtype=dtype
-            )
-        else:
-            raise ValueError("mode not recognized in hessian_nb_glm: " + mode)
+        )
+        return const
 
-        # Assign jacobian blocks.
-        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        if self._compute_hess_a and self._compute_hess_b:
-            H_a = H[:, :p_shape_a, :p_shape_a]
-            H_b = H[:, p_shape_a:, p_shape_a:]
-            negH = tf.negative(H)
-            negH_a = tf.negative(H_a)
-            negH_b = tf.negative(H_b)
-        elif self._compute_hess_a and not self._compute_hess_b:
-            H_a = H
-            H_b = None
-            H = H
-            negH = tf.negative(H)
-            negH_a = tf.negative(H_a)
-            negH_b = None
-        elif not self._compute_hess_a and self._compute_hess_b:
-            H_a = None
-            H_b = H
-            H = H
-            negH = tf.negative(H)
-            negH_a = None
-            negH_b = tf.negative(H_b)
-        else:
-            raise ValueError("either require jac_a or jac_b")
+    def _coef_invariant_aa(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        """
+        Compute the coefficient index invariant part of the
+        mean model block of the hessian of base_glm_all model.
 
-        self.hessian = H
-        self.hessian_aa = H_a
-        self.hessian_bb = H_b
-        self.neg_hessian = negH
-        self.neg_hessian_aa = negH_a
-        self.neg_hessian_bb = negH_b
+        Below, X are design matrices of the mean (m)
+        and dispersion (r) model respectively, Y are the
+        observed data. Const is constant across all combinations
+        of i and j.
+        .. math::
+
+            &H^{m,m}_{i,j} = -X^m_i*X^m_j*mu*\frac{Y/r+1}{(1+mu/r)^2} \\
+            &const = -mu*\frac{Y/r+1}{(1+mu/r)^2} \\
+            &H^{m,m}_{i,j} = X^m_i*X^m_j*const \\
+
+        :param X: tf.tensor observations x features
+            Observation by observation and feature.
+        :param mu: tf.tensor observations x features
+            Value of mean model by observation and feature.
+        :param r: tf.tensor observations x features
+            Value of dispersion model by observation and feature.
+
+        :return const: tf.tensor observations x features
+            Coefficient invariant terms of hessian of
+            given observations and features.
+        """
+        const = tf.negative(tf.multiply(
+            mu,  # [observations, features]
+            tf.divide(
+                (X / r) + 1,
+                tf.square((mu / r) + 1)
+            )
+        ))
+        return const
+
+    def _coef_invariant_bb(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        """
+        Compute the coefficient index invariant part of the
+        dispersion model block of the hessian of base_glm_all model.
+
+        Below, X are design matrices of the mean (m)
+        and dispersion (r) model respectively, Y are the
+        observed data. Const is constant across all combinations
+        of i and j.
+        .. math::
+
+            H^{r,r}_{i,j}&= X^r_i*X^r_j \\
+                &*r*\bigg(psi_0(r+Y)+r*psi_1(r+Y) \\
+                &+psi_0(r)+r*psi_1(r) \\
+                &-\frac{mu*(r+X)+2*r*(r+m)}{(r+mu)^2} \\
+                &+log(r)+1-log(r+mu) \bigg) \\
+            const = r*\bigg(psi_0(r+Y)+r*psi_1(r+Y) \\ const1
+                &+psi_0(r)+r*psi_1(r) \\ const2
+                &-\frac{mu*(r+X)+2*r*(r+m)}{(r+mu)^2} \\ const3
+                &+log(r)+1-log(r+mu) \bigg) \\ const4
+            H^{r,r}_{i,j}&= X^r_i*X^r_j * const \\
+
+        :param X: tf.tensor observations x features
+            Observation by observation and feature.
+        :param mu: tf.tensor observations x features
+            Value of mean model by observation and feature.
+        :param r: tf.tensor observations x features
+            Value of dispersion model by observation and feature.
+
+        :return const: tf.tensor observations x features
+            Coefficient invariant terms of hessian of
+            given observations and features.
+        """
+        scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
+        scalar_two = tf.constant(2, shape=(), dtype=X.dtype)
+        # Pre-define sub-graphs that are used multiple times:
+        r_plus_mu = r + mu
+        r_plus_x = r + X
+        # Define graphs for individual terms of constant term of hessian:
+        const1 = tf.add(  # [observations, features]
+            tf.math.digamma(x=r_plus_x),
+            r * tf.math.polygamma(a=scalar_one, x=r_plus_x)
+        )
+        const2 = tf.negative(tf.add(  # [observations, features]
+            tf.math.digamma(x=r),
+            r * tf.math.polygamma(a=scalar_one, x=r)
+        ))
+        const3 = tf.negative(tf.divide(
+            tf.add(
+                mu * r_plus_x,
+                scalar_two * r * r_plus_mu
+            ),
+            tf.square(r_plus_mu)
+        ))
+        const4 = tf.add(  # [observations, features]
+            tf.log(r),
+            scalar_two - tf.log(r_plus_mu)
+        )
+        const = tf.add_n([const1, const2, const3, const4])  # [observations, features]
+        const = tf.multiply(r, const)
+        return const
 
     def byobs(
             self,
@@ -348,7 +214,7 @@ class Hessians:
             :param r: tf.tensor observations x features
                 Value of dispersion model by observation and feature.
             """
-            const = _coef_invariant_aa(  # [observations=1 x features]
+            const = self._coef_invariant_aa(  # [observations=1 x features]
                 X=X,
                 mu=mu,
                 r=r,
@@ -367,7 +233,7 @@ class Hessians:
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by observation across features.
             """
-            const = _coef_invariant_bb(  # [observations=1 x features]
+            const = self._coef_invariant_bb(  # [observations=1 x features]
                 X=X,
                 mu=mu,
                 r=r,
@@ -390,7 +256,7 @@ class Hessians:
             be compute from each other with a transpose operation as
             the hessian is symmetric.
             """
-            const = _coef_invariant_ab(  # [observations=1 x features]
+            const = self._coef_invariant_ab(  # [observations=1 x features]
                 X=X,
                 mu=mu,
                 r=r,
@@ -418,7 +284,7 @@ class Hessians:
                 Value of dispersion model by observation and feature.
             """
             scalar_one = tf.constant(1, shape=[1, 1], dtype=dtype)
-            const = _coef_invariant_aa(  # [observations x features]
+            const = self._coef_invariant_aa(  # [observations x features]
                 X=X,
                 mu=mu,
                 r=r,
@@ -439,7 +305,7 @@ class Hessians:
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by observation across features.
             """
-            const = _coef_invariant_bb(  # [observations=1 x features]
+            const = self._coef_invariant_bb(  # [observations=1 x features]
                 X=X,
                 mu=mu,
                 r=r,
@@ -464,7 +330,7 @@ class Hessians:
             be compute from each other with a transpose operation as
             the hessian is symmetric.
             """
-            const = _coef_invariant_ab(  # [observations=1 x features]
+            const = self._coef_invariant_ab(  # [observations=1 x features]
                 X=X,
                 mu=mu,
                 r=r,
@@ -615,7 +481,7 @@ class Hessians:
             :param r: tf.tensor observations x features
                 Value of dispersion model by observation and feature.
             """
-            const = _coef_invariant_aa(  # [observations x features=1]
+            const = self._coef_invariant_aa(  # [observations x features=1]
                 X=X,
                 mu=mu,
                 r=r,
@@ -634,7 +500,7 @@ class Hessians:
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by feature across observation.
             """
-            const = _coef_invariant_bb(  # [observations x features=1]
+            const = self._coef_invariant_bb(  # [observations x features=1]
                 X=X,
                 mu=mu,
                 r=r,
@@ -657,7 +523,7 @@ class Hessians:
             be compute from each other with a transpose operation as
             the hessian is symmetric.
             """
-            const = _coef_invariant_ab(  # [observations x features=1]
+            const = self._coef_invariant_ab(  # [observations x features=1]
                 X=X,
                 mu=mu,
                 r=r,
@@ -761,142 +627,9 @@ class Hessians:
 
         return H[0]
 
-    def tf_byfeature(
-            self,
-            batched_data,
-            sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVars,
-            iterator,
-            dtype
-    ) -> List[tf.Tensor]:
-        """
-        Compute hessians via tf.hessian for all gene-wise models separately.
 
-        Contains three functions:
+class Hessians(HessianTF, HessianAnalytic, HessiansGLM):
+    """
+    Hessian computation interface for negative binomial GLMs.
+    """
 
-            - feature_wises_batch():
-            a function that computes all hessians for a given batch
-            of data by distributing the computation across features.
-            - hessian_map():
-            a function that unpacks the data from the iterator to run
-            feature_wises_batch.
-            - hessian_red():
-            a function that performs the reduction of the hessians across hessians
-            into a single hessian during the iteration over batches.
-        """
-
-        def feature_wises_batch(
-                X,
-                design_loc,
-                design_scale,
-                constraints_loc,
-                constraints_scale,
-                params,
-                p_shape_a,
-                p_shape_b,
-                dtype,
-                size_factors=None
-        ) -> List[tf.Tensor]:
-            """
-            Compute hessians via tf.hessian for all gene-wise models separately
-            for a given batch of data.
-            """
-            dtype = X.dtype
-
-            # Hessian computation will be mapped across genes/features.
-            # The map function maps across dimension zero, the slices have to
-            # be 2D tensors to fit into BasicModelGraph, accordingly,
-            # X, size_factors and params have to be reshaped to have genes in the first dimension
-            # and cells or parameters with an extra padding dimension in the second
-            # and third dimension. Note that size_factors is not a 1xobservations array
-            # but is implicitly broadcasted to observations x features in Estimator.
-            X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
-            size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
-            params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
-
-            def hessian(data):
-                """ Helper function that computes hessian for a given gene.
-
-                :param data: tuple (X_t, size_factors_t, params_t)
-                """
-                # Extract input data:
-                X_t, size_factors_t, params_t = data
-                size_factors = tf.transpose(size_factors_t)  # observations x features
-                X = tf.transpose(X_t)  # observations x features
-                params = tf.transpose(params_t)  # design_params x features
-
-                a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
-
-                # Define the model graph based on which the likelihood is evaluated
-                # which which the hessian is computed:
-                model = BasicModelGraph(
-                    X=X,
-                    design_loc=design_loc,
-                    design_scale=design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    a=a_split,
-                    b=b_split,
-                    dtype=dtype,
-                    size_factors=size_factors
-                )
-
-                # Compute the hessian of the model of the given gene:
-                if self._compute_hess_a and self._compute_hess_b:
-                    H = tf.hessians(model.log_likelihood, params)
-                elif self._compute_hess_a and not self._compute_hess_b:
-                    H = tf.hessians(model.log_likelihood, a_split)
-                elif not self._compute_hess_a and self._compute_hess_b:
-                    H = tf.hessians(model.log_likelihood, b_split)
-                else:
-                    raise ValueError("either require hess_a or hess_b")
-
-                return H
-
-            # Map hessian computation across genes
-            H = tf.map_fn(
-                fn=hessian,
-                elems=(X_t, size_factors_t, params_t),
-                dtype=[dtype],
-                parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-            )
-
-            H = [tf.squeeze(tf.squeeze(tf.stack(h), axis=2), axis=3) for h in H]
-
-            return H
-
-        def _map(idx, data):
-            X, design_loc, design_scale, size_factors = data
-            return feature_wises_batch(
-                X=X,
-                design_loc=design_loc,
-                design_scale=design_scale,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                params=model_vars.params,
-                p_shape_a=model_vars.a_var.shape[0],  # This has to be _var to work with constraints.
-                p_shape_b=model_vars.b_var.shape[0],  # This has to be _var to work with constraints.
-                dtype=dtype,
-                size_factors=size_factors
-            )
-
-        def _red(prev, cur):
-            return [tf.add(p, c) for p, c in zip(prev, cur)]
-
-        if iterator:
-            H = op_utils.map_reduce(
-                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-                data=batched_data,
-                map_fn=_map,
-                reduce_fn=_red,
-                parallel_iterations=1
-            )
-        else:
-            H = _map(
-                idx=sample_indices,
-                data=batched_data
-            )
-
-        return H[0]

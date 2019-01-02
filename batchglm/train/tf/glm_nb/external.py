@@ -6,11 +6,12 @@ from batchglm.models.nb_glm.utils import closedform_nb_glm_logmu, closedform_nb_
 import batchglm.train.tf.ops as op_utils
 import batchglm.train.tf.train as train_utils
 from batchglm.train.tf.base import TFEstimatorGraph, MonitoredTFEstimator
+
 from batchglm.train.tf.base_glm import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM, EstimatorGraphGLM, FullDataModelGraphGLM, BasicModelGraphGLM
-
 from batchglm.train.tf.base_glm import ESTIMATOR_PARAMS, ProcessModelGLM, ModelVarsGLM
+from batchglm.train.tf.base_glm import HessiansGLM
 
-from batchglm.train.tf.base_glm_all import EstimatorAll, EstimatorGraphAll
+from batchglm.train.tf.base_glm_all import EstimatorAll, EstimatorGraphAll, HessianTF
 
 import batchglm.utils.random as rand_utils
 from batchglm.utils.linalg import groupwise_solve_lm
