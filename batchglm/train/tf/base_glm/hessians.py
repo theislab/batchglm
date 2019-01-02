@@ -118,7 +118,7 @@ class HessiansGLM:
                 dtype=dtype
             )
         else:
-            raise ValueError("mode not recognized in hessian_nb_glm: " + mode)
+            raise ValueError("mode %s not recognized" % mode)
 
         # Assign jacobian blocks.
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.

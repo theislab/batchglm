@@ -66,7 +66,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians, Hessians
+            from .external_nb import BasicModelGraph, Jacobians, Hessians, IRLS
         else:
             raise ValueError("noise model not rewcognized")
         self.noise_model = noise_model
@@ -139,6 +139,20 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             else:
                 hessians_train = hessians_full
 
+            irls_train = IRLS(
+                batched_data=batched_data,
+                sample_indices=sample_indices,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                model_vars=model_vars,
+                mode=pkg_constants.HESSIAN_MODE,
+                noise_model=noise_model,
+                iterator=True,
+                update_a=train_a,
+                update_b=train_b,
+                dtype=dtype
+            )
+
         with tf.name_scope("jacobians"):
             # Jacobian of full model for reporting.
             jacobian_full = Jacobians(
@@ -202,6 +216,9 @@ class FullDataModelGraph(FullDataModelGraphGLM):
 
         self.neg_jac_train = jacobian_train.neg_jac
         self.neg_hessian_train = hessians_train.neg_hessian
+
+        self.irls_fim_train = irls_train.fim
+        self.irls_score_train = irls_train.score
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -283,7 +300,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians
+            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, IRLS
         else:
             raise ValueError("noise model not rewcognized")
         self.noise_model = noise_model
@@ -388,6 +405,23 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     dtype=dtype
                 )
 
+                # Define the IRLS components on the batched model:
+                # (note that these are the IRLS matrix blocks
+                # of the trained subset of parameters).
+                batch_irls = IRLS(
+                    batched_data=batch_data,
+                    sample_indices=batch_sample_index,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode=pkg_constants.HESSIAN_MODE,
+                    noise_model=noise_model,
+                    iterator=False,
+                    update_a=train_loc,
+                    update_b=train_scale,
+                    dtype=dtype
+                )
+
             with tf.name_scope("full_data"):
                 logger.debug(" ** Build full data model")
                 # ### alternative definitions for custom observations:
@@ -434,6 +468,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
                 self.batch_jac = batch_jac
                 self.batch_hessians = batch_hessians
+                self.batch_irls = batch_irls
 
                 self.mu = mu
                 self.r = r

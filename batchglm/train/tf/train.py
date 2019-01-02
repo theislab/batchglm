@@ -220,6 +220,7 @@ class MultiTrainer:
                  gradients: list = None,
                  apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
                  newton_delta: tf.Tensor = None,
+                 irls_delta: tf.Tensor = None,
                  global_step=None,
                  apply_train_ops: callable = None,
                  provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
@@ -234,6 +235,7 @@ class MultiTrainer:
             Can be either a single callable which will be applied to all gradients or a dict of
             {tf.Variable: callable} mappings.
         :param newton_delta: tensor Precomputed custom newton-rhapson parameter update to apply.
+        :param irls_delta: tensor Precomputed custom IRLS parameter update to apply.
         :param global_step: global step counter
         :param apply_train_ops: callable which will be applied to all train ops
         :param name: optional name scope
@@ -304,15 +306,28 @@ class MultiTrainer:
             optim_nr = None
             if provide_optimizers["nr"] and newton_delta is not None:
                 logger.debug(" **** Building optimizer: NR")
-                theta_new = variables[0] - learning_rate * newton_delta
+                theta_new_nr = variables[0] - learning_rate * newton_delta
                 train_op_nr = tf.group(
-                    tf.assign(variables[0], theta_new),
+                    tf.assign(variables[0], theta_new_nr),
                     tf.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
                     train_op_nr = apply_train_ops(train_op_nr)
             else:
                 train_op_nr = None
+
+            optim_irls = None
+            if provide_optimizers["irls"] and irls_delta is not None:
+                logger.debug(" **** Building optimizer: IRLS")
+                theta_new_irls = variables[0] - learning_rate * irls_delta
+                train_op_irls = tf.group(
+                    tf.assign(variables[0], theta_new_irls),
+                    tf.assign_add(global_step, 1)
+                )
+                if apply_train_ops is not None:
+                    train_op_irls = apply_train_ops(train_op_irls)
+            else:
+                train_op_irls = None
 
             self.global_step = global_step
             self.plain_gradients = plain_gradients
@@ -323,12 +338,14 @@ class MultiTrainer:
             self.optim_Adagrad = optim_Adagrad
             self.optim_RMSProp = optim_RMSProp
             self.optim_NR = optim_nr
+            self.optim_irls = optim_irls
 
             self.train_op_GD = train_op_GD
             self.train_op_Adam = train_op_Adam
             self.train_op_Adagrad = train_op_Adagrad
             self.train_op_RMSProp = train_op_RMSProp
             self.train_op_nr = train_op_nr
+            self.train_op_irls = train_op_irls
 
     def train_op_by_name(self, name: str):
         """
@@ -366,6 +383,11 @@ class MultiTrainer:
             if self.train_op_nr is None:
                 raise ValueError("Newton-rhapson not provided in initialization.")
             return self.train_op_nr
+        elif name_lower.lower() == "irls" or \
+             name_lower.lower() == "iwls":
+        if self.train_op_irls is None:
+            raise ValueError("IRLS not provided in initialization.")
+        return self.train_op_irls
         else:
             raise ValueError("Unknown optimizer: %s" % name)
 

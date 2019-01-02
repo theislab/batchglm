@@ -98,9 +98,6 @@ class JacobiansGLM:
                 dtype=dtype
             )
         elif mode == "tf":
-            # Tensorflow computes the jacobian based on the objective,
-            # which is the negative log-likelihood. Accordingly, the jacobian
-            # is the negative jacobian computed here.
             J = self.tf(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
@@ -112,7 +109,7 @@ class JacobiansGLM:
                 dtype=dtype
             )
         else:
-            raise ValueError("mode not recognized in Jacobian: " + mode)
+            raise ValueError("mode %s not recognized" % mode)
 
         # Assign jacobian blocks.
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.

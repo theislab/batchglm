@@ -95,10 +95,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             size_factors_init = np.expand_dims(size_factors_init, axis=1)
             size_factors_init = np.broadcast_to(
                 array=size_factors_init,
-                shape=[input_data.num_observations, input_data.num_features]
+                shape=[self.input_data.num_observations, self.input_data.num_features]
             )
 
-        # TODO do init noise model specific
         logger.debug(" * Initialize mean model")
         if isinstance(init_a, str):
             # Chose option if auto was chosen
@@ -133,7 +132,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 overall_means = self.np_clip_param(overall_means, "mu")
                 # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
 
-                init_a = np.zeros([self.input_data.num_design_loc_params, input_data.num_features])
+                init_a = np.zeros([self.input_data.num_design_loc_params, self.input_data.num_features])
                 init_a[0, :] = np.log(overall_means)
                 self._train_loc = True
 

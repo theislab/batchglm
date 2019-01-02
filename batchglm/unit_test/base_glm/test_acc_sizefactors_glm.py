@@ -69,10 +69,10 @@ class _Test_AccuracySizeFactors_GLM_Estim():
         mean_dev_b = np.mean(estimator_store.b.values - self.sim.b.values)
         std_dev_b = np.std(estimator_store.b.values - self.sim.b.values)
 
-        logger.warning("mean_dev_a %f" % mean_dev_a)
-        logger.warning("std_dev_a %f" % std_dev_a)
-        logger.warning("mean_dev_b %f" % mean_dev_b)
-        logger.warning("std_dev_b %f" % std_dev_b)
+        logger.info("mean_dev_a %f" % mean_dev_a)
+        logger.info("std_dev_a %f" % std_dev_a)
+        logger.info("mean_dev_b %f" % mean_dev_b)
+        logger.info("std_dev_b %f" % std_dev_b)
 
         if np.abs(mean_dev_a) < threshold_dev_a and \
                 np.abs(mean_dev_b) < threshold_dev_b and \
