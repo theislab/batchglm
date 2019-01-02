@@ -181,6 +181,7 @@ class Test_Graph_GLM_NB(
     def test_full_byfeature_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_NB.test_full_byfeature_nb()")
 
         self.noise_model = "nb"
         self._test_full_byfeature()
@@ -188,6 +189,7 @@ class Test_Graph_GLM_NB(
     def test_batched_byfeature_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_NB.test_batched_byfeature_nb()")
 
         self.noise_model = "nb"
         self._test_batched_byfeature()
@@ -195,6 +197,7 @@ class Test_Graph_GLM_NB(
     def test_full_global_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_NB.test_full_global_nb()")
 
         self.noise_model = "nb"
         self._test_full_global()
@@ -202,6 +205,7 @@ class Test_Graph_GLM_NB(
     def test_batched_global_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_NB.test_batched_global_nb()")
 
         self.noise_model = "nb"
         self._test_batched_global()

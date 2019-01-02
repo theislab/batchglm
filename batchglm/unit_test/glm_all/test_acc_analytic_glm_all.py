@@ -130,8 +130,8 @@ class Test_AccuracyAnalytic_GLM_NB(
     def test_a_and_b(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_and_b()")
 
-        logger.debug("* Checking closed form of MLE for a and MME for b model.")
         self.noise_model = "nb"
         self._test_a_and_b()
 

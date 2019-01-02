@@ -142,7 +142,7 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            logger.debug("algorithm: %s" % algo)
+            logger.info("algorithm: %s" % algo)
             self.basic_test_one_algo(
                 batched=batched,
                 termination=termination,

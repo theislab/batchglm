@@ -149,6 +149,7 @@ class Test_AccuracySizeFactors_GLM_NB(
     def test_full_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracySizeFactors_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
         self._test_full()
@@ -156,6 +157,7 @@ class Test_AccuracySizeFactors_GLM_NB(
     def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracySizeFactors_GLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
         self._test_batched()

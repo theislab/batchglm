@@ -2,6 +2,8 @@ import logging
 import unittest
 import time
 
+import numpy as np
+
 import batchglm.api as glm
 import batchglm.data as data_utils
 import batchglm.pkg_constants as pkg_constants
@@ -106,13 +108,19 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         self.t_tf = t1_tf - t0_tf
 
         i = 1
-        logger.warning("run time observation batch-wise analytic solution: %f" % self.t_ob)
-        logger.warning("run time feature-wise analytic solution: %f" % self.t_fw)
-        logger.warning("run time feature-wise tensorflow solution: %f" % self.t_tf)
-        logger.warning("ratio of tensorflow feature-wise hessian to analytic observation batch-wise hessian:")
-        logger.warning(self.H_tf.values[i, :, :] / self.H_ob.values[i, :, :])
-        logger.warning("ratio of tensorflow feature-wise hessian to analytic feature-wise hessian:")
-        logger.warning(self.H_tf.values[i, :, :] / self.H_fw.values[i, :, :])
+        logger.info("run time observation batch-wise analytic solution: %f" % self.t_ob)
+        logger.info("run time feature-wise analytic solution: %f" % self.t_fw)
+        logger.info("run time feature-wise tensorflow solution: %f" % self.t_tf)
+        logger.info("ratio of tensorflow feature-wise hessian to analytic observation batch-wise hessian:")
+        logger.info(self.H_tf.values[i, :, :] / self.H_ob.values[i, :, :])
+        logger.info("ratio of tensorflow feature-wise hessian to analytic feature-wise hessian:")
+        logger.info(self.H_tf.values[i, :, :] / self.H_fw.values[i, :, :])
+
+        max_rel_dev1 = np.max(np.abs((self.H_tf.values - self.H_ob.values) / self.H_tf.values))
+        max_rel_dev2 = np.max(np.abs((self.H_tf.values - self.H_fw.values) / self.H_tf.values))
+        assert max_rel_dev1 < 1e-10
+        assert max_rel_dev2 < 1e-10
+        return True
 
 
 class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
@@ -120,6 +128,7 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
     def test_compute_hessians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
         self._test_compute_hessians()

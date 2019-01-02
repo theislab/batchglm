@@ -127,6 +127,7 @@ class Test_DataTypes_GLM_NB(
     def test_standard_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_DataTypes_GLM_NB.test_standard_nb()")
 
         self.noise_model = "nb"
         self._test_standard()
@@ -134,6 +135,7 @@ class Test_DataTypes_GLM_NB(
     def test_anndata_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_DataTypes_GLM_NB.test_anndata_nb()")
 
         self.noise_model = "nb"
         self._test_anndata()

@@ -117,6 +117,8 @@ class Test_ExtremValues_GLM_NB(
     def test_low_values_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_ExtremValues_GLM_NB.test_low_values_nb()")
+
 
         self.noise_model = "nb"
         self._test_low_values()
@@ -124,6 +126,7 @@ class Test_ExtremValues_GLM_NB(
     def test_zero_variance_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_ExtremValues_GLM_NB.test_zero_variance_nb()")
 
         self.noise_model = "nb"
         self._test_zero_variance()

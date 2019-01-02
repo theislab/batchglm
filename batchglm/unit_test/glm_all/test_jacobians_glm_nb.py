@@ -102,14 +102,14 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         t_tf = t1_tf - t0_tf
 
         i = 1
-        logger.warning("run time tensorflow solution: %f" % t_tf)
-        logger.warning("run time observation batch-wise analytic solution: %f" % t_analytic)
-        logger.warning("relative difference of mean estimates for analytic jacobian to observation-wise jacobian:")
-        logger.warning((a_analytic - a_tf) / a_tf)
-        logger.warning("relative difference of dispersion estimates for analytic jacobian to observation-wise jacobian:")
-        logger.warning((b_analytic - b_tf) / b_tf)
-        logger.warning("relative difference of analytic jacobian to analytic observation-wise jacobian:")
-        logger.warning((J_tf - J_analytic) / J_tf)
+        logger.info("run time tensorflow solution: %f" % t_tf)
+        logger.info("run time observation batch-wise analytic solution: %f" % t_analytic)
+        logger.info("relative difference of mean estimates for analytic jacobian to observation-wise jacobian:")
+        logger.info((a_analytic - a_tf) / a_tf)
+        logger.info("relative difference of dispersion estimates for analytic jacobian to observation-wise jacobian:")
+        logger.info((b_analytic - b_tf) / b_tf)
+        logger.info("relative difference of analytic jacobian to analytic observation-wise jacobian:")
+        logger.info((J_tf - J_analytic) / J_tf)
 
         max_rel_dev = np.max(np.abs((J_tf - J_analytic) / J_tf))
         assert max_rel_dev < 1e-10
@@ -148,6 +148,7 @@ class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
     def test_compute_jacobians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 
         self.noise_model = "nb"
         self._test_compute_jacobians()

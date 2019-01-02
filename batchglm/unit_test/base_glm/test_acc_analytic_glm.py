@@ -43,8 +43,8 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         mean_dev = np.mean(estimator_store.a.values - self.sim.a.values)
         std_dev = np.std(estimator_store.a.values - self.sim.a.values)
 
-        logger.warning("mean_dev_a %f" % mean_dev)
-        logger.warning("std_dev_a %f" % std_dev)
+        logger.info("mean_dev_a %f" % mean_dev)
+        logger.info("std_dev_a %f" % std_dev)
 
         if np.abs(mean_dev) < threshold_dev and \
                 std_dev < threshold_std:
@@ -62,8 +62,8 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         mean_dev = np.mean(estimator_store.b.values - self.sim.b.values)
         std_dev = np.std(estimator_store.b.values - self.sim.b.values)
 
-        logger.warning("mean_dev_b %f" % mean_dev)
-        logger.warning("std_dev_b %f" % std_dev)
+        logger.info("mean_dev_b %f" % mean_dev)
+        logger.info("std_dev_b %f" % std_dev)
 
         if np.abs(mean_dev) < threshold_dev and \
                 std_dev < threshold_std:
