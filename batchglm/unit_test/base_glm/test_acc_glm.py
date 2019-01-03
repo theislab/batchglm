@@ -31,7 +31,7 @@ class _Test_Accuracy_GLM_Estim():
         self.estimator.initialize()
 
         # Choose learning rate based on optimizer
-        if algo.lower() == "nr":
+        if algo.lower() in ["nr", "irls"]:
             lr = 1
         elif algo.lower() == "gd":
             lr = 0.05
@@ -163,7 +163,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
                 algo=algo,
                 batched=batched,
                 termination=termination,
-                acc=1e-6 if algo == "NR" else 1e-3
+                acc=1e-6 if algo in ["NR", "IRLS"] else 1e-4
             )
             estimator_store = estimator.estimator.finalize()
             self._estims.append(estimator)

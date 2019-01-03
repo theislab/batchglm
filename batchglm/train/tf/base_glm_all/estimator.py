@@ -277,24 +277,29 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             train_r = self._train_scale
 
         # Check whether newton-rhapson is desired:
-        newton_rhapson_mode = False
+        newton_type_mode = False
         if optim_algo.lower() == "newton" or \
-                    optim_algo.lower() == "newton-raphson" or \
-                    optim_algo.lower() == "newton_raphson" or \
-                    optim_algo.lower() == "nr":
-            newton_rhapson_mode = True
+                optim_algo.lower() == "newton-raphson" or \
+                optim_algo.lower() == "newton_raphson" or \
+                optim_algo.lower() == "nr" or \
+                optim_algo.lower() == "irls" or \
+                optim_algo.lower() == "iwls":
+            newton_type_mode = True
         # Set learning rae defaults if not set by user.
         if learning_rate is None:
-            if newton_rhapson_mode:
+            if newton_type_mode:
                 learning_rate = 1
             else:
                 learning_rate = 0.5
 
         # Check that newton-rhapson is called properly:
-        if newton_rhapson_mode:
+        if newton_type_mode:
             if learning_rate != 1:
-                logger.warning("Newton-rhapson in base_glm_all is used with learing rate " + str(learning_rate) +
-                               ". Newton-rhapson should only be used with learing rate =1.")
+                logger.warning(
+                    "Newton-rhapson or IRLS in base_glm_all is used with learing rate " +
+                    str(learning_rate) +
+                    ". Newton-rhapson and IRLS should only be used with learing rate = 1."
+                )
 
         # Report all parameters after all defaults were imputed in settings:
         logger.debug("Optimizer settings in base_glm_all Estimator.train():")

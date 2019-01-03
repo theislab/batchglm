@@ -31,7 +31,7 @@ class _Test_AccuracySizeFactors_GLM_Estim():
         self.estimator.initialize()
 
         # Choose learning rate based on optimizer
-        if algo.lower() == "nr":
+        if algo.lower() in ["nr", "irls"]:
             lr = 1
         elif algo.lower() == "gd":
             lr = 0.05

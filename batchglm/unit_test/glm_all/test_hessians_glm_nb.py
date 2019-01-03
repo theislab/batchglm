@@ -13,6 +13,7 @@ from batchglm.models.base_glm import _Estimator_GLM, _InputData_GLM, _Simulator_
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
+
 class Test_Hessians_GLM_ALL(unittest.TestCase):
     noise_model: str
     sim: _Simulator_GLM
@@ -127,11 +128,12 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
         self._test_compute_hessians()
+
 
 if __name__ == '__main__':
     unittest.main()
