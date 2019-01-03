@@ -213,18 +213,20 @@ class StopAtLossHook(tf.train.SessionRunHook):
 
 
 class MultiTrainer:
-    def __init__(self,
-                 learning_rate,
-                 loss=None,
-                 variables: list = None,
-                 gradients: list = None,
-                 apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
-                 newton_delta: tf.Tensor = None,
-                 irls_delta: tf.Tensor = None,
-                 global_step=None,
-                 apply_train_ops: callable = None,
-                 provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
-                 name=None):
+    def __init__(
+            self,
+            learning_rate,
+            loss=None,
+            variables: list = None,
+            gradients: list = None,
+            apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
+            newton_delta: tf.Tensor = None,
+            irls_delta: tf.Tensor = None,
+            global_step=None,
+            apply_train_ops: callable = None,
+            provide_optimizers: Union[dict, None] = None,
+            name=None
+    ):
         r"""
 
         :param learning_rate: learning rate used for training
@@ -385,11 +387,11 @@ class MultiTrainer:
             return self.train_op_nr
         elif name_lower.lower() == "irls" or \
              name_lower.lower() == "iwls":
-        if self.train_op_irls is None:
-            raise ValueError("IRLS not provided in initialization.")
-        return self.train_op_irls
+            if self.train_op_irls is None:
+                raise ValueError("IRLS not provided in initialization.")
+            return self.train_op_irls
         else:
-            raise ValueError("Unknown optimizer: %s" % name)
+            raise ValueError("Unknown optimizer %s" % name)
 
     def gradient_by_variable(self, variable: tf.Variable):
         """

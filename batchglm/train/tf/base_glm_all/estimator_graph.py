@@ -217,8 +217,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.neg_jac_train = jacobian_train.neg_jac
         self.neg_hessian_train = hessians_train.neg_hessian
 
-        self.irls_fim_train = irls_train.fim
-        self.irls_score_train = irls_train.score
+        self.irls = irls_train
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -244,7 +243,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             constraints_scale: Union[np.ndarray, None] = None,
             train_loc: bool = True,
             train_scale: bool = True,
-            provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True},
+            provide_optimizers: Union[dict, None] = None,
             termination_type: str = "global",
             extended_summary=False,
             noise_model: str = None,
@@ -302,7 +301,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         if noise_model == "nb":
             from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, IRLS
         else:
-            raise ValueError("noise model not rewcognized")
+            raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
         EstimatorGraphGLM.__init__(

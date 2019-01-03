@@ -189,28 +189,67 @@ class NewtonGraphGLM:
             train_r
     ):
         if provide_optimizers["nr"]:
-            nr_update_full, nr_update_batched = self.build_updates(
+            nr_update_full_raw, nr_update_batched_raw = self.build_updates(
                 full_lhs=self.full_data_model.neg_hessian_train,
                 batched_lhs=self.batch_hessians.neg_hessian,
                 full_rhs=self.full_data_model.neg_jac_train,
                 batched_rhs=self.batch_jac.neg_jac,
-                termination_type=termination_type,
+                termination_type=termination_type
+            )
+            nr_update_full, nr_update_batched = self.pad_updates(
                 train_mu=train_mu,
-                train_r=train_r
+                train_r=train_r,
+                update_full_raw=nr_update_full_raw,
+                update_batched_raw=nr_update_batched_raw
             )
         else:
             nr_update_full = None
             nr_update_batched = None
 
         if provide_optimizers["irls"]:
-            irls_update_full, irls_update_batched = self.build_updates(
-                full_lhs=self.full_data_model.irls_fim_train,
-                batched_lhs=self.batch_irls.fim,
-                full_rhs=self.full_data_model.irls_score_train,
-                batched_rhs=self.batch_irls.score,
-                termination_type=termination_type,
+            # Compute a and b model updates separately.
+            if train_mu:
+                irls_update_a_full, irls_update_a_batched = self.build_updates(
+                    full_lhs=self.full_data_model.irls.fim_a,
+                    batched_lhs=self.batch_irls.fim_a,
+                    full_rhs=self.full_data_model.irls.score_a,
+                    batched_rhs=self.batch_irls.score_a,
+                    termination_type=termination_type
+                )
+            else:
+                irls_update_a_full = None
+                irls_update_a_batched = None
+
+            if train_r:
+                irls_update_b_full, irls_update_b_batched = self.build_updates(
+                    full_lhs=self.full_data_model.irls.fim_b,
+                    batched_lhs=self.batch_irls.fim_b,
+                    full_rhs=self.full_data_model.irls.score_b,
+                    batched_rhs=self.batch_irls.score_b,
+                    termination_type=termination_type
+                )
+            else:
+                irls_update_b_full = None
+                irls_update_b_batched = None
+
+            if train_mu and train_r:
+                irls_update_full_raw = tf.concat([irls_update_a_full, irls_update_b_full], axis=0)
+                irls_update_batched_raw = tf.concat([irls_update_a_batched, irls_update_b_batched], axis=0)
+            elif train_mu:
+                irls_update_full_raw = irls_update_a_full
+                irls_update_batched_raw = irls_update_a_batched
+            elif train_r:
+                irls_update_full_raw = irls_update_b_full
+                irls_update_batched_raw = irls_update_b_batched
+            else:
+                irls_update_full_raw = None
+                irls_update_batched_raw = None
+
+            irls_update_full, irls_update_batched = self.pad_updates(
                 train_mu=train_mu,
-                train_r=train_r
+                train_r=train_r,
+                update_full_raw=irls_update_full_raw,
+                update_batched_raw=irls_update_batched_raw
             )
         else:
             irls_update_full = None
@@ -227,62 +266,72 @@ class NewtonGraphGLM:
             batched_rhs,
             full_rhs,
             batched_lhs,
-            termination_type,
-            train_mu,
-            train_r
+            termination_type: str
     ):
         if termination_type == "by_feature":
-            self.newton_type_update_full_byfeature(
+            update_full = self.newton_type_update_full_byfeature(
                 lhs=full_lhs,
                 rhs=full_rhs
             )
-            self.newton_type_update_batched_byfeature(
+            update_batched = self.newton_type_update_batched_byfeature(
                 lhs=batched_lhs,
                 rhs=batched_rhs
             )
         elif termination_type == "global":
-            self.newton_type_update_full_global(
+            update_full = self.newton_type_update_full_global(
                 lhs=full_lhs,
                 rhs=full_rhs
             )
-            self.newton_type_update_batched_global(
+            update_batched = self.newton_type_update_batched_global(
                 lhs=batched_lhs,
                 rhs=batched_rhs
             )
         else:
             raise ValueError("convergence_type %s not recognized." % termination_type)
 
+        return update_full, update_batched
 
+    def pad_updates(
+            self,
+            update_full_raw,
+            update_batched_raw,
+            train_mu,
+            train_r
+    ):
         # Pad update vectors to receive update tensors that match
         # the shape of model_vars.params.
         if train_mu:
             if train_r:
-                netwon_type_update_full = self.nr_update_full_raw
-                newton_type_update_batched = self.nr_update_batched_raw
+                netwon_type_update_full = update_full_raw
+                newton_type_update_batched = update_batched_raw
             else:
                 netwon_type_update_full = tf.concat([
-                    self.nr_update_full_raw,
+                    update_full_raw,
                     tf.zeros_like(self.model_vars.b)
                 ], axis=0)
                 newton_type_update_batched = tf.concat([
-                    self.nr_update_batched_raw,
+                    update_batched_raw,
                     tf.zeros_like(self.model_vars.b)
                 ], axis=0)
         elif train_r:
             netwon_type_update_full = tf.concat([
                 tf.zeros_like(self.model_vars.a),
-                self.nr_update_full_raw
+                update_full_raw
             ], axis=0)
             newton_type_update_batched = tf.concat([
                 tf.zeros_like(self.model_vars.a),
-                self.nr_update_batched_raw
+                update_batched_raw
             ], axis=0)
         else:
             raise ValueError("No training necessary")
 
         return netwon_type_update_full, newton_type_update_batched
 
-    def newton_type_update_full_byfeature(self, lhs, rhs):
+    def newton_type_update_full_byfeature(
+            self,
+            lhs,
+            rhs
+    ):
         # Compute parameter update for non-converged gene only.
         delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
             tf.gather(
@@ -309,11 +358,13 @@ class NewtonGraphGLM:
         ], axis=0)
         nr_update_full = tf.transpose(delta_t_bygene_full)
 
-        self.nr_update_full_raw = nr_update_full
-        return
+        return nr_update_full
 
-    def newton_type_update_batched_byfeature(self, lhs, rhs):
-        param_grad_vec_batched = self.batch_jac.neg_jac
+    def newton_type_update_batched_byfeature(
+            self,
+            lhs,
+            rhs
+    ):
         # Compute parameter update for non-converged gene only.
         delta_batched_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
             tf.gather(
@@ -340,12 +391,14 @@ class NewtonGraphGLM:
         ], axis=0)
         nr_update_batched = tf.transpose(delta_batched_t_bygene_full)
 
-        self.nr_update_batched_raw = nr_update_batched
-        return
+        return nr_update_batched
 
-    def newton_type_update_full_global(self, lhs, rhs):
-        # Full data model:
-        param_grad_vec = self.full_data_model.neg_jac_train
+
+    def newton_type_update_full_global(
+            self,
+            lhs,
+            rhs
+    ):
         delta_t = tf.squeeze(tf.matrix_solve_ls(
             lhs,
             # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
@@ -354,12 +407,14 @@ class NewtonGraphGLM:
         ), axis=-1)
         nr_update_full = tf.transpose(delta_t)
 
-        self.nr_update_full_raw = nr_update_full
-        return
+        return nr_update_full
 
-    def newton_type_update_batched_global(self, lhs, rhs):
-        # Batched data model:
-        param_grad_vec_batched = self.batch_jac.neg_jac
+
+    def newton_type_update_batched_global(
+            self,
+            lhs,
+            rhs
+    ):
         delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
             lhs,
             tf.expand_dims(rhs, axis=-1),
@@ -367,8 +422,7 @@ class NewtonGraphGLM:
         ), axis=-1)
         nr_update_batched = tf.transpose(delta_batched_t)
 
-        self.nr_update_batched_raw = nr_update_batched
-        return
+        return nr_update_batched
 
 
 class TrainerGraphGLM:
@@ -382,6 +436,8 @@ class TrainerGraphGLM:
     gradients_full: tf.Tensor
     nr_update_full: tf.Tensor
     nr_update_batched: tf.Tensor
+    irls_update_full: tf.Tensor
+    irls_update_batched: tf.Tensor
 
     gradient: tf.Tensor  # TODO naming convention of gradeints see similar above
     full_gradient: tf.Tensor
@@ -407,6 +463,7 @@ class TrainerGraphGLM:
                 variables=[self.model_vars.params],
                 gradients=[(self.gradients_batch, self.model_vars.params)],
                 newton_delta=self.nr_update_batched,
+                irls_delta=self.irls_update_batched,
                 learning_rate=self.learning_rate,
                 global_step=global_step,
                 apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
@@ -418,6 +475,7 @@ class TrainerGraphGLM:
                 variables=[self.model_vars.params],
                 gradients=[(self.gradients_full, self.model_vars.params)],
                 newton_delta=self.nr_update_full,
+                irls_delta=self.irls_update_full,
                 learning_rate=self.learning_rate,
                 global_step=global_step,
                 apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
