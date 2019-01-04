@@ -1,3 +1,4 @@
+import abc
 import logging
 from typing import List
 
@@ -162,3 +163,21 @@ class JacobiansGLM:
             dtype
     ) -> List[tf.Tensor]:
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def _W_a(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        pass
+
+    @abc.abstractmethod
+    def _W_b(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        pass

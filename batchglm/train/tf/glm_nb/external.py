@@ -12,7 +12,7 @@ from batchglm.train.tf.base_glm import GradientGraphGLM, NewtonGraphGLM, Trainer
 from batchglm.train.tf.base_glm import ESTIMATOR_PARAMS, ProcessModelGLM, ModelVarsGLM
 from batchglm.train.tf.base_glm import HessiansGLM, FIMGLM, JacobiansGLM
 
-from batchglm.train.tf.base_glm_all import EstimatorAll, EstimatorGraphAll, HessianGLMALL, JacobiansTF
+from batchglm.train.tf.base_glm_all import EstimatorAll, EstimatorGraphAll, HessianGLMALL, JacobiansGLMALL
 
 import batchglm.utils.random as rand_utils
 from batchglm.utils.linalg import groupwise_solve_lm
