@@ -460,8 +460,8 @@ class TrainerGraphGLM:
 
             # Create trainers that produce training operations.
             trainer_batch = train_utils.MultiTrainer(
-                variables=[self.model_vars.params],
-                gradients=[(self.gradients_batch, self.model_vars.params)],
+                variables=self.model_vars.params,
+                gradients=self.gradients_batch,
                 newton_delta=self.nr_update_batched,
                 irls_delta=self.irls_update_batched,
                 learning_rate=self.learning_rate,
@@ -472,8 +472,8 @@ class TrainerGraphGLM:
             )
 
             trainer_full = train_utils.MultiTrainer(
-                variables=[self.model_vars.params],
-                gradients=[(self.gradients_full, self.model_vars.params)],
+                variables=self.model_vars.params,
+                gradients=self.gradients_full,
                 newton_delta=self.nr_update_full,
                 irls_delta=self.irls_update_full,
                 learning_rate=self.learning_rate,

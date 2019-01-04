@@ -6,6 +6,7 @@ import time
 import threading
 
 import tensorflow as tf
+import tensorflow_probability as tfp
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -217,8 +218,8 @@ class MultiTrainer:
             self,
             learning_rate,
             loss=None,
-            variables: list = None,
-            gradients: list = None,
+            variables: tf.Tensor = None,
+            gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
@@ -232,7 +233,8 @@ class MultiTrainer:
         :param learning_rate: learning rate used for training
         :param loss: loss which should be minimized
         :param variables: list of variables which will be trained
-        :param gradients: list of (gradient, variable) tuples; alternative to specifying variables and loss
+        :param gradients: tensor of gradients of loss function with respect to trained parameters.
+            If gradients is not given, gradients are computed via tensorflow based on the given loss.
         :param apply_gradients: callable(s) appliable to the gradients.
             Can be either a single callable which will be applied to all gradients or a dict of
             {tf.Variable: callable} mappings.
@@ -254,7 +256,7 @@ class MultiTrainer:
                 plain_gradients = tf.gradients(loss, variables)
                 plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
             else:
-                plain_gradients = gradients
+                plain_gradients = [(gradients, variables)]
 
             if callable(apply_gradients):
                 gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
@@ -304,13 +306,31 @@ class MultiTrainer:
                 optim_RMSProp = None
                 train_op_RMSProp = None
 
+            # TFP optimizers:
+            #optim_bfgs = None
+            #if provide_optimizers["bfgs"]:
+            #    logger.debug(" **** Building optimizer: BFGS")
+            #    train_op_bfgs = tfp.optimizer.bfgs_minimize(
+            #        value_and_gradients_function = (gradients[0], fn),
+            #        initial_position,  # TODO: use init here
+            #        tolerance=1e-08,
+            #        x_tolerance=0,
+            #        f_relative_tolerance=0,
+            #        initial_inverse_hessian_estimate=None,
+            #        max_iterations=50,
+            #        parallel_iterations=1
+            #    )
+            #    # Writes results as namedtuple into train_op_bfgs.
+            #else:
+            #    train_op_bfgs = None
+
             # Custom optimizers.
             optim_nr = None
             if provide_optimizers["nr"] and newton_delta is not None:
                 logger.debug(" **** Building optimizer: NR")
-                theta_new_nr = variables[0] - learning_rate * newton_delta
+                theta_new_nr = variables - learning_rate * newton_delta
                 train_op_nr = tf.group(
-                    tf.assign(variables[0], theta_new_nr),
+                    tf.assign(variables, theta_new_nr),
                     tf.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
@@ -321,9 +341,9 @@ class MultiTrainer:
             optim_irls = None
             if provide_optimizers["irls"] and irls_delta is not None:
                 logger.debug(" **** Building optimizer: IRLS")
-                theta_new_irls = variables[0] - learning_rate * irls_delta
+                theta_new_irls = variables - learning_rate * irls_delta
                 train_op_irls = tf.group(
-                    tf.assign(variables[0], theta_new_irls),
+                    tf.assign(variables, theta_new_irls),
                     tf.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
@@ -341,6 +361,7 @@ class MultiTrainer:
             self.optim_RMSProp = optim_RMSProp
             self.optim_NR = optim_nr
             self.optim_irls = optim_irls
+            #self.optim_bfgs = optim_bfgs
 
             self.train_op_GD = train_op_GD
             self.train_op_Adam = train_op_Adam
@@ -348,6 +369,7 @@ class MultiTrainer:
             self.train_op_RMSProp = train_op_RMSProp
             self.train_op_nr = train_op_nr
             self.train_op_irls = train_op_irls
+            #self.train_op_bfgs = train_op_bfgs
 
     def train_op_by_name(self, name: str):
         """
@@ -378,6 +400,10 @@ class MultiTrainer:
             if self.train_op_RMSProp is None:
                 raise ValueError("RMSProp decent not provided in initialization.")
             return self.train_op_RMSProp
+        elif name_lower == "bfgs":
+            if self.train_op_bfgs is None:
+                raise ValueError("BFGS not provided in initialization.")
+            return self.train_op_bfgs
         elif name_lower.lower() == "newton" or \
                 name_lower.lower() == "newton-raphson" or \
                 name_lower.lower() == "newton_raphson" or \
