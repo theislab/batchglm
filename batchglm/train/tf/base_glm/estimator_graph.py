@@ -14,6 +14,7 @@ except ImportError:
 from .model import ModelVarsGLM, BasicModelGraphGLM
 from .external import TFEstimatorGraph
 from .external import train_utils
+from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +347,7 @@ class NewtonGraphGLM:
                     indices=self.idx_nonconverged,
                     axis=0)
                 , axis=-1),
-            fast=False
+            fast=pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
         # contains zero entries for updates of already converged genes.
@@ -379,7 +380,7 @@ class NewtonGraphGLM:
                     indices=self.idx_nonconverged,
                     axis=0)
                 , axis=-1),
-            fast=False
+            fast=pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
         # contains zero entries for updates of already converged genes.
@@ -395,7 +396,6 @@ class NewtonGraphGLM:
 
         return nr_update_batched
 
-
     def newton_type_update_full_global(
             self,
             lhs,
@@ -405,12 +405,11 @@ class NewtonGraphGLM:
             lhs,
             # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
             tf.expand_dims(rhs, axis=-1),
-            fast=False
+            fast=pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         nr_update_full = tf.transpose(delta_t)
 
         return nr_update_full
-
 
     def newton_type_update_batched_global(
             self,
@@ -420,7 +419,7 @@ class NewtonGraphGLM:
         delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
             lhs,
             tf.expand_dims(rhs, axis=-1),
-            fast=False
+            fast=pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         nr_update_batched = tf.transpose(delta_batched_t)
 
