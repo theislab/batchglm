@@ -78,50 +78,31 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             The location design model. Optional if already specified in `data`
         :param design_scale: Some matrix format (observations x dispersion model parameters)
             The scale design model. Optional if already specified in `data`
-        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for location model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
-        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for scale model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
         :param b: tf.Variable or tensor (dispersion model size x features)
             Dispersion model variables.
         :param dtype: Precision used in tensorflow.
         :param size_factors: tensor (observations x features)
             Constant scaling factors for mean model, such as library size factors.
         """
-        # Define first layer of computation graph on identifiable variables
-        # to yield dependent set of parameters of model for each location
-        # and scale model.
-        if constraints_loc is not None:
-            a = self.apply_constraints(constraints=constraints_loc, var_all=a, dtype=dtype)
-
-        if constraints_scale is not None:
-            b = self.apply_constraints(constraints=constraints_scale, var_all=b, dtype=dtype)
-
         with tf.name_scope("mu"):
-            log_mu = tf.matmul(design_loc, a, name="log_mu_obs")
+            log_mu = tf.matmul(design_loc, tf.matmul(constraints_loc,  a), name="log_mu_obs")
             if size_factors is not None:
                 log_mu = tf.add(log_mu, size_factors)
             log_mu = self.tf_clip_param(log_mu, "log_mu")
             mu = tf.exp(log_mu)
 
         with tf.name_scope("r"):
-            log_r = tf.matmul(design_scale, b, name="log_r_obs")
+            log_r = tf.matmul(design_scale, tf.matmul(constraints_scale,  b), name="log_r_obs")
             log_r = self.tf_clip_param(log_r, "log_r")
             r = tf.exp(log_r)
 

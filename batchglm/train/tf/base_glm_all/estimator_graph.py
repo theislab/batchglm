@@ -341,6 +341,17 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 batch_sample_index, batch_data = iterator.get_next()
                 (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
+            constraints_loc = self._set_constraints(
+                constraints=constraints_loc,
+                design=batch_design_loc,
+                dtype=dtype
+            )
+            constraints_scale = self._set_constraints(
+                constraints=constraints_scale,
+                design=batch_design_scale,
+                dtype=dtype
+            )
+
             model_vars = ModelVars(
                 dtype=dtype,
                 init_a=init_a,

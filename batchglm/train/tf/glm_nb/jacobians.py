@@ -126,7 +126,7 @@ class JacobiansAnalytic:
         by evalutating its terms grouped by observations.
         """
 
-        def _a_byobs(X, design_loc, design_scale, mu, r):
+        def _a_byobs(X, design_loc, constraints_loc, mu, r):
             """
             Compute the mean model block of the jacobian.
 
@@ -139,16 +139,18 @@ class JacobiansAnalytic:
             :return Jblock: tf.tensor features x coefficients
                 Block of jacobian.
             """
-            const = self._coef_invariant_a(X=X, mu=mu, r=r)  # [observations, features]
-            Jblock = tf.matmul(tf.transpose(const), design_loc)  # [features, coefficients]
+            W = self._coef_invariant_a(X=X, mu=mu, r=r)  # [observations, features]
+            XH = tf.matmul(design_loc, constraints_loc)
+            Jblock = tf.matmul(tf.transpose(W), XH)  # [features, coefficients]
             return Jblock
 
-        def _b_byobs(X, design_loc, design_scale, mu, r):
+        def _b_byobs(X, design_scale, constraints_scale, mu, r):
             """
             Compute the dispersion model block of the jacobian.
             """
-            const = self._coef_invariant_b(X=X, mu=mu, r=r)  # [observations, features]
-            Jblock = tf.matmul(tf.transpose(const), design_scale)  # [features, coefficients]
+            W = self._coef_invariant_b(X=X, mu=mu, r=r)  # [observations, features]
+            XH = tf.matmul(design_scale, constraints_scale)
+            Jblock = tf.matmul(tf.transpose(W), XH)  # [features, coefficients]
             return Jblock
 
         def _assemble_bybatch(idx, data):
@@ -187,13 +189,13 @@ class JacobiansAnalytic:
             r = model.r
 
             if self._compute_jac_a and self._compute_jac_b:
-                J_a = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                J_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                J_a = _a_byobs(X=X, design_loc=design_loc, constraints_loc=constraints_loc, mu=mu, r=r)
+                J_b = _b_byobs(X=X, design_scale=design_scale, constraints_scale=constraints_scale, mu=mu, r=r)
                 J = tf.concat([J_a, J_b], axis=1)
             elif self._compute_jac_a and not self._compute_jac_b:
-                J = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                J = _a_byobs(X=X, design_loc=design_loc, constraints_loc=constraints_loc, mu=mu, r=r)
             elif not self._compute_jac_a and self._compute_jac_b:
-                J = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                J = _b_byobs(X=X, design_scale=design_scale, constraints_scale=constraints_scale, mu=mu, r=r)
             else:
                 raise ValueError("either require jac_a or jac_b")
 

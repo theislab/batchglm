@@ -77,11 +77,6 @@ class HessiansGLM:
             Wether to compute Hessian block for b parameters. If both hess_a and hess_b are true,
             the entire hessian with the off-diagonal a-b block is computed in self.hessian.
         """
-        if constraints_loc is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_loc is not None")
-        if constraints_scale is not None and mode != "tf":
-            raise ValueError("closed form hessian does not work if constraints_scale is not None")
-
         self.noise_model = noise_model
         self._compute_hess_a = hess_a
         self._compute_hess_b = hess_b
@@ -93,7 +88,6 @@ class HessiansGLM:
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
                 model_vars=model_vars,
-                batched=True,
                 iterator=iterator,
                 dtype=dtype
             )
@@ -157,7 +151,6 @@ class HessiansGLM:
             constraints_loc,
             constraints_scale,
             model_vars: ModelVarsGLM,
-            batched,
             iterator,
             dtype
     ):

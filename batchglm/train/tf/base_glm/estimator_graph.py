@@ -628,6 +628,21 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
         self.num_design_scale_params = num_design_scale_params
         self.batch_size = batch_size
 
+    def _set_constraints(
+            self,
+            constraints,
+            design,
+            dtype
+    ):
+        if constraints is None:
+            return tf.eye(
+                num_rows=tf.constant(design.shape[1], shape=(), dtype="int32"),
+                dtype=dtype
+            )
+        else:
+            assert constraints.shape[0] == design.shape[1], "constraint dimension mismatch"
+            return tf.cast(constraints, dtype=dtype)
+
     @abc.abstractmethod
     def param_bounds(self):
         pass

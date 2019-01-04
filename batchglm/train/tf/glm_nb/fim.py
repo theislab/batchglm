@@ -100,7 +100,7 @@ class FIM(FIMGLM):
         and one sub-function which concatenates the blocks into a full hessian.
         """
 
-        def _a_byobs(design_loc, design_scale, mu, r):
+        def _a_byobs(design_loc, constraints_loc, mu, r):
             """
             Compute the mean model diagonal block of the
             closed form hessian of base_glm_all model by observation across features
@@ -123,12 +123,13 @@ class FIM(FIMGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
+            XH = tf.matmul(design_loc, constraints_loc)
             FIM = tf.einsum('ofc,od->fcd',
-                            tf.einsum('of,oc->ofc', W, design_loc),
-                            design_loc)
+                            tf.einsum('of,oc->ofc', W, XH),
+                            XH)
             return FIM
 
-        def _b_byobs(X, design_loc, design_scale, mu, r):
+        def _b_byobs(X, design_scale, constraints_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by observation across features.
@@ -144,9 +145,10 @@ class FIM(FIMGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
+            XH = tf.matmul(design_scale, constraints_scale)
             FIM = tf.einsum('ofc,od->fcd',
-                            tf.einsum('of,oc->ofc', W, design_scale),
-                            design_scale)
+                            tf.einsum('of,oc->ofc', W, XH),
+                            XH)
             return FIM
 
         def _assemble_byobs(idx, data):
@@ -191,14 +193,14 @@ class FIM(FIMGLM):
             # Here, the non-zero model-wise diagonal blocks are computed and returned
             # as a dictionary. The according score function vectors are also returned as a dictionary.
             if self._update_a and self._update_b:
-                fim_a = _a_byobs(design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
-                fim_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                fim_a = _a_byobs(design_loc=design_loc, constraints_loc=constraints_loc, mu=mu, r=r)
+                fim_b = _b_byobs(X=X, design_scale=design_scale, constraints_scale=constraints_scale, mu=mu, r=r)
             elif self._update_a and not self._update_b:
-                fim_a = _a_byobs(design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                fim_a = _a_byobs(design_loc=design_loc, constraints_loc=constraints_loc, mu=mu, r=r)
                 fim_b = tf.zeros(shape=())
             elif not self._update_a and self._update_b:
                 fim_a = tf.zeros(shape=())
-                fim_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                fim_b = _b_byobs(X=X, design_scale=design_scale, constraints_scale=constraints_scale, mu=mu, r=r)
             else:
                 raise ValueError("either require hess_a or hess_b")
 

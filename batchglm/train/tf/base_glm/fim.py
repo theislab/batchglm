@@ -80,11 +80,6 @@ class FIMGLM:
         :param update_b: bool
             Wether to compute IWLS updates for b parameters.
         """
-        if constraints_loc is not None and mode != "tf":
-            raise ValueError("iwls does not work if constraints_loc is not None")
-        if constraints_scale is not None and mode != "tf":
-            raise ValueError("iwls does not work if constraints_scale is not None")
-
         self.noise_model = noise_model
         self._update_a = update_a
         self._update_b = update_b

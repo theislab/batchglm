@@ -74,11 +74,6 @@ class JacobiansGLM:
             Wether to compute Jacobian for b parameters. If both jac_a and jac_b are true,
             the entire jacobian is computed in self.jac.
         """
-        if constraints_loc is not None and mode != "tf":
-            raise ValueError("closed form jacobians do not work if constraints_loc is not None")
-        if constraints_scale is not None and mode != "tf":
-            raise ValueError("closed form jacobians do not work if constraints_scale is not None")
-
         logger.debug("jacobian mode: %s" % mode)
         logger.debug("compute jacobian for a model: %s" % str(jac_a))
         logger.debug("compute jacobian for b model: %s" % str(jac_b))
