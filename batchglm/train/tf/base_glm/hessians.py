@@ -1,3 +1,4 @@
+import abc
 import logging
 from typing import List
 
@@ -179,3 +180,30 @@ class HessiansGLM:
             dtype
     ) -> List[tf.Tensor]:
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def _W_aa(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        pass
+
+    @abc.abstractmethod
+    def _W_aa(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        pass
+
+    @abc.abstractmethod
+    def _W_aa(
+            self,
+            X,
+            mu,
+            r,
+    ):
+        pass
