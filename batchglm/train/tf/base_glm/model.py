@@ -139,6 +139,84 @@ class BasicModelGraphGLM(ProcessModelGLM):
     norm_neg_log_likelihood: tf.Tensor
     loss: tf.Tensor
 
+    def __init__(
+            self,
+            X,
+            design_loc,
+            design_scale,
+            constraints_loc,
+            constraints_scale,
+            a,
+            b,
+            dtype,
+            size_factors=None
+    ):
+        """
+
+        :param X: tensor (observations x features)
+            The input data.
+        :param design_loc: Some matrix format (observations x mean model parameters)
+            The location design model. Optional if already specified in `data`
+        :param design_scale: Some matrix format (observations x dispersion model parameters)
+            The scale design model. Optional if already specified in `data`
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param b: tf.Variable or tensor (dispersion model size x features)
+            Dispersion model variables.
+        :param dtype: Precision used in tensorflow.
+        :param size_factors: tensor (observations x features)
+            Constant scaling factors for mean model, such as library size factors.
+        """
+        eta_loc = tf.matmul(design_loc, tf.matmul(constraints_loc, a))
+        if size_factors is not None:
+            eta_loc = tf.add(eta_loc, size_factors)
+        eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
+
+        eta_scale = tf.matmul(design_scale, tf.matmul(constraints_scale, b))
+        eta_scale = self.tf_clip_param(eta_scale, "eta_scale")
+
+        self.X = X
+        self.design_loc = design_loc
+        self.design_scale = design_scale
+        self.constraints_loc = constraints_loc
+        self.constraints_scale = constraints_scale
+        self.a = a
+        self.b = b
+        self.size_factors = size_factors
+        self.dtype = dtype
+
+        self.eta_loc = eta_loc
+        self.eta_scale = eta_scale
+
+    @property
+    def probs(self):
+        probs = tf.exp(self.log_probs)
+        return self.tf_clip_param(probs, "probs")
+
+    @property
+    def log_likelihood(self):
+        return tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
+
+    @property
+    def norm_log_likelihood(self):
+        return tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
+
+    @property
+    def norm_neg_log_likelihood(self):
+        return - self.norm_log_likelihood
+
+    @property
+    def loss(self):
+        return tf.reduce_sum(self.norm_neg_log_likelihood)
+
     @abc.abstractmethod
     def param_bounds(self, dtype):
         pass

@@ -30,8 +30,8 @@ class ProcessModel(ProcessModelGLM):
         bounds_min = {
             "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "log_mu": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "log_r": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "mu": np.nextafter(0, np.inf, dtype=dtype),
             "r": np.nextafter(0, np.inf, dtype=dtype),
             "probs": dtype(0),
@@ -40,8 +40,8 @@ class ProcessModel(ProcessModelGLM):
         bounds_max = {
             "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "b": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "log_mu": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "log_r": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "probs": dtype(1),
@@ -70,70 +70,39 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             dtype,
             size_factors=None
     ):
-        """
+        BasicModelGraphGLM.__init__(
+            self=self,
+            X=X,
+            design_loc=design_loc,
+            design_scale=design_scale,
+            constraints_loc=constraints_loc,
+            constraints_scale=constraints_scale,
+            a=a,
+            b=b,
+            dtype=dtype,
+            size_factors=size_factors
+        )
+        
+        # Inverse linker functions:
+        model_loc = tf.exp(self.eta_loc)
+        model_scale = tf.exp(self.eta_scale)
 
-        :param X: tensor (observations x features)
-            The input data.
-        :param design_loc: Some matrix format (observations x mean model parameters)
-            The location design model. Optional if already specified in `data`
-        :param design_scale: Some matrix format (observations x dispersion model parameters)
-            The scale design model. Optional if already specified in `data`
-        :param constraints_loc: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the mean model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param constraints_scale: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the dispersion model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param b: tf.Variable or tensor (dispersion model size x features)
-            Dispersion model variables.
-        :param dtype: Precision used in tensorflow.
-        :param size_factors: tensor (observations x features)
-            Constant scaling factors for mean model, such as library size factors.
-        """
-        with tf.name_scope("mu"):
-            log_mu = tf.matmul(design_loc, tf.matmul(constraints_loc,  a), name="log_mu_obs")
-            if size_factors is not None:
-                log_mu = tf.add(log_mu, size_factors)
-            log_mu = self.tf_clip_param(log_mu, "log_mu")
-            mu = tf.exp(log_mu)
+        # Log-likelihood:
+        log_r_plus_mu = tf.log(model_scale + model_loc)
+        log_probs = tf.math.lgamma(model_scale + X) - \
+                    tf.math.lgamma(X + 1) - tf.math.lgamma(model_scale) + \
+                    tf.multiply(X, self.eta_loc - log_r_plus_mu) + \
+                    tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+        log_probs = self.tf_clip_param(log_probs, "log_probs")
 
-        with tf.name_scope("r"):
-            log_r = tf.matmul(design_scale, tf.matmul(constraints_scale,  b), name="log_r_obs")
-            log_r = self.tf_clip_param(log_r, "log_r")
-            r = tf.exp(log_r)
+        # Variance:
+        sigma2 = model_loc + tf.multiply(tf.square(model_loc), model_scale)
 
-        with tf.name_scope("sigma2"):
-            sigma2 = mu + tf.multiply(tf.square(mu), r)
+        self.model_loc = model_loc
+        self.model_scale = model_scale
+        self.mu = model_loc
+        self.r = model_scale
 
-        with tf.name_scope("log_probs"):
-            log_r_plus_mu = tf.log(r+mu)
-            log_probs = tf.math.lgamma(r+X) - \
-                     tf.math.lgamma(X+1) - tf.math.lgamma(r) + \
-                     tf.multiply(X, log_mu - log_r_plus_mu) + \
-                     tf.multiply(r, log_r - log_r_plus_mu)
-            log_probs = self.tf_clip_param(log_probs, "log_probs")
-
-        with tf.name_scope("probs"):
-            probs = tf.exp(log_probs)
-            probs = self.tf_clip_param(probs, "probs")
-
-        self.X = X
-        self.design_loc = design_loc
-        self.design_scale = design_scale
-
-        self.mu = mu
-        self.r = r
-        self.sigma2 = sigma2
-
-        self.probs = probs
         self.log_probs = log_probs
-        self.log_likelihood = tf.reduce_sum(self.log_probs, axis=0, name="log_likelihood")
-        self.norm_log_likelihood = tf.reduce_mean(self.log_probs, axis=0, name="log_likelihood")
-        self.norm_neg_log_likelihood = - self.norm_log_likelihood
 
-        with tf.name_scope("loss"):
-            self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
+        self.sigma2 = sigma2
