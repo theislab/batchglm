@@ -87,8 +87,6 @@ def groupwise_solve_lm(
     # accounted for by constraints:
     # <X, <theta, H> = means -> <X, theta>, H> = means -> lstsqs for theta
     # (This is faster and more accurate than using matrix inversion.)
-    print(unique_design)
-    print(constraints)
     logger.debug(" ** Solve lstsq problem")
     x_prime, rmsd, rank, s = np.linalg.lstsq(
         np.matmul(unique_design, constraints),

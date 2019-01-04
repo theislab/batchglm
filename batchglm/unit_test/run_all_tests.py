@@ -6,7 +6,5 @@ loader = unittest.TestLoader()
 start_dir = 'batchglm.unit_test'
 suite = loader.discover(start_dir)
 
-print(suite)
-
 runner = unittest.TextTestRunner()
 runner.run(suite)
