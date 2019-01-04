@@ -82,7 +82,7 @@ class FIM(FIMGLM):
 
         return W
 
-    def iwls_update(
+    def analytic(
             self,
             batched_data,
             sample_indices,

@@ -89,7 +89,7 @@ class FIMGLM:
         self._update_a = update_a
         self._update_b = update_b
 
-        fim_a, fim_b = self.iwls_update(
+        fim_a, fim_b = self.analytic(
             batched_data=batched_data,
             sample_indices=sample_indices,
             constraints_loc=constraints_loc,
@@ -103,7 +103,7 @@ class FIMGLM:
         self.fim_b = fim_b
 
     @abc.abstractmethod
-    def iwls_update(
+    def analytic(
             self,
             batched_data,
             sample_indices,
