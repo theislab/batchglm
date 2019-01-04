@@ -515,7 +515,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                                   )
                 summary_full_grad = tf.where(tf.is_nan(full_gradient), tf.zeros_like(full_gradient), full_gradient,
                                              name="full_gradient")
-                # TODO: adjust this if gradient is changed
                 tf.summary.histogram('batch_gradient', batch_trainers.gradient_by_variable(model_vars.params))
                 tf.summary.histogram("full_gradient", summary_full_grad)
                 tf.summary.scalar("full_gradient_median", tf.contrib.distributions.percentile(full_gradient, 50.))

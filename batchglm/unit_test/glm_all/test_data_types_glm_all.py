@@ -27,7 +27,7 @@ class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
                 raise ValueError("noise_model not recognized")
 
         batch_size = 10
-        provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": True}
+        provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": True, "irls": True}
 
         estimator = Estimator(
             input_data=input_data,

@@ -122,7 +122,7 @@ class Test_AccuracyConstrained_VGLM_ALL(
             train_scale
     ):
         algos = ["ADAM", "ADAGRAD", "NR", "IRLS"]
-        estimator = _Test_AccuracySizeFactors_GLM_ALL_Estim(
+        estimator = _Test_AccuracyConstrained_VGLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             termination=termination,

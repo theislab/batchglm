@@ -399,7 +399,7 @@ class HessianGLMALL(HessiansGLM):
                     )
                     H_bb = _bb_byfeature(
                         X=X,
-                        design_loc=design_loc,
+                        design_scale=design_scale,
                         constraints_scale=constraints_scale,
                         mu=mu,
                         r=r
@@ -430,7 +430,7 @@ class HessianGLMALL(HessiansGLM):
                 elif self._compute_hess_a and self._compute_hess_b:
                     H = _bb_byfeature(
                         X=X,
-                        design_loc=design_loc,
+                        design_scale=design_scale,
                         constraints_scale=constraints_scale,
                         mu=mu,
                         r=r
