@@ -116,6 +116,20 @@ class FIMGLM:
             mu,
             r
     ):
+        """
+        Compute for mean model IWLS update for a GLM.
+
+        :param X: tf.tensor observations x features
+           Observation by observation and feature.
+        :param mu: tf.tensor observations x features
+           Value of mean model by observation and feature.
+        :param r: tf.tensor observations x features
+           Value of dispersion model by observation and feature.
+
+        :return tuple of tf.tensors
+           Constants with respect to coefficient index for
+           Fisher information matrix and score function computation.
+        """
         pass
 
     @abc.abstractmethod
@@ -125,4 +139,20 @@ class FIMGLM:
             mu,
             r
     ):
+        """
+        Compute for dispersion model IWLS update for a GLM.
+
+        :param X: tf.tensor observations x features
+            Observation by observation and feature.
+        :param mu: tf.tensor observations x features
+            Value of mean model by observation and feature.
+        :param r: tf.tensor observations x features
+            Value of dispersion model by observation and feature.
+        :param log_rr: tf.tensor observations x features
+            Logarithm of dispersion model by observation and feature.
+
+        :return tuple of tf.tensors
+            Constants with respect to coefficient index for
+            Fisher information matrix and score function computation.
+        """
         pass

@@ -8,31 +8,12 @@ logger = logging.getLogger(__name__)
 
 
 class FIM(FIMGLMALL):
-    """
-    Compute expected fisher information matrix (FIM)
-    for iteratively re-weighted least squares (IWLS or IRLS) parameter updates
-    for a negative binomial GLM.
-    """
 
     def _W_aa(
             self,
             mu,
             r
     ):
-        """
-        Compute for mean model IWLS update for a negative binomial GLM.
-
-        :param X: tf.tensor observations x features
-            Observation by observation and feature.
-        :param mu: tf.tensor observations x features
-            Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
-            Value of dispersion model by observation and feature.
-
-        :return tuple of tf.tensors
-            Constants with respect to coefficient index for
-            Fisher information matrix and score function computation.
-        """
         const = tf.divide(r, r+mu)
         W = tf.multiply(mu, const)
 
@@ -44,22 +25,6 @@ class FIM(FIMGLMALL):
             mu,
             r
     ):
-        """
-        Compute for dispersion model IWLS update for a negative binomial GLM.
-
-        :param X: tf.tensor observations x features
-            Observation by observation and feature.
-        :param mu: tf.tensor observations x features
-            Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
-            Value of dispersion model by observation and feature.
-        :param log_rr: tf.tensor observations x features
-            Logarithm of dispersion model by observation and feature.
-
-        :return tuple of tf.tensors
-            Constants with respect to coefficient index for
-            Fisher information matrix and score function computation.
-        """
         scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
         scalar_two = tf.constant(2, shape=(), dtype=X.dtype)
 
