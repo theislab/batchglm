@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class FIMGLM:
     """
-    Sceleton to compute expected fisher information matrix (FIM)
+    Compute expected fisher information matrix (FIM)
     for iteratively re-weighted least squares (IWLS or IRLS) parameter updates for GLMs.
     """
 
@@ -107,5 +107,22 @@ class FIMGLM:
             model_vars: ModelVarsGLM,
             iterator,
             dtype
+    ):
+        pass
+
+    @abc.abstractmethod
+    def _W_aa(
+            self,
+            mu,
+            r
+    ):
+        pass
+
+    @abc.abstractmethod
+    def _W_bb(
+            self,
+            X,
+            mu,
+            r
     ):
         pass
