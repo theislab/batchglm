@@ -1,9 +1,13 @@
 import abc
 from typing import Union
+try:
+    import anndata
+except ImportError:
+    anndata = None
 
 import xarray as xr
 
-from .input import _InputData_GLM, INPUT_DATA_PARAMS
+from .input import InputData, INPUT_DATA_PARAMS
 from .external import _Model_Base, _Model_XArray_Base
 
 # Define distribution parameters:
@@ -13,10 +17,10 @@ MODEL_PARAMS.update({
     "probs": ("observations", "features"),
     "log_probs": ("observations", "features"),
     "log_likelihood": (),
-    "a": ("design_loc_params", "features"),
-    "b": ("design_scale_params", "features"),
-    "par_link_loc": ("design_loc_params", "features"),
-    "par_link_scale": ("design_scale_params", "features"),
+    "a": ("loc_params", "features"),
+    "b": ("scale_params", "features"),
+    "par_link_loc": ("loc_params", "features"),
+    "par_link_scale": ("scale_params", "features"),
 })
 
 class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
@@ -43,14 +47,12 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
         return self.input_data.design_scale
 
     @property
-    @abc.abstractmethod
-    def a(self) -> xr.DataArray:
-        pass
+    def constraints_loc(self) -> xr.DataArray:
+        return self.input_data.constraints_loc
 
     @property
-    @abc.abstractmethod
-    def b(self) -> xr.DataArray:
-        pass
+    def constraints_scale(self) -> xr.DataArray:
+        return self.input_data.constraints_scale
 
     @property
     def par_link_loc(self):
@@ -60,12 +62,64 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     def par_link_scale(self):
         return self.b
 
-    @abc.abstractmethod
+    @property
+    def eta_loc(self) -> xr.DataArray:
+        eta = self.design_loc.dot(
+            self.constraints_loc.dot(self.par_link_loc, dims="loc_params"),
+            dims="design_loc_params"
+        )
+        if self.size_factors is not None:
+            eta += self.link_loc(self.size_factors)
+        return eta
+
+    @property
+    def eta_scale(self) -> xr.DataArray:
+        eta = self.design_scale.dot(
+            self.constraints_scale.dot(self.par_link_scale, dims="scale_params"),
+            dims="design_scale_params"
+        )
+        return eta
+
+    @property
     def location(self):
+        return self.inverse_link_loc(self.eta_loc)
+
+    @property
+    def scale(self):
+        return self.inverse_link_scale(self.eta_scale)
+
+    @property
+    def size_factors(self) -> Union[xr.DataArray, None]:
+        return self.input_data.size_factors
+
+    def export_params(self, append_to=None, **kwargs):
+        if append_to is not None:
+            if isinstance(append_to, anndata.AnnData):
+                # append_to.obsm["design"] = self.design
+                append_to.varm["a"] = np.transpose(self.a)
+                append_to.varm["b"] = np.transpose(self.b)
+            elif isinstance(append_to, xr.Dataset):
+                # append_to["design"] = (self.param_shapes()["design"], self.design)
+                append_to["a"] = (self.param_shapes()["a"], self.a)
+                append_to["b"] = (self.param_shapes()["b"], self.b)
+            else:
+                raise ValueError("Unsupported data type: %s" % str(type(append_to)))
+        else:
+            ds = xr.Dataset({
+                # "design": (self.param_shapes()["design"], self.design),
+                "a": (self.param_shapes()["a"], self.a),
+                "b": (self.param_shapes()["b"], self.b),
+            })
+            return ds
+
+    @property
+    @abc.abstractmethod
+    def a(self) -> xr.DataArray:
         pass
 
+    @property
     @abc.abstractmethod
-    def scale(self):
+    def b(self) -> xr.DataArray:
         pass
 
     @abc.abstractmethod
@@ -84,16 +138,37 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     def inverse_link_scale(self, data):
         pass
 
-    @property
-    def size_factors(self) -> Union[xr.DataArray, None]:
-        return self.input_data.size_factors
+
+def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], params=None, a=None, b=None):
+    input_data = InputData.new(data)
+
+    if params is None:
+        if isinstance(data, Model):
+            params = xr.Dataset({
+                "a": data.a,
+                "b": data.b,
+            })
+        elif anndata is not None and isinstance(data, anndata.AnnData):
+            params = xr.Dataset({
+                "a": (MODEL_PARAMS["a"], np.transpose(data.varm["a"])),
+                "b": (MODEL_PARAMS["b"], np.transpose(data.varm["b"])),
+            })
+        elif isinstance(data, xr.Dataset):
+            params = data
+        else:
+            params = xr.Dataset({
+                "a": (MODEL_PARAMS["a"], a) if not isinstance(a, xr.DataArray) else a,
+                "b": (MODEL_PARAMS["b"], b) if not isinstance(b, xr.DataArray) else b,
+            })
+
+    return input_data, params
 
 
 class _Model_XArray_GLM(_Model_XArray_Base):
-    _input_data: _InputData_GLM
+    _input_data: InputData
     params: xr.Dataset
 
-    def __init__(self, input_data: _InputData_GLM, params: xr.Dataset):
+    def __init__(self, input_data: InputData, params: xr.Dataset):
         super(_Model_XArray_Base, self).__init__(input_data=input_data, params=params)
 
     @property

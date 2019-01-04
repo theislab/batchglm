@@ -1,11 +1,10 @@
 import abc
-
 import math
 import numpy as np
 import xarray as xr
 
-from .input import _InputData_GLM
-from .external import _Simulator_Base
+from .input import InputData
+from .external import _Simulator_Base, data_utils
 
 
 def generate_sample_description(
@@ -88,6 +87,92 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
 
         del self.data["intercept"]
 
+    def generate_params(
+            self,
+            *args,
+            rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
+            rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
+            rand_fn_loc=None,
+            rand_fn_scale=None,
+            **kwargs
+    ):
+        """
+        Generate all necessary parameters
+
+        :param min_mean: minimum mean value
+        :param max_mean: maximum mean value
+        :param min_r: minimum r value
+        :param max_r: maximum r value
+        :param rand_fn_ave: function which generates random numbers for intercept.
+            Takes one location parameter of intercept distribution across features.
+        :param rand_fn: random function taking one argument `shape`.
+            default: rand_fn = lambda shape: np.random.uniform(0.5, 2, shape)
+        :param rand_fn_loc: random function taking one argument `shape`.
+            If not provided, will use `rand_fn` instead.
+        :param rand_fn_scale: random function taking one argument `shape`.
+            If not provided, will use `rand_fn` instead.
+        """
+        if rand_fn_loc is None:
+            rand_fn_loc = rand_fn
+        if rand_fn_scale is None:
+            rand_fn_scale = rand_fn
+
+        if "design_loc" not in self.data:
+            if "formula_loc" not in self.data.attrs:
+                self.generate_sample_description()
+
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_loc")
+            dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_loc"])
+            dmat_ar.coords["design_loc_params"] = dmat.design_info.column_names
+            self.data["design_loc"] = dmat_ar
+        if "design_scale" not in self.data:
+            if "formula_scale" not in self.data.attrs:
+                self.generate_sample_description()
+
+            dmat = data_utils.design_matrix_from_xarray(self.data, dim="observations", formula_key="formula_scale")
+            dmat_ar = xr.DataArray(dmat, dims=self.param_shapes()["design_scale"])
+            dmat_ar.coords["design_scale_params"] = dmat.design_info.column_names
+            self.data["design_scale"] = dmat_ar
+
+        if "constraints_loc" not in self.data:
+            constr_loc = np.identity(n=self.data["design_loc"].shape[1])
+            constr_loc_ar = xr.DataArray(
+                dims=[self.param_shapes()["design_loc"][1], self.param_shapes()["a"][0]],
+                data=constr_loc,
+                coords={"loc_params": self.data.coords["design_loc_params"].values}
+            )
+            constr_loc_ar.coords["loc_params"] = self.data.coords["design_loc_params"].values
+            self.data["constraints_loc"] = constr_loc_ar
+        if "constraints_scale" not in self.data:
+            constr_scale = np.identity(n=self.data["design_scale"].shape[1])
+            constr_scale_ar = xr.DataArray(
+                dims=[self.param_shapes()["design_scale"][1], self.param_shapes()["b"][0]],
+                data=constr_scale,
+                coords={"scale_params": self.data.coords["design_scale_params"].values}
+            )
+            constr_scale_ar.coords["scale_params"] = self.data.coords["design_scale_params"].values
+            self.data["constraints_scale"] = constr_scale_ar
+
+        self.params['a'] = xr.DataArray(
+            dims=self.param_shapes()["a"],
+            data=np.log(
+                np.concatenate([
+                    np.expand_dims(rand_fn_ave(self.num_features), axis=0),  # intercept
+                    rand_fn_loc((self.data.design_loc.shape[1] - 1, self.num_features))
+                ], axis=0)
+            ),
+            coords={"loc_params": self.data.loc_params}
+        )
+        self.params['b'] = xr.DataArray(
+            dims=self.param_shapes()["b"],
+            data=np.log(
+                np.concatenate([
+                    rand_fn_scale((self.data.design_scale.shape[1], self.num_features))
+                ], axis=0)
+            ),
+            coords={"scale_params": self.data.scale_params}
+        )
+
     def parse_dmat_loc(self, dmat):
         """ Input externally created design matrix for location model.
         """
@@ -105,8 +190,8 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
         self.data["design_scale"] = dmat_ar
 
     @property
-    def input_data(self) -> _InputData_GLM:
-        return _InputData_GLM.new(self.data)
+    def input_data(self) -> InputData:
+        return InputData.new(self.data)
 
     @property
     def design_loc(self):
@@ -115,6 +200,14 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
     @property
     def design_scale(self):
         return self.data["design_scale"]
+
+    @property
+    def constraints_loc(self):
+        return self.data["constraints_loc"]
+
+    @property
+    def constraints_scale(self):
+        return self.data["constraints_scale"]
 
     @property
     def size_factors(self):
@@ -138,4 +231,3 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
     @property
     def b(self):
         return self.params['b']
-

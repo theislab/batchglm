@@ -109,7 +109,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
                         X=self.input_data.X,
                         design_loc=self.input_data.design_loc,
-                        constraints=self.input_data.constraints_loc,
+                        constraints_loc=self.input_data.constraints_loc,
                         size_factors=size_factors_init,
                         link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
                     )

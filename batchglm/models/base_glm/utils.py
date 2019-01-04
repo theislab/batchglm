@@ -83,7 +83,10 @@ def closedform_glm_mean(
 
     :param X: The input data array
     :param dmat: some design matrix
-    :param constraints: constraints
+    :param constraints: tensor (all parameters x dependent parameters)
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This form of constraints is used in vector generalized linear models (VGLMs).
     :param size_factors: size factors for X
     :param weights: the weights of the arrays' elements; if `none` it will be ignored.
     :param link_fn: linker function for GLM

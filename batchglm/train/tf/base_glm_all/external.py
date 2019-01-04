@@ -6,7 +6,7 @@ from batchglm.train.tf.base import TFEstimatorGraph, MonitoredTFEstimator
 from batchglm.train.tf.base_glm import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM, EstimatorGraphGLM, FullDataModelGraphGLM, BasicModelGraphGLM
 from batchglm.train.tf.base_glm import ESTIMATOR_PARAMS, ProcessModelGLM, ModelVarsGLM
 
-from batchglm.models.base_glm import _InputData_GLM, _Model_GLM
+from batchglm.models.base_glm import InputData, _Model_GLM
 
 import batchglm.utils.random as rand_utils
 from batchglm.utils.linalg import groupwise_solve_lm

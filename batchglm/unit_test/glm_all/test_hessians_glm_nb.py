@@ -8,7 +8,7 @@ import batchglm.api as glm
 import batchglm.data as data_utils
 import batchglm.pkg_constants as pkg_constants
 
-from batchglm.models.base_glm import _Estimator_GLM, _InputData_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _Estimator_GLM, InputData, _Simulator_GLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
 
     def estimate(
             self,
-            input_data: _InputData_GLM
+            input_data: InputData
     ):
         if self.noise_model is None:
             raise ValueError("noise_model is None")

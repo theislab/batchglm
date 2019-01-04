@@ -1,5 +1,6 @@
 from .test_acc_glm import Test_Accuracy_GLM, _Test_Accuracy_GLM_Estim
 from .test_acc_analytic_glm import Test_AccuracyAnalytic_GLM, _Test_AccuracyAnalytic_GLM_Estim
+from .test_acc_constrained_vglm import Test_AccuracyConstrained_VGLM, _Test_AccuracyConstrained_VGLM_Estim
 from .test_acc_sizefactors_glm import Test_AccuracySizeFactors_GLM, _Test_AccuracySizeFactors_GLM_Estim
 from .test_graph_glm import Test_Graph_GLM, _Test_Graph_GLM_Estim
 from .test_data_types_glm import Test_DataTypes_GLM, _Test_DataTypes_GLM_Estim

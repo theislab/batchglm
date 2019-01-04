@@ -17,16 +17,15 @@ INPUT_DATA_PARAMS = INPUT_DATA_PARAMS
 INPUT_DATA_PARAMS.update({
     "design_loc": ("observations", "design_loc_params"),
     "design_scale": ("observations", "design_scale_params"),
+    "constraints_loc": ("design_loc_params", "log_params"),
+    "constraints_scale": ("design_scale_params", "scale_params"),
     "size_factors": ("observations",),
 })
 
-class _InputData_GLM(_InputData_Base):
+class InputData(_InputData_Base):
     """
     Input data for Generalized Linear Models (GLMs).
     """
-    constraints_loc: Union[None, np.ndarray]
-    constraints_scale: Union[None, np.ndarray]
-
     @classmethod
     def param_shapes(cls) -> dict:
         return INPUT_DATA_PARAMS
@@ -39,8 +38,8 @@ class _InputData_GLM(_InputData_Base):
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_scale_names: Union[list, np.ndarray, xr.DataArray] = None,
-            constraints_loc: np.ndarray = None,
-            constraints_scale: np.ndarray = None,
+            constraints_loc: Union[np.ndarray, xr.DataArray] = None,
+            constraints_scale: Union[np.ndarray, xr.DataArray] = None,
             size_factors=None,
             observation_names=None,
             feature_names=None,
@@ -71,26 +70,16 @@ class _InputData_GLM(_InputData_Base):
             Names of the design_scale parameters.
             The names might already be included in `design_loc`.
             Will be used to find identical columns in two models.
-        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for location model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that 
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
-        :param constraints_scale: np.ndarray (constraints on dispersion model x dispersion model parameters)
-            Constraints for scale model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that 
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
         :param size_factors: np.ndarray (observations)
             Constant scale factors of the mean model in the linker space.
         :param observation_names: (optional)
@@ -105,7 +94,7 @@ class _InputData_GLM(_InputData_Base):
             If this option is set, all provided data will be casted to this data type.
         :return: InputData object
         """
-        retval = super(_InputData_GLM, cls).new(
+        retval = super(InputData, cls).new(
             data=data,
             observation_names=observation_names,
             feature_names=feature_names,
@@ -159,6 +148,14 @@ class _InputData_GLM(_InputData_Base):
         self.data.coords["design_loc_params"] = data
 
     @property
+    def loc_names(self) -> xr.DataArray:
+        return self.data.coords["design_loc_params"]
+
+    @loc_names.setter
+    def loc_names(self, data):
+        self.data.coords["loc_names"] = data
+
+    @property
     def design_scale(self) -> xr.DataArray:
         return self.data["design_scale"]
 
@@ -173,6 +170,52 @@ class _InputData_GLM(_InputData_Base):
     @design_scale_names.setter
     def design_scale_names(self, data):
         self.data.coords["design_scale_params"] = data
+
+    @property
+    def scale_names(self) -> xr.DataArray:
+        return self.data.coords["design_scale_params"]
+
+    @scale_names.setter
+    def scale_names(self, data):
+        self.data.coords["scale_names"] = data
+
+    @property
+    def constraints_loc(self) -> xr.DataArray:
+        return self.data["constraints_loc"]
+
+    @constraints_loc.setter
+    def constraints_loc(self, data):
+        constr_loc = self.set_constraints(
+            constraints=data,
+            design=self.design_loc
+        )
+        self.data["constraints_loc"] = xr.DataArray(
+            dims=["design_loc_params", "loc_params"],
+            data=constr_loc,
+            coords={
+                "design_loc_params": self.design_loc_names.values,
+                "loc_params": self.design_loc_names.values  # TODO with constraints
+            }
+        )
+
+    @property
+    def constraints_scale(self) -> xr.DataArray:
+        return self.data["constraints_scale"]
+
+    @constraints_scale.setter
+    def constraints_scale(self, data):
+        constr_scale = self.set_constraints(
+            constraints=data,
+            design=self.design_scale
+        )
+        self.data["constraints_scale"] = xr.DataArray(
+            dims=["design_scale_params", "scale_params"],
+            data=constr_scale,
+            coords={
+                "design_scale_params": self.design_scale_names.values,
+                "scale_params": self.design_scale_names.values  # TODO with constraints
+            }
+        )
 
     @property
     def size_factors(self):
@@ -205,6 +248,17 @@ class _InputData_GLM(_InputData_Base):
 
     def fetch_size_factors(self, idx):
         return self.size_factors[idx]
+
+    def set_constraints(
+            self,
+            constraints,
+            design
+    ):
+        if constraints is None:
+            return np.identity(n=design.shape[1])
+        else:
+            assert constraints.shape[0] == design.shape[1], "constraint dimension mismatch"
+            return np.asarray(constraints)
 
     def set_chunk_size(self, cs: int):
         """

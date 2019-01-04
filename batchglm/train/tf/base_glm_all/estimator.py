@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, _InputData_GLM, _Model_GLM
+from .external import MonitoredTFEstimator, InputData, _Model_GLM
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            input_data: _InputData_GLM,
+            input_data: InputData,
             batch_size: int = 500,
             graph: tf.Graph = None,
             init_model: _Model_GLM = None,
@@ -352,7 +352,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             logger.info("Training sequence #%d complete", idx + 1)
 
     @property
-    def input_data(self) -> _InputData_GLM:
+    def input_data(self) -> InputData:
         return self._input_data
 
     @property

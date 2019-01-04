@@ -10,9 +10,8 @@ from .external import weighted_mean
 def closedform_nb_glm_logmu(
         X: xr.DataArray,
         design_loc,
-        constraints=None,
+        constraints_loc,
         size_factors=None,
-        weights=None,
         link_fn=np.log
 ):
     r"""
@@ -20,17 +19,19 @@ def closedform_nb_glm_logmu(
 
     :param X: The sample data
     :param design_loc: design matrix for location
-    :param constraints: some design constraints
+    :param constraints: tensor (all parameters x dependent parameters)
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This form of constraints is used in vector generalized linear models (VGLMs).
     :param size_factors: size factors for X
-    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
     :return: tuple: (groupwise_means, mu, rmsd)
     """
     return closedform_glm_mean(
         X=X,
         dmat=design_loc,
-        constraints=constraints,
+        constraints=constraints_loc,
         size_factors=size_factors,
-        weights=weights,
+        weights=None,
         link_fn=link_fn
     )
 

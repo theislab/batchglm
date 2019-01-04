@@ -1,6 +1,7 @@
 import batchglm.data as data_utils
 
 from batchglm.models.nb_glm import AbstractEstimator, EstimatorStoreXArray, InputData, Model
+from batchglm.models.base_glm.utils import closedform_glm_mean, closedform_glm_var
 from batchglm.models.nb_glm.utils import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 
 import batchglm.train.tf.ops as op_utils

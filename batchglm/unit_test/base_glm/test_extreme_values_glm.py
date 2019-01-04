@@ -3,7 +3,7 @@ from typing import List
 import unittest
 import numpy as np
 
-from batchglm.models.base_glm import _Estimator_GLM, _InputData_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _Estimator_GLM, InputData, _Simulator_GLM
 
 
 class _Test_ExtremValues_GLM_Estim():
@@ -80,7 +80,7 @@ class Test_ExtremValues_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_estimator(
             self,
-            input_data: _InputData_GLM,
+            input_data: InputData,
             termination,
             quick_scale
     ) -> _Estimator_GLM:
@@ -88,7 +88,7 @@ class Test_ExtremValues_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
 
     def _basic_test(
             self,
-            input_data: _InputData_GLM,
+            input_data: InputData,
             quick_scale
     ):
         """

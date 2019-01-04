@@ -39,26 +39,16 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             Size of mini-batches used.
         :param model_vars: ModelVars
             Variables of model. Contains tf.Variables which are optimized.
-        :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for location model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
-        :param constraints_scale: np.ndarray (constraints on mean model x mean model parameters)
-            Constraints for scale model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
         :param train_mu: bool
             Whether to train mean model. If False, the initialisation is kept.
         :param train_r: bool
@@ -273,24 +263,16 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             Initialisation for all parameters of mean model.
         :param init_b: nd.array (dispersion model size x features)
             Initialisation for all parameters of dispersion model.
-        :param constraints_loc: Constraints for location model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
-        :param constraints_scale: Constraints for scale model.
-            Array with constraints in rows and model parameters in columns.
-            Each constraint contains non-zero entries for the a of parameters that
-            has to sum to zero. This constraint is enforced by binding one parameter
-            to the negative sum of the other parameters, effectively representing that
-            parameter as a function of the other parameters. This dependent
-            parameter is indicated by a -1 in this array, the independent parameters
-            of that constraint (which may be dependent at an earlier constraint)
-            are indicated by a 1.
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
         :param train_loc: bool
             Whether to train mean model. If False, the initialisation is kept.
         :param train_scale: bool
