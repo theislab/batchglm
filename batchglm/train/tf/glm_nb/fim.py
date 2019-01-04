@@ -2,7 +2,7 @@ import tensorflow as tf
 
 import logging
 
-from .external import IRLSGLM
+from .external import FIMGLM
 from .model import BasicModelGraph, ModelVars
 
 from .external import op_utils
@@ -11,14 +11,13 @@ from .external import pkg_constants
 logger = logging.getLogger(__name__)
 
 
-class IRLS(IRLSGLM):
+class FIM(FIMGLM):
     """
     Compute the iteratively re-weighted least squares (IWLS or IRLS)
     parameter updates for a negative binomial GLM.
     """
     def _constants_a(
             self,
-            X,
             mu,
             r
     ):
@@ -37,17 +36,15 @@ class IRLS(IRLSGLM):
             Fisher information matrix and score function computation.
         """
         const = tf.divide(r, r+mu)
-        W1 = tf.multiply(mu, const)
-        W2 = tf.multiply(const, X - mu)
+        W = tf.multiply(mu, const)
 
-        return W1, W2
+        return W
 
     def _constants_b(
             self,
             X,
             mu,
-            r,
-            log_r
+            r
     ):
         """
         Compute for dispersion model IWLS update for a negative binomial GLM.
@@ -81,18 +78,9 @@ class IRLS(IRLSGLM):
             tf.math.polygamma(a=scalar_one, x=r_plus_mu)
         ))
         const3 = tf.divide(r, r_plus_mu)
-        W1 = tf.multiply(r, tf.add_n([const1, const2, const3]))
+        W = tf.multiply(r, tf.add_n([const1, const2, const3]))
 
-        W2 = tf.multiply(r, tf.add_n([  # [observations, features]
-            digamma_r,
-            digamma_r_plus_mu,
-            tf.divide(r+X, r_plus_mu),
-            log_r,
-            tf.ones_like(X),
-            tf.negative(tf.log(r_plus_mu))
-        ]))
-
-        return W1, W2
+        return W
 
     def iwls_update(
             self,
@@ -112,7 +100,7 @@ class IRLS(IRLSGLM):
         and one sub-function which concatenates the blocks into a full hessian.
         """
 
-        def _a_byobs(X, design_loc, design_scale, mu, r, log_r):
+        def _a_byobs(design_loc, design_scale, mu, r):
             """
             Compute the mean model diagonal block of the
             closed form hessian of base_glm_all model by observation across features
@@ -125,8 +113,7 @@ class IRLS(IRLSGLM):
             :param r: tf.tensor observations x features
                 Value of dispersion model by observation and feature.
             """
-            W1, W2 = self._constants_a(  # [observations x features]
-                X=X,
+            W = self._constants_a(  # [observations x features]
                 mu=mu,
                 r=r
             )
@@ -137,21 +124,19 @@ class IRLS(IRLSGLM):
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
             FIM = tf.einsum('ofc,od->fcd',
-                            tf.einsum('of,oc->ofc', W1, design_loc),
+                            tf.einsum('of,oc->ofc', W, design_loc),
                             design_loc)
-            score = tf.matmul(tf.transpose(design_loc), W2)
-            return FIM, score
+            return FIM
 
-        def _b_byobs(X, design_loc, design_scale, mu, r, log_r):
+        def _b_byobs(X, design_loc, design_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by observation across features.
             """
-            W1, W2 = self._constants_b(  # [observations=1 x features]
+            W = self._constants_b(  # [observations=1 x features]
                 X=X,
                 mu=mu,
-                r=r,
-                log_r=log_r
+                r=r
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.
@@ -160,10 +145,9 @@ class IRLS(IRLSGLM):
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
             FIM = tf.einsum('ofc,od->fcd',
-                            tf.einsum('of,oc->ofc', W1, design_scale),
+                            tf.einsum('of,oc->ofc', W, design_scale),
                             design_scale)
-            score = tf.matmul(tf.transpose(design_scale), W2)
-            return FIM, score
+            return FIM
 
         def _assemble_byobs(idx, data):
             """
@@ -200,7 +184,6 @@ class IRLS(IRLSGLM):
             )
             mu = model.mu
             r = model.r
-            log_r = tf.log(model.r)  # TODO inefficient
 
             # The full fisher information matrix is block-diagonal with the cross-model
             # blocks all zero. Accordingly, mean and dispersion model updates can be
@@ -208,20 +191,18 @@ class IRLS(IRLSGLM):
             # Here, the non-zero model-wise diagonal blocks are computed and returned
             # as a dictionary. The according score function vectors are also returned as a dictionary.
             if self._update_a and self._update_b:
-                fim_a, score_a = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r, log_r=log_r)
-                fim_b, score_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r, log_r=log_r)
+                fim_a = _a_byobs(design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
+                fim_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
             elif self._update_a and not self._update_b:
-                fim_a, score_a = _a_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r, log_r=log_r)
+                fim_a = _a_byobs(design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
                 fim_b = tf.zeros(shape=())
-                score_b = tf.zeros(shape=())
             elif not self._update_a and self._update_b:
                 fim_a = tf.zeros(shape=())
-                score_a = tf.zeros(shape=())
-                fim_b, score_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r, log_r=log_r)
+                fim_b = _b_byobs(X=X, design_loc=design_loc, design_scale=design_scale, mu=mu, r=r)
             else:
                 raise ValueError("either require hess_a or hess_b")
 
-            return fim_a, fim_b, score_a, score_b
+            return fim_a, fim_b
 
         def _red(prev, cur):
             """
@@ -234,16 +215,14 @@ class IRLS(IRLSGLM):
             """
             fim_a = tf.add(prev[0], cur[0])
             fim_b = tf.add(prev[1], cur[1])
-            score_a = tf.add(prev[2], cur[2])
-            score_b = tf.add(prev[3], cur[3])
-            return fim_a, fim_b, score_a, score_b
+            return fim_a, fim_b
 
         params = model_vars.params
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
         if iterator:
-            container = op_utils.map_reduce(
+            fims = op_utils.map_reduce(
                 last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
                 data=batched_data,
                 map_fn=_assemble_byobs,
@@ -251,9 +230,9 @@ class IRLS(IRLSGLM):
                 parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
             )
         else:
-            container = _assemble_byobs(
+            fims = _assemble_byobs(
                 idx=sample_indices,
                 data=batched_data
             )
 
-        return container
+        return fims

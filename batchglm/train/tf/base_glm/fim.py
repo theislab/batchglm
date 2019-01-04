@@ -8,10 +8,10 @@ from .model import ModelVarsGLM
 logger = logging.getLogger(__name__)
 
 
-class IRLSGLM:
+class FIMGLM:
     """
-    Skeletion for iteratively re-weighted least squares (IWLS or IRLS)
-    parameter updates for GLMs.
+    Sceleton to compute expected fisher information matrix (FIM)
+    for iteratively re-weighted least squares (IWLS or IRLS) parameter updates for GLMs.
     """
 
     _update_a: bool
@@ -89,7 +89,7 @@ class IRLSGLM:
         self._update_a = update_a
         self._update_b = update_b
 
-        container = self.iwls_update(
+        fim_a, fim_b = self.iwls_update(
             batched_data=batched_data,
             sample_indices=sample_indices,
             constraints_loc=constraints_loc,
@@ -99,10 +99,8 @@ class IRLSGLM:
             dtype=dtype
         )
 
-        self.fim_a = container[0]
-        self.fim_b = container[1]
-        self.score_a = tf.transpose(container[2])
-        self.score_b = tf.transpose(container[3])
+        self.fim_a = fim_a
+        self.fim_b = fim_b
 
     @abc.abstractmethod
     def iwls_update(

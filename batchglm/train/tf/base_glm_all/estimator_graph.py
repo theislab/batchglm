@@ -66,7 +66,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians, Hessians, IRLS
+            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
         else:
             raise ValueError("noise model not rewcognized")
         self.noise_model = noise_model
@@ -139,7 +139,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             else:
                 hessians_train = hessians_full
 
-            irls_train = IRLS(
+            fim_train = FIM(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -211,13 +211,15 @@ class FullDataModelGraph(FullDataModelGraphGLM):
 
         self.jac = jacobian_full.jac
         self.neg_jac = jacobian_full.neg_jac
+        self.neg_jac_train = jacobian_train.neg_jac
+        self.neg_jac_train_a = jacobian_train.neg_jac_a
+        self.neg_jac_train_b = jacobian_train.neg_jac_b
+
         self.hessian = hessians_full.hessian
         self.neg_hessian = hessians_full.neg_hessian
-
-        self.neg_jac_train = jacobian_train.neg_jac
         self.neg_hessian_train = hessians_train.neg_hessian
 
-        self.irls = irls_train
+        self.fim = fim_train
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -299,7 +301,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, IRLS
+            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, FIM
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -407,7 +409,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 # Define the IRLS components on the batched model:
                 # (note that these are the IRLS matrix blocks
                 # of the trained subset of parameters).
-                batch_irls = IRLS(
+                batch_fim = FIM(
                     batched_data=batch_data,
                     sample_indices=batch_sample_index,
                     constraints_loc=constraints_loc,
@@ -467,7 +469,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
                 self.batch_jac = batch_jac
                 self.batch_hessians = batch_hessians
-                self.batch_irls = batch_irls
+                self.batch_fim = batch_fim
 
                 self.mu = mu
                 self.r = r

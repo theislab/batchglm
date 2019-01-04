@@ -46,9 +46,11 @@ class FullDataModelGraphGLM:
 
     jac: tf.Tensor
     neg_jac: tf.Tensor
+    neg_jac_train: tf.Tensor
+    neg_jac_train_a: tf.Tensor
+    neg_jac_train_b: tf.Tensor
     hessian: tf.Tensor
     neg_hessian: tf.Tensor
-    neg_jac_train: tf.Tensor
     neg_hessian_train: tf.Tensor
 
     noise_model: str
@@ -210,10 +212,10 @@ class NewtonGraphGLM:
             # Compute a and b model updates separately.
             if train_mu:
                 irls_update_a_full, irls_update_a_batched = self.build_updates(
-                    full_lhs=self.full_data_model.irls.fim_a,
-                    batched_lhs=self.batch_irls.fim_a,
-                    full_rhs=self.full_data_model.irls.score_a,
-                    batched_rhs=self.batch_irls.score_a,
+                    full_lhs=self.full_data_model.fim.fim_a,
+                    batched_lhs=self.batch_fim.fim_a,
+                    full_rhs=self.full_data_model.neg_jac_train_a,
+                    batched_rhs=self.batch_jac.neg_jac_a,
                     termination_type=termination_type
                 )
             else:
@@ -222,10 +224,10 @@ class NewtonGraphGLM:
 
             if train_r:
                 irls_update_b_full, irls_update_b_batched = self.build_updates(
-                    full_lhs=self.full_data_model.irls.fim_b,
-                    batched_lhs=self.batch_irls.fim_b,
-                    full_rhs=self.full_data_model.irls.score_b,
-                    batched_rhs=self.batch_irls.score_b,
+                    full_lhs=self.full_data_model.fim.fim_b,
+                    batched_lhs=self.batch_fim.fim_b,
+                    full_rhs=self.full_data_model.neg_jac_train_b,
+                    batched_rhs=self.batch_jac.neg_jac_b,
                     termination_type=termination_type
                 )
             else:
