@@ -197,7 +197,8 @@ class NewtonGraphGLM:
                 batched_lhs=self.batch_hessians.neg_hessian,
                 full_rhs=self.full_data_model.neg_jac_train,
                 batched_rhs=self.batch_jac.neg_jac,
-                termination_type=termination_type
+                termination_type=termination_type,
+                psd=False
             )
             nr_update_full, nr_update_batched = self.pad_updates(
                 train_mu=train_mu,
@@ -212,12 +213,17 @@ class NewtonGraphGLM:
         if provide_optimizers["irls"]:
             # Compute a and b model updates separately.
             if train_mu:
+                # The FIM of the mean model is guaranteed to be
+                # positive semi-definite and can therefore be inverted
+                # with the Cholesky decomposition. This information is
+                # passed here with psd=True.
                 irls_update_a_full, irls_update_a_batched = self.build_updates(
                     full_lhs=self.full_data_model.fim.fim_a,
                     batched_lhs=self.batch_fim.fim_a,
                     full_rhs=self.full_data_model.neg_jac_train_a,
                     batched_rhs=self.batch_jac.neg_jac_a,
-                    termination_type=termination_type
+                    termination_type=termination_type,
+                    psd=True
                 )
             else:
                 irls_update_a_full = None
@@ -229,7 +235,8 @@ class NewtonGraphGLM:
                     batched_lhs=self.batch_fim.fim_b,
                     full_rhs=self.full_data_model.neg_jac_train_b,
                     batched_rhs=self.batch_jac.neg_jac_b,
-                    termination_type=termination_type
+                    termination_type=termination_type,
+                    psd=False
                 )
             else:
                 irls_update_b_full = None
@@ -269,25 +276,30 @@ class NewtonGraphGLM:
             batched_rhs,
             full_rhs,
             batched_lhs,
-            termination_type: str
+            termination_type: str,
+            psd
     ):
         if termination_type == "by_feature":
             update_full = self.newton_type_update_full_byfeature(
                 lhs=full_lhs,
-                rhs=full_rhs
+                rhs=full_rhs,
+                psd=psd
             )
             update_batched = self.newton_type_update_batched_byfeature(
                 lhs=batched_lhs,
-                rhs=batched_rhs
+                rhs=batched_rhs,
+                psd=psd
             )
         elif termination_type == "global":
             update_full = self.newton_type_update_full_global(
                 lhs=full_lhs,
-                rhs=full_rhs
+                rhs=full_rhs,
+                psd=psd
             )
             update_batched = self.newton_type_update_batched_global(
                 lhs=batched_lhs,
-                rhs=batched_rhs
+                rhs=batched_rhs,
+                psd=psd
             )
         else:
             raise ValueError("convergence_type %s not recognized." % termination_type)
@@ -333,7 +345,8 @@ class NewtonGraphGLM:
     def newton_type_update_full_byfeature(
             self,
             lhs,
-            rhs
+            rhs,
+            psd
     ):
         # Compute parameter update for non-converged gene only.
         delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
@@ -347,7 +360,7 @@ class NewtonGraphGLM:
                     indices=self.idx_nonconverged,
                     axis=0)
                 , axis=-1),
-            fast=pkg_constants.CHOLESKY_LSTSQS
+            fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
         # contains zero entries for updates of already converged genes.
@@ -366,7 +379,8 @@ class NewtonGraphGLM:
     def newton_type_update_batched_byfeature(
             self,
             lhs,
-            rhs
+            rhs,
+            psd
     ):
         # Compute parameter update for non-converged gene only.
         delta_batched_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
@@ -380,7 +394,7 @@ class NewtonGraphGLM:
                     indices=self.idx_nonconverged,
                     axis=0)
                 , axis=-1),
-            fast=pkg_constants.CHOLESKY_LSTSQS
+            fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
         # contains zero entries for updates of already converged genes.
@@ -399,13 +413,14 @@ class NewtonGraphGLM:
     def newton_type_update_full_global(
             self,
             lhs,
-            rhs
+            rhs,
+            psd
     ):
         delta_t = tf.squeeze(tf.matrix_solve_ls(
             lhs,
             # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
             tf.expand_dims(rhs, axis=-1),
-            fast=pkg_constants.CHOLESKY_LSTSQS
+            fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         nr_update_full = tf.transpose(delta_t)
 
@@ -414,12 +429,13 @@ class NewtonGraphGLM:
     def newton_type_update_batched_global(
             self,
             lhs,
-            rhs
+            rhs,
+            psd
     ):
         delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
             lhs,
             tf.expand_dims(rhs, axis=-1),
-            fast=pkg_constants.CHOLESKY_LSTSQS
+            fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         nr_update_batched = tf.transpose(delta_batched_t)
 
