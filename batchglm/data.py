@@ -432,20 +432,18 @@ def build_constraints(
     :param constraints: List of constraints as strings, e.g. "x1 + x5 = 0".
     :return: a model design matrix and a constraint matrix
     """
+    # TODO: automatically generate string constraints from factors
     di = DesignInfo(dmat.coords["design_params"])
-    constraint_ls = []
-    idx_constrained = []
-    for x in constraints:
-        constr = di.linear_constraint(x).coefs
-        idx = np.where(constr.coefs[0] == 1)[0]
-        constraint_ls.extend([constr])
+    constraint_ls = [di.linear_constraint(x).coefs for x in constraints]
+    idx_constrained = [np.where(x.coefs[0] == 1)[0] for x in constraint_ls]
+    idx_unconstr = list(set(range(dmat.shape[1])) - set(idx_constrained))
 
     dmat_var = dmat[:,idx_unconstr]
     constraint_mat = np.vstack(constraint_ls)[:,idx_unconstr]
 
     constraints = np.vstack([
         np.identity(n=dmat_var.shape[1]),
-        constraint_mat
+        -constraint_mat
     ])
     constraints_ar = xr.DataArray(
         dims=dims,
