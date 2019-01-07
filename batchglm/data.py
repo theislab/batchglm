@@ -421,6 +421,42 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
     return adatas
 
 
+def build_constraints(
+        dmat: xr.DataArray,
+        constraints: List[str]
+):
+    r"""
+    Parser for constraint matrices.
+
+    :param dmat: Design matrix.
+    :param constraints: List of constraints as strings, e.g. "x1 + x5 = 0".
+    :return: a model design matrix and a constraint matrix
+    """
+    di = DesignInfo(dmat.coords["design_params"])
+    constraint_ls = []
+    idx_constrained = []
+    for x in constraints:
+        constr = di.linear_constraint(x).coefs
+        idx = np.where(constr.coefs[0] == 1)[0]
+        constraint_ls.extend([constr])
+
+    dmat_var = dmat[:,idx_unconstr]
+    constraint_mat = np.vstack(constraint_ls)[:,idx_unconstr]
+
+    constraints = np.vstack([
+        np.identity(n=dmat_var.shape[1]),
+        constraint_mat
+    ])
+    constraints_ar = xr.DataArray(
+        dims=dims,
+        data=constraints
+    )
+    constraints_ar.coords[dims[0]] = dmat_var.coords[dims[0]]
+    constraints_ar.coords[dims[1]] = ["var_"+str(x) for x in range(constraints_ar.shape[1])]
+
+    return constraints_ar, dmat_var
+
+
 class ChDir:
     """
     Context manager to temporarily change the working directory
