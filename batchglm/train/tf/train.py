@@ -218,7 +218,7 @@ class MultiTrainer:
             self,
             learning_rate,
             loss=None,
-            variables: tf.Tensor = None,
+            variables: tf.Variable = None,
             gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
             newton_delta: tf.Tensor = None,

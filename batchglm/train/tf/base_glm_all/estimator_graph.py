@@ -3,6 +3,7 @@ import logging
 
 import tensorflow as tf
 import numpy as np
+import xarray as xr
 
 from .external import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM
 from .external import EstimatorGraphGLM, FullDataModelGraphGLM
@@ -75,8 +76,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=model_vars.a,
-                b=model_vars.b,
+                a_var=model_vars.a_var,
+                b_var=model_vars.b_var,
                 dtype=dtype,
                 size_factors=size_factors)
             return model
@@ -227,12 +228,14 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             num_features,
             num_design_loc_params,
             num_design_scale_params,
+            num_loc_params,
+            num_scale_params,
+            constraints_loc: xr.DataArray,
+            constraints_scale: xr.DataArray,
             graph: tf.Graph = None,
             batch_size: int = None,
             init_a=None,
             init_b=None,
-            constraints_loc: Union[np.ndarray, None] = None,
-            constraints_scale: Union[np.ndarray, None] = None,
             train_loc: bool = True,
             train_scale: bool = True,
             provide_optimizers: Union[dict, None] = None,
@@ -294,6 +297,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             num_features=num_features,
             num_design_loc_params=num_design_loc_params,
             num_design_scale_params=num_design_scale_params,
+            num_loc_params=num_loc_params,
+            num_scale_params=num_scale_params,
             graph=graph,
             batch_size=batch_size
         )
@@ -354,8 +359,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     design_scale=batch_design_scale,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
-                    a=model_vars.a,
-                    b=model_vars.b,
+                    a_var=model_vars.a_var,
+                    b_var=model_vars.b_var,
                     dtype=dtype,
                     size_factors=batch_size_factors
                 )
@@ -502,8 +507,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 )
 
         with tf.name_scope('summaries'):
-            tf.summary.histogram('a', model_vars.a)
-            tf.summary.histogram('b', model_vars.b)
+            tf.summary.histogram('a_var', model_vars.a_var)
+            tf.summary.histogram('b_var', model_vars.b_var)
             tf.summary.scalar('loss', batch_loss)
             tf.summary.scalar('learning_rate', learning_rate)
 

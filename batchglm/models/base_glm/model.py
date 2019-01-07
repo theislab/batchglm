@@ -17,8 +17,8 @@ MODEL_PARAMS.update({
     "probs": ("observations", "features"),
     "log_probs": ("observations", "features"),
     "log_likelihood": (),
-    "a": ("loc_params", "features"),
-    "b": ("scale_params", "features"),
+    "a_var": ("loc_params", "features"),
+    "b_var": ("scale_params", "features"),
     "par_link_loc": ("loc_params", "features"),
     "par_link_scale": ("scale_params", "features"),
 })
@@ -96,31 +96,39 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
         if append_to is not None:
             if isinstance(append_to, anndata.AnnData):
                 # append_to.obsm["design"] = self.design
-                append_to.varm["a"] = np.transpose(self.a)
-                append_to.varm["b"] = np.transpose(self.b)
+                append_to.varm["a_var"] = np.transpose(self.a)
+                append_to.varm["b_var"] = np.transpose(self.b)
             elif isinstance(append_to, xr.Dataset):
                 # append_to["design"] = (self.param_shapes()["design"], self.design)
-                append_to["a"] = (self.param_shapes()["a"], self.a)
-                append_to["b"] = (self.param_shapes()["b"], self.b)
+                append_to["a_var"] = (self.param_shapes()["a_var"], self.a)
+                append_to["b_var"] = (self.param_shapes()["b_var"], self.b)
             else:
                 raise ValueError("Unsupported data type: %s" % str(type(append_to)))
         else:
             ds = xr.Dataset({
                 # "design": (self.param_shapes()["design"], self.design),
-                "a": (self.param_shapes()["a"], self.a),
-                "b": (self.param_shapes()["b"], self.b),
+                "a_var": (self.param_shapes()["a_var"], self.a),
+                "b_var": (self.param_shapes()["b_var"], self.b),
             })
             return ds
 
     @property
     @abc.abstractmethod
-    def a(self) -> xr.DataArray:
+    def a_var(self) -> xr.DataArray:
         pass
 
     @property
     @abc.abstractmethod
-    def b(self) -> xr.DataArray:
+    def b_var(self) -> xr.DataArray:
         pass
+
+    @property
+    def a(self) -> xr.DataArray:
+        return self.constraints_loc.dot(self.a_var, dims="loc_params")
+
+    @property
+    def b(self) -> xr.DataArray:
+        return self.constraints_scale.dot(self.b_var, dims="scale_params")
 
     @abc.abstractmethod
     def link_loc(self, data):
@@ -145,20 +153,20 @@ def _model_from_params(data: Union[xr.Dataset, anndata.AnnData, xr.DataArray], p
     if params is None:
         if isinstance(data, Model):
             params = xr.Dataset({
-                "a": data.a,
-                "b": data.b,
+                "a_var": data.a,
+                "b_var": data.b,
             })
         elif anndata is not None and isinstance(data, anndata.AnnData):
             params = xr.Dataset({
-                "a": (MODEL_PARAMS["a"], np.transpose(data.varm["a"])),
-                "b": (MODEL_PARAMS["b"], np.transpose(data.varm["b"])),
+                "a_var": (MODEL_PARAMS["a_var"], np.transpose(data.varm["a_var"])),
+                "b_var": (MODEL_PARAMS["b_var"], np.transpose(data.varm["b_var"])),
             })
         elif isinstance(data, xr.Dataset):
             params = data
         else:
             params = xr.Dataset({
-                "a": (MODEL_PARAMS["a"], a) if not isinstance(a, xr.DataArray) else a,
-                "b": (MODEL_PARAMS["b"], b) if not isinstance(b, xr.DataArray) else b,
+                "a_var": (MODEL_PARAMS["a_var"], a) if not isinstance(a, xr.DataArray) else a,
+                "b_var": (MODEL_PARAMS["b_var"], b) if not isinstance(b, xr.DataArray) else b,
             })
 
     return input_data, params
@@ -172,12 +180,12 @@ class _Model_XArray_GLM(_Model_XArray_Base):
         super(_Model_XArray_Base, self).__init__(input_data=input_data, params=params)
 
     @property
-    def a(self):
-        return self.params['a']
+    def a_var(self):
+        return self.params["a_var"]
 
     @property
-    def b(self):
-        return self.params['b']
+    def b_var(self):
+        return self.params["b_var"]
 
     def __str__(self):
         return "[%s.%s object at %s]: data=%s" % (

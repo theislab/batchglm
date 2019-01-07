@@ -112,6 +112,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 init_b=init_b,
                 init_model=init_model
             )
+            init_a = init_a.astype(dtype)
+            init_b = init_b.astype(dtype)
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
@@ -175,15 +177,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-        if isinstance(init_a, str):
-            init_a = None
-        else:
-            init_a = init_a.astype(dtype)
-        if isinstance(init_b, str):
-            init_b = None
-        else:
-            init_b = init_b.astype(dtype)
-
         logger.debug(" * Building graph")
         with graph.as_default():
             # create model
@@ -194,6 +187,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 num_features=input_data.num_features,
                 num_design_loc_params=input_data.num_design_loc_params,
                 num_design_scale_params=input_data.num_design_scale_params,
+                num_loc_params=input_data.num_loc_params,
+                num_scale_params=input_data.num_scale_params,
                 batch_size=batch_size,
                 graph=graph,
                 init_a=init_a,
@@ -356,12 +351,12 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return self._input_data
 
     @property
-    def a(self):
-        return self.to_xarray("a", coords=self.input_data.data.coords)
+    def a_var(self):
+        return self.to_xarray("a_var", coords=self.input_data.data.coords)
 
     @property
-    def b(self):
-        return self.to_xarray("b", coords=self.input_data.data.coords)
+    def b_var(self):
+        return self.to_xarray("b_var", coords=self.input_data.data.coords)
 
     @property
     def batch_loss(self):

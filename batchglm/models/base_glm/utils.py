@@ -24,8 +24,8 @@ def parse_design(
     r"""
     Parser for design matrices.
 
-    :param data: some dataset possibly containing a design matrix
-    :param design_matrix: some design matrix
+    :param data: Dataset possibly containing a design matrix.
+    :param design_matrix: Design matrix.
     :param coords: dict containing coords which should be added to the returned xr.DataArray
     :param design_key: key where `data` possibly contains a design matrix (data[design_key] ?)
     :param dims: tuple containing names for (<row>, <column>)
@@ -68,6 +68,39 @@ def parse_design(
         # raise ValueError("Could not find names for %s; Please specify them manually." % dim)
 
     return dmat
+
+
+def parse_constraints(
+        dmat: xr.Dataset,
+        dims,
+        constraints: np.ndarray = None,
+        constraint_par_names: list = None,
+) -> xr.DataArray:
+    r"""
+    Parser for constraint matrices.
+
+    :param dmat: Design matrix.
+    :param constraints: Constraint matrix.
+    :param constraint_par_names: list of coords for xr.DataArray
+    :param dims: tuple containing names for (design_params, params) = (all parameters, independent parameters)
+    :return: xr.DataArray containing the constraint matrix
+    """
+    if constraints is None:
+        constraints = np.identity(n=dmat.shape[1])
+    else:
+        assert constraints.shape[0] == dmat.shape[1], "constraint dimension mismatch"
+
+    constraints_mat = xr.DataArray(
+        dims=dims,
+        data=constraints
+    )
+    constraints_mat.coords[dims[0]] = dmat.coords[dims[0]]
+    if constraint_par_names is None:
+        constraint_par_names = ["var_"+str(x) for x in range(constraints_mat.shape[1])]
+
+    constraints_mat.coords[dims[1]] = constraint_par_names
+
+    return constraints_mat
 
 
 def closedform_glm_mean(

@@ -8,7 +8,7 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 
-from .utils import parse_design
+from .utils import parse_constraints, parse_design
 from .external import _InputData_Base, INPUT_DATA_PARAMS
 
 import patsy
@@ -17,7 +17,7 @@ INPUT_DATA_PARAMS = INPUT_DATA_PARAMS
 INPUT_DATA_PARAMS.update({
     "design_loc": ("observations", "design_loc_params"),
     "design_scale": ("observations", "design_scale_params"),
-    "constraints_loc": ("design_loc_params", "log_params"),
+    "constraints_loc": ("design_loc_params", "loc_params"),
     "constraints_scale": ("design_scale_params", "scale_params"),
     "size_factors": ("observations",),
 })
@@ -123,6 +123,19 @@ class InputData(_InputData_Base):
         retval.design_loc = design_loc
         retval.design_scale = design_scale
 
+        constraints_loc = parse_constraints(
+            dmat=design_loc,
+            constraints=constraints_loc,
+            dims=INPUT_DATA_PARAMS["constraints_loc"],
+            constraint_par_names=None
+        )
+        constraints_scale = parse_constraints(
+            dmat=design_scale,
+            constraints=constraints_scale,
+            dims=INPUT_DATA_PARAMS["constraints_scale"],
+            constraint_par_names=None
+        )
+
         retval.constraints_loc = constraints_loc
         retval.constraints_scale = constraints_scale
 
@@ -148,14 +161,6 @@ class InputData(_InputData_Base):
         self.data.coords["design_loc_params"] = data
 
     @property
-    def loc_names(self) -> xr.DataArray:
-        return self.data.coords["design_loc_params"]
-
-    @loc_names.setter
-    def loc_names(self, data):
-        self.data.coords["loc_names"] = data
-
-    @property
     def design_scale(self) -> xr.DataArray:
         return self.data["design_scale"]
 
@@ -172,31 +177,20 @@ class InputData(_InputData_Base):
         self.data.coords["design_scale_params"] = data
 
     @property
-    def scale_names(self) -> xr.DataArray:
-        return self.data.coords["design_scale_params"]
-
-    @scale_names.setter
-    def scale_names(self, data):
-        self.data.coords["scale_names"] = data
-
-    @property
     def constraints_loc(self) -> xr.DataArray:
         return self.data["constraints_loc"]
 
     @constraints_loc.setter
     def constraints_loc(self, data):
-        constr_loc = self.set_constraints(
-            constraints=data,
-            design=self.design_loc
-        )
-        self.data["constraints_loc"] = xr.DataArray(
-            dims=["design_loc_params", "loc_params"],
-            data=constr_loc,
-            coords={
-                "design_loc_params": self.design_loc_names.values,
-                "loc_params": self.design_loc_names.values  # TODO with constraints
-            }
-        )
+        self.data["constraints_loc"] = data
+
+    @property
+    def loc_names(self) -> xr.DataArray:
+        return self.data.coords["loc_params"]
+
+    @loc_names.setter
+    def loc_names(self, data):
+        self.data.coords["loc_names"] = data
 
     @property
     def constraints_scale(self) -> xr.DataArray:
@@ -204,18 +198,15 @@ class InputData(_InputData_Base):
 
     @constraints_scale.setter
     def constraints_scale(self, data):
-        constr_scale = self.set_constraints(
-            constraints=data,
-            design=self.design_scale
-        )
-        self.data["constraints_scale"] = xr.DataArray(
-            dims=["design_scale_params", "scale_params"],
-            data=constr_scale,
-            coords={
-                "design_scale_params": self.design_scale_names.values,
-                "scale_params": self.design_scale_names.values  # TODO with constraints
-            }
-        )
+        self.data["constraints_scale"] = data
+
+    @property
+    def scale_names(self) -> xr.DataArray:
+        return self.data.coords["scale_params"]
+
+    @scale_names.setter
+    def scale_names(self, data):
+        self.data.coords["scale_params"] = data
 
     @property
     def size_factors(self):
@@ -240,6 +231,14 @@ class InputData(_InputData_Base):
     def num_design_scale_params(self):
         return self.data.dims["design_scale_params"]
 
+    @property
+    def num_loc_params(self):
+        return self.data.dims["loc_params"]
+
+    @property
+    def num_scale_params(self):
+        return self.data.dims["scale_params"]
+
     def fetch_design_loc(self, idx):
         return self.design_loc[idx]
 
@@ -248,17 +247,6 @@ class InputData(_InputData_Base):
 
     def fetch_size_factors(self, idx):
         return self.size_factors[idx]
-
-    def set_constraints(
-            self,
-            constraints,
-            design
-    ):
-        if constraints is None:
-            return np.identity(n=design.shape[1])
-        else:
-            assert constraints.shape[0] == design.shape[1], "constraint dimension mismatch"
-            return np.asarray(constraints)
 
     def set_chunk_size(self, cs: int):
         """

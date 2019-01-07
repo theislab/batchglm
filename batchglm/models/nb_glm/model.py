@@ -39,7 +39,7 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
 
     @property
     def mu(self) -> xr.DataArray:
-        return self.location  #.transpose(*self.param_shapes()["mu"])
+        return self.location
 
     @property
     def r(self) -> xr.DataArray:

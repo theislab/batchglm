@@ -102,19 +102,19 @@ class GradientGraphGLM:
             else:
                 gradients_batch = tf.concat([
                     self.gradients_batch_raw,
-                    tf.zeros_like(self.model_vars.b)
+                    tf.zeros_like(self.model_vars.b_var)
                 ], axis=0)
                 gradients_full = tf.concat([
                     self.gradients_full_raw,
-                    tf.zeros_like(self.model_vars.b)
+                    tf.zeros_like(self.model_vars.b_var)
                 ], axis=0)
         elif train_scale:
             gradients_batch = tf.concat([
-                tf.zeros_like(self.model_vars.a),
+                tf.zeros_like(self.model_vars.a_var),
                 self.gradients_batch_raw
             ], axis=0)
             gradients_full = tf.concat([
-                tf.zeros_like(self.model_vars.a),
+                tf.zeros_like(self.model_vars.a_var),
                 self.gradients_full_raw
             ], axis=0)
         else:
@@ -322,19 +322,19 @@ class NewtonGraphGLM:
             else:
                 netwon_type_update_full = tf.concat([
                     update_full_raw,
-                    tf.zeros_like(self.model_vars.b)
+                    tf.zeros_like(self.model_vars.b_var)
                 ], axis=0)
                 newton_type_update_batched = tf.concat([
                     update_batched_raw,
-                    tf.zeros_like(self.model_vars.b)
+                    tf.zeros_like(self.model_vars.b_var)
                 ], axis=0)
         elif train_r:
             netwon_type_update_full = tf.concat([
-                tf.zeros_like(self.model_vars.a),
+                tf.zeros_like(self.model_vars.a_var),
                 update_full_raw
             ], axis=0)
             newton_type_update_batched = tf.concat([
-                tf.zeros_like(self.model_vars.a),
+                tf.zeros_like(self.model_vars.a_var),
                 update_batched_raw
             ], axis=0)
         else:
@@ -456,13 +456,15 @@ class TrainerGraphGLM:
     irls_update_full: tf.Tensor
     irls_update_batched: tf.Tensor
 
-    gradient: tf.Tensor  # TODO naming convention of gradeints see similar above
+    gradient: tf.Tensor
     full_gradient: tf.Tensor
 
     num_observations: int
     num_features: int
     num_design_loc_params: int
     num_design_scale_params: int
+    num_loc_params: int
+    num_scale_params: int
     batch_size: int
 
     def __init__(
@@ -545,32 +547,20 @@ class TrainerGraphGLM:
             logger.debug(" ** Build training graph: output")
             bounds_min, bounds_max = self.param_bounds(dtype)
 
-            param_nonzero_a = tf.broadcast_to(feature_isnonzero, [self.num_design_loc_params, self.num_features])
-            alt_a = tf.concat([
-                # intercept
-                tf.broadcast_to(bounds_min["a"], [1, self.num_features]),
-                # slope
-                tf.zeros(shape=[self.num_design_loc_params - 1, self.num_features], dtype=self.model_vars.a.dtype),
-            ], axis=0, name="alt_a")
-            a = tf.where(
-                param_nonzero_a,
-                self.model_vars.a,
-                alt_a,
-                name="a"
+            param_nonzero_a_var = tf.broadcast_to(feature_isnonzero, [self.num_loc_params, self.num_features])
+            alt_a = tf.broadcast_to(bounds_min["a_var"], [self.num_loc_params, self.num_features])
+            a_var = tf.where(
+                param_nonzero_a_var,
+                self.model_vars.a_var,
+                alt_a
             )
 
-            param_nonzero_b = tf.broadcast_to(feature_isnonzero, [self.num_design_scale_params, self.num_features])
-            alt_b = tf.concat([
-                # intercept
-                tf.broadcast_to(bounds_max["b"], [1, self.num_features]),
-                # slope
-                tf.zeros(shape=[self.num_design_scale_params - 1, self.num_features], dtype=self.model_vars.b.dtype),
-            ], axis=0, name="alt_b")
-            b = tf.where(
-                param_nonzero_b,
-                self.model_vars.b,
-                alt_b,
-                name="b"
+            param_nonzero_b_var = tf.broadcast_to(feature_isnonzero, [self.num_scale_params, self.num_features])
+            alt_b = tf.broadcast_to(bounds_min["b_var"], [self.num_scale_params, self.num_features])
+            b_var = tf.where(
+                param_nonzero_b_var,
+                self.model_vars.b_var,
+                alt_b
             )
 
         self.trainer_batch = trainer_batch
@@ -585,10 +575,8 @@ class TrainerGraphGLM:
         self.init_op = init_op
 
         # # ### set up class attributes
-        self.a = a
-        self.b = b
-        assert (self.a.shape == (self.num_design_loc_params, self.num_features))
-        assert (self.b.shape == (self.num_design_scale_params, self.num_features))
+        self.a_var = a_var
+        self.b_var = b_var
 
     @abc.abstractmethod
     def param_bounds(self):
@@ -607,8 +595,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
     """
     X: tf.Tensor
 
-    a: tf.Tensor
-    b: tf.Tensor
+    a_var: tf.Tensor
+    b_var: tf.Tensor
 
     noise_model: str
 
@@ -618,6 +606,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
             num_features,
             num_design_loc_params,
             num_design_scale_params,
+            num_loc_params,
+            num_scale_params,
             graph: tf.Graph = None,
             batch_size: int = None,
     ):
@@ -642,6 +632,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
         self.num_features = num_features
         self.num_design_loc_params = num_design_loc_params
         self.num_design_scale_params = num_design_scale_params
+        self.num_loc_params = num_loc_params
+        self.num_scale_params = num_scale_params
         self.batch_size = batch_size
 
     def _set_constraints(

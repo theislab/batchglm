@@ -137,7 +137,7 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
         if "constraints_loc" not in self.data:
             constr_loc = np.identity(n=self.data["design_loc"].shape[1])
             constr_loc_ar = xr.DataArray(
-                dims=[self.param_shapes()["design_loc"][1], self.param_shapes()["a"][0]],
+                dims=[self.param_shapes()["design_loc"][1], self.param_shapes()["a_var"][0]],
                 data=constr_loc,
                 coords={"loc_params": self.data.coords["design_loc_params"].values}
             )
@@ -146,15 +146,15 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
         if "constraints_scale" not in self.data:
             constr_scale = np.identity(n=self.data["design_scale"].shape[1])
             constr_scale_ar = xr.DataArray(
-                dims=[self.param_shapes()["design_scale"][1], self.param_shapes()["b"][0]],
+                dims=[self.param_shapes()["design_scale"][1], self.param_shapes()["b_var"][0]],
                 data=constr_scale,
                 coords={"scale_params": self.data.coords["design_scale_params"].values}
             )
             constr_scale_ar.coords["scale_params"] = self.data.coords["design_scale_params"].values
             self.data["constraints_scale"] = constr_scale_ar
 
-        self.params['a'] = xr.DataArray(
-            dims=self.param_shapes()["a"],
+        self.params["a_var"] = xr.DataArray(
+            dims=self.param_shapes()["a_var"],
             data=np.log(
                 np.concatenate([
                     np.expand_dims(rand_fn_ave(self.num_features), axis=0),  # intercept
@@ -163,8 +163,8 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             ),
             coords={"loc_params": self.data.loc_params}
         )
-        self.params['b'] = xr.DataArray(
-            dims=self.param_shapes()["b"],
+        self.params["b_var"] = xr.DataArray(
+            dims=self.param_shapes()["b_var"],
             data=np.log(
                 np.concatenate([
                     rand_fn_scale((self.data.design_scale.shape[1], self.num_features))
@@ -225,9 +225,17 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             )
 
     @property
-    def a(self):
-        return self.params['a']
+    def a_var(self):
+        return self.params["a_var"]
 
     @property
-    def b(self):
-        return self.params['b']
+    def b_var(self):
+        return self.params["b_var"]
+
+    @property
+    def a(self) -> xr.DataArray:
+        return self.constraints_loc.dot(self.a_var, dims="loc_params")
+
+    @property
+    def b(self) -> xr.DataArray:
+        return self.constraints_scale.dot(self.b_var, dims="scale_params")

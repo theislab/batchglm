@@ -98,7 +98,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 shape=[self.input_data.num_observations, self.input_data.num_features]
             )
 
-        logger.debug(" * Initialize mean model")
         if isinstance(init_a, str):
             # Chose option if auto was chosen
             if init_a.lower() == "auto":
@@ -121,25 +120,22 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     if self.input_data.size_factors is not None:
                         self._train_loc = True
 
-                    logger.info("Using closed-form MLE initialization for mean")
+                    logger.debug("Using closed-form MLE initialization for mean")
                     logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
-                    logger.info("Should train mu: %s", self._train_loc)
+                    logger.debug("Should train mu: %s", self._train_loc)
                 except np.linalg.LinAlgError:
                     logger.warning("Closed form initialization failed!")
             elif init_a.lower() == "standard":
                 overall_means = self.input_data.X.mean(dim="observations").values  # directly calculate the mean
-                # clipping
                 overall_means = self.np_clip_param(overall_means, "mu")
-                # mean = np.nextafter(0, 1, out=mean, where=mean == 0, dtype=mean.dtype)
 
-                init_a = np.zeros([self.input_data.num_design_loc_params, self.input_data.num_features])
+                init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features])
                 init_a[0, :] = np.log(overall_means)
                 self._train_loc = True
 
-                logger.info("Using standard initialization for mean")
-                logger.info("Should train mu: %s", self._train_loc)
+                logger.debug("Using standard initialization for mean")
+                logger.debug("Should train mu: %s", self._train_loc)
 
-        logger.debug(" * Initialize dispersion model")
         if isinstance(init_b, str):
             if init_b.lower() == "auto":
                 init_b = "closed_form"
@@ -157,7 +153,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         constraints=self.input_data.constraints_scale,
                         size_factors=size_factors_init,
                         groupwise_means=None,
-                        # Could only use groupwise_means from a init if design_loc and design_scale were the same.
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
 
@@ -167,7 +162,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 except np.linalg.LinAlgError:
                     logger.warning("Closed form initialization failed!")
             elif init_b.lower() == "standard":
-                init_b = np.zeros([self.input_data.design_scale.shape[1], self.input_data.X.shape[1]])
+                init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]])
 
                 logger.info("Using standard initialization for dispersion")
                 logger.info("Should train r: %s", self._train_scale)
@@ -189,6 +184,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_loc[my_idx] = init_model.par_link_loc[init_idx]
 
                 init_a = init_loc
+                logger.info("Using initialization based on input model for mean")
 
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
                 # scale
@@ -206,6 +202,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_scale[my_idx] = init_model.par_link_scale[init_idx]
 
                 init_b = init_scale
+                logger.info("Using initialization based on input model for dispersion")
 
         return init_a, init_b
 

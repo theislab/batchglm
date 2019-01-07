@@ -92,8 +92,8 @@ class JacobiansGLMALL(JacobiansGLM):
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=model_vars.a,
-                b=model_vars.b,
+                a_var=model_vars.a_var,
+                b_var=model_vars.b_var,
                 dtype=dtype,
                 size_factors=size_factors
             )
@@ -201,8 +201,8 @@ class JacobiansGLMALL(JacobiansGLM):
                 design_scale=design_scale,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a=model_vars.a,
-                b=model_vars.b,
+                a_var=model_vars.a_var,
+                b_var=model_vars.b_var,
                 dtype=dtype,
                 size_factors=size_factors
             )

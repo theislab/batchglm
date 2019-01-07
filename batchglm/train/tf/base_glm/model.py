@@ -78,8 +78,8 @@ class ModelVarsGLM(ProcessModelGLM):
                 init_a = tf.convert_to_tensor(init_a, dtype=dtype)
                 init_b = tf.convert_to_tensor(init_b, dtype=dtype)
 
-                init_a = self.tf_clip_param(init_a, "a")
-                init_b = self.tf_clip_param(init_b, "b")
+                init_a = self.tf_clip_param(init_a, "a_var")
+                init_b = self.tf_clip_param(init_b, "b_var")
 
         # Param is the only tf.Variable in the graph.
         # a_var and b_var have to be slices of params.
@@ -99,16 +99,16 @@ class ModelVarsGLM(ProcessModelGLM):
         a_var = params[0:init_a.shape[0]]
         b_var = params[init_a.shape[0]:]
 
+        a_var = self.tf_clip_param(a_var, "a_var")
+        b_var = self.tf_clip_param(b_var, "b_var")
+
         a = tf.matmul(constraints_loc,  a_var)
         b = tf.matmul(constraints_scale,  b_var)
 
-        a_clipped = self.tf_clip_param(a, "a")
-        b_clipped = self.tf_clip_param(b, "b")
-
-        self.a = a_clipped
-        self.b = b_clipped
         self.a_var = a_var
         self.b_var = b_var
+        self.a = a
+        self.b = b
         self.params = params
         # Properties to follow gene-wise convergence.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
@@ -146,8 +146,8 @@ class BasicModelGraphGLM(ProcessModelGLM):
             design_scale,
             constraints_loc,
             constraints_scale,
-            a,
-            b,
+            a_var,
+            b_var,
             dtype,
             size_factors=None
     ):
@@ -169,18 +169,18 @@ class BasicModelGraphGLM(ProcessModelGLM):
             parameters arises from indepedent parameters: all = <constraints, indep>.
             This tensor describes this relation for the dispersion model.
             This form of constraints is used in vector generalized linear models (VGLMs).
-        :param b: tf.Variable or tensor (dispersion model size x features)
+        :param b_var: tf.Variable or tensor (dispersion model size x features)
             Dispersion model variables.
         :param dtype: Precision used in tensorflow.
         :param size_factors: tensor (observations x features)
             Constant scaling factors for mean model, such as library size factors.
         """
-        eta_loc = tf.matmul(design_loc, tf.matmul(constraints_loc, a))
+        eta_loc = tf.matmul(design_loc, tf.matmul(constraints_loc, a_var))
         if size_factors is not None:
             eta_loc = tf.add(eta_loc, size_factors)
         eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
 
-        eta_scale = tf.matmul(design_scale, tf.matmul(constraints_scale, b))
+        eta_scale = tf.matmul(design_scale, tf.matmul(constraints_scale, b_var))
         eta_scale = self.tf_clip_param(eta_scale, "eta_scale")
 
         self.X = X
@@ -188,8 +188,8 @@ class BasicModelGraphGLM(ProcessModelGLM):
         self.design_scale = design_scale
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
-        self.a = a
-        self.b = b
+        self.a_var = a_var
+        self.b_var = b_var
         self.size_factors = size_factors
         self.dtype = dtype
 

@@ -64,10 +64,10 @@ class _Test_AccuracyConstrained_VGLM_Estim():
             threshold_std_a = 1
             threshold_std_b = 2
 
-        mean_dev_a = np.mean(estimator_store.a.values - self.sim.a.values)
-        std_dev_a = np.std(estimator_store.a.values - self.sim.a.values)
-        mean_dev_b = np.mean(estimator_store.b.values - self.sim.b.values)
-        std_dev_b = np.std(estimator_store.b.values - self.sim.b.values)
+        mean_dev_a = np.mean(estimator_store.a_var.values - self.sim.a_var.values)
+        std_dev_a = np.std(estimator_store.a_var.values - self.sim.a_var.values)
+        mean_dev_b = np.mean(estimator_store.b_var.values - self.sim.b_var.values)
+        std_dev_b = np.std(estimator_store.b_var.values - self.sim.b_var.values)
 
         logger.info("mean_dev_a %f" % mean_dev_a)
         logger.info("std_dev_a %f" % std_dev_a)
@@ -154,7 +154,7 @@ class Test_AccuracyConstrained_VGLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            logger.warning("algorithm: %s" % algo)
+            logger.info("algorithm: %s" % algo)
             estimator.estimate(
                 algo=algo,
                 batched=batched,

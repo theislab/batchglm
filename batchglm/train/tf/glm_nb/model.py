@@ -28,8 +28,8 @@ class ProcessModel(ProcessModelGLM):
 
         sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
         bounds_min = {
-            "a": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "b": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "a_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "b_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "mu": np.nextafter(0, np.inf, dtype=dtype),
@@ -38,8 +38,8 @@ class ProcessModel(ProcessModelGLM):
             "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         }
         bounds_max = {
-            "a": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "b": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "a_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
@@ -65,8 +65,8 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             design_scale,
             constraints_loc,
             constraints_scale,
-            a,
-            b,
+            a_var,
+            b_var,
             dtype,
             size_factors=None
     ):
@@ -77,8 +77,8 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             design_scale=design_scale,
             constraints_loc=constraints_loc,
             constraints_scale=constraints_scale,
-            a=a,
-            b=b,
+            a_var=a_var,
+            b_var=b_var,
             dtype=dtype,
             size_factors=size_factors
         )

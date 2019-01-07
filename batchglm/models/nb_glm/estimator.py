@@ -22,6 +22,9 @@ class EstimatorStoreXArray(_EstimatorStore_XArray_GLM, AbstractEstimator, Model_
         # to_xarray triggers the get function of these properties and thereby
         # causes evaluation of the properties that have not been computed during
         # training, such as the hessian.
-        params = estim.to_xarray(["a", "b", "loss", "gradient", "hessians", "fisher_inv"], coords=input_data.data)
+        params = estim.to_xarray(
+            ["a_var", "b_var", "loss", "gradient", "hessians", "fisher_inv"],
+            coords=input_data.data
+        )
 
         Model_XArray.__init__(self, input_data, params)
