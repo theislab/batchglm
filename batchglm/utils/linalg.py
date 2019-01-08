@@ -73,7 +73,9 @@ def groupwise_solve_lm(
     # Get unqiue rows of design matrix and vector with group assignments:
     unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
 
-    if unique_design.shape[1] > np.linalg.matrix_rank(np.matmul(unique_design, constraints)):
+    full_rank = constraints.shape[1]
+    rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
+    if full_rank > rank:
         logger.error("model is not full rank!")
 
     # Get group-wise means in linker space based on group assignments
