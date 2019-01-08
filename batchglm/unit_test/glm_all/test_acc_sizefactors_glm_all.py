@@ -24,7 +24,7 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.nb_glm import Estimator
+                from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -37,8 +37,7 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             provide_optimizers=provide_optimizers,
             termination_type=termination,
             init_a="standard",
-            init_b="standard",
-            noise_model=noise_model
+            init_b="standard"
         )
         super().__init__(
             estimator=estimator,
@@ -90,7 +89,7 @@ class Test_AccuracySizeFactors_GLM_ALL(
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Simulator
+                from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 

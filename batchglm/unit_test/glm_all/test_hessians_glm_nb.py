@@ -36,7 +36,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Estimator
+                from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -62,7 +62,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Simulator, InputData
+                from batchglm.api.models.glm_nb import Simulator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 

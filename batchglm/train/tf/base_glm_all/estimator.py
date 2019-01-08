@@ -37,7 +37,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
             model: EstimatorGraphAll = None,
-            provide_optimizers: dict = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True},
+            provide_optimizers: dict = None,
             termination_type: str = "global",
             extended_summary=False,
             noise_model: str = None,
@@ -78,6 +78,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param model: EstimatorGraph
             EstimatorGraph to use. Basically for debugging.
         :param provide_optimizers:
+
+            E.g. {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
         :param termination_type:
         :param extended_summary:
         :param dtype: Precision used in tensorflow.
@@ -107,7 +109,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             self._train_loc = True
             self._train_scale = not quick_scale
 
-            (init_a, init_b) = self.init(
+            (init_a, init_b) = self.init_par(
                 init_a=init_a,
                 init_b=init_b,
                 init_model=init_model
@@ -395,7 +397,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return store
 
     @abc.abstractmethod
-    def init(
+    def init_par(
             self,
             init_a,
             init_b,

@@ -1,11 +1,14 @@
-import logging
 from enum import Enum
+import logging
+from typing import Union
 
 import numpy as np
+import tensorflow as tf
 
-from .external import AbstractEstimator, EstimatorAll, InputData, ESTIMATOR_PARAMS
+from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
 from .external import data_utils
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
+from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 
 logger = logging.getLogger(__name__)
@@ -63,11 +66,43 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             }
         ]
 
+    def __init__(
+            self,
+            input_data: InputData,
+            batch_size: int = 500,
+            graph: tf.Graph = None,
+            init_model: Model = None,
+            init_a: Union[np.ndarray, str] = "AUTO",
+            init_b: Union[np.ndarray, str] = "AUTO",
+            quick_scale: bool = False,
+            model: EstimatorGraph = None,
+            provide_optimizers: dict = None,
+            termination_type: str = "global",
+            extended_summary=False,
+            dtype="float64",
+    ):
+        EstimatorAll.__init__(
+            self=self,
+            input_data=input_data,
+            batch_size=batch_size,
+            graph=graph,
+            init_model=init_model,
+            init_a=init_a,
+            init_b=init_b,
+            quick_scale=quick_scale,
+            model=model,
+            provide_optimizers=provide_optimizers,
+            termination_type=termination_type,
+            extended_summary=extended_summary,
+            noise_model="nb",
+            dtype=dtype
+        )
+
     @classmethod
     def param_shapes(cls) -> dict:
         return ESTIMATOR_PARAMS
 
-    def init(
+    def init_par(
             self,
             init_a,
             init_b,

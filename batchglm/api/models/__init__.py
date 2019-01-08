@@ -1,1 +1,1 @@
-from . import nb_glm
+from . import glm_nb

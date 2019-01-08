@@ -28,7 +28,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.nb_glm import Estimator, InputData
+                from batchglm.api.models.glm_nb import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -56,8 +56,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
             provide_optimizers=provide_optimizers,
             termination_type=termination,
             init_a="standard",
-            init_b="standard",
-            noise_model=noise_model
+            init_b="standard"
         )
         super().__init__(
             estimator=estimator,
@@ -109,7 +108,7 @@ class Test_AccuracyConstrained_VGLM_ALL(
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Simulator
+                from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 

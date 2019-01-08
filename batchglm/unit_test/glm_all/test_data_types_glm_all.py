@@ -22,7 +22,7 @@ class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.nb_glm import Estimator
+                from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -34,8 +34,7 @@ class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
             batch_size=batch_size,
             quick_scale=True,
             provide_optimizers=provide_optimizers,
-            termination_type="by_feature",
-            noise_model=noise_model
+            termination_type="by_feature"
         )
         super().__init__(
             estimator=estimator
@@ -64,7 +63,7 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Simulator
+                from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -80,7 +79,7 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import InputData
+                from batchglm.api.models.glm_nb import InputData
             else:
                 raise ValueError("noise_model not recognized")
 

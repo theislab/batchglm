@@ -27,7 +27,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Simulator
+                from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -47,14 +47,13 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import Estimator
+                from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
         estimator = Estimator(
             input_data=input_data,
-            quick_scale=quick_scale,
-            noise_model=self.noise_model
+            quick_scale=quick_scale
         )
         estimator.initialize()
         # Do not train, evalute at initialization!
@@ -69,7 +68,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.nb_glm import InputData
+                from batchglm.api.models.glm_nb import InputData
             else:
                 raise ValueError("noise_model not recognized")
 

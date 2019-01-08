@@ -421,38 +421,121 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
     return adatas
 
 
-def build_constraints(
+def build_equality_constraints(
+        sample_description: pd.DataFrame,
+        formula: str,
+        constraints: List[str],
+        dims: list,
+        as_categorical: Union[bool, list] = True
+):
+    """
+    Create a design matrix from some sample description and a constraint matrix
+    based on factor encoding of constrained parameter sets.
+
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param formula: model formula as string, describing the relations of the explanatory variables.
+
+        E.g. '~ 1 + batch + confounder'
+    :param constraints: List of constraints as strings, e.g. "x1 + x5 = 0".
+
+        E.g. 'batch'
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
+    :return: a model design matrix
+    """
+    dmat = design_matrix(
+        sample_description=sample_description,
+        formula=formula,
+        as_categorical=as_categorical,
+        return_type="xarray"
+    )
+    # Parse list of factors to be constrained to list of
+    # string encoded explicit constraint equations.
+    constraint_ls = ["+".join(patsy.highlevel.dmatrix("~1-1+"+x, sample_description))+"=0"
+                     for x in constraints]
+    logger.debug("constraints enforced are: "+",".join(constraint_ls))
+    constraint_mat = build_equality_constraints_string(
+        dmat=dmat,
+        constraints=constraints_ls,
+        dims=dims
+    )
+
+    return dmat, constraint_mat
+
+
+def build_equality_constraints_string(
         dmat: xr.DataArray,
-        constraints: List[str]
+        constraints: List[str],
+        dims: list
 ):
     r"""
-    Parser for constraint matrices.
+    Parser for string encoded equality constraints.
 
     :param dmat: Design matrix.
-    :param constraints: List of constraints as strings, e.g. "x1 + x5 = 0".
-    :return: a model design matrix and a constraint matrix
+    :param constraints: List of constraints as strings.
+
+        E.g. ["batch1 + batch2 + batch3 = 0"]
+    :return: a constraint matrix
     """
     # TODO: automatically generate string constraints from factors
-    di = DesignInfo(dmat.coords["design_params"])
-    constraint_ls = [di.linear_constraint(x).coefs for x in constraints]
-    idx_constrained = [np.where(x.coefs[0] == 1)[0] for x in constraint_ls]
-    idx_unconstr = list(set(range(dmat.shape[1])) - set(idx_constrained))
+    di = patsy.DesignInfo(dmat.coords["design_params"].values)
+    constraint_ls = [di.linear_constraint(x).coefs[0] for x in constraints]
+    idx_constrained = [np.where(x == 1)[0][0] for x in constraint_ls]
+    idx_unconstr = list(
+        set(list(range(dmat.data_vars["design"].shape[1]))) -
+        set(list(idx_constrained))
+    )
 
-    dmat_var = dmat[:,idx_unconstr]
+    dmat_var = xr.DataArray(
+        dims=[dmat.data_vars['design'].dims[0], "params"],
+        data=dmat.data_vars["design"][:,idx_unconstr],
+        coords={dmat.data_vars['design'].dims[0]: dmat.coords["observations"].values,
+                "params": dmat.coords["design_params"].values[idx_unconstr]}
+    )
     constraint_mat = np.vstack(constraint_ls)[:,idx_unconstr]
 
     constraints = np.vstack([
-        np.identity(n=dmat_var.shape[1]),
+        np.identity(n=len(idx_unconstr)),
         -constraint_mat
     ])
+    constraints_ar = parse_constraints(
+        dmat=dmat,
+        constraints=constraints,
+        dims=dims
+    )
+
+    # Test reduced design matrix for full rank before returning constraints:
+    if np.linalg.matrix_rank(dmat_var) != np.linalg.matrix_rank(dmat_var.T):
+        logger.warning("constrained design matrix is not full rank")
+
+    return constraints_ar
+
+
+def parse_constraints(
+        dmat: xr.DataArray,
+        constraints: np.ndarray,
+        dims: list
+):
+    r"""
+    Parse constraint matrix into xarray.
+
+    :param dmat: Design matrix.
+    :param a constraint matrix
+    :return: constraint matrix in xarray format
+    """
     constraints_ar = xr.DataArray(
         dims=dims,
-        data=constraints
+        data=constraints,
+        coords={dims[0]: dmat.data_vars['design'].coords["design_params"].values,
+                dims[1]: ["var_"+str(x) for x in range(constraints.shape[1])]}
     )
-    constraints_ar.coords[dims[0]] = dmat_var.coords[dims[0]]
-    constraints_ar.coords[dims[1]] = ["var_"+str(x) for x in range(constraints_ar.shape[1])]
-
-    return constraints_ar, dmat_var
+    return constraints_ar
 
 
 class ChDir:

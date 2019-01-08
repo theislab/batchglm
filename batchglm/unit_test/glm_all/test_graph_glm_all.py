@@ -25,7 +25,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.nb_glm import Estimator
+                from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -38,8 +38,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            termination_type=termination,
-            noise_model=noise_model
+            termination_type=termination
         )
         super().__init__(
             estimator=estimator,
@@ -87,7 +86,7 @@ class Test_Graph_GLM_ALL(
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.nb_glm import Simulator
+                from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
