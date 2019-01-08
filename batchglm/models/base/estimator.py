@@ -104,3 +104,15 @@ class _EstimatorStore_XArray_Base():
     @property
     def input_data(self):
         return self._input_data
+
+    @property
+    def X(self):
+        return self.input_data.X
+
+    @property
+    def features(self):
+        return self.input_data.features
+
+    @property
+    def loss(self):
+        return self.params["loss"]

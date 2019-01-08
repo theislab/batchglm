@@ -25,45 +25,26 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         DEFAULT = [
             {
                 "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
+                "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "Newton",
+                "optim_algo": "irls",
             },
         ]
         QUICK = [
             {
                 "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-6,
+                "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "Newton",
+                "optim_algo": "irls",
             },
         ]
-        PRE_INITIALIZED = [
-            {
-                "convergence_criteria": "scaled_moving_average",
-                "stopping_criteria": 1e-10,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "newton",
-            },
-        ]
-        CONSTRAINED = [  # Should not contain newton-rhapson right now.
-            {
-                "learning_rate": 0.5,
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
-                "loss_window_size": 10,
-                "use_batching": False,
-                "optim_algo": "ADAM",
-            },
-        ]
-        CONTINUOUS = [
+        EXACT = [
             {
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-8,
                 "use_batching": False,
-                "optim_algo": "Newton",
-            }
+                "optim_algo": "irls",
+            },
         ]
 
     def __init__(

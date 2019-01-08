@@ -130,7 +130,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             else:
                 hessians_train = hessians_full
 
-            fim_train = FIM(
+            fim_full = FIM(
                 batched_data=batched_data,
                 sample_indices=sample_indices,
                 constraints_loc=constraints_loc,
@@ -139,10 +139,27 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 mode=pkg_constants.HESSIAN_MODE,
                 noise_model=noise_model,
                 iterator=True,
-                update_a=train_a,
-                update_b=train_b,
+                update_a=True,
+                update_b=True,
                 dtype=dtype
             )
+            # Fisher information matrix of submodel which is to be trained.
+            if not train_a or not train_b:
+                fim_train = FIM(
+                    batched_data=batched_data,
+                    sample_indices=sample_indices,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode=pkg_constants.HESSIAN_MODE,
+                    noise_model=noise_model,
+                    iterator=True,
+                    update_a=train_a,
+                    update_b=train_b,
+                    dtype=dtype
+                )
+            else:
+                fim_train = fim_full
 
         with tf.name_scope("jacobians"):
             # Jacobian of full model for reporting.
@@ -210,7 +227,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.neg_hessian = hessians_full.neg_hessian
         self.neg_hessian_train = hessians_train.neg_hessian
 
-        self.fim = fim_train
+        self.fim_full = fim_full
+        self.fim_train = fim_train
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -439,20 +457,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     noise_model=noise_model,
                     dtype=dtype
                 )
-                full_data_loss = full_data_model.loss
-                fisher_inv = op_utils.pinv(full_data_model.neg_hessian)
-
-                # with tf.name_scope("hessian_diagonal"):
-                #     hessian_diagonal = [
-                #         tf.map_fn(
-                #             # elems=tf.transpose(hess, perm=[2, 0, 1]),
-                #             elems=hess,
-                #             fn=tf.diag_part,
-                #             parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-                #         )
-                #         for hess in full_data_model.hessians
-                #     ]
-                #     fisher_a, fisher_b = hessian_diagonal
+                full_data_fisher_inv = op_utils.pinv(full_data_model.neg_hessian)  # TODO switch for fim
 
                 mu = full_data_model.mu
                 r = full_data_model.r
@@ -473,6 +478,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 self.r = r
                 self.sigma2 = sigma2
 
+                self.full_loss = full_data_model.loss
+                self.full_log_likelihood = full_data_model.log_likelihood
                 self.batch_probs = batch_model.probs
                 self.batch_log_probs = batch_model.log_probs
                 self.batch_log_likelihood = batch_model.norm_log_likelihood
@@ -480,9 +487,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 self.sample_selection = sample_selection
                 self.full_data_model = full_data_model
 
-                self.full_loss = full_data_loss
                 self.hessians = full_data_model.hessian
-                self.fisher_inv = fisher_inv
+                self.fisher_inv = full_data_fisher_inv
 
                 self.idx_nonconverged = idx_nonconverged
 

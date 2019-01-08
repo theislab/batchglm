@@ -218,7 +218,7 @@ class NewtonGraphGLM:
                 # with the Cholesky decomposition. This information is
                 # passed here with psd=True.
                 irls_update_a_full, irls_update_a_batched = self.build_updates(
-                    full_lhs=self.full_data_model.fim.fim_a,
+                    full_lhs=self.full_data_model.fim_train.fim_a,
                     batched_lhs=self.batch_fim.fim_a,
                     full_rhs=self.full_data_model.neg_jac_train_a,
                     batched_rhs=self.batch_jac.neg_jac_a,
@@ -231,7 +231,7 @@ class NewtonGraphGLM:
 
             if train_r:
                 irls_update_b_full, irls_update_b_batched = self.build_updates(
-                    full_lhs=self.full_data_model.fim.fim_b,
+                    full_lhs=self.full_data_model.fim_train.fim_b,
                     batched_lhs=self.batch_fim.fim_b,
                     full_rhs=self.full_data_model.neg_jac_train_b,
                     batched_rhs=self.batch_jac.neg_jac_b,

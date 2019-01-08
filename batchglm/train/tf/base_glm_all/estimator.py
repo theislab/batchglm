@@ -293,9 +293,9 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         if newton_type_mode:
             if learning_rate != 1:
                 logger.warning(
-                    "Newton-rhapson or IRLS in base_glm_all is used with learing rate " +
+                    "Newton-rhapson or IRLS in base_glm_all is used with learning rate " +
                     str(learning_rate) +
-                    ". Newton-rhapson and IRLS should only be used with learing rate = 1."
+                    ". Newton-rhapson and IRLS should only be used with learning rate = 1."
                 )
 
         # Report all parameters after all defaults were imputed in settings:
@@ -361,16 +361,20 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return self.to_xarray("b_var", coords=self.input_data.data.coords)
 
     @property
+    def loss(self):
+        return self.to_xarray("full_loss")
+
+    @property
     def batch_loss(self):
         return self.to_xarray("loss")
 
     @property
-    def batch_gradient(self):
-        return self.to_xarray("gradient", coords=self.input_data.data.coords)
+    def log_likelihood(self):
+        return self.to_xarray("full_log_likelihood", coords=self.input_data.data.coords)
 
     @property
-    def loss(self):
-        return self.to_xarray("full_loss")
+    def batch_gradient(self):
+        return self.to_xarray("gradient", coords=self.input_data.data.coords)
 
     @property
     def gradient(self):
@@ -388,9 +392,9 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         if self.noise_model == "nb":
             from .external_nb import EstimatorStoreXArray
         else:
-            raise ValueError("noise model not rewcognized")
+            raise ValueError("noise model not recognized")
 
-        logger.debug("Collect and compute ouptut")
+        logger.debug("Collect and compute output")
         store = EstimatorStoreXArray(self)
         logger.debug("Closing session")
         self.close_session()

@@ -1,5 +1,4 @@
 import abc
-from enum import Enum
 from typing import Dict, Any, Union, List, Iterable
 
 import os
@@ -247,7 +246,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
 
                 tf.logging.info(
-                    "Step: %d\tloss: %f\t models converged %i",
+                    "Step: \t%d\t loss: %f\t models converged %i",
                     train_step,
                     global_loss,
                     np.sum(self.model.model_vars.converged).astype("int32")
