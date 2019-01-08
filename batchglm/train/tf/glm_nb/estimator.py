@@ -58,7 +58,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             quick_scale: bool = False,
             model: EstimatorGraph = None,
             provide_optimizers: dict = None,
-            termination_type: str = "global",
+            termination_type: str = "by_feature",
             extended_summary=False,
             dtype="float64",
     ):
