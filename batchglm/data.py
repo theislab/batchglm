@@ -483,14 +483,16 @@ def build_equality_constraints_string(
         E.g. ["batch1 + batch2 + batch3 = 0"]
     :return: a constraint matrix
     """
-    # TODO: automatically generate string constraints from factors
+    n_par_all = dmat.data_vars['design'].values.shape[1]
+    n_par_free = n_par_all - len(constraints)
+
     di = patsy.DesignInfo(dmat.coords["design_params"].values)
     constraint_ls = [di.linear_constraint(x).coefs[0] for x in constraints]
-    idx_constrained = [np.where(x == 1)[0][0] for x in constraint_ls]
-    idx_unconstr = list(
-        set(list(range(dmat.data_vars["design"].shape[1]))) -
-        set(list(idx_constrained))
-    )
+    idx_constr = np.asarray([np.where(x == 1)[0][0] for x in constraint_ls])
+    idx_depending = [np.where(x == 1)[0][1:] for x in constraint_ls]
+    idx_unconstr = np.asarray(list(
+        set(np.asarray(range(n_par_all))) - set(idx_constr)
+    ))
 
     dmat_var = xr.DataArray(
         dims=[dmat.data_vars['design'].dims[0], "params"],
@@ -498,15 +500,22 @@ def build_equality_constraints_string(
         coords={dmat.data_vars['design'].dims[0]: dmat.coords["observations"].values,
                 "params": dmat.coords["design_params"].values[idx_unconstr]}
     )
-    constraint_mat = np.vstack(constraint_ls)[:,idx_unconstr]
 
-    constraints = np.vstack([
-        np.identity(n=len(idx_unconstr)),
-        -constraint_mat
-    ])
+    constraint_mat = np.zeros([n_par_all, n_par_free])
+    for i in range(n_par_all):
+        if i in idx_constr:
+            idx_dep_i = idx_depending[np.where(idx_constr == i)[0][0]]
+            idx_dep_i = np.asarray([np.where(idx_unconstr == x)[0] for x in idx_dep_i])
+            constraint_mat[i, :] = 0
+            constraint_mat[i, idx_dep_i] = -1
+        else:
+            idx_unconstr_i = np.where(idx_unconstr == i)
+            constraint_mat[i, :] = 0
+            constraint_mat[i, idx_unconstr_i] = 1
+
     constraints_ar = parse_constraints(
         dmat=dmat,
-        constraints=constraints,
+        constraints=constraint_mat,
         dims=dims
     )
 

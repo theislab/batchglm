@@ -158,9 +158,10 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
             if init_b.lower() == "closed_form":
                 try:
-                    init_a_xr = data_utils.xarray_from_data(init_a, dims=("design_loc_params", "features"))
-                    init_a_xr.coords["design_loc_params"] = self.input_data.design_loc.coords["design_loc_params"]
-                    init_mu = np.exp(self.input_data.design_loc.dot(init_a_xr))
+                    init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
+                    init_a_xr.coords["loc_params"] = self.input_data.constraints_loc.coords["loc_params"]
+                    # TODO: memory inefficient:
+                    init_mu = np.exp(self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)))
 
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
                         X=self.input_data.X,
