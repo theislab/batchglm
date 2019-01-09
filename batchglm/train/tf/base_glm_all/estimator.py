@@ -336,10 +336,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             training_strategy = self.TrainingStrategy[training_strategy].value
 
         if training_strategy is None:
-            if not self._train_loc:
-                training_strategy = self.TrainingStrategy.PRE_INITIALIZED.value
-            else:
-                training_strategy = self.TrainingStrategy.DEFAULT.value
+            training_strategy = self.TrainingStrategy.DEFAULT.value
 
         logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
 
