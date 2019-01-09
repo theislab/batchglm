@@ -113,22 +113,25 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 dtype=dtype
             )
             # Hessian of submodel which is to be trained.
-            if not train_a or not train_b:
-                hessians_train = Hessians(
-                    batched_data=batched_data,
-                    sample_indices=sample_indices,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    model_vars=model_vars,
-                    mode=pkg_constants.HESSIAN_MODE,
-                    noise_model=noise_model,
-                    iterator=True,
-                    hess_a=train_a,
-                    hess_b=train_b,
-                    dtype=dtype
-                )
+            if train_a or train_b:
+                if not train_a or not train_b:
+                    hessians_train = Hessians(
+                        batched_data=batched_data,
+                        sample_indices=sample_indices,
+                        constraints_loc=constraints_loc,
+                        constraints_scale=constraints_scale,
+                        model_vars=model_vars,
+                        mode=pkg_constants.HESSIAN_MODE,
+                        noise_model=noise_model,
+                        iterator=True,
+                        hess_a=train_a,
+                        hess_b=train_b,
+                        dtype=dtype
+                    )
+                else:
+                    hessians_train = hessians_full
             else:
-                hessians_train = hessians_full
+                hessians_train = None
 
             fim_full = FIM(
                 batched_data=batched_data,
@@ -144,22 +147,25 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 dtype=dtype
             )
             # Fisher information matrix of submodel which is to be trained.
-            if not train_a or not train_b:
-                fim_train = FIM(
-                    batched_data=batched_data,
-                    sample_indices=sample_indices,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    model_vars=model_vars,
-                    mode=pkg_constants.HESSIAN_MODE,
-                    noise_model=noise_model,
-                    iterator=True,
-                    update_a=train_a,
-                    update_b=train_b,
-                    dtype=dtype
-                )
+            if train_a or train_b:
+                if not train_a or not train_b:
+                    fim_train = FIM(
+                        batched_data=batched_data,
+                        sample_indices=sample_indices,
+                        constraints_loc=constraints_loc,
+                        constraints_scale=constraints_scale,
+                        model_vars=model_vars,
+                        mode=pkg_constants.HESSIAN_MODE,
+                        noise_model=noise_model,
+                        iterator=True,
+                        update_a=train_a,
+                        update_b=train_b,
+                        dtype=dtype
+                    )
+                else:
+                    fim_train = fim_full
             else:
-                fim_train = fim_full
+                fim_train = None
 
         with tf.name_scope("jacobians"):
             # Jacobian of full model for reporting.
@@ -178,23 +184,26 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 dtype=dtype
             )
             # Jacobian of submodel which is to be trained.
-            if not train_a or not train_b:
-                jacobian_train = Jacobians(
-                    batched_data=batched_data,
-                    sample_indices=sample_indices,
-                    batch_model=None,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    model_vars=model_vars,
-                    mode=pkg_constants.JACOBIAN_MODE,
-                    noise_model=noise_model,
-                    iterator=True,
-                    jac_a=train_a,
-                    jac_b=train_b,
-                    dtype=dtype
-                )
+            if train_a or train_b:
+                if not train_a or not train_b:
+                    jacobian_train = Jacobians(
+                        batched_data=batched_data,
+                        sample_indices=sample_indices,
+                        batch_model=None,
+                        constraints_loc=constraints_loc,
+                        constraints_scale=constraints_scale,
+                        model_vars=model_vars,
+                        mode=pkg_constants.JACOBIAN_MODE,
+                        noise_model=noise_model,
+                        iterator=True,
+                        jac_a=train_a,
+                        jac_b=train_b,
+                        dtype=dtype
+                    )
+                else:
+                    jacobian_train = jacobian_full
             else:
-                jacobian_train = jacobian_full
+                jacobian_train = None
 
         self.X = model.X
         self.design_loc = model.design_loc
@@ -486,25 +495,27 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         # initial graph elements
         with self.graph.as_default():
 
-            model_vars = ModelVars(
-                dtype=dtype,
-                init_a=init_a,
-                init_b=init_b,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale
-            )
+            with tf.name_scope("model_vars"):
+                self.model_vars = ModelVars(
+                    dtype=dtype,
+                    init_a=init_a,
+                    init_b=init_b,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale
+                )
+                self.idx_nonconverged = np.where(self.model_vars.converged == False)[0]
 
             # ### performance related settings
             buffer_size = 4
 
             with tf.name_scope("batched_data"):
                 logger.debug(" ** Build batched data model")
-                batched_data_model = BatchedDataModelGraph(
+                self.batched_data_model = BatchedDataModelGraph(
                     num_observations=self.num_observations,
                     fetch_fn=fetch_fn,
                     batch_size=batch_size,
                     buffer_size=buffer_size,
-                    model_vars=model_vars,
+                    model_vars=self.model_vars,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     train_a=train_loc,
@@ -521,11 +532,11 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     shape=(None,),
                     name="sample_selection"
                 )
-                full_data_model = FullDataModelGraph(
+                self.full_data_model = FullDataModelGraph(
                     sample_indices=sample_selection,
                     fetch_fn=fetch_fn,
                     batch_size=batch_size * buffer_size,
-                    model_vars=model_vars,
+                    model_vars=self.model_vars,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
                     train_a=train_loc,
@@ -533,59 +544,35 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     noise_model=noise_model,
                     dtype=dtype
                 )
-                full_data_fisher_inv = op_utils.pinv(full_data_model.hessians.neg_hessian)  # TODO switch for fim
 
-            idx_nonconverged = np.where(model_vars.converged == False)[0]
-
-            self.model_vars = model_vars
-            self.full_data_model = full_data_model
-            self.batched_data_model = batched_data_model
-
-            self.loss = full_data_model.loss
-            self.log_likelihood = full_data_model.log_likelihood
-            self.hessians = full_data_model.hessians.hessian
-            self.fisher_inv = full_data_fisher_inv
-
-            self.idx_nonconverged = idx_nonconverged
-
-            GradientGraphGLM.__init__(
-                self=self,
+            self._run_trainer_init(
                 termination_type=termination_type,
+                provide_optimizers=provide_optimizers,
                 train_loc=train_loc,
-                train_scale=train_scale
-            )
-            NewtonGraphGLM.__init__(
-                self=self,
-                termination_type=termination_type,
-                provide_optimizers=provide_optimizers,
-                train_mu=train_loc,
-                train_r=train_scale
-            )
-            TrainerGraphGLM.__init__(
-                self=self,
-                feature_isnonzero=feature_isnonzero,
-                provide_optimizers=provide_optimizers,
+                train_scale=train_scale,
                 dtype=dtype
             )
 
+            # Define output metrics:
+            self._set_out_var(
+                feature_isnonzero=feature_isnonzero,
+                dtype=dtype
+            )
+            self.loss = self.full_data_model.loss
+            self.log_likelihood = self.full_data_model.log_likelihood
+            self.hessians = self.full_data_model.hessians.hessian
+            self.fisher_inv = op_utils.pinv(self.full_data_model.hessians.neg_hessian)  # TODO switch for fim?
+            # Summary statistics on feature-wise model gradients:
+            self.gradients = tf.reduce_sum(tf.transpose(self.gradients_full), axis=1)
+
         with tf.name_scope('summaries'):
-            tf.summary.histogram('a_var', model_vars.a_var)
-            tf.summary.histogram('b_var', model_vars.b_var)
-            tf.summary.scalar('loss', batched_data_model.loss)
+            tf.summary.histogram('a_var', self.model_vars.a_var)
+            tf.summary.histogram('b_var', self.model_vars.b_var)
+            tf.summary.scalar('loss', self.batched_data_model.loss)
             tf.summary.scalar('learning_rate', self.learning_rate)
 
             if extended_summary:
-                tf.summary.scalar('median_ll',
-                                  tf.contrib.distributions.percentile(
-                                      tf.reduce_sum(batched_data_model.log_probs, axis=1),
-                                      50.)
-                                  )
-                summary_full_grad = tf.where(tf.is_nan(full_gradient), tf.zeros_like(full_gradient), full_gradient,
-                                             name="full_gradient")
-                tf.summary.histogram('batch_gradient', batch_trainers.gradient_by_variable(model_vars.params))
-                tf.summary.histogram("full_gradient", summary_full_grad)
-                tf.summary.scalar("full_gradient_median", tf.contrib.distributions.percentile(full_gradient, 50.))
-                tf.summary.scalar("full_gradient_mean", tf.reduce_mean(full_gradient))
+                pass
 
         self.saver = tf.train.Saver()
         self.merged_summary = tf.summary.merge_all()

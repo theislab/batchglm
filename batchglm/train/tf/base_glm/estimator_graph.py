@@ -105,43 +105,49 @@ class GradientGraphGLM:
             train_loc,
             train_scale
     ):
-        if termination_type == "by_feature":
-            logger.debug(" ** Build gradients for training graph: by_feature")
-            self.gradients_full_byfeature()
-            self.gradients_batched_byfeature()
-        elif termination_type == "global":
-            logger.debug(" ** Build gradients for training graph: global")
-            self.gradients_full_global()
-            self.gradients_batched_global()
-        else:
-            raise ValueError("convergence_type %s not recognized." % termination_type)
-
-        # Pad gradients to receive update tensors that match
-        # the shape of model_vars.params.
-        if train_loc:
-            if train_scale:
-                gradients_batch = self.gradients_batch_raw
-                gradients_full = self.gradients_full_raw
+        if train_loc or train_scale:
+            if termination_type == "by_feature":
+                logger.debug(" ** Build gradients for training graph: by_feature")
+                self.gradients_full_byfeature()
+                self.gradients_batched_byfeature()
+            elif termination_type == "global":
+                logger.debug(" ** Build gradients for training graph: global")
+                self.gradients_full_global()
+                self.gradients_batched_global()
             else:
+                raise ValueError("convergence_type %s not recognized." % termination_type)
+
+            # Pad gradients to receive update tensors that match
+            # the shape of model_vars.params.
+            if train_loc:
+                if train_scale:
+                    gradients_batch = self.gradients_batch_raw
+                    gradients_full = self.gradients_full_raw
+                else:
+                    gradients_batch = tf.concat([
+                        self.gradients_batch_raw,
+                        tf.zeros_like(self.model_vars.b_var)
+                    ], axis=0)
+                    gradients_full = tf.concat([
+                        self.gradients_full_raw,
+                        tf.zeros_like(self.model_vars.b_var)
+                    ], axis=0)
+            elif train_scale:
                 gradients_batch = tf.concat([
-                    self.gradients_batch_raw,
-                    tf.zeros_like(self.model_vars.b_var)
+                    tf.zeros_like(self.model_vars.a_var),
+                    self.gradients_batch_raw
                 ], axis=0)
                 gradients_full = tf.concat([
-                    self.gradients_full_raw,
-                    tf.zeros_like(self.model_vars.b_var)
+                    tf.zeros_like(self.model_vars.a_var),
+                    self.gradients_full_raw
                 ], axis=0)
-        elif train_scale:
-            gradients_batch = tf.concat([
-                tf.zeros_like(self.model_vars.a_var),
-                self.gradients_batch_raw
-            ], axis=0)
-            gradients_full = tf.concat([
-                tf.zeros_like(self.model_vars.a_var),
-                self.gradients_full_raw
-            ], axis=0)
         else:
-            raise ValueError("No training necessary")
+            # These gradients are returned for convergence evaluation.
+            # In this case, closed form estimates were used, one could
+            # still evaluate the gradients here but we do not do
+            # this to speed up run time.
+            gradients_batch = tf.zeros_like(self.model_vars.params)
+            gradients_full = tf.zeros_like(self.model_vars.params)
 
         self.gradients_full = gradients_full
         self.gradients_batch = gradients_batch
@@ -214,77 +220,83 @@ class NewtonGraphGLM:
             train_mu,
             train_r
     ):
-        if provide_optimizers["nr"]:
-            nr_update_full_raw, nr_update_batched_raw = self.build_updates(
-                full_lhs=self.full_data_model.hessians_train.neg_hessian,
-                batched_lhs=self.batched_data_model.hessians_train.neg_hessian,
-                full_rhs=self.full_data_model.jac_train.neg_jac,
-                batched_rhs=self.batched_data_model.jac_train.neg_jac,
-                termination_type=termination_type,
-                psd=False
-            )
-            nr_update_full, nr_update_batched = self.pad_updates(
-                train_mu=train_mu,
-                train_r=train_r,
-                update_full_raw=nr_update_full_raw,
-                update_batched_raw=nr_update_batched_raw
-            )
+        if train_mu or train_r:
+            if provide_optimizers["nr"]:
+                nr_update_full_raw, nr_update_batched_raw = self.build_updates(
+                    full_lhs=self.full_data_model.hessians_train.neg_hessian,
+                    batched_lhs=self.batched_data_model.hessians_train.neg_hessian,
+                    full_rhs=self.full_data_model.jac_train.neg_jac,
+                    batched_rhs=self.batched_data_model.jac_train.neg_jac,
+                    termination_type=termination_type,
+                    psd=False
+                )
+                nr_update_full, nr_update_batched = self.pad_updates(
+                    train_mu=train_mu,
+                    train_r=train_r,
+                    update_full_raw=nr_update_full_raw,
+                    update_batched_raw=nr_update_batched_raw
+                )
+            else:
+                nr_update_full = None
+                nr_update_batched = None
+
+            if provide_optimizers["irls"]:
+                # Compute a and b model updates separately.
+                if train_mu:
+                    # The FIM of the mean model is guaranteed to be
+                    # positive semi-definite and can therefore be inverted
+                    # with the Cholesky decomposition. This information is
+                    # passed here with psd=True.
+                    irls_update_a_full, irls_update_a_batched = self.build_updates(
+                        full_lhs=self.full_data_model.fim_train.fim_a,
+                        batched_lhs=self.batched_data_model.fim_train.fim_a,
+                        full_rhs=self.full_data_model.jac_train.neg_jac_a,
+                        batched_rhs=self.batched_data_model.jac_train.neg_jac_a,
+                        termination_type=termination_type,
+                        psd=True
+                    )
+                else:
+                    irls_update_a_full = None
+                    irls_update_a_batched = None
+
+                if train_r:
+                    irls_update_b_full, irls_update_b_batched = self.build_updates(
+                        full_lhs=self.full_data_model.fim_train.fim_b,
+                        batched_lhs=self.batched_data_model.fim_train.fim_b,
+                        full_rhs=self.full_data_model.jac_train.neg_jac_b,
+                        batched_rhs=self.batched_data_model.jac_train.neg_jac_b,
+                        termination_type=termination_type,
+                        psd=True  # TODO proove
+                    )
+                else:
+                    irls_update_b_full = None
+                    irls_update_b_batched = None
+
+                if train_mu and train_r:
+                    irls_update_full_raw = tf.concat([irls_update_a_full, irls_update_b_full], axis=0)
+                    irls_update_batched_raw = tf.concat([irls_update_a_batched, irls_update_b_batched], axis=0)
+                elif train_mu:
+                    irls_update_full_raw = irls_update_a_full
+                    irls_update_batched_raw = irls_update_a_batched
+                elif train_r:
+                    irls_update_full_raw = irls_update_b_full
+                    irls_update_batched_raw = irls_update_b_batched
+                else:
+                    irls_update_full_raw = None
+                    irls_update_batched_raw = None
+
+                irls_update_full, irls_update_batched = self.pad_updates(
+                    train_mu=train_mu,
+                    train_r=train_r,
+                    update_full_raw=irls_update_full_raw,
+                    update_batched_raw=irls_update_batched_raw
+                )
+            else:
+                irls_update_full = None
+                irls_update_batched = None
         else:
             nr_update_full = None
             nr_update_batched = None
-
-        if provide_optimizers["irls"]:
-            # Compute a and b model updates separately.
-            if train_mu:
-                # The FIM of the mean model is guaranteed to be
-                # positive semi-definite and can therefore be inverted
-                # with the Cholesky decomposition. This information is
-                # passed here with psd=True.
-                irls_update_a_full, irls_update_a_batched = self.build_updates(
-                    full_lhs=self.full_data_model.fim_train.fim_a,
-                    batched_lhs=self.batched_data_model.fim_train.fim_a,
-                    full_rhs=self.full_data_model.jac_train.neg_jac_a,
-                    batched_rhs=self.batched_data_model.jac_train.neg_jac_a,
-                    termination_type=termination_type,
-                    psd=True
-                )
-            else:
-                irls_update_a_full = None
-                irls_update_a_batched = None
-
-            if train_r:
-                irls_update_b_full, irls_update_b_batched = self.build_updates(
-                    full_lhs=self.full_data_model.fim_train.fim_b,
-                    batched_lhs=self.batched_data_model.fim_train.fim_b,
-                    full_rhs=self.full_data_model.jac_train.neg_jac_b,
-                    batched_rhs=self.batched_data_model.jac_train.neg_jac_b,
-                    termination_type=termination_type,
-                    psd=True  # TODO proove
-                )
-            else:
-                irls_update_b_full = None
-                irls_update_b_batched = None
-
-            if train_mu and train_r:
-                irls_update_full_raw = tf.concat([irls_update_a_full, irls_update_b_full], axis=0)
-                irls_update_batched_raw = tf.concat([irls_update_a_batched, irls_update_b_batched], axis=0)
-            elif train_mu:
-                irls_update_full_raw = irls_update_a_full
-                irls_update_batched_raw = irls_update_a_batched
-            elif train_r:
-                irls_update_full_raw = irls_update_b_full
-                irls_update_batched_raw = irls_update_b_batched
-            else:
-                irls_update_full_raw = None
-                irls_update_batched_raw = None
-
-            irls_update_full, irls_update_batched = self.pad_updates(
-                train_mu=train_mu,
-                train_r=train_r,
-                update_full_raw=irls_update_full_raw,
-                update_batched_raw=irls_update_batched_raw
-            )
-        else:
             irls_update_full = None
             irls_update_batched = None
 
@@ -492,58 +504,50 @@ class TrainerGraphGLM:
 
     def __init__(
             self,
-            feature_isnonzero,
             provide_optimizers,
+            train_loc,
+            train_scale,
             dtype
     ):
         with tf.name_scope("training_graphs"):
-            logger.debug(" ** Build training graphs")
             global_step = tf.train.get_or_create_global_step()
 
             # Create trainers that produce training operations.
-            trainer_batch = train_utils.MultiTrainer(
-                variables=self.model_vars.params,
-                gradients=self.gradients_batch,
-                newton_delta=self.nr_update_batched,
-                irls_delta=self.irls_update_batched,
-                learning_rate=self.learning_rate,
-                global_step=global_step,
-                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                provide_optimizers=provide_optimizers,
-                name="batch_data_trainers"
-            )
+            if train_loc or train_scale:
+                trainer_batch = train_utils.MultiTrainer(
+                    variables=self.model_vars.params,
+                    gradients=self.gradients_batch,
+                    newton_delta=self.nr_update_batched,
+                    irls_delta=self.irls_update_batched,
+                    learning_rate=self.learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    provide_optimizers=provide_optimizers,
+                    name="batch_data_trainers"
+                )
+                batch_gradient = trainer_batch.plain_gradient_by_variable(self.model_vars.params)
+                batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
+            else:
+                trainer_batch = None
+                batch_gradient = None
 
-            trainer_full = train_utils.MultiTrainer(
-                variables=self.model_vars.params,
-                gradients=self.gradients_full,
-                newton_delta=self.nr_update_full,
-                irls_delta=self.irls_update_full,
-                learning_rate=self.learning_rate,
-                global_step=global_step,
-                apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
-                provide_optimizers=provide_optimizers,
-                name="full_data_trainers"
-            )
-
-        # Set up model gradient computation:
-        with tf.name_scope("batch_gradient"):
-            logger.debug(" ** Build training graph: batched data model gradients")
-            batch_gradient = trainer_batch.plain_gradient_by_variable(self.model_vars.params)
-            batch_gradient = tf.reduce_sum(tf.abs(batch_gradient), axis=0)
-
-            # batch_gradient = tf.add_n(
-            #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in batch_trainers.gradient])
-
-        with tf.name_scope("full_gradient"):
-            logger.debug(" ** Build training graph: full data model gradients")
-            # use same gradient as the optimizers
-            full_gradient = trainer_full.plain_gradient_by_variable(self.model_vars.params)
-            full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
-
-            # # the analytic Jacobian
-            # full_gradient = tf.reduce_sum(full_data_model.neg_jac, axis=0)
-            # full_gradient = tf.add_n(
-            #     [tf.reduce_sum(tf.abs(grad), axis=0) for (grad, var) in full_data_trainers.gradient])
+            if train_loc or train_scale:
+                trainer_full = train_utils.MultiTrainer(
+                    variables=self.model_vars.params,
+                    gradients=self.gradients_full,
+                    newton_delta=self.nr_update_full,
+                    irls_delta=self.irls_update_full,
+                    learning_rate=self.learning_rate,
+                    global_step=global_step,
+                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    provide_optimizers=provide_optimizers,
+                    name="full_data_trainers"
+                )
+                full_gradient = trainer_full.plain_gradient_by_variable(self.model_vars.params)
+                full_gradient = tf.reduce_sum(tf.abs(full_gradient), axis=0)
+            else:
+                trainer_full = None
+                full_gradient = None
 
         # # ### BFGS implementation using SciPy L-BFGS
         # with tf.name_scope("bfgs"):
@@ -560,46 +564,15 @@ class TrainerGraphGLM:
         #         method='L-BFGS-B',
         #         options={'maxiter': maxiter})
 
-        with tf.name_scope("init_op"):
-            logger.debug(" ** Build training graph: initialization operation")
-            init_op = tf.global_variables_initializer()
-
-        # ### output values:
-        #       override all-zero features with lower bound coefficients
-        with tf.name_scope("output"):
-            logger.debug(" ** Build training graph: output")
-            bounds_min, bounds_max = self.param_bounds(dtype)
-
-            param_nonzero_a_var = tf.broadcast_to(feature_isnonzero, [self.num_loc_params, self.num_features])
-            alt_a = tf.broadcast_to(bounds_min["a_var"], [self.num_loc_params, self.num_features])
-            a_var = tf.where(
-                param_nonzero_a_var,
-                self.model_vars.a_var,
-                alt_a
-            )
-
-            param_nonzero_b_var = tf.broadcast_to(feature_isnonzero, [self.num_scale_params, self.num_features])
-            alt_b = tf.broadcast_to(bounds_min["b_var"], [self.num_scale_params, self.num_features])
-            b_var = tf.where(
-                param_nonzero_b_var,
-                self.model_vars.b_var,
-                alt_b
-            )
-
-        self.trainer_batch = trainer_batch
-        self.trainer_full = trainer_full
         self.global_step = global_step
 
+        self.trainer_batch = trainer_batch
         self.gradient = batch_gradient
+
+        self.trainer_full = trainer_full
         self.full_gradient = full_gradient
 
-        self.train_op = trainer_full.train_op_GD
-        self.init_ops = []
-        self.init_op = init_op
-
-        # # ### set up class attributes
-        self.a_var = a_var
-        self.b_var = b_var
+        self.train_op = None
 
     @abc.abstractmethod
     def param_bounds(self):
@@ -620,6 +593,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
 
     a_var: tf.Tensor
     b_var: tf.Tensor
+
+    model_vars = ModelVarsGLM
 
     noise_model: str
 
@@ -682,6 +657,69 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
         )
 
         self.learning_rate = tf.placeholder(dtype, shape=(), name="learning_rate")
+
+    def _run_trainer_init(
+            self,
+            termination_type,
+            provide_optimizers,
+            train_loc,
+            train_scale,
+            dtype
+    ):
+        GradientGraphGLM.__init__(
+            self=self,
+            termination_type=termination_type,
+            train_loc=train_loc,
+            train_scale=train_scale
+        )
+        NewtonGraphGLM.__init__(
+            self=self,
+            termination_type=termination_type,
+            provide_optimizers=provide_optimizers,
+            train_mu=train_loc,
+            train_r=train_scale
+        )
+        TrainerGraphGLM.__init__(
+            self=self,
+            provide_optimizers=provide_optimizers,
+            train_loc=train_loc,
+            train_scale=train_scale,
+            dtype=dtype
+        )
+
+        with tf.name_scope("init_op"):
+            self.init_op = tf.global_variables_initializer()
+            self.init_ops = []
+
+    def _set_out_var(
+            self,
+            feature_isnonzero,
+            dtype
+    ):
+        # ### output values:
+        #       override all-zero features with lower bound coefficients
+        with tf.name_scope("output"):
+            logger.debug(" ** Build training graph: output")
+            bounds_min, bounds_max = self.param_bounds(dtype)
+
+            param_nonzero_a_var = tf.broadcast_to(feature_isnonzero, [self.num_loc_params, self.num_features])
+            alt_a = tf.broadcast_to(bounds_min["a_var"], [self.num_loc_params, self.num_features])
+            a_var = tf.where(
+                param_nonzero_a_var,
+                self.model_vars.a_var,
+                alt_a
+            )
+
+            param_nonzero_b_var = tf.broadcast_to(feature_isnonzero, [self.num_scale_params, self.num_features])
+            alt_b = tf.broadcast_to(bounds_min["b_var"], [self.num_scale_params, self.num_features])
+            b_var = tf.where(
+                param_nonzero_b_var,
+                self.model_vars.b_var,
+                alt_b
+            )
+
+        self.a_var = a_var
+        self.b_var = b_var
 
     def _set_constraints(
             self,

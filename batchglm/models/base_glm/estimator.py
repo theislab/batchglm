@@ -12,7 +12,7 @@ ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
 ESTIMATOR_PARAMS.update({
     "loss": (),
     "log_likelihood": ("features",),
-    "gradient": ("features",),
+    "gradients": ("features",),
     "hessians": ("features", "delta_var0", "delta_var1"),
     "fisher_inv": ("features", "delta_var0", "delta_var1"),
 })
@@ -32,8 +32,8 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         return self.params["log_likelihood"]
 
     @property
-    def gradient(self):
-        return self.params["gradient"]
+    def gradients(self):
+        return self.params["gradients"]
 
     @property
     def hessians(self):

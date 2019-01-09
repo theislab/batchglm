@@ -369,8 +369,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         return self.to_xarray("log_likelihood", coords=self.input_data.data.coords)
 
     @property
-    def gradient(self):
-        return self.to_xarray("gradient", coords=self.input_data.data.coords)
+    def gradients(self):
+        return self.to_xarray("gradients", coords=self.input_data.data.coords)
 
     @property
     def hessians(self):
@@ -386,7 +386,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         else:
             raise ValueError("noise model not recognized")
 
-        logger.debug("Collect and compute output")
         store = EstimatorStoreXArray(self)
         logger.debug("Closing session")
         self.close_session()

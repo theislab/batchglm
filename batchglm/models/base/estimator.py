@@ -80,7 +80,7 @@ class _Estimator_Base(_Model_Base, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def gradient(self):
+    def gradients(self):
         pass
 
 
