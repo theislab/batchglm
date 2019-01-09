@@ -32,11 +32,11 @@ class FIM(FIMGLMALL):
         digamma_r = tf.math.digamma(x=r)
         digamma_r_plus_mu = tf.math.digamma(x=r_plus_mu)
 
-        const1 = tf.multiply(scalar_two, tf.add(  # [observations, features]
+        const1 = tf.multiply(scalar_two, tf.add(
             digamma_r,
             digamma_r_plus_mu
         ))
-        const2 = tf.multiply(r, tf.add(  # [observations, features]
+        const2 = tf.multiply(r, tf.add(
             tf.math.polygamma(a=scalar_one, x=r),
             tf.math.polygamma(a=scalar_one, x=r_plus_mu)
         ))

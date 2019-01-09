@@ -1,9 +1,14 @@
 import abc
+import logging
 from typing import List
 import unittest
 import numpy as np
 
+import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, InputData, _Simulator_GLM
+
+glm.setup_logging(verbosity="WARNING", stream="STDOUT")
+logger = logging.getLogger(__name__)
 
 
 class _Test_ExtremValues_GLM_Estim():
@@ -23,7 +28,7 @@ class _Test_ExtremValues_GLM_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "Newton",
+                "optim_algo": "IRLS",
             },
         ])
 

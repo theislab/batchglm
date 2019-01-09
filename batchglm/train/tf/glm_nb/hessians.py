@@ -16,9 +16,9 @@ class Hessians(HessianGLMALL):
             r,
     ):
         const = tf.multiply(
-            mu * r,  # [observations, features]
+            mu * r,
             tf.divide(
-                X - mu,  # [observations, features]
+                X - mu,
                 tf.square(mu + r)
             )
         )
@@ -31,7 +31,7 @@ class Hessians(HessianGLMALL):
             r,
     ):
         const = tf.negative(tf.multiply(
-            mu,  # [observations, features]
+            mu,
             tf.divide(
                 (X / r) + 1,
                 tf.square((mu / r) + 1)
@@ -51,11 +51,11 @@ class Hessians(HessianGLMALL):
         r_plus_mu = r + mu
         r_plus_x = r + X
         # Define graphs for individual terms of constant term of hessian:
-        const1 = tf.add(  # [observations, features]
+        const1 = tf.add(
             tf.math.digamma(x=r_plus_x),
             r * tf.math.polygamma(a=scalar_one, x=r_plus_x)
         )
-        const2 = tf.negative(tf.add(  # [observations, features]
+        const2 = tf.negative(tf.add(
             tf.math.digamma(x=r),
             r * tf.math.polygamma(a=scalar_one, x=r)
         ))
@@ -66,11 +66,11 @@ class Hessians(HessianGLMALL):
             ),
             tf.square(r_plus_mu)
         ))
-        const4 = tf.add(  # [observations, features]
+        const4 = tf.add(
             tf.log(r),
             scalar_two - tf.log(r_plus_mu)
         )
-        const = tf.add_n([const1, const2, const3, const4])  # [observations, features]
+        const = tf.add_n([const1, const2, const3, const4])
         const = tf.multiply(r, const)
         return const
 
