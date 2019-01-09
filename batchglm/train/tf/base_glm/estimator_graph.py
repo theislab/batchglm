@@ -649,10 +649,12 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
 
         self.constraints_loc = self._set_constraints(
             constraints=constraints_loc,
+            num_design_params=self.num_design_loc_params,
             dtype=dtype
         )
         self.constraints_scale = self._set_constraints(
             constraints=constraints_scale,
+            num_design_params=self.num_design_scale_params,
             dtype=dtype
         )
 
@@ -724,15 +726,16 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
     def _set_constraints(
             self,
             constraints,
+            num_design_params,
             dtype
     ):
         if constraints is None:
             return tf.eye(
-                num_rows=tf.constant(self.num_design_loc_params, shape=(), dtype="int32"),
+                num_rows=tf.constant(num_design_params, shape=(), dtype="int32"),
                 dtype=dtype
             )
         else:
-            assert constraints.shape[0] == self.num_design_loc_params, "constraint dimension mismatch"
+            assert constraints.shape[0] == num_design_params, "constraint dimension mismatch"
             return tf.cast(constraints, dtype=dtype)
 
     @abc.abstractmethod
