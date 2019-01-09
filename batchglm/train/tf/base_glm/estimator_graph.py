@@ -2,9 +2,9 @@ import abc
 import logging
 from typing import Union
 
-import tensorflow as tf
-
 import numpy as np
+import tensorflow as tf
+import xarray as xr
 
 try:
     import anndata
@@ -46,13 +46,36 @@ class FullDataModelGraphGLM:
     loss: tf.Tensor
 
     jac: tf.Tensor
-    neg_jac: tf.Tensor
-    neg_jac_train: tf.Tensor
-    neg_jac_train_a: tf.Tensor
-    neg_jac_train_b: tf.Tensor
-    hessian: tf.Tensor
-    neg_hessian: tf.Tensor
-    neg_hessian_train: tf.Tensor
+    jac_train: tf.Tensor
+
+    hessians: tf.Tensor
+    hessians_train: tf.Tensor
+
+    fim: tf.Tensor
+    fim_train: tf.Tensor
+
+    noise_model: str
+
+
+class BatchedDataModelGraphGLM:
+    """
+    Computational graph to evaluate model on batches of data set.
+
+    The model metrics of a batch which can be collected are:
+
+        - The model likelihood (cost function value).
+        - Model Jacobian matrix for trained parameters (for training).
+        - Model Hessian matrix for trained parameters (for training).
+        - Model Fisher information matrix for trained parameters (for training).
+    """
+    log_likelihood: tf.Tensor
+    norm_log_likelihood: tf.Tensor
+    norm_neg_log_likelihood: tf.Tensor
+    loss: tf.Tensor
+
+    jac_train: tf.Tensor
+    hessians_train: tf.Tensor
+    fim_train: tf.Tensor
 
     noise_model: str
 
@@ -124,7 +147,7 @@ class GradientGraphGLM:
         self.gradients_batch = gradients_batch
 
     def gradients_full_byfeature(self):
-        gradients_full_all = tf.transpose(self.full_data_model.neg_jac_train)
+        gradients_full_all = tf.transpose(self.full_data_model.jac_train.neg_jac)
         gradients_full = tf.concat([
             # tf.gradients(full_data_model.norm_neg_log_likelihood,
             #             model_vars.params_by_gene[i])[0]
@@ -137,7 +160,7 @@ class GradientGraphGLM:
         self.gradients_full_raw = gradients_full
 
     def gradients_batched_byfeature(self):
-        gradients_batch_all = tf.transpose(self.batch_jac.neg_jac)
+        gradients_batch_all = tf.transpose(self.batched_data_model.jac_train.neg_jac)
         gradients_batch = tf.concat([
             # tf.gradients(batch_model.norm_neg_log_likelihood,
             #             model_vars.params_by_gene[i])[0]
@@ -150,11 +173,11 @@ class GradientGraphGLM:
         self.gradients_batch_raw = gradients_batch
 
     def gradients_full_global(self):
-        gradients_full = tf.transpose(self.full_data_model.neg_jac_train)
+        gradients_full = tf.transpose(self.full_data_model.jac_train.neg_jac)
         self.gradients_full_raw = gradients_full
 
     def gradients_batched_global(self):
-        gradients_batch = tf.transpose(self.batch_jac.neg_jac)
+        gradients_batch = tf.transpose(self.batched_data_model.jac_train.neg_jac)
         self.gradients_batch_raw = gradients_batch
 
 
@@ -193,10 +216,10 @@ class NewtonGraphGLM:
     ):
         if provide_optimizers["nr"]:
             nr_update_full_raw, nr_update_batched_raw = self.build_updates(
-                full_lhs=self.full_data_model.neg_hessian_train,
-                batched_lhs=self.batch_hessians.neg_hessian,
-                full_rhs=self.full_data_model.neg_jac_train,
-                batched_rhs=self.batch_jac.neg_jac,
+                full_lhs=self.full_data_model.hessians_train.neg_hessian,
+                batched_lhs=self.batched_data_model.hessians_train.neg_hessian,
+                full_rhs=self.full_data_model.jac_train.neg_jac,
+                batched_rhs=self.batched_data_model.jac_train.neg_jac,
                 termination_type=termination_type,
                 psd=False
             )
@@ -219,9 +242,9 @@ class NewtonGraphGLM:
                 # passed here with psd=True.
                 irls_update_a_full, irls_update_a_batched = self.build_updates(
                     full_lhs=self.full_data_model.fim_train.fim_a,
-                    batched_lhs=self.batch_fim.fim_a,
-                    full_rhs=self.full_data_model.neg_jac_train_a,
-                    batched_rhs=self.batch_jac.neg_jac_a,
+                    batched_lhs=self.batched_data_model.fim_train.fim_a,
+                    full_rhs=self.full_data_model.jac_train.neg_jac_a,
+                    batched_rhs=self.batched_data_model.jac_train.neg_jac_a,
                     termination_type=termination_type,
                     psd=True
                 )
@@ -232,11 +255,11 @@ class NewtonGraphGLM:
             if train_r:
                 irls_update_b_full, irls_update_b_batched = self.build_updates(
                     full_lhs=self.full_data_model.fim_train.fim_b,
-                    batched_lhs=self.batch_fim.fim_b,
-                    full_rhs=self.full_data_model.neg_jac_train_b,
-                    batched_rhs=self.batch_jac.neg_jac_b,
+                    batched_lhs=self.batched_data_model.fim_train.fim_b,
+                    full_rhs=self.full_data_model.jac_train.neg_jac_b,
+                    batched_rhs=self.batched_data_model.jac_train.neg_jac_b,
                     termination_type=termination_type,
-                    psd=False
+                    psd=True  # TODO proove
                 )
             else:
                 irls_update_b_full = None
@@ -608,8 +631,11 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
             num_design_scale_params,
             num_loc_params,
             num_scale_params,
-            graph: tf.Graph = None,
-            batch_size: int = None,
+            graph: tf.Graph,
+            batch_size: int,
+            constraints_loc: xr.DataArray,
+            constraints_scale: xr.DataArray,
+            dtype
     ):
         """
 
@@ -622,6 +648,16 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
         :param num_design_scale_params: int
             Number of parameters per feature in scale model.
         :param graph: tf.Graph
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
         """
         TFEstimatorGraph.__init__(
             self=self,
@@ -636,19 +672,29 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
         self.num_scale_params = num_scale_params
         self.batch_size = batch_size
 
+        self.constraints_loc = self._set_constraints(
+            constraints=constraints_loc,
+            dtype=dtype
+        )
+        self.constraints_scale = self._set_constraints(
+            constraints=constraints_scale,
+            dtype=dtype
+        )
+
+        self.learning_rate = tf.placeholder(dtype, shape=(), name="learning_rate")
+
     def _set_constraints(
             self,
             constraints,
-            design,
             dtype
     ):
         if constraints is None:
             return tf.eye(
-                num_rows=tf.constant(design.shape[1], shape=(), dtype="int32"),
+                num_rows=tf.constant(self.num_design_loc_params, shape=(), dtype="int32"),
                 dtype=dtype
             )
         else:
-            assert constraints.shape[0] == design.shape[1], "constraint dimension mismatch"
+            assert constraints.shape[0] == self.num_design_loc_params, "constraint dimension mismatch"
             return tf.cast(constraints, dtype=dtype)
 
     @abc.abstractmethod

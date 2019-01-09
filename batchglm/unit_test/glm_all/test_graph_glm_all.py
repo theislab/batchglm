@@ -29,7 +29,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             else:
                 raise ValueError("noise_model not recognized")
 
-        batch_size = 10
+        batch_size = 100
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": False, "irls": False}
         provide_optimizers[algo.lower()] = True
 
@@ -90,7 +90,7 @@ class Test_Graph_GLM_ALL(
             else:
                 raise ValueError("noise_model not recognized")
 
-        return Simulator(num_observations=50, num_features=2)
+        return Simulator(num_observations=200, num_features=2)
 
     def basic_test_one_algo(
             self,

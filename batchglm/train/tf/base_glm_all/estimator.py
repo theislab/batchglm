@@ -314,10 +314,10 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         if train_mu or train_r:
             if use_batching:
-                loss = self.model.loss
+                loss = self.model.batched_data_model.loss
                 train_op = self.model.trainer_batch.train_op_by_name(optim_algo)
             else:
-                loss = self.model.full_loss
+                loss = self.model.full_data_model.loss
                 train_op = self.model.trainer_full.train_op_by_name(optim_algo)
 
             super().train(*args,
@@ -362,23 +362,15 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def loss(self):
-        return self.to_xarray("full_loss")
-
-    @property
-    def batch_loss(self):
         return self.to_xarray("loss")
 
     @property
     def log_likelihood(self):
-        return self.to_xarray("full_log_likelihood", coords=self.input_data.data.coords)
-
-    @property
-    def batch_gradient(self):
-        return self.to_xarray("gradient", coords=self.input_data.data.coords)
+        return self.to_xarray("log_likelihood", coords=self.input_data.data.coords)
 
     @property
     def gradient(self):
-        return self.to_xarray("full_gradient", coords=self.input_data.data.coords)
+        return self.to_xarray("gradient", coords=self.input_data.data.coords)
 
     @property
     def hessians(self):

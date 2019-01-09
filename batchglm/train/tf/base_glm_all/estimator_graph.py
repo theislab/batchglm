@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 
 from .external import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM
-from .external import EstimatorGraphGLM, FullDataModelGraphGLM
+from .external import EstimatorGraphGLM, FullDataModelGraphGLM, BatchedDataModelGraphGLM
 from .external import op_utils
 from .external import pkg_constants
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class FullDataModelGraph(FullDataModelGraphGLM):
     """
-    Computational graph to evaluate negative binomial GLM on full data set.
+    Computational graph to evaluate negative binomial GLM metrics on full data set.
     """
 
     def __init__(
@@ -218,17 +218,176 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.loss = loss
 
         self.jac = jacobian_full.jac
-        self.neg_jac = jacobian_full.neg_jac
-        self.neg_jac_train = jacobian_train.neg_jac
-        self.neg_jac_train_a = jacobian_train.neg_jac_a
-        self.neg_jac_train_b = jacobian_train.neg_jac_b
+        self.jac_train = jacobian_train
 
-        self.hessian = hessians_full.hessian
-        self.neg_hessian = hessians_full.neg_hessian
-        self.neg_hessian_train = hessians_train.neg_hessian
+        self.hessians = hessians_full
+        self.hessians_train = hessians_train
 
-        self.fim_full = fim_full
+        self.fim = fim_full
         self.fim_train = fim_train
+
+
+class BatchedDataModelGraph(BatchedDataModelGraphGLM):
+    """
+    Computational graph to evaluate negative binomial GLM metrics on batched data set.
+    """
+
+    def __init__(
+            self,
+            num_observations,
+            fetch_fn,
+            batch_size: Union[int, tf.Tensor],
+            buffer_size: int,
+            model_vars,
+            constraints_loc,
+            constraints_scale,
+            train_a,
+            train_b,
+            noise_model: str,
+            dtype
+    ):
+        """
+        :param fetch_fn:
+            TODO
+        :param batch_size: int
+            Size of mini-batches used.
+        :param model_vars: ModelVars
+            Variables of model. Contains tf.Variables which are optimized.
+        :param constraints_loc: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the mean model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Tensor that encodes how complete parameter set which includes dependent
+            parameters arises from indepedent parameters: all = <constraints, indep>.
+            This tensor describes this relation for the dispersion model.
+            This form of constraints is used in vector generalized linear models (VGLMs).
+        :param train_mu: bool
+            Whether to train mean model. If False, the initialisation is kept.
+        :param train_r: bool
+            Whether to train dispersion model. If False, the initialisation is kept.
+        :param dtype: Precision used in tensorflow.
+        """
+        if noise_model == "nb":
+            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
+        else:
+            raise ValueError("noise model not rewcognized")
+        self.noise_model = noise_model
+
+
+        with tf.name_scope("input_pipeline"):
+            data_indices = tf.data.Dataset.from_tensor_slices((
+                tf.range(num_observations, name="sample_index")
+            ))
+            training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
+            training_data = training_data.batch(batch_size, drop_remainder=True)
+            training_data = training_data.map(tf.contrib.framework.sort)  # sort indices
+            training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            training_data = training_data.prefetch(buffer_size)
+
+            iterator = training_data.make_one_shot_iterator()
+
+            batch_sample_index, batch_data = iterator.get_next()
+            (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
+
+        with tf.name_scope("batch"):
+            batch_model = BasicModelGraph(
+                X=batch_X,
+                design_loc=batch_design_loc,
+                design_scale=batch_design_scale,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                a_var=model_vars.a_var,
+                b_var=model_vars.b_var,
+                dtype=dtype,
+                size_factors=batch_size_factors
+            )
+
+            # Define the jacobian on the batched model for newton-rhapson:
+            # (note that these are the Jacobian matrix blocks
+            # of the trained subset of parameters).
+            if train_a or train_b:
+                batch_jac = Jacobians(
+                    batched_data=batch_data,
+                    sample_indices=batch_sample_index,
+                    batch_model=batch_model,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode=pkg_constants.JACOBIAN_MODE,
+                    noise_model=noise_model,
+                    iterator=False,
+                    jac_a=train_a,
+                    jac_b=train_b,
+                    dtype=dtype
+                )
+            else:
+                batch_jac = None
+
+            # Define the hessian on the batched model for newton-rhapson:
+            # (note that these are the Hessian matrix blocks
+            # of the trained subset of parameters).
+            if train_a or train_b:
+                batch_hessians = Hessians(
+                    batched_data=batch_data,
+                    sample_indices=batch_sample_index,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode=pkg_constants.HESSIAN_MODE,
+                    noise_model=noise_model,
+                    iterator=False,
+                    hess_a=train_a,
+                    hess_b=train_b,
+                    dtype=dtype
+                )
+            else:
+                batch_hessians = None
+
+            # Define the IRLS components on the batched model:
+            # (note that these are the IRLS matrix blocks
+            # of the trained subset of parameters).
+            if train_a or train_b:
+                batch_fim = FIM(
+                    batched_data=batch_data,
+                    sample_indices=batch_sample_index,
+                    constraints_loc=constraints_loc,
+                    constraints_scale=constraints_scale,
+                    model_vars=model_vars,
+                    mode=pkg_constants.HESSIAN_MODE,
+                    noise_model=noise_model,
+                    iterator=False,
+                    update_a=train_a,
+                    update_b=train_b,
+                    dtype=dtype
+                )
+            else:
+                batch_fim = None
+
+        self.X = batch_model.X
+        self.design_loc = batch_model.design_loc
+        self.design_scale = batch_model.design_scale
+
+        self.batched_data = batch_data
+
+        self.mu = batch_model.mu
+        self.r = batch_model.r
+        self.sigma2 = batch_model.sigma2
+
+        self.probs = batch_model.probs
+        self.log_probs = batch_model.log_probs
+
+        self.sample_indices = batch_sample_index
+
+        self.log_likelihood = batch_model.log_likelihood
+        self.norm_log_likelihood = batch_model.norm_log_likelihood
+        self.norm_neg_log_likelihood = batch_model.norm_neg_log_likelihood
+        self.loss = batch_model.loss
+
+        self.jac_train = batch_jac
+        self.hessians_train = batch_hessians
+        self.fim_train = batch_fim
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -318,44 +477,14 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             num_loc_params=num_loc_params,
             num_scale_params=num_scale_params,
             graph=graph,
-            batch_size=batch_size
+            batch_size=batch_size,
+            constraints_loc=constraints_loc,
+            constraints_scale=constraints_scale,
+            dtype=dtype
         )
 
         # initial graph elements
         with self.graph.as_default():
-            # ### placeholders
-            learning_rate = tf.placeholder(dtype, shape=(), name="learning_rate")
-            # train_steps = tf.placeholder(tf.int32, shape=(), name="training_steps")
-
-            # ### performance related settings
-            buffer_size = 4
-
-            with tf.name_scope("input_pipeline"):
-                logger.debug(" ** Build input pipeline")
-                data_indices = tf.data.Dataset.from_tensor_slices((
-                    tf.range(num_observations, name="sample_index")
-                ))
-                training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-                training_data = training_data.batch(batch_size, drop_remainder=True)
-                training_data = training_data.map(tf.contrib.framework.sort)  # sort indices
-                training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-                training_data = training_data.prefetch(buffer_size)
-
-                iterator = training_data.make_one_shot_iterator()
-
-                batch_sample_index, batch_data = iterator.get_next()
-                (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
-
-            constraints_loc = self._set_constraints(
-                constraints=constraints_loc,
-                design=batch_design_loc,
-                dtype=dtype
-            )
-            constraints_scale = self._set_constraints(
-                constraints=constraints_scale,
-                design=batch_design_scale,
-                dtype=dtype
-            )
 
             model_vars = ModelVars(
                 dtype=dtype,
@@ -365,86 +494,33 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 constraints_scale=constraints_scale
             )
 
-            with tf.name_scope("batch"):
+            # ### performance related settings
+            buffer_size = 4
+
+            with tf.name_scope("batched_data"):
                 logger.debug(" ** Build batched data model")
-                # Batch model:
-                #   only `batch_size` observations will be used;
-                #   All per-sample variables have to be passed via `data`.
-                #   Sample-independent variables (e.g. per-feature distributions) can be created inside the batch model
-                batch_model = BasicModelGraph(
-                    X=batch_X,
-                    design_loc=batch_design_loc,
-                    design_scale=batch_design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    a_var=model_vars.a_var,
-                    b_var=model_vars.b_var,
-                    dtype=dtype,
-                    size_factors=batch_size_factors
-                )
-
-                # minimize negative log probability (log(1) = 0);
-                # use the mean loss to keep a constant learning rate independently of the batch size
-                batch_loss = batch_model.loss
-
-                # Define the jacobian on the batched model for newton-rhapson:
-                # (note that these are the Jacobian matrix blocks
-                # of the trained subset of parameters).
-                batch_jac = Jacobians(
-                    batched_data=batch_data,
-                    sample_indices=batch_sample_index,
-                    batch_model=batch_model,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
+                batched_data_model = BatchedDataModelGraph(
+                    num_observations=self.num_observations,
+                    fetch_fn=fetch_fn,
+                    batch_size=batch_size,
+                    buffer_size=buffer_size,
                     model_vars=model_vars,
-                    mode=pkg_constants.JACOBIAN_MODE,
-                    noise_model=noise_model,
-                    iterator=False,
-                    jac_a=train_loc,
-                    jac_b=train_scale,
-                    dtype=dtype
-                )
-
-                # Define the hessian on the batched model for newton-rhapson:
-                # (note that these are the Hessian matrix blocks
-                # of the trained subset of parameters).
-                batch_hessians = Hessians(
-                    batched_data=batch_data,
-                    sample_indices=batch_sample_index,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
-                    model_vars=model_vars,
-                    mode=pkg_constants.HESSIAN_MODE,
+                    train_a=train_loc,
+                    train_b=train_scale,
                     noise_model=noise_model,
-                    iterator=False,
-                    hess_a=train_loc,
-                    hess_b=train_scale,
-                    dtype=dtype
-                )
-
-                # Define the IRLS components on the batched model:
-                # (note that these are the IRLS matrix blocks
-                # of the trained subset of parameters).
-                batch_fim = FIM(
-                    batched_data=batch_data,
-                    sample_indices=batch_sample_index,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    model_vars=model_vars,
-                    mode=pkg_constants.HESSIAN_MODE,
-                    noise_model=noise_model,
-                    iterator=False,
-                    update_a=train_loc,
-                    update_b=train_scale,
                     dtype=dtype
                 )
 
             with tf.name_scope("full_data"):
                 logger.debug(" ** Build full data model")
                 # ### alternative definitions for custom observations:
-                sample_selection = tf.placeholder_with_default(tf.range(num_observations),
-                                                               shape=(None,),
-                                                               name="sample_selection")
+                sample_selection = tf.placeholder_with_default(
+                    tf.range(num_observations),
+                    shape=(None,),
+                    name="sample_selection"
+                )
                 full_data_model = FullDataModelGraph(
                     sample_indices=sample_selection,
                     fetch_fn=fetch_fn,
@@ -457,71 +533,51 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     noise_model=noise_model,
                     dtype=dtype
                 )
-                full_data_fisher_inv = op_utils.pinv(full_data_model.neg_hessian)  # TODO switch for fim
+                full_data_fisher_inv = op_utils.pinv(full_data_model.hessians.neg_hessian)  # TODO switch for fim
 
-                mu = full_data_model.mu
-                r = full_data_model.r
-                sigma2 = full_data_model.sigma2
+            idx_nonconverged = np.where(model_vars.converged == False)[0]
 
-                idx_nonconverged = np.where(model_vars.converged == False)[0]
+            self.model_vars = model_vars
+            self.full_data_model = full_data_model
+            self.batched_data_model = batched_data_model
 
-                self.model_vars = model_vars
-                self.batch_model = batch_model
-                self.learning_rate = learning_rate
-                self.loss = batch_loss
+            self.loss = full_data_model.loss
+            self.log_likelihood = full_data_model.log_likelihood
+            self.hessians = full_data_model.hessians.hessian
+            self.fisher_inv = full_data_fisher_inv
 
-                self.batch_jac = batch_jac
-                self.batch_hessians = batch_hessians
-                self.batch_fim = batch_fim
+            self.idx_nonconverged = idx_nonconverged
 
-                self.mu = mu
-                self.r = r
-                self.sigma2 = sigma2
-
-                self.full_loss = full_data_model.loss
-                self.full_log_likelihood = full_data_model.log_likelihood
-                self.batch_probs = batch_model.probs
-                self.batch_log_probs = batch_model.log_probs
-                self.batch_log_likelihood = batch_model.norm_log_likelihood
-
-                self.sample_selection = sample_selection
-                self.full_data_model = full_data_model
-
-                self.hessians = full_data_model.hessian
-                self.fisher_inv = full_data_fisher_inv
-
-                self.idx_nonconverged = idx_nonconverged
-
-                GradientGraphGLM.__init__(
-                    self=self,
-                    termination_type=termination_type,
-                    train_loc=train_loc,
-                    train_scale=train_scale
-                )
-                NewtonGraphGLM.__init__(
-                    self=self,
-                    termination_type=termination_type,
-                    provide_optimizers=provide_optimizers,
-                    train_mu=train_loc,
-                    train_r=train_scale
-                )
-                TrainerGraphGLM.__init__(
-                    self=self,
-                    feature_isnonzero=feature_isnonzero,
-                    provide_optimizers=provide_optimizers,
-                    dtype=dtype
-                )
+            GradientGraphGLM.__init__(
+                self=self,
+                termination_type=termination_type,
+                train_loc=train_loc,
+                train_scale=train_scale
+            )
+            NewtonGraphGLM.__init__(
+                self=self,
+                termination_type=termination_type,
+                provide_optimizers=provide_optimizers,
+                train_mu=train_loc,
+                train_r=train_scale
+            )
+            TrainerGraphGLM.__init__(
+                self=self,
+                feature_isnonzero=feature_isnonzero,
+                provide_optimizers=provide_optimizers,
+                dtype=dtype
+            )
 
         with tf.name_scope('summaries'):
             tf.summary.histogram('a_var', model_vars.a_var)
             tf.summary.histogram('b_var', model_vars.b_var)
-            tf.summary.scalar('loss', batch_loss)
-            tf.summary.scalar('learning_rate', learning_rate)
+            tf.summary.scalar('loss', batched_data_model.loss)
+            tf.summary.scalar('learning_rate', self.learning_rate)
 
             if extended_summary:
                 tf.summary.scalar('median_ll',
                                   tf.contrib.distributions.percentile(
-                                      tf.reduce_sum(batch_model.log_probs, axis=1),
+                                      tf.reduce_sum(batched_data_model.log_probs, axis=1),
                                       50.)
                                   )
                 summary_full_grad = tf.where(tf.is_nan(full_gradient), tf.zeros_like(full_gradient), full_gradient,
