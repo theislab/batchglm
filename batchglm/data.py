@@ -151,20 +151,6 @@ def design_matrix(
         return dmat
 
 
-#
-# def _factors(formula_like: Union[str, patsy.design_info.DesignInfo]):
-#     if isinstance(formula_like, str):
-#         desc = patsy.desc.ModelDesc.from_formula(formula_like)
-#
-#         factors = set()
-#         for l in [list(t.factors) for t in desc.rhs_termlist]:
-#             for i in l:
-#                 factors.add(i.name())
-#
-#         return factors
-#     else:
-#         return formula_like.term_names
-
 def sample_description_from_xarray(
         dataset: xr.Dataset,
         dim: str,
@@ -433,6 +419,134 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
                 adatas[root[len(path) + 1:]] = ad
 
     return adatas
+
+
+def build_equality_constraints(
+        sample_description: pd.DataFrame,
+        formula: str,
+        constraints: List[str],
+        dims: list,
+        as_categorical: Union[bool, list] = True
+):
+    """
+    Create a design matrix from some sample description and a constraint matrix
+    based on factor encoding of constrained parameter sets.
+
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param formula: model formula as string, describing the relations of the explanatory variables.
+
+        E.g. '~ 1 + batch + confounder'
+    :param constraints: List of constraints as strings, e.g. "x1 + x5 = 0".
+
+        E.g. 'batch'
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
+    :return: a model design matrix
+    """
+    dmat = design_matrix(
+        sample_description=sample_description,
+        formula=formula,
+        as_categorical=as_categorical,
+        return_type="xarray"
+    )
+    # Parse list of factors to be constrained to list of
+    # string encoded explicit constraint equations.
+    constraint_ls = ["+".join(patsy.highlevel.dmatrix("~1-1+"+x, sample_description))+"=0"
+                     for x in constraints]
+    logger.debug("constraints enforced are: "+",".join(constraint_ls))
+    constraint_mat = build_equality_constraints_string(
+        dmat=dmat,
+        constraints=constraints_ls,
+        dims=dims
+    )
+
+    return dmat, constraint_mat
+
+
+def build_equality_constraints_string(
+        dmat: xr.DataArray,
+        constraints: List[str],
+        dims: list
+):
+    r"""
+    Parser for string encoded equality constraints.
+
+    :param dmat: Design matrix.
+    :param constraints: List of constraints as strings.
+
+        E.g. ["batch1 + batch2 + batch3 = 0"]
+    :param dims: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
+        Define dimension names of xarray.
+    :return: a constraint matrix
+    """
+    n_par_all = dmat.data_vars['design'].values.shape[1]
+    n_par_free = n_par_all - len(constraints)
+
+    di = patsy.DesignInfo(dmat.coords["design_params"].values)
+    constraint_ls = [di.linear_constraint(x).coefs[0] for x in constraints]
+    idx_constr = np.asarray([np.where(x == 1)[0][0] for x in constraint_ls])
+    idx_depending = [np.where(x == 1)[0][1:] for x in constraint_ls]
+    idx_unconstr = np.asarray(list(
+        set(np.asarray(range(n_par_all))) - set(idx_constr)
+    ))
+
+    dmat_var = xr.DataArray(
+        dims=[dmat.data_vars['design'].dims[0], "params"],
+        data=dmat.data_vars["design"][:,idx_unconstr],
+        coords={dmat.data_vars['design'].dims[0]: dmat.coords["observations"].values,
+                "params": dmat.coords["design_params"].values[idx_unconstr]}
+    )
+
+    constraint_mat = np.zeros([n_par_all, n_par_free])
+    for i in range(n_par_all):
+        if i in idx_constr:
+            idx_dep_i = idx_depending[np.where(idx_constr == i)[0][0]]
+            idx_dep_i = np.asarray([np.where(idx_unconstr == x)[0] for x in idx_dep_i])
+            constraint_mat[i, :] = 0
+            constraint_mat[i, idx_dep_i] = -1
+        else:
+            idx_unconstr_i = np.where(idx_unconstr == i)
+            constraint_mat[i, :] = 0
+            constraint_mat[i, idx_unconstr_i] = 1
+
+    constraints_ar = parse_constraints(
+        dmat=dmat,
+        constraints=constraint_mat,
+        dims=dims
+    )
+
+    # Test reduced design matrix for full rank before returning constraints:
+    if np.linalg.matrix_rank(dmat_var) != np.linalg.matrix_rank(dmat_var.T):
+        logger.warning("constrained design matrix is not full rank")
+
+    return constraints_ar
+
+
+def parse_constraints(
+        dmat: xr.DataArray,
+        constraints: np.ndarray,
+        dims: list
+):
+    r"""
+    Parse constraint matrix into xarray.
+
+    :param dmat: Design matrix.
+    :param a constraint matrix
+    :return: constraint matrix in xarray format
+    """
+    constraints_ar = xr.DataArray(
+        dims=dims,
+        data=constraints,
+        coords={dims[0]: dmat.data_vars['design'].coords["design_params"].values,
+                dims[1]: ["var_"+str(x) for x in range(constraints.shape[1])]}
+    )
+    return constraints_ar
 
 
 class ChDir:

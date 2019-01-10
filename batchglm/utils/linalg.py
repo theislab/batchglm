@@ -35,7 +35,7 @@ def stacked_lstsq(L, b, rcond=1e-10):
 def groupwise_solve_lm(
         dmat,
         apply_fun: callable,
-        constraints=None,
+        constraints: np.ndarray
 ):
     r"""
     Solve GLMs by estimating the distribution parameters of each unique group of observations independently and
@@ -50,7 +50,6 @@ def groupwise_solve_lm(
             &= D \cdot x' = f^{-1}(\theta)
     $$
 
-    :param data: xr.DataArray of shape (observations, features) which can be grouped by `dmat`
     :param dmat: design matrix which should be solved for
     :param apply_fun: some callable function taking one xr.DataArray argument.
         Should compute a group-wise parameter solution.
@@ -63,42 +62,39 @@ def groupwise_solve_lm(
                 return np.log(groupwise_means)
 
         The `data` argument provided to `apply_fun` is the same xr.DataArray provided to this
+    :param constraints: tensor (all parameters x dependent parameters)
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This form of constraints is used in vector generalized linear models (VGLMs).
 
-    :param constraints: possible design constraints for constraint optimization
     :return: tuple of (apply_fun(grouping), x_prime, rmsd, rank, s) where x_prime is the parameter matrix solved for
     `dmat`.
     """
+    # Get unqiue rows of design matrix and vector with group assignments:
     unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
 
-    if constraints is not None:
-        design_constraints = constraints.copy()
-        # -1 in the constraint matrix is used to indicate which variable
-        # is made dependent so that the constrained is fullfilled.
-        # This has to be rewritten here so that the design matrix is full rank
-        # which is necessary so that it can be inverted for parameter
-        # initialisation.
-        design_constraints[design_constraints == -1] = 1
-        # Add constraints into design matrix to remove structural unidentifiability.
-        unique_design = np.vstack([unique_design, design_constraints])
+    full_rank = constraints.shape[1]
+    rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
+    if full_rank > rank:
+        logger.error("model is not full rank!")
 
-    if unique_design.shape[1] > np.linalg.matrix_rank(unique_design):
-        logger.warning("model is not full rank!")
-
+    # Get group-wise means in linker space based on group assignments
+    # based on unique rows of design matrix:
     params = apply_fun(inverse_idx)
 
-    if constraints is not None:
-        param_constraints = np.zeros([constraints.shape[0], params.shape[1]])
-        # Add constraints (sum to zero) to value vector to remove structural unidentifiability.
-        params = np.vstack([params, param_constraints])
-
-    # inv_design = np.linalg.pinv(unique_design_scale) # NOTE: this is numerically inaccurate!
-    # inv_design = np.linalg.inv(unique_design_scale) # NOTE: this is exact if full rank!
-    # init_b = np.matmul(inv_design, b)
-    #
-    # Use least-squares solver to calculate a':
-    # This is faster and more accurate than using matrix inversion.
+    # Use least-squares solver to compute model parameterization
+    # accounting for dependent parameters, ie. degrees of freedom
+    # of the model which appear as groups in the design matrix
+    # and are not accounted for by parameters but which are
+    # accounted for by constraints:
+    # <X, <theta, H> = means -> <X, theta>, H> = means -> lstsqs for theta
+    # (This is faster and more accurate than using matrix inversion.)
     logger.debug(" ** Solve lstsq problem")
-    x_prime, rmsd, rank, s = np.linalg.lstsq(unique_design, params, rcond=None)
+    x_prime, rmsd, rank, s = np.linalg.lstsq(
+        np.matmul(unique_design, constraints),
+        params,
+        rcond=None
+    )
 
     return params, x_prime, rmsd, rank, s
 
