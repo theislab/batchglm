@@ -481,6 +481,8 @@ def build_equality_constraints_string(
     :param constraints: List of constraints as strings.
 
         E.g. ["batch1 + batch2 + batch3 = 0"]
+    :param dims: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
+        Define dimension names of xarray.
     :return: a constraint matrix
     """
     n_par_all = dmat.data_vars['design'].values.shape[1]

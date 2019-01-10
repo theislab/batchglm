@@ -107,7 +107,7 @@ class Test_AccuracyConstrained_VGLM_ALL(
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
