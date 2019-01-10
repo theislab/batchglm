@@ -1,7 +1,7 @@
 import abc
 from typing import Dict, Any, Union, List, Iterable
-
 import os
+import time
 import datetime
 
 import numpy as np
@@ -127,12 +127,19 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 return False
 
         while True:
+            t0 = time.time()
             train_step, global_loss, _ = self.session.run(
                 (self.model.global_step, loss, train_op),
                 feed_dict=feed_dict
             )
+            t1 = time.time()
 
-            tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
+            tf.logging.info(
+                "Step: \t%d\tloss: %f\t in %s sec",
+                train_step,
+                global_loss,
+                str(np.round(t1 - t0, 3))
+            )
 
             # update last_loss every N+1st step:
             if train_step % len(loss_hist) == 1:
@@ -205,12 +212,19 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
         if convergence_criteria == "step":
             train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
             while train_step < stopping_criteria:
+                t0 = time.time()
                 train_step, global_loss, _ = self.session.run(
                     (self.model.global_step, loss, train_op),
                     feed_dict=feed_dict
                 )
+                t1 = time.time()
 
-                tf.logging.info("Step: %d\tloss: %f", train_step, global_loss)
+                tf.logging.info(
+                    "Step: %d\tloss: %s",
+                    train_step,
+                    global_loss,
+                    str(np.round(t1 - t0, 3))
+                )
         elif convergence_criteria in ["all_converged_ll", "all_converged_theta"]:
             # Evaluate initial value of convergence metric:
             if convergence_criteria == "all_converged_theta":
@@ -222,6 +236,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
             while np.any(self.model.model_vars.converged == False):
                 # Update convergence metric reference:
+                t0 = time.time()
                 metric_prev = metric_current
                 train_step, global_loss, _ = self.session.run(
                     (self.model.global_step, loss, train_op),
@@ -244,12 +259,14 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     self.model.model_vars.converged,
                     metric_delta < stopping_criteria
                 )
+                t1 = time.time()
 
                 tf.logging.info(
-                    "Step: \t%d\t loss: %f\t models converged %i",
+                    "Step: \t%d\t loss: \t%f\t models converged \t%i\t in %s sec",
                     train_step,
                     global_loss,
-                    np.sum(self.model.model_vars.converged).astype("int32")
+                    np.sum(self.model.model_vars.converged).astype("int32"),
+                    str(np.round(t1 - t0, 3))
                 )
         else:
             self._train_to_convergence(

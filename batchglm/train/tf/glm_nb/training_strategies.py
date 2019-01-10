@@ -11,20 +11,6 @@ class TrainingStrategies(Enum):
             "optim_algo": "irls",
         },
     ]
-    QUICK = [
-        {
-            "convergence_criteria": "all_converged_ll",
-            "stopping_criteria": 1e-3,
-            "use_batching": True,
-            "optim_algo": "irls",
-        },
-        {
-            "convergence_criteria": "all_converged_ll",
-            "stopping_criteria": 1e-6,
-            "use_batching": False,
-            "optim_algo": "irls",
-        },
-    ]
     INEXACT = [
         {
             "convergence_criteria": "all_converged_ll",
@@ -37,6 +23,20 @@ class TrainingStrategies(Enum):
         {
             "convergence_criteria": "all_converged_ll",
             "stopping_criteria": 1e-8,
+            "use_batching": False,
+            "optim_algo": "irls",
+        },
+    ]
+    QUICK = [
+        {
+            "convergence_criteria": "all_converged_ll",
+            "stopping_criteria": 1e-3,
+            "use_batching": True,
+            "optim_algo": "irls",
+        },
+        {
+            "convergence_criteria": "all_converged_ll",
+            "stopping_criteria": 1e-6,
             "use_batching": False,
             "optim_algo": "irls",
         },
