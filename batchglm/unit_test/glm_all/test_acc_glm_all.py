@@ -28,7 +28,7 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             else:
                 raise ValueError("noise_model not recognized")
 
-        batch_size = 900
+        batch_size = 200
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
         estimator = Estimator(
             input_data=simulator.input_data,

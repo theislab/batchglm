@@ -1,4 +1,3 @@
-from enum import Enum
 import logging
 from typing import Union
 
@@ -10,6 +9,7 @@ from .external import data_utils
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
+from .training_strategies import TrainingStrategies
 
 logger = logging.getLogger(__name__)
 
@@ -19,33 +19,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
     """
-
-    class TrainingStrategy(Enum):
-        AUTO = None
-        DEFAULT = [
-            {
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-6,
-                "use_batching": False,
-                "optim_algo": "irls",
-            },
-        ]
-        QUICK = [
-            {
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-4,
-                "use_batching": False,
-                "optim_algo": "irls",
-            },
-        ]
-        EXACT = [
-            {
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-8,
-                "use_batching": False,
-                "optim_algo": "irls",
-            },
-        ]
 
     def __init__(
             self,
@@ -62,6 +35,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             extended_summary=False,
             dtype="float64",
     ):
+        self.TrainingStrategies = TrainingStrategies
         EstimatorAll.__init__(
             self=self,
             input_data=input_data,
