@@ -126,6 +126,15 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             else:
                 return False
 
+        # Report initialization:
+        global_loss = self.session.run(
+            (loss), feed_dict=feed_dict
+        )
+        tf.logging.info(
+            "Step: \t0\tloss: %f",
+            global_loss
+        )
+
         while True:
             t0 = time.time()
             train_step, global_loss, _ = self.session.run(
@@ -211,6 +220,16 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
         if convergence_criteria == "step":
             train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
+
+            # Report initialization:
+            global_loss = self.session.run(
+                (loss), feed_dict=feed_dict
+            )
+            tf.logging.info(
+                "Step: \t0\tloss: %s",
+                global_loss
+            )
+
             while train_step < stopping_criteria:
                 t0 = time.time()
                 train_step, global_loss, _ = self.session.run(
@@ -220,7 +239,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 t1 = time.time()
 
                 tf.logging.info(
-                    "Step: %d\tloss: %s",
+                    "Step: \t%d\tloss: %s",
                     train_step,
                     global_loss,
                     str(np.round(t1 - t0, 3))
@@ -233,6 +252,15 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
             else:
                 raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+
+            # Report initialization:
+            global_loss = self.session.run(
+                (loss), feed_dict=feed_dict
+            )
+            tf.logging.info(
+                "Step: \t0\t loss: \t%f\t models converged \t0",
+                global_loss
+            )
 
             while np.any(self.model.model_vars.converged == False):
                 # Update convergence metric reference:
