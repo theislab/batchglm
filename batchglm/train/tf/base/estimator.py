@@ -137,8 +137,12 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
         while True:
             t0 = time.time()
-            train_step, _, global_loss = self.session.run(
-                (self.model.global_step, train_op, loss),
+            train_step, _ = self.session.run(
+                (self.model.global_step, train_op),
+                feed_dict=feed_dict
+            )
+            global_loss = self.session.run(
+                (loss),
                 feed_dict=feed_dict
             )
             t1 = time.time()
@@ -232,8 +236,12 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
             while train_step < stopping_criteria:
                 t0 = time.time()
-                train_step, _, global_loss = self.session.run(
-                    (self.model.global_step, train_op, loss),
+                train_step, _ = self.session.run(
+                    (self.model.global_step, train_op),
+                    feed_dict=feed_dict
+                )
+                global_loss = self.session.run(
+                    (loss),
                     feed_dict=feed_dict
                 )
                 t1 = time.time()
@@ -266,8 +274,12 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 # Update convergence metric reference:
                 t0 = time.time()
                 metric_prev = metric_current
-                train_step, _, global_loss = self.session.run(
-                    (self.model.global_step, train_op, loss),
+                train_step, _ = self.session.run(
+                    (self.model.global_step, train_op),
+                    feed_dict=feed_dict
+                )
+                global_loss = self.session.run(
+                    (loss),
                     feed_dict=feed_dict
                 )
                 # Evaluate convergence metric:
