@@ -1,9 +1,11 @@
 import abc
 import logging
 from typing import Union
+import sys
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import xarray as xr
 
 try:
@@ -91,20 +93,25 @@ class GradientGraphGLM:
     The latter have to be distinguished as there are different jacobians
     and hessians for the full and the batched data.
     """
-    model_vars: tf.Tensor
-    full_data_model: tf.Tensor
-    batched_data_model: tf.Tensor
-    batch_jac: tf.Tensor
-
-    nr_update_full: Union[tf.Tensor, None]
-    nr_update_batched: Union[tf.Tensor, None]
+    model_vars: ModelVarsGLM
+    full_data_model: FullDataModelGraphGLM
+    batched_data_model: BatchedDataModelGraphGLM
 
     def __init__(
             self,
+            model_vars: ModelVarsGLM,
+            full_data_model: FullDataModelGraphGLM,
+            batched_data_model: BatchedDataModelGraphGLM,
             termination_type,
             train_loc,
             train_scale
     ):
+        self.gradients_full_raw = None
+        self.gradients_batch_raw = None
+        self.model_vars = model_vars
+        self.full_data_model = full_data_model
+        self.batched_data_model = batched_data_model
+
         if train_loc or train_scale:
             if termination_type == "by_feature":
                 logger.debug(" ** Build gradients for training graph: by_feature")
@@ -132,7 +139,7 @@ class GradientGraphGLM:
                         self.gradients_full_raw,
                         tf.zeros_like(self.model_vars.b_var)
                     ], axis=0)
-            elif train_scale:
+            else:
                 gradients_batch = tf.concat([
                     tf.zeros_like(self.model_vars.a_var),
                     self.gradients_batch_raw
@@ -149,6 +156,11 @@ class GradientGraphGLM:
             gradients_batch = tf.zeros_like(self.model_vars.params)
             gradients_full = tf.zeros_like(self.model_vars.params)
 
+        # Save attributes necessary for reinitialization:
+        self.train_loc = train_loc
+        self.train_scale = train_scale
+        self.termination_type = termination_type
+
         self.gradients_full = gradients_full
         self.gradients_batch = gradients_batch
 
@@ -159,7 +171,7 @@ class GradientGraphGLM:
             #             model_vars.params_by_gene[i])[0]
             tf.expand_dims(gradients_full_all[:, i], axis=-1)
             if not self.model_vars.converged[i]
-            else tf.zeros([param_grad_vec.shape[1], 1], dtype=dtype)
+            else tf.zeros([gradients_full_all.shape[1], 1], dtype=self.model_vars.params.dtype)
             for i in range(self.model_vars.n_features)
         ], axis=1)
 
@@ -172,7 +184,7 @@ class GradientGraphGLM:
             #             model_vars.params_by_gene[i])[0]
             tf.expand_dims(gradients_batch_all[:, i], axis=-1)
             if not self.model_vars.converged[i]
-            else tf.zeros([param_grad_vec.shape[1], 1], dtype=dtype)
+            else tf.zeros([gradients_batch_all.shape[1], 1], dtype=self.model_vars.params.dtype)
             for i in range(self.model_vars.n_features)
         ], axis=1)
 
@@ -203,8 +215,6 @@ class NewtonGraphGLM:
     model_vars: tf.Tensor
     full_data_model: tf.Tensor
     batched_data_model: tf.Tensor
-    batch_jac: tf.Tensor
-    batch_hessians: tf.Tensor
 
     nr_update_full: Union[tf.Tensor, None]
     nr_update_batched: Union[tf.Tensor, None]
@@ -266,7 +276,7 @@ class NewtonGraphGLM:
                         full_rhs=self.full_data_model.jac_train.neg_jac_b,
                         batched_rhs=self.batched_data_model.jac_train.neg_jac_b,
                         termination_type=termination_type,
-                        psd=True  # TODO proove
+                        psd=False
                     )
                 else:
                     irls_update_b_full = None
@@ -482,17 +492,19 @@ class TrainerGraphGLM:
 
     """
     model_vars: ModelVarsGLM
+    model_vars_eval: ModelVarsGLM
+
     full_data_model: FullDataModelGraphGLM
-    batched_data_model: BasicModelGraphGLM
+    batched_data_model: BatchedDataModelGraphGLM
+
+    gradient_graph: GradientGraphGLM
     gradients_batch: tf.Tensor
     gradients_full: tf.Tensor
+
     nr_update_full: tf.Tensor
     nr_update_batched: tf.Tensor
     irls_update_full: tf.Tensor
     irls_update_batched: tf.Tensor
-
-    gradient: tf.Tensor
-    full_gradient: tf.Tensor
 
     num_observations: int
     num_features: int
@@ -501,6 +513,41 @@ class TrainerGraphGLM:
     num_loc_params: int
     num_scale_params: int
     batch_size: int
+
+    session: tf.Session
+
+    class _FullDataModelGraphEval(FullDataModelGraphGLM):
+        pass
+
+    class _BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
+        pass
+
+    class _GradientGraphGLMEval(GradientGraphGLM):
+        def __init__(
+                self,
+                gradient_graph: GradientGraphGLM
+        ):
+            #self.full_data_model = full_data_model
+            #self.batched_data_model = batched_data_model
+            self.termination_type = gradient_graph.termination_type
+            self.train_loc = gradient_graph.train_loc
+            self.train_scale = gradient_graph.train_scale
+
+        def new(
+                self,
+                model_vars: ModelVarsGLM,
+                full_data_model: FullDataModelGraphGLM,
+                batched_data_model: BatchedDataModelGraphGLM
+        ):
+            GradientGraphGLM.__init__(
+                    self=self,
+                    model_vars=model_vars,
+                    full_data_model=full_data_model,
+                    batched_data_model=batched_data_model,
+                    termination_type=self.termination_type,
+                    train_loc=self.train_loc,
+                    train_scale=self.train_scale
+            )
 
     def __init__(
             self,
@@ -513,10 +560,22 @@ class TrainerGraphGLM:
             global_step = tf.train.get_or_create_global_step()
 
             # Create trainers that produce training operations.
+            full_data_model_eval = self._FullDataModelGraphEval(self.full_data_model)
+            batched_data_model_eval = self._BatchedDataModelGraphEval(self.batched_data_model)
+            gradient_graph_eval = self._GradientGraphGLMEval(
+                gradient_graph=self.gradient_graph
+                #full_data_model=full_data_model_eval,
+                #batched_data_model=batched_data_model_eval
+            )
+
             if train_loc or train_scale:
                 trainer_batch = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_batch,
+                    model_vars_eval=self.model_vars_eval,
+                    full_model_eval=full_data_model_eval,
+                    batched_model_eval=batched_data_model_eval,
+                    gradients_eval=gradient_graph_eval,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
                     learning_rate=self.learning_rate,
@@ -535,6 +594,10 @@ class TrainerGraphGLM:
                 trainer_full = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_full,
+                    model_vars_eval=self.model_vars_eval,
+                    full_model_eval=full_data_model_eval,
+                    batched_model_eval=batched_data_model_eval,
+                    gradients_eval=gradient_graph_eval,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
                     learning_rate=self.learning_rate,
@@ -579,7 +642,7 @@ class TrainerGraphGLM:
         pass
 
 
-class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM):
+class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
     """
     The estimator graphs are all graph necessary to perform parameter updates and to
     summarise a current parameter estimate.
@@ -594,7 +657,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
     a_var: tf.Tensor
     b_var: tf.Tensor
 
-    model_vars = ModelVarsGLM
+    model_vars: ModelVarsGLM
+    model_vars_eval: ModelVarsGLM
 
     noise_model: str
 
@@ -668,12 +732,17 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
             train_scale,
             dtype
     ):
-        GradientGraphGLM.__init__(
-            self=self,
+        self.gradient_graph = GradientGraphGLM(
+            model_vars=self.model_vars,
+            full_data_model=self.full_data_model,
+            batched_data_model=self.batched_data_model,
             termination_type=termination_type,
             train_loc=train_loc,
             train_scale=train_scale
         )
+        self.gradients_batch = self.gradient_graph.gradients_batch
+        self.gradients_full = self.gradient_graph.gradients_full
+
         NewtonGraphGLM.__init__(
             self=self,
             termination_type=termination_type,
@@ -681,6 +750,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, GradientGraphGLM, NewtonGraphGLM, Trai
             train_mu=train_loc,
             train_r=train_scale
         )
+
         TrainerGraphGLM.__init__(
             self=self,
             provide_optimizers=provide_optimizers,

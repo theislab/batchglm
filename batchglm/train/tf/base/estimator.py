@@ -259,7 +259,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             elif convergence_criteria == "all_converged_ll":
                 metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
             else:
-                raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+                raise ValueError("convergence_criteria %s not recgonized" % convergence_criteria)
 
             # Report initialization:
             global_loss = self.session.run(
@@ -292,13 +292,14 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
                     metric_delta = np.abs(metric_current - metric_prev)
                 else:
-                    raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+                    raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
                 # Update convergence status of non-converged features:
                 self.model.model_vars.converged = np.logical_or(
                     self.model.model_vars.converged,
                     metric_delta < stopping_criteria
                 )
+                self.model.model_vars_eval.converged = self.model.model_vars.converged
                 t1 = time.time()
 
                 tf.logging.info(

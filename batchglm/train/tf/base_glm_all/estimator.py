@@ -179,7 +179,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-        logger.debug(" * Building graph")
         with graph.as_default():
             # create model
             model = EstimatorGraph(
@@ -206,8 +205,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 dtype=dtype
             )
 
-        logger.debug(" * Initialize graph")
         MonitoredTFEstimator.__init__(self, model)
+        model.session = self.session
 
     def _scaffold(self):
         with self.model.graph.as_default():

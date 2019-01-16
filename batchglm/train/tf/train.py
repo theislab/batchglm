@@ -1,9 +1,9 @@
-from typing import Union, Dict, Callable, List
 import contextlib
 import logging
-
+import sys
 import time
 import threading
+from typing import Union, Dict, Callable, List
 
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -214,6 +214,7 @@ class StopAtLossHook(tf.train.SessionRunHook):
 
 
 class MultiTrainer:
+
     def __init__(
             self,
             learning_rate,
@@ -221,11 +222,16 @@ class MultiTrainer:
             variables: tf.Variable = None,
             gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
+            model_vars_eval = None,
+            full_model_eval = None,
+            batched_model_eval = None,
+            gradients_eval = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
             global_step=None,
             apply_train_ops: callable = None,
             provide_optimizers: Union[dict, None] = None,
+            session = None,
             name=None
     ):
         r"""
@@ -244,6 +250,7 @@ class MultiTrainer:
         :param apply_train_ops: callable which will be applied to all train ops
         :param name: optional name scope
         """
+        self.session = session
         with contextlib.ExitStack() as stack:
             if name is not None:
                 gs = stack.enter_context(tf.name_scope(name))
@@ -254,22 +261,22 @@ class MultiTrainer:
 
                 logger.debug(" **** Compute gradients using tensorflow")
                 plain_gradients = tf.gradients(loss, variables)
-                plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
+                plain_gradients_vars = [(g, v) for g, v in zip(plain_gradients_vars, variables)]
             else:
-                plain_gradients = [(gradients, variables)]
+                plain_gradients_vars = [(gradients, variables)]
 
             if callable(apply_gradients):
-                gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
+                gradients_vars = [(apply_gradients(g), v) for g, v in plain_gradients_vars]
             elif isinstance(apply_gradients, dict):
-                gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
+                gradients_vars = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients_vars]
             else:
-                gradients = plain_gradients
+                gradients_vars = plain_gradients_vars
 
             # Standard tensorflow optimizers.
             if provide_optimizers["gd"]:
                 logger.debug(" **** Building optimizer: GD")
                 optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-                train_op_GD = optim_GD.apply_gradients(gradients, global_step=global_step)
+                train_op_GD = optim_GD.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_GD = apply_train_ops(train_op_GD)
             else:
@@ -279,7 +286,7 @@ class MultiTrainer:
             if provide_optimizers["adam"]:
                 logger.debug(" **** Building optimizer: ADAM")
                 optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                train_op_Adam = optim_Adam.apply_gradients(gradients, global_step=global_step)
+                train_op_Adam = optim_Adam.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adam = apply_train_ops(train_op_Adam)
             else:
@@ -289,7 +296,7 @@ class MultiTrainer:
             if provide_optimizers["adagrad"]:
                 logger.debug(" **** Building optimizer: ADAGRAD")
                 optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
-                train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
+                train_op_Adagrad = optim_Adagrad.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adagrad = apply_train_ops(train_op_Adagrad)
             else:
@@ -299,7 +306,7 @@ class MultiTrainer:
             if provide_optimizers["rmsprop"]:
                 logger.debug(" **** Building optimizer: RMSPROP")
                 optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
-                train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
+                train_op_RMSProp = optim_RMSProp.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_RMSProp = apply_train_ops(train_op_RMSProp)
             else:
@@ -327,8 +334,47 @@ class MultiTrainer:
             # Custom optimizers.
             optim_nr = None
             if provide_optimizers["nr"] and newton_delta is not None:
-                logger.debug(" **** Building optimizer: NR")
-                theta_new_nr = variables - learning_rate * newton_delta
+                def value_and_gradients_function(x):
+                    # Compute parameters at proposed step length:
+                    theta_new = variables - x * newton_delta
+
+                    # Rebuild graph starting from injected parameter tensor:
+                    model_vars_eval.new(params=theta_new)
+                    full_model_eval.new(model_vars=model_vars_eval)
+                    batched_model_eval.new(model_vars=model_vars_eval)
+                    gradients_eval.new(
+                        model_vars=model_vars_eval,
+                        full_data_model=full_model_eval,
+                        batched_data_model=batched_model_eval
+                    )
+
+                    loss = full_model_eval.loss
+                    gradient = tf.reduce_sum(tf.matmul(
+                        tf.negative(tf.transpose(gradients_eval.gradients_full)),  # TODO full?
+                        newton_delta
+                    ))
+
+                    #loss = tf_print(loss, [loss], message="loss: ")
+                    return loss, gradient
+
+                a_nr = tf.cast(tfp.optimizer.linesearch.hager_zhang(
+                    value_and_gradients_function=value_and_gradients_function,
+                    initial_step_size=tf.constant(1, dtype=variables.dtype),  # quadratic approximation
+                    objective_at_zero=None,
+                    grad_objective_at_zero=None,
+                    objective_at_initial_step_size=None,
+                    grad_objective_at_initial_step_size=None,
+                    threshold_use_approximate_wolfe_condition=1e-06,
+                    shrinkage_param=0.66,
+                    expansion_param=5.0,
+                    sufficient_decrease_param=0.1,
+                    curvature_param=0.9,
+                    step_size_shrink_param=0.1,
+                    max_iterations=50
+                ).left_pt, dtype=newton_delta.dtype)
+                logger.debug("a: ", a_nr)
+                #a_nr = tf_print(a_nr, [a_nr], message="a_nr: ")
+                theta_new_nr = variables - a_nr * newton_delta
                 train_op_nr = tf.group(
                     tf.assign(variables, theta_new_nr),
                     tf.assign_add(global_step, 1)
@@ -340,7 +386,6 @@ class MultiTrainer:
 
             optim_irls = None
             if provide_optimizers["irls"] and irls_delta is not None:
-                logger.debug(" **** Building optimizer: IRLS")
                 theta_new_irls = variables - learning_rate * irls_delta
                 train_op_irls = tf.group(
                     tf.assign(variables, theta_new_irls),
@@ -352,8 +397,8 @@ class MultiTrainer:
                 train_op_irls = None
 
             self.global_step = global_step
-            self.plain_gradients = plain_gradients
-            self.gradients = gradients
+            self.plain_gradients = plain_gradients_vars
+            self.gradients = gradients_vars
 
             self.optim_GD = optim_GD
             self.optim_Adam = optim_Adam
@@ -370,6 +415,7 @@ class MultiTrainer:
             self.train_op_nr = train_op_nr
             self.train_op_irls = train_op_irls
             #self.train_op_bfgs = train_op_bfgs
+
 
     def train_op_by_name(self, name: str):
         """
@@ -440,3 +486,13 @@ class MultiTrainer:
             if v is variable:
                 return g
         return None
+
+def tf_print(op, tensors, message=None):
+    def print_message(x):
+        sys.stdout.write(message + " %s\n" % x)
+        return x
+
+    prints = [tf.py_func(print_message, [tensor], tensor.dtype) for tensor in tensors]
+    with tf.control_dependencies(prints):
+        op = tf.identity(op)
+    return op

@@ -100,7 +100,7 @@ class Test_Accuracy_GLM_ALL(
             train_loc,
             train_scale
     ):
-        algos = ["ADAM", "ADAGRAD", "NR", "IRLS"]
+        algos = ["NR"]  # ["ADAM", "ADAGRAD", "NR", "IRLS"]
         estimator = _Test_Accuracy_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
@@ -163,8 +163,8 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
 
         self.noise_model = "nb"
