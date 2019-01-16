@@ -126,6 +126,13 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 logger.debug("Using standard initialization for mean")
                 logger.debug("Should train mu: %s", self._train_loc)
 
+            elif init_a.lower() == "all_zero":
+                init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features])
+                self._train_loc = True
+
+                logger.debug("Using all_zero initialization for mean")
+                logger.debug("Should train mu: %s", self._train_loc)
+
         if isinstance(init_b, str):
             if init_b.lower() == "auto":
                 init_b = "closed_form"
@@ -152,7 +159,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     logger.info("Should train r: %s", self._train_scale)
                 except np.linalg.LinAlgError:
                     logger.warning("Closed form initialization failed!")
-            elif init_b.lower() == "standard":
+            elif init_b.lower() == "standard" or init_b.lower() == "all_zero":
                 init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]])
 
                 logger.info("Using standard initialization for dispersion")

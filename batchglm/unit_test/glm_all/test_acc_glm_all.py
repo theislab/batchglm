@@ -36,7 +36,9 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            termination_type=termination
+            termination_type=termination,
+            init_a="all_zero",
+            init_b="all_zero"
         )
         super().__init__(
             estimator=estimator,
