@@ -37,8 +37,8 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
             termination_type=termination,
-            init_a="all_zero",
-            init_b="all_zero"
+            init_a="standard",
+            init_b="standard"
         )
         super().__init__(
             estimator=estimator,
@@ -103,7 +103,7 @@ class Test_Accuracy_GLM_ALL(
             train_loc,
             train_scale
     ):
-        algos = ["NR_TR"]  # ["ADAM", "ADAGRAD", "NR", "NR_TR", "IRLS"]
+        algos = ["NR_TR"]  # ["ADAM", "ADAGRAD", "NR", "NR_TR", "IRLS", "IRLS_TR"]
         estimator = _Test_Accuracy_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
@@ -174,8 +174,8 @@ class Test_Accuracy_GLM_NB(
         self._test_full_byfeature()
 
     def test_batched_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_batched_byfeature_nb()")
 
         self.noise_model = "nb"
