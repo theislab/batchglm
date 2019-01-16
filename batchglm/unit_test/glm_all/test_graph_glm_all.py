@@ -30,7 +30,8 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
                 raise ValueError("noise_model not recognized")
 
         batch_size = 100
-        provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": False, "irls": False}
+        provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
+                              "nr": False, "nr_ls": False, "nr_tr": False, "irls": False}
         provide_optimizers[algo.lower()] = True
 
         estimator = Estimator(
@@ -119,7 +120,7 @@ class Test_Graph_GLM_ALL(
             train_loc,
             train_scale
     ):
-        algos = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "IRLS"]
+        algos = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR", "IRLS"]
         self._basic_test(
             batched=batched,
             termination=termination,

@@ -23,3 +23,11 @@ TF_CONFIG_PROTO.intra_op_parallelism_threads = TF_NUM_THREADS
 
 if TF_NUM_THREADS == 0:
     TF_NUM_THREADS = multiprocessing.cpu_count()
+
+# Trust region hyper parameters:
+TRUST_REGION_ETA0 = 0
+TRUST_REGION_ETA1 = 0.25
+TRUST_REGION_ETA2 = 0.75
+TRUST_REGION_T1 = 0.25
+TRUST_REGION_T2 = 2
+TRUST_REGION_UPPER_BOUND = 10

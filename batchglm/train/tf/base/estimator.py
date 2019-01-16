@@ -266,7 +266,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 (loss), feed_dict=feed_dict
             )
             tf.logging.info(
-                "Step: \t0\t loss: \t%f\t models converged \t0",
+                "Step: \t0\t loss: %f\t models converged \t0",
                 global_loss
             )
 
@@ -295,19 +295,21 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
                 # Update convergence status of non-converged features:
+                features_updated = self.session.run(self.model.model_vars.updated)
                 self.model.model_vars.converged = np.logical_or(
                     self.model.model_vars.converged,
-                    metric_delta < stopping_criteria
+                    np.logical_and(metric_delta < stopping_criteria, features_updated)
                 )
                 self.model.model_vars_eval.converged = self.model.model_vars.converged
                 t1 = time.time()
 
                 tf.logging.info(
-                    "Step: \t%d\t loss: \t%f\t models converged \t%i\t in %s sec",
+                    "Step: \t%d\t loss: %f\t models converged \t%i\t in %s\t sec., models updated %i",
                     train_step,
                     global_loss,
                     np.sum(self.model.model_vars.converged).astype("int32"),
-                    str(np.round(t1 - t0, 3))
+                    str(np.round(t1 - t0, 3)),
+                    int(np.sum(np.logical_and(features_updated, self.model.model_vars.converged == False)))
                 )
         else:
             self._train_to_convergence(
