@@ -127,9 +127,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 return False
 
         # Report initialization:
-        global_loss = self.session.run(
-            (loss), feed_dict=feed_dict
-        )
+        global_loss = self.session.run(self.model.loss)
         tf.logging.info(
             "Step: \t0\tloss: %f",
             global_loss
@@ -141,10 +139,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 (self.model.global_step, train_op),
                 feed_dict=feed_dict
             )
-            global_loss = self.session.run(
-                (loss),
-                feed_dict=feed_dict
-            )
+            global_loss = self.session.run(self.model.loss)
             t1 = time.time()
 
             tf.logging.info(
@@ -226,9 +221,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
 
             # Report initialization:
-            global_loss = self.session.run(
-                (loss), feed_dict=feed_dict
-            )
+            global_loss = self.session.run(self.model.loss)
             tf.logging.info(
                 "Step: \t0\tloss: %s",
                 global_loss
@@ -262,9 +255,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 raise ValueError("convergence_criteria %s not recgonized" % convergence_criteria)
 
             # Report initialization:
-            global_loss = self.session.run(
-                (loss), feed_dict=feed_dict
-            )
+            global_loss = self.session.run(self.model.loss)
             tf.logging.info(
                 "Step: \t0\t loss: %f\t models converged \t0",
                 global_loss
@@ -278,10 +269,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     (self.model.global_step, train_op),
                     feed_dict=feed_dict
                 )
-                global_loss = self.session.run(
-                    (loss),
-                    feed_dict=feed_dict
-                )
+                global_loss = self.session.run(self.model.loss)
                 # Evaluate convergence metric:
                 if convergence_criteria == "all_converged_theta":
                     metric_current = self.session.run(self.model.model_vars.params)
