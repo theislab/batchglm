@@ -228,7 +228,6 @@ class MultiTrainer:
             model_ll=None,
             model_vars_eval = None,
             model_eval = None,
-            gradients_eval = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
             newton_tr_delta: tf.Tensor = None,

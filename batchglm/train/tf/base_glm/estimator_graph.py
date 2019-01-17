@@ -687,6 +687,10 @@ class TrainerGraphGLM:
     nr_tr_pred_cost_gain_full: Union[tf.Tensor, None]
     nr_tr_pred_cost_gain_batched: Union[tf.Tensor, None]
 
+    irls_tr_radius: Union[tf.Variable, None]
+    irls_tr_pred_cost_gain_full: Union[tf.Tensor, None]
+    irls_tr_pred_cost_gain_batched: Union[tf.Tensor, None]
+
     num_observations: int
     num_features: int
     num_design_loc_params: int
@@ -740,7 +744,6 @@ class TrainerGraphGLM:
 
             # Create trainers that produce training operations.
             full_data_model_eval = self._FullDataModelGraphEval(self.full_data_model)
-            gradient_graph_eval = self._GradientGraphGLMEval(gradient_graph=self.gradient_graph)
 
             if train_loc or train_scale:
                 trainer_batch = train_utils.MultiTrainer(
@@ -750,7 +753,6 @@ class TrainerGraphGLM:
                     model_ll=self.full_data_model.norm_log_likelihood,
                     model_vars_eval=self.model_vars_eval,
                     model_eval=full_data_model_eval,
-                    gradients_eval=gradient_graph_eval,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
                     newton_tr_delta=self.nr_tr_update_batched,
@@ -779,7 +781,6 @@ class TrainerGraphGLM:
                     model_ll=self.full_data_model.norm_log_likelihood,
                     model_vars_eval=self.model_vars_eval,
                     model_eval=full_data_model_eval,
-                    gradients_eval=gradient_graph_eval,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
                     newton_tr_delta=self.nr_tr_update_full,
