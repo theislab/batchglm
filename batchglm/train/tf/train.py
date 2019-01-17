@@ -270,7 +270,7 @@ class MultiTrainer:
 
                 logger.debug(" **** Compute gradients using tensorflow")
                 plain_gradients = tf.gradients(loss, variables)
-                plain_gradients_vars = [(g, v) for g, v in zip(plain_gradients_vars, variables)]
+                plain_gradients_vars = [(g, v) for g, v in zip(plain_gradients, variables)]
             else:
                 plain_gradients_vars = [(gradients, variables)]
 
