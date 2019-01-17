@@ -372,7 +372,6 @@ class MultiTrainer:
                 delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
                 delta_f_pred = nr_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
-                #delta_f_ratio = tf_print(delta_f_ratio, [delta_f_ratio], message="delta_f_ratio: ")
 
                 # Include parameter updates only if update improves cost function:
                 update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
@@ -425,7 +424,6 @@ class MultiTrainer:
             #            tf.negative(tf.transpose(gradients_eval.gradients_full)),  # TODO full?
             #            newton_delta
             #        ))
-            #        #loss = tf_print(loss, [loss], message="loss: ")
             #        return loss, gradient
             #    a_nr = tf.cast(tfp.optimizer.linesearch.hager_zhang(
             #        value_and_gradients_function=value_and_gradients_function,
@@ -443,7 +441,6 @@ class MultiTrainer:
             #        max_iterations=50
             #    ).left_pt, dtype=newton_delta.dtype)
             #    logger.debug("a: ", a_nr)
-            #    #a_nr = tf_print(a_nr, [a_nr], message="a_nr: ")
             #    theta_new_nr_ls = variables - a_nr * newton_delta
             #    train_op_nr_ls = tf.group(
             #        tf.assign(variables, theta_new_nr_ls),
@@ -486,7 +483,6 @@ class MultiTrainer:
                 delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
                 delta_f_pred = irls_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
-                #delta_f_ratio = tf_print(delta_f_ratio, [delta_f_ratio], message="delta_f_ratio: ")
 
                 # Include parameter updates only if update improves cost function:
                 update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
@@ -628,13 +624,3 @@ class MultiTrainer:
             if v is variable:
                 return g
         return None
-
-def tf_print(op, tensors, message=None):
-    def print_message(x):
-        sys.stdout.write(message + " %s\n" % x)
-        return x
-
-    prints = [tf.py_func(print_message, [tensor], tensor.dtype) for tensor in tensors]
-    with tf.control_dependencies(prints):
-        op = tf.identity(op)
-    return op
