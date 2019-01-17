@@ -130,14 +130,21 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            X_tensor = tf.py_func(
+            X_tensor, X_shape, X_issparse = tf.py_func(
                 func=input_data.fetch_X,
                 inp=[idx],
                 Tout=input_data.X.dtype,
                 stateful=False
             )
-            X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
-            X_tensor = tf.cast(X_tensor, dtype=dtype)
+            if X_issparse:
+                X_tensor = tf.SparseTensor(
+                    indices=np.cast(X_tensor[:,:2], dtype=np.int64),
+                    values=X_tensor[:,2],
+                    dense_shape=X_shape
+                )
+            else:
+                X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
+                X_tensor = tf.cast(X_tensor, dtype=dtype)
 
             design_loc_tensor = tf.py_func(
                 func=input_data.fetch_design_loc,

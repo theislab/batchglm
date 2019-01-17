@@ -86,6 +86,10 @@ class ModelVarsGLM(ProcessModelGLM):
             axis=0
         ), name="params")
 
+        # Feature batching code for future:
+        #idx_featurebatch = tf.random_uniform([100], minval=0, maxval=self.params.shape[1]-1, dtype=tf.int32)
+        #params_featurebatch = tf.gather(self.params, indi [:,idx_featurebatch]
+
         #params_by_gene = [tf.expand_dims(params[:, i], axis=-1) for i in range(params.shape[1])]
         #a_by_gene = [x[0:init_a.shape[0],:] for x in params_by_gene]
         #b_by_gene = [x[init_a.shape[0]:, :] for x in params_by_gene]
@@ -115,6 +119,7 @@ class ModelVarsGLM(ProcessModelGLM):
     @abc.abstractmethod
     def param_bounds(self, dtype):
         pass
+
 
 class ModelVarsEvalGLM(ProcessModelGLM):
 

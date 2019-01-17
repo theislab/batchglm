@@ -22,26 +22,27 @@ logger = logging.getLogger(__name__)
 
 
 def _sparse_to_xarray(data, dims):
-    num_observations, num_features = data.shape
+    #num_observations, num_features = data.shape
 
-    def fetch_X(idx):
-        idx = np.asarray(idx).reshape(-1)
-        retval = data[idx].toarray()
+    #def fetch_X(idx):
+    #    idx = np.asarray(idx).reshape(-1)
+    #    retval = data[idx].toarray()
+    #
+    #    if idx.size == 1:
+    #        retval = np.squeeze(retval, axis=0)
+    #
+    #    return retval.astype(np.float32)
+    #
+    #delayed_fetch = dask.delayed(fetch_X, pure=True)
+    #X = [
+    #    dask.array.from_delayed(
+    #        delayed_fetch(idx),
+    #        shape=(num_features,),
+    #        dtype=np.float32
+    #    ) for idx in range(num_observations)
+    #]
 
-        if idx.size == 1:
-            retval = np.squeeze(retval, axis=0)
-
-        return retval.astype(np.float32)
-
-    delayed_fetch = dask.delayed(fetch_X, pure=True)
-    X = [
-        dask.array.from_delayed(
-            delayed_fetch(idx),
-            shape=(num_features,),
-            dtype=np.float32
-        ) for idx in range(num_observations)
-    ]
-    X = xr.DataArray(dask.array.stack(X), dims=dims)
+    X = data
 
     # currently broken:
     # X = data.X
@@ -55,7 +56,7 @@ def _sparse_to_xarray(data, dims):
 def xarray_from_data(
         data: Union[anndata.AnnData, xr.DataArray, xr.Dataset, np.ndarray],
         dims: Union[Tuple, List] = ("observations", "features")
-) -> xr.DataArray:
+):
     """
     Parse any array-like object, xr.DataArray, xr.Dataset or anndata.Anndata and return a xarray containing
     the observations.

@@ -258,7 +258,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             # Report initialization:
             global_loss = self.session.run(self.model.loss)
             tf.logging.info(
-                "Step: \t0\t loss: %f\t models converged \t0",
+                "Step: \t0\t loss: %f\t models converged 0",
                 global_loss
             )
 
@@ -305,7 +305,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 t1 = time.time()
 
                 tf.logging.info(
-                    "Step: %d\t\t loss: %f\t models converged %i\t in %s sec., models updated %i",
+                    "Step: \t%d\t loss: %f\t models converged %i\t in %s sec., models updated %i",
                     train_step,
                     global_loss,
                     np.sum(self.model.model_vars.converged).astype("int32"),

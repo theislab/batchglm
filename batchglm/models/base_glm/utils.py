@@ -12,6 +12,7 @@ import patsy
 
 from .external import groupwise_solve_lm
 from .external import weighted_mean, weighted_variance
+from .external import SparseXArrayDataArray
 
 
 def parse_design(
@@ -126,14 +127,28 @@ def closedform_glm_mean(
     :return: tuple: (groupwise_means, mu, rmsd)
     """
     if size_factors is not None:
-        X = np.divide(X, size_factors)
+        if isinstance(X, SparseXArrayDataArray):
+            X.X = np.divide(X.X, size_factors)
+        else:
+            X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
+        if isinstance(X, SparseXArrayDataArray):
+            X.assign_coords((("group", grouping)))
+            X.groupby("group")
+        else:
+            grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
 
         if weights is None:
-            groupwise_means = grouped_data.mean(X.dims[0]).values
+            if isinstance(X, SparseXArrayDataArray):
+                groupwise_means = X.group_means()
+                print(groupwise_means)
+            else:
+                groupwise_means = grouped_data.mean(X.dims[0]).values
         else:
+            if isinstance(X, SparseXArrayDataArray):
+                assert False, "not implemented"
+
             grouped_weights = xr.DataArray(
                 data=weights,
                 dims=(X.dims[0],),

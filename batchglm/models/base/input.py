@@ -1,7 +1,11 @@
 import abc
 import os
 import logging
+from typing import Union
 
+import numpy as np
+import scipy
+import scipy.sparse
 import xarray as xr
 
 try:
@@ -17,11 +21,96 @@ INPUT_DATA_PARAMS = {
     "X": ("observations", "features"),
 }
 
+
+class SparseXArrayDataArray:
+    def __init__(
+            self,
+            X,
+            feature_names,
+            obs_names,
+            dims=("observations", "features")
+    ):
+        if feature_names is None:
+            feature_names = ["feature_" + str(i) for i in range(X.shape[1])]
+        if obs_names is None:
+            obs_names = ["obs_" + str(i) for i in range(X.shape[0])]
+
+        self.X = X
+        self.dim_names = dims
+        self.dims = {
+            dims[0]: len(obs_names),
+            dims[1]: len(feature_names)
+        }
+        self.coords = {
+            dims[0]: obs_names,
+            dims[1]: feature_names,
+            "feature_allzero": X.sum(axis=0) == 0,
+            "size_factors": np.ones([X.shape[0]])
+        }
+
+    def assign_coords(self, coords):
+        for x in coords:
+            self.coords.update({coords[0]: coords[1]})
+
+    def groupby(self, key):
+        grouping = self.coords[key]
+        groups = np.unique(self.coords[key]).tolist()
+        self.groups = np.arange(0, len(groups))
+        self.grouping = np.array([groups.index(x) for x in grouping])
+
+    def group_means(self):
+        group_means = np.hstack([self.X[np.where(self.grouping == x)[0], :].mean(axis=0) for x in self.groups])
+        print("flag")
+        print(self.X[np.where(self.grouping == 0)[0]])
+        print("flag")
+        means = self.X[np.where(self.grouping == 0)[0],:].mean(axis=0)
+        print(means)
+        print("flag")
+        print(np.where(self.grouping == 0)[0])
+        return group_means
+
+
+class SparseXArrayDataSet:
+    """
+    Behaves like xarray but carries a scipy.sparse.csr_array.
+
+    Importantly, data.X can be still be efficiently row sliced.
+    """
+
+    def __init__(
+            self,
+            X,
+            feature_names,
+            obs_names,
+            dims=("observations", "features")
+    ):
+        self.X = SparseXArrayDataArray(
+            X=X,
+            feature_names=feature_names,
+            obs_names=obs_names,
+            dims=dims
+        )
+
+    @property
+    def dims(self):
+        return self.X.dims
+
+    @property
+    def coords(self):
+        return self.X.coords
+
+    def __getitem__(self, key):
+        return self.__getattribute__(key)
+
+    def __setitem__(self, key, value):
+        self.__setattr__(key, value)
+
+
 class _InputData_Base:
     """
     Base class for all input data types.
     """
-    data: xr.Dataset
+    data: Union[xr.Dataset, SparseXArrayDataSet]
 
     @classmethod
     @abc.abstractmethod
@@ -57,20 +146,27 @@ class _InputData_Base:
             X = X.astype(cast_dtype)
             # X = X.chunk({"observations": 1})
 
-        retval = cls(xr.Dataset({
-            "X": X,
-        }, coords={
-            "feature_allzero": ~X.any(dim="observations")
-        }))
-        if observation_names is not None:
-            retval.observations = observation_names
-        elif "observations" not in retval.data.coords:
-            retval.observations = retval.data.coords["observations"]
+        if scipy.sparse.issparse(X):
+            retval = cls(SparseXArrayDataSet(
+                    X=X,
+                    feature_names=feature_names,
+                    obs_names=observation_names
+            ))
+        else:
+            retval = cls(xr.Dataset({
+                "X": X,
+            }, coords={
+                "feature_allzero": ~X.any(dim="observations")
+            }))
+            if observation_names is not None:
+                retval.observations = observation_names
+            elif "observations" not in retval.data.coords:
+                retval.observations = retval.data.coords["observations"]
 
-        if feature_names is not None:
-            retval.features = feature_names
-        elif "features" not in retval.data.coords:
-            retval.features = retval.data.coords["features"]
+            if feature_names is not None:
+                retval.features = feature_names
+            elif "features" not in retval.data.coords:
+                retval.features = retval.data.coords["features"]
 
         return retval
 
@@ -117,7 +213,7 @@ class _InputData_Base:
         )
 
     @property
-    def X(self) -> xr.DataArray:
+    def X(self):
         return self.data.X
 
     @X.setter
@@ -157,7 +253,19 @@ class _InputData_Base:
         return self.data.coords["feature_allzero"]
 
     def fetch_X(self, idx):
-        return self.X[idx].values
+        data_idx = X[idx]
+        #return self.X[idx].values
+        if scipy.sparse.issparse(self.X):
+            data_idx_sparse = np.vstack([
+                data_idx.indptr,
+                data_idx.indices,
+                data_idx.data
+            ])
+            if idx.size == 1:
+                data_idx_sparse = np.squeeze(data_idx_sparse, axis=0)
+            return data_idx_sparse, data_idx.shape, True
+        else:
+            return data_idx.values, data_idx.shape, False
 
     def set_chunk_size(self, cs: int):
         self.X = self.X.chunk({"observations": cs})
