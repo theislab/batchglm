@@ -228,8 +228,6 @@ class MultiTrainer:
             model_ll=None,
             model_vars_eval = None,
             model_eval = None,
-            full_model_eval = None,
-            batched_model_eval = None,
             gradients_eval = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
@@ -410,56 +408,52 @@ class MultiTrainer:
             else:
                 train_op_nr_tr = None
 
-            if provide_optimizers["nr_ls"] and newton_delta is not None:
-                def value_and_gradients_function(x):
-                    # Compute parameters at proposed step length:
-                    theta_new = variables - x * newton_delta
-
-                    # Rebuild graph starting from injected parameter tensor:
-                    model_vars_eval.new(params=theta_new)
-                    full_model_eval.new(model_vars=model_vars_eval)
-                    batched_model_eval.new(model_vars=model_vars_eval)
-                    gradients_eval.new(
-                        model_vars=model_vars_eval,
-                        full_data_model=full_model_eval,
-                        batched_data_model=batched_model_eval
-                    )
-
-                    loss = full_model_eval.loss
-                    gradient = tf.reduce_sum(tf.matmul(
-                        tf.negative(tf.transpose(gradients_eval.gradients_full)),  # TODO full?
-                        newton_delta
-                    ))
-
-                    #loss = tf_print(loss, [loss], message="loss: ")
-                    return loss, gradient
-
-                a_nr = tf.cast(tfp.optimizer.linesearch.hager_zhang(
-                    value_and_gradients_function=value_and_gradients_function,
-                    initial_step_size=tf.constant(1, dtype=variables.dtype),  # quadratic approximation
-                    objective_at_zero=None,
-                    grad_objective_at_zero=None,
-                    objective_at_initial_step_size=None,
-                    grad_objective_at_initial_step_size=None,
-                    threshold_use_approximate_wolfe_condition=1e-06,
-                    shrinkage_param=0.66,
-                    expansion_param=5.0,
-                    sufficient_decrease_param=0.1,
-                    curvature_param=0.9,
-                    step_size_shrink_param=0.1,
-                    max_iterations=50
-                ).left_pt, dtype=newton_delta.dtype)
-                logger.debug("a: ", a_nr)
-                #a_nr = tf_print(a_nr, [a_nr], message="a_nr: ")
-                theta_new_nr_ls = variables - a_nr * newton_delta
-                train_op_nr_ls = tf.group(
-                    tf.assign(variables, theta_new_nr_ls),
-                    tf.assign_add(global_step, 1)
-                )
-                if apply_train_ops is not None:
-                    train_op_nr_ls = apply_train_ops(train_op_nr_ls)
-            else:
-                train_op_nr_ls = None
+            #if provide_optimizers["nr_ls"] and newton_delta is not None:
+            #    def value_and_gradients_function(x):
+            #        # Compute parameters at proposed step length:
+            #        theta_new = variables - x * newton_delta
+            #        # Rebuild graph starting from injected parameter tensor:
+            #        model_vars_eval.new(params=theta_new)
+            #        full_model_eval.new(model_vars=model_vars_eval)
+            #        batched_model_eval.new(model_vars=model_vars_eval)
+            #        gradients_eval.new(
+            #            model_vars=model_vars_eval,
+            #            full_data_model=full_model_eval,
+            #            batched_data_model=batched_model_eval
+            #        )
+            #        loss = full_model_eval.loss
+            #        gradient = tf.reduce_sum(tf.matmul(
+            #            tf.negative(tf.transpose(gradients_eval.gradients_full)),  # TODO full?
+            #            newton_delta
+            #        ))
+            #        #loss = tf_print(loss, [loss], message="loss: ")
+            #        return loss, gradient
+            #    a_nr = tf.cast(tfp.optimizer.linesearch.hager_zhang(
+            #        value_and_gradients_function=value_and_gradients_function,
+            #        initial_step_size=tf.constant(1, dtype=variables.dtype),  # quadratic approximation
+            #        objective_at_zero=None,
+            #        grad_objective_at_zero=None,
+            #        objective_at_initial_step_size=None,
+            #        grad_objective_at_initial_step_size=None,
+            #        threshold_use_approximate_wolfe_condition=1e-06,
+            #        shrinkage_param=0.66,
+            #        expansion_param=5.0,
+            #        sufficient_decrease_param=0.1,
+            #        curvature_param=0.9,
+            #        step_size_shrink_param=0.1,
+            #        max_iterations=50
+            #    ).left_pt, dtype=newton_delta.dtype)
+            #    logger.debug("a: ", a_nr)
+            #    #a_nr = tf_print(a_nr, [a_nr], message="a_nr: ")
+            #    theta_new_nr_ls = variables - a_nr * newton_delta
+            #    train_op_nr_ls = tf.group(
+            #        tf.assign(variables, theta_new_nr_ls),
+            #        tf.assign_add(global_step, 1)
+            #    )
+            #    if apply_train_ops is not None:
+            #        train_op_nr_ls = apply_train_ops(train_op_nr_ls)
+            #else:
+            #    train_op_nr_ls = None
 
             if provide_optimizers["irls"] and irls_delta is not None:
                 theta_new_irls = variables - learning_rate * irls_delta
@@ -491,7 +485,7 @@ class MultiTrainer:
                 ll_eval = model_eval.norm_log_likelihood
                 ## Check deviation between predicted and observed loss:
                 delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
-                delta_f_pred = nr_tr_pred_cost_gain
+                delta_f_pred = irls_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
                 #delta_f_ratio = tf_print(delta_f_ratio, [delta_f_ratio], message="delta_f_ratio: ")
 
@@ -542,9 +536,9 @@ class MultiTrainer:
             self.train_op_Adagrad = train_op_Adagrad
             self.train_op_RMSProp = train_op_RMSProp
             self.train_op_nr = train_op_nr
-            self.train_op_nr_ls = train_op_nr_ls
             self.train_op_nr_tr = train_op_nr_tr
             self.train_op_irls = train_op_irls
+            self.train_op_irls_tr = train_op_irls_tr
             #self.train_op_bfgs = train_op_bfgs
 
 

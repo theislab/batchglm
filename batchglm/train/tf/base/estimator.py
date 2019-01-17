@@ -309,7 +309,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     global_loss,
                     np.sum(self.model.model_vars.converged).astype("int32"),
                     str(np.round(t1 - t0, 3)),
-                    int(np.sum(np.logical_and(features_updated, self.model.model_vars.converged == False)))
+                    np.sum(np.logical_and(features_updated, self.model.model_vars.converged == False)).astype("int32")
                 )
         else:
             self._train_to_convergence(

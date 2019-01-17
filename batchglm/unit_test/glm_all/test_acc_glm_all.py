@@ -30,7 +30,7 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
 
         batch_size = 200
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_ls": False, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
         estimator = Estimator(
             input_data=simulator.input_data,
             batch_size=batch_size,
@@ -103,7 +103,7 @@ class Test_Accuracy_GLM_ALL(
             train_loc,
             train_scale
     ):
-        algos = ["NR_TR"]  # ["ADAM", "ADAGRAD", "NR", "NR_TR", "IRLS", "IRLS_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_TR"]
         estimator = _Test_Accuracy_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
@@ -166,7 +166,7 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
 
@@ -174,7 +174,7 @@ class Test_Accuracy_GLM_NB(
         self._test_full_byfeature()
 
     def test_batched_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_batched_byfeature_nb()")
 

@@ -271,17 +271,17 @@ class NewtonGraphGLM:
                     tf.diag(nr_tr_radius[i] * tf.diag_part(self.full_data_model.hessians_train.neg_hessian[i,:,:]))
                     for i in range(nr_tr_radius.shape[0])
                 ])
-                B_full = self.full_data_model.hessians_train.neg_hessian + trust_region_diagonal_full
+                nr_B_full = self.full_data_model.hessians_train.neg_hessian + trust_region_diagonal_full
 
                 trust_region_diagonal_batched = tf.stack([
                     tf.diag(nr_tr_radius[i] * tf.diag_part(self.batched_data_model.hessians_train.neg_hessian[i, :, :]))
                     for i in range(nr_tr_radius.shape[0])
                 ])
-                B_batched = self.batched_data_model.hessians_train.neg_hessian + trust_region_diagonal_batched
+                nr_B_batched = self.batched_data_model.hessians_train.neg_hessian + trust_region_diagonal_batched
 
                 nr_tr_update_full_raw, nr_tr_update_batched_raw = self.build_updates(
-                    full_lhs=B_full,
-                    batched_lhs=B_batched,
+                    full_lhs=nr_B_full,
+                    batched_lhs=nr_B_batched,
                     full_rhs=self.full_data_model.jac_train.neg_jac,
                     batched_rhs=self.batched_data_model.jac_train.neg_jac,
                     termination_type=termination_type,
@@ -295,31 +295,31 @@ class NewtonGraphGLM:
                 )
 
                 n_obs = tf.cast(self.batched_data_model.X.shape[0], dtype=dtype)
-                proposed_vector_full = tf.multiply(nr_tr_radius, nr_tr_update_full_raw)
+                nr_tr_proposed_vector_full = tf.multiply(nr_tr_radius, nr_tr_update_full_raw)
                 nr_tr_pred_cost_gain_full = tf.add(
                     tf.einsum(
                         'ni,in->n',
                         self.full_data_model.jac_train.neg_jac,
-                        proposed_vector_full
+                        nr_tr_proposed_vector_full
                     ),
                     0.5 * tf.einsum(
                         'nix,inx->n',
-                        tf.einsum('inx,nij->njx', tf.expand_dims(proposed_vector_full, axis=-1), B_full),
-                        tf.expand_dims(proposed_vector_full, axis=-1)
+                        tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_full, axis=-1), nr_B_full),
+                        tf.expand_dims(nr_tr_proposed_vector_full, axis=-1)
                     )
                 ) / tf.square(n_obs)
 
-                proposed_vector_batched = tf.multiply(nr_tr_radius, nr_tr_update_batched_raw)
+                nr_tr_proposed_vector_batched = tf.multiply(nr_tr_radius, nr_tr_update_batched_raw)
                 nr_tr_pred_cost_gain_batched = tf.add(
                     tf.einsum(
                         'ni,in->n',
                         self.batched_data_model.jac_train.neg_jac / n_obs,
-                        proposed_vector_batched
+                        nr_tr_proposed_vector_batched
                     ),
                     0.5 * tf.einsum(
                         'nix,inx->n',
-                        tf.einsum('inx,nij->njx', tf.expand_dims(proposed_vector_batched, axis=-1), B_batched),
-                        tf.expand_dims(proposed_vector_batched, axis=-1)
+                        tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1), nr_B_batched),
+                        tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1)
                     )
                 ) / tf.square(n_obs)
             else:
@@ -505,6 +505,7 @@ class NewtonGraphGLM:
             nr_update_batched = None
             nr_tr_update_full = None
             nr_tr_update_batched = None
+
             irls_update_full = None
             irls_update_batched = None
             irls_tr_update_full = None
@@ -520,8 +521,9 @@ class NewtonGraphGLM:
 
         self.nr_update_full = nr_update_full
         self.nr_update_batched = nr_update_batched
-        self.nr_tr_update_full = nr_update_full
-        self.nr_tr_update_batched = nr_update_batched
+        self.nr_tr_update_full = nr_tr_update_full
+        self.nr_tr_update_batched = nr_tr_update_batched
+
         self.irls_update_full = irls_update_full
         self.irls_update_batched = irls_update_batched
         self.irls_tr_update_full = irls_tr_update_full
@@ -545,23 +547,23 @@ class NewtonGraphGLM:
             psd
     ):
         if termination_type == "by_feature":
-            update_full = self.newton_type_update_full_byfeature(
+            update_full = self.newton_type_update_byfeature(
                 lhs=full_lhs,
                 rhs=full_rhs,
                 psd=psd
             )
-            update_batched = self.newton_type_update_batched_byfeature(
+            update_batched = self.newton_type_update_byfeature(
                 lhs=batched_lhs,
                 rhs=batched_rhs,
                 psd=psd
             )
         elif termination_type == "global":
-            update_full = self.newton_type_update_full_global(
+            update_full = self.newton_type_update_global(
                 lhs=full_lhs,
                 rhs=full_rhs,
                 psd=psd
             )
-            update_batched = self.newton_type_update_batched_global(
+            update_batched = self.newton_type_update_global(
                 lhs=batched_lhs,
                 rhs=batched_rhs,
                 psd=psd
@@ -607,7 +609,7 @@ class NewtonGraphGLM:
 
         return netwon_type_update_full, newton_type_update_batched
 
-    def newton_type_update_full_byfeature(
+    def newton_type_update_byfeature(
             self,
             lhs,
             rhs,
@@ -629,7 +631,7 @@ class NewtonGraphGLM:
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
         # contains zero entries for updates of already converged genes.
-        delta_t_bygene_full = tf.concat([
+        delta_t_bygene = tf.concat([
             tf.gather(delta_t_bygene_nonconverged,
                       indices=np.where(self.idx_nonconverged == i)[0],
                       axis=0)
@@ -637,45 +639,11 @@ class NewtonGraphGLM:
             else tf.zeros([1, rhs.shape[1]])
             for i in range(self.model_vars.n_features)
         ], axis=0)
-        nr_update_full = tf.transpose(delta_t_bygene_full)
+        update_tensor = tf.transpose(delta_t_bygene)
 
-        return nr_update_full
+        return update_tensor
 
-    def newton_type_update_batched_byfeature(
-            self,
-            lhs,
-            rhs,
-            psd
-    ):
-        # Compute parameter update for non-converged gene only.
-        delta_batched_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
-            tf.gather(
-                lhs,
-                indices=self.idx_nonconverged,
-                axis=0),
-            tf.expand_dims(
-                tf.gather(
-                    rhs,
-                    indices=self.idx_nonconverged,
-                    axis=0)
-                , axis=-1),
-            fast=psd and pkg_constants.CHOLESKY_LSTSQS
-        ), axis=-1)
-        # Write parameter updates into matrix of size of all parameters which
-        # contains zero entries for updates of already converged genes.
-        delta_batched_t_bygene_full = tf.concat([
-            tf.gather(delta_batched_t_bygene_nonconverged,
-                      indices=np.where(self.idx_nonconverged == i)[0],
-                      axis=0)
-            if not self.model_vars.converged[i]
-            else tf.zeros([1, rhs.shape[1]])
-            for i in range(self.model_vars.n_features)
-        ], axis=0)
-        nr_update_batched = tf.transpose(delta_batched_t_bygene_full)
-
-        return nr_update_batched
-
-    def newton_type_update_full_global(
+    def newton_type_update_global(
             self,
             lhs,
             rhs,
@@ -687,24 +655,9 @@ class NewtonGraphGLM:
             tf.expand_dims(rhs, axis=-1),
             fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
-        nr_update_full = tf.transpose(delta_t)
+        update_tensor = tf.transpose(delta_t)
 
-        return nr_update_full
-
-    def newton_type_update_batched_global(
-            self,
-            lhs,
-            rhs,
-            psd
-    ):
-        delta_batched_t = tf.squeeze(tf.matrix_solve_ls(
-            lhs,
-            tf.expand_dims(rhs, axis=-1),
-            fast=psd and pkg_constants.CHOLESKY_LSTSQS
-        ), axis=-1)
-        nr_update_batched = tf.transpose(delta_batched_t)
-
-        return nr_update_batched
+        return update_tensor
 
 
 class TrainerGraphGLM:
@@ -727,6 +680,8 @@ class TrainerGraphGLM:
     nr_tr_update_batched: tf.Tensor
     irls_update_full: tf.Tensor
     irls_update_batched: tf.Tensor
+    irls_tr_update_full: tf.Tensor
+    irls_tr_update_batched: tf.Tensor
 
     nr_tr_radius: Union[tf.Variable, None]
     nr_tr_pred_cost_gain_full: Union[tf.Tensor, None]
@@ -753,8 +708,6 @@ class TrainerGraphGLM:
                 self,
                 gradient_graph: GradientGraphGLM
         ):
-            #self.full_data_model = full_data_model
-            #self.batched_data_model = batched_data_model
             self.termination_type = gradient_graph.termination_type
             self.train_loc = gradient_graph.train_loc
             self.train_scale = gradient_graph.train_scale
@@ -787,7 +740,6 @@ class TrainerGraphGLM:
 
             # Create trainers that produce training operations.
             full_data_model_eval = self._FullDataModelGraphEval(self.full_data_model)
-            batched_data_model_eval = self._BatchedDataModelGraphEval(self.batched_data_model)
             gradient_graph_eval = self._GradientGraphGLMEval(gradient_graph=self.gradient_graph)
 
             if train_loc or train_scale:
@@ -798,8 +750,6 @@ class TrainerGraphGLM:
                     model_ll=self.full_data_model.norm_log_likelihood,
                     model_vars_eval=self.model_vars_eval,
                     model_eval=full_data_model_eval,
-                    full_model_eval=full_data_model_eval,
-                    batched_model_eval=batched_data_model_eval,
                     gradients_eval=gradient_graph_eval,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
@@ -829,8 +779,6 @@ class TrainerGraphGLM:
                     model_ll=self.full_data_model.norm_log_likelihood,
                     model_vars_eval=self.model_vars_eval,
                     model_eval=full_data_model_eval,
-                    full_model_eval=full_data_model_eval,
-                    batched_model_eval=batched_data_model_eval,
                     gradients_eval=gradient_graph_eval,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
