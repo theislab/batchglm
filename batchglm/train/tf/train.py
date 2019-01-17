@@ -375,7 +375,7 @@ class MultiTrainer:
                 #delta_f_ratio = tf_print(delta_f_ratio, [delta_f_ratio], message="delta_f_ratio: ")
 
                 # Include parameter updates only if update improves cost function:
-                update_theta = delta_f_actual > eta0  #tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)
+                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
                 theta_new_nr_tr = tf.stack([
                     tf.cond(pred=update_theta[i], true_fn=lambda: theta_new[:,i], false_fn=lambda: variables[:,i])
                     for i in range(newton_tr_delta.shape[1])
@@ -489,7 +489,7 @@ class MultiTrainer:
                 #delta_f_ratio = tf_print(delta_f_ratio, [delta_f_ratio], message="delta_f_ratio: ")
 
                 # Include parameter updates only if update improves cost function:
-                update_theta = delta_f_actual > eta0  #tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)
+                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
                 theta_new_irls_tr = tf.stack([
                     tf.cond(pred=update_theta[i], true_fn=lambda: theta_new[:,i], false_fn=lambda: variables[:,i])
                     for i in range(irls_tr_delta.shape[1])
