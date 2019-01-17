@@ -37,8 +37,8 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
             termination_type=termination,
-            init_a="standard",
-            init_b="standard"
+            init_a="all_zero",
+            init_b="all_zero"
         )
         super().__init__(
             estimator=estimator,
@@ -166,7 +166,7 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
 

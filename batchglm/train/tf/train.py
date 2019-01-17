@@ -506,7 +506,7 @@ class MultiTrainer:
                             false_fn=lambda: irls_tr_radius[i]
                         )
                     )
-                    for i in range(newton_tr_delta.shape[1])
+                    for i in range(irls_tr_delta.shape[1])
                 ], axis=0)
 
                 # Group tf.Variable updates into one operation:
@@ -603,7 +603,7 @@ class MultiTrainer:
                 name_lower.lower() == "iwls-trust-region":
             if self.train_op_irls is None:
                 raise ValueError("IRLS not provided in initialization.")
-            return self.train_op_irls
+            return self.train_op_irls_tr
         else:
             raise ValueError("Unknown optimizer %s" % name)
 
