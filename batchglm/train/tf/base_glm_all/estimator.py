@@ -279,7 +279,19 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 optim_algo.lower() == "newton_raphson" or \
                 optim_algo.lower() == "nr" or \
                 optim_algo.lower() == "irls" or \
-                optim_algo.lower() == "iwls":
+                optim_algo.lower() == "iwls" or \
+                optim_algo.lower() == "newton-trust-region" or \
+                optim_algo.lower() == "newton_trust_region" or \
+                optim_algo.lower() == "newton-raphson-trust-region" or \
+                optim_algo.lower() == "newton_raphson_trust_region" or \
+                optim_algo.lower() == "newton_tr" or \
+                optim_algo.lower() == "nr_tr" or \
+                optim_algo.lower() == "irls_tr" or \
+                optim_algo.lower() == "iwls_tr" or \
+                optim_algo.lower() == "irls_trust_region" or \
+                optim_algo.lower() == "iwls_trust_region" or \
+                optim_algo.lower() == "irls-trust-region" or \
+                optim_algo.lower() == "iwls-trust-region":
             newton_type_mode = True
         # Set learning rae defaults if not set by user.
         if learning_rate is None:
