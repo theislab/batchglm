@@ -103,7 +103,7 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
         self.simulate()
         logger.debug("* Running tests on numpy/scipy")
         logger.debug("** Running dense test")
-        #self._test_numpy_dense()
+        self._test_numpy_dense()
         logger.debug("** Running sparse test")
         self._test_scipy_sparse()
 

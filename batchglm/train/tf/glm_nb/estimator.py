@@ -7,6 +7,7 @@ import tensorflow as tf
 from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
 from .external import data_utils
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
+from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
@@ -94,29 +95,32 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 init_a = "closed_form"
 
             if init_a.lower() == "closed_form":
-                try:
-                    groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
-                        X=self.input_data.X,
-                        design_loc=self.input_data.design_loc,
-                        constraints_loc=self.input_data.constraints_loc,
-                        size_factors=size_factors_init,
-                        link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
-                    )
+                #try:
+                groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
+                    X=self.input_data.X,
+                    design_loc=self.input_data.design_loc,
+                    constraints_loc=self.input_data.constraints_loc,
+                    size_factors=size_factors_init,
+                    link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
+                )
 
-                    # train mu, if the closed-form solution is inaccurate
-                    self._train_loc = not np.all(rmsd_a == 0)
+                # train mu, if the closed-form solution is inaccurate
+                self._train_loc = not np.all(rmsd_a == 0)
 
-                    # Temporal fix: train mu if size factors are given as closed form may be different:
-                    if self.input_data.size_factors is not None:
-                        self._train_loc = True
+                # Temporal fix: train mu if size factors are given as closed form may be different:
+                if self.input_data.size_factors is not None:
+                    self._train_loc = True
 
-                    logger.debug("Using closed-form MLE initialization for mean")
-                    logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
-                    logger.debug("Should train mu: %s", self._train_loc)
-                except np.linalg.LinAlgError:
-                    logger.warning("Closed form initialization failed!")
+                logger.debug("Using closed-form MLE initialization for mean")
+                logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
+                logger.debug("Should train mu: %s", self._train_loc)
+                #except np.linalg.LinAlgError:
+                #    logger.warning("Closed form initialization failed!")
             elif init_a.lower() == "standard":
-                overall_means = self.input_data.X.mean(dim="observations").values  # directly calculate the mean
+                if isinstance(self.input_data.X, SparseXArrayDataArray):
+                    overall_means = self.input_data.X.mean()
+                else:
+                    overall_means = self.input_data.X.mean(dim="observations").values  # directly calculate the mean
                 overall_means = self.np_clip_param(overall_means, "mu")
 
                 init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features])
@@ -139,10 +143,16 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
             if init_b.lower() == "closed_form":
                 try:
-                    init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
-                    init_a_xr.coords["loc_params"] = self.input_data.constraints_loc.coords["loc_params"]
-                    # TODO: memory inefficient:
-                    init_mu = np.exp(self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)))
+                    # TODO: memory inefficient and not sparse friendly:
+                    if isinstance(self.input_data.X, SparseXArrayDataArray):
+                        init_mu = np.exp(np.matmul(
+                            self.input_data.design_loc.values,
+                            np.matmul(self.input_data.constraints_loc.values, init_a)
+                        ))
+                    else:
+                        init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
+                        init_a_xr.coords["loc_params"] = self.input_data.constraints_loc.coords["loc_params"]
+                        init_mu = np.exp(self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)))
 
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
                         X=self.input_data.X,

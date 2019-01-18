@@ -1,3 +1,4 @@
+from batchglm.models.base import SparseXArrayDataArray, SparseXArrayDataSet
 from batchglm.models.base_glm import _Estimator_GLM, _EstimatorStore_XArray_GLM, ESTIMATOR_PARAMS
 from batchglm.models.base_glm import InputData, INPUT_DATA_PARAMS
 from batchglm.models.base_glm import _Model_GLM, _Model_XArray_GLM, MODEL_PARAMS, _model_from_params

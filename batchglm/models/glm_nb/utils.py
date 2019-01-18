@@ -5,6 +5,7 @@ import xarray as xr
 
 from .external import closedform_glm_mean, groupwise_solve_lm
 from .external import weighted_mean
+from .external import SparseXArrayDataArray
 
 
 def closedform_nb_glm_logmu(
@@ -62,7 +63,10 @@ def closedform_nb_glm_logphi(
     :return: tuple (groupwise_scales, logphi, rmsd)
     """
     if size_factors is not None:
-        X = np.divide(X, size_factors)
+        if isinstance(X, SparseXArrayDataArray):
+            X.X = X.X.multiply(1/size_factors).tocsr()
+        else:
+            X = np.divide(X, size_factors)
 
     # to circumvent nonlocal error
     provided_groupwise_means = groupwise_means
@@ -70,10 +74,17 @@ def closedform_nb_glm_logphi(
     provided_mu = mu
 
     def apply_fun(grouping):
-        grouped_X = X.assign_coords(group=((X.dims[0],), grouping))
+        if isinstance(X, SparseXArrayDataArray):
+            X.assign_coords(coords=("group", grouping))
+            X.groupby("group")
+        else:
+            grouped_X = X.assign_coords(group=((X.dims[0],), grouping))
 
         # convert weights into a xr.DataArray
         if provided_weights is not None:
+            if isinstance(X, SparseXArrayDataArray):
+                assert False, "not implemented"
+
             weights = xr.DataArray(
                 data=provided_weights,
                 dims=(X.dims[0],),
@@ -87,8 +98,14 @@ def closedform_nb_glm_logphi(
         # calculate group-wise means if necessary
         if provided_groupwise_means is None:
             if weights is None:
-                groupwise_means = grouped_X.mean(X.dims[0]).values
+                if isinstance(X, SparseXArrayDataArray):
+                    groupwise_means = X.group_means()
+                else:
+                    groupwise_means = grouped_X.mean(X.dims[0]).values
             else:
+                if isinstance(X, SparseXArrayDataArray):
+                    assert False, "not implemented"
+
                 # for each group: calculate weighted mean
                 groupwise_means: xr.DataArray = xr.concat([
                     weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(
@@ -99,16 +116,31 @@ def closedform_nb_glm_logphi(
             groupwise_means = provided_groupwise_means
 
         # calculated (x - mean) depending on whether `mu` was specified
-        if provided_mu is None:
-            Xdiff = grouped_X - groupwise_means
+        if isinstance(X, SparseXArrayDataArray):
+            if provided_mu is None:
+                Xdiff = X.group_add(-groupwise_means)
+            else:
+                Xdiff = X.add(- provided_mu)
         else:
-            Xdiff = grouped_X - provided_mu
+            if provided_mu is None:
+                Xdiff = grouped_X - groupwise_means
+            else:
+                Xdiff = grouped_X - provided_mu
 
         if weights is None:
             # for each group:
             #   calculate mean of (X - mean)^2
-            variance = np.square(Xdiff).groupby("group").mean(X.dims[0])
+            if isinstance(X, SparseXArrayDataArray):
+                Xdiff.square()
+                Xdiff.assign_coords((("group", grouping)))
+                Xdiff.groupby("group")
+                variance = X.group_means()
+            else:
+                variance = np.square(Xdiff).groupby("group").mean(X.dims[0])
         else:
+            if isinstance(X, SparseXArrayDataArray):
+                assert False, "not implemented"
+
             # for each group:
             #   calculate weighted mean of (X - mean)^2
             variance: xr.DataArray = xr.concat([

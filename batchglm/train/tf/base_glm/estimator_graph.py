@@ -1,11 +1,9 @@
 import abc
 import logging
 from typing import Union
-import sys
 
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 import xarray as xr
 
 try:
@@ -13,7 +11,7 @@ try:
 except ImportError:
     anndata = None
 
-from .model import ModelVarsGLM, BasicModelGraphGLM
+from .model import ModelVarsGLM
 from .external import TFEstimatorGraph
 from .external import train_utils
 from .external import pkg_constants
@@ -167,8 +165,6 @@ class GradientGraphGLM:
     def gradients_full_byfeature(self):
         gradients_full_all = tf.transpose(self.full_data_model.jac_train.neg_jac)
         gradients_full = tf.concat([
-            # tf.gradients(full_data_model.norm_neg_log_likelihood,
-            #             model_vars.params_by_gene[i])[0]
             tf.expand_dims(gradients_full_all[:, i], axis=-1)
             if not self.model_vars.converged[i]
             else tf.zeros([gradients_full_all.shape[1], 1], dtype=self.model_vars.params.dtype)
@@ -180,8 +176,6 @@ class GradientGraphGLM:
     def gradients_batched_byfeature(self):
         gradients_batch_all = tf.transpose(self.batched_data_model.jac_train.neg_jac)
         gradients_batch = tf.concat([
-            # tf.gradients(batch_model.norm_neg_log_likelihood,
-            #             model_vars.params_by_gene[i])[0]
             tf.expand_dims(gradients_batch_all[:, i], axis=-1)
             if not self.model_vars.converged[i]
             else tf.zeros([gradients_batch_all.shape[1], 1], dtype=self.model_vars.params.dtype)
@@ -213,8 +207,8 @@ class NewtonGraphGLM:
     and hessians for the full and the batched data.
     """
     model_vars: tf.Tensor
-    full_data_model: tf.Tensor
-    batched_data_model: tf.Tensor
+    full_data_model: FullDataModelGraphGLM
+    batched_data_model: BatchedDataModelGraphGLM
 
     nr_update_full: Union[tf.Tensor, None]
     nr_update_batched: Union[tf.Tensor, None]
@@ -294,7 +288,7 @@ class NewtonGraphGLM:
                     update_batched_raw=nr_tr_update_batched_raw
                 )
 
-                n_obs = tf.cast(self.batched_data_model.X.shape[0], dtype=dtype)
+                n_obs = tf.cast(self.batched_data_model.num_observations, dtype=dtype)
                 nr_tr_proposed_vector_full = tf.multiply(nr_tr_radius, nr_tr_update_full_raw)
                 nr_tr_pred_cost_gain_full = tf.add(
                     tf.einsum(
@@ -472,7 +466,7 @@ class NewtonGraphGLM:
                     update_batched_raw=irls_tr_update_batched_raw
                 )
 
-                n_obs = tf.cast(self.batched_data_model.X.shape[0], dtype=dtype)
+                n_obs = tf.cast(self.batched_data_model.num_observations, dtype=dtype)
                 irls_tr_proposed_vector_full = tf.multiply(irls_tr_radius, irls_tr_update_full_raw)
                 irls_tr_pred_cost_gain_full = tf.einsum(
                     'ni,in->n',
@@ -883,7 +877,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
         - The input pipeline: Feed data for parameter updates.
         -
     """
-    X: tf.Tensor
+    X: Union[tf.Tensor, tf.SparseTensor]
 
     a_var: tf.Tensor
     b_var: tf.Tensor

@@ -128,13 +128,13 @@ def closedform_glm_mean(
     """
     if size_factors is not None:
         if isinstance(X, SparseXArrayDataArray):
-            X.X = np.divide(X.X, size_factors)
+            X.X = X.X.multiply(1/size_factors).tocsr()
         else:
             X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
         if isinstance(X, SparseXArrayDataArray):
-            X.assign_coords((("group", grouping)))
+            X.assign_coords(coords=("group", grouping))
             X.groupby("group")
         else:
             grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
@@ -142,7 +142,6 @@ def closedform_glm_mean(
         if weights is None:
             if isinstance(X, SparseXArrayDataArray):
                 groupwise_means = X.group_means()
-                print(groupwise_means)
             else:
                 groupwise_means = grouped_data.mean(X.dims[0]).values
         else:
@@ -200,12 +199,23 @@ def closedform_glm_var(
     :return: tuple: (groupwise_variance, phi, rmsd)
     """
     if size_factors is not None:
-        X = np.divide(X, size_factors)
+        if isinstance(X, SparseXArrayDataArray):
+            X.X = X.X.multiply(1/size_factors).tocsr()
+        else:
+            X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
+        if isinstance(X, SparseXArrayDataArray):
+            X.assign_coords(coords=("group", grouping))
+            X.groupby("group")
+        else:
+            grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
+
         if weights is None:
-            groupwise_variance = grouped_data.var(X.dims[0]).values
+            if isinstance(X, SparseXArrayDataArray):
+                groupwise_variance = X.group_var()
+            else:
+                groupwise_variance = grouped_data.var(X.dims[0]).values
         else:
             grouped_weights = xr.DataArray(
                 data=weights,

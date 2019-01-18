@@ -9,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, InputData, _Model_GLM
+from .external import MonitoredTFEstimator, InputData, _Model_GLM, SparseXArrayDataArray
 
 logger = logging.getLogger(__name__)
 
@@ -130,21 +130,42 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            X_tensor, X_shape, X_issparse = tf.py_func(
-                func=input_data.fetch_X,
-                inp=[idx],
-                Tout=input_data.X.dtype,
-                stateful=False
-            )
-            if X_issparse:
-                X_tensor = tf.SparseTensor(
-                    indices=np.cast(X_tensor[:,:2], dtype=np.int64),
-                    values=X_tensor[:,2],
+            if isinstance(input_data.X, SparseXArrayDataArray):
+                X_tensor_idx, X_tensor_val, X_shape_0 = tf.py_func(
+                    func=input_data.fetch_X_sparse,
+                    inp=[idx],
+                    Tout=[tf.int64, input_data.X.dtype, tf.int64],
+                    stateful=False
+                )
+                X_shape_0.set_shape([1])
+                X_tensor_idx.set_shape(idx.get_shape().as_list() + [2])
+                X_tensor_val.set_shape(idx.get_shape().as_list())
+                # Need this to properly propagate the size of the first dimension:
+                if idx.get_shape().as_list()[0] is None:
+                    X_shape = tf.concat([X_shape_0, tf.constant([input_data.num_features], dtype=tf.int64)], axis=0)
+                else:
+                    X_shape = tf.constant([idx.get_shape().as_list()[0], input_data.num_features], dtype=tf.int64)
+
+                X_tensor = tf.SparseTensorValue(
+                    indices=tf.cast(X_tensor_idx, dtype=tf.int64),
+                    values=tf.cast(X_tensor_val, dtype=dtype),
                     dense_shape=X_shape
                 )
+
+                #X_tensor = tf.cast(X_tensor, dtype=dtype)
+                #X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
+                #X_sparse = tf.constant([True])
             else:
+                X_tensor = tf.py_func(
+                    func=input_data.fetch_X,
+                    inp=[idx],
+                    Tout=input_data.X.dtype,
+                    stateful=False
+                )
                 X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
                 X_tensor = tf.cast(X_tensor, dtype=dtype)
+                #X_tensor_idx = None
+                #X_shape = None
 
             design_loc_tensor = tf.py_func(
                 func=input_data.fetch_design_loc,

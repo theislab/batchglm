@@ -302,6 +302,7 @@ class FullDataModelGraph(FullDataModelGraphEval):
             else:
                 fim_train = None
 
+
         self.hessians = hessians_full
         self.hessians_train = hessians_train
 
@@ -360,7 +361,7 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
         ))
         training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
         training_data = training_data.batch(batch_size, drop_remainder=True)
-        training_data = training_data.map(tf.contrib.framework.sort)  # sort indices
+        training_data = training_data.map(tf.contrib.framework.sort)  # sort indices - TODO why?
         training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
         training_data = training_data.prefetch(buffer_size)
 
@@ -368,6 +369,17 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
 
         batch_sample_index, batch_data = iterator.get_next()
         (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
+        print("flag")
+        print(batch_X.shape)
+        #batch_X = tf.cond(
+        #   pred=X_sparse[0],
+        #    true_fn=tf.SparseTensor(
+        #        indices=batch_X_idx,
+        #        values=batch_X,
+        #        dense_shape=batch_X_shape
+        #    ),
+        #    false_fn=batch_X
+        #)
 
         batched_model = BasicModelGraph(
             X=batch_X,

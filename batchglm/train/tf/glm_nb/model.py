@@ -96,16 +96,19 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
 
         # Log-likelihood:
         log_r_plus_mu = tf.log(model_scale + model_loc)
-        #print(isinstance(X, tf.SparseTensor))
-        if isinstance(X, tf.SparseTensor):
-            log_probs = tf.math.lgamma(tf.sparse.add(X, model_scale)) - \
-                        tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape))) - \
-                        tf.math.lgamma(model_scale) + \
-                        tf.sparse.multiply(X, self.eta_loc - log_r_plus_mu) + \
-                        tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+            if isinstance(X, tf.SparseTensorValue):
+                X = tf.SparseTensor.from_value(X)
+            print(X.shape)
+            log_probs_sparse = X * (self.eta_loc - log_r_plus_mu)
+            log_probs_dense = tf.math.lgamma(tf.sparse.add(X, model_scale)) - \
+                              tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=X.dtype))) + \
+                              tf.math.lgamma(model_scale) + \
+                              tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+            log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
         else:
             log_probs = tf.math.lgamma(model_scale + X) - \
-                        tf.math.lgamma(X + 1) - tf.math.lgamma(model_scale) + \
+                        tf.math.lgamma(X + tf.ones_like(X)) - tf.math.lgamma(model_scale) + \
                         tf.multiply(X, self.eta_loc - log_r_plus_mu) + \
                         tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
         log_probs = self.tf_clip_param(log_probs, "log_probs")

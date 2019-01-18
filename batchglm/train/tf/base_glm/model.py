@@ -1,5 +1,6 @@
 import abc
 import logging
+from typing import Union
 
 import tensorflow as tf
 import numpy as np
@@ -175,7 +176,7 @@ class BasicModelGraphGLM(ProcessModelGLM):
     """
 
     """
-    X: tf.Tensor
+    X: Union[tf.Tensor, tf.SparseTensor]
     design_loc: tf.Tensor
     design_scale: tf.Tensor
     constraints_loc: tf.Tensor

@@ -145,7 +145,7 @@ def for_i_in_range(size, body_fn):
     return loop
 
 
-def map_reduce(last_elem: tf.Tensor, data: tf.data.Dataset, map_fn, reduce_fn=tf.add, **kwargs):
+def map_reduce(last_elem: Union[tf.Tensor, tf.SparseTensor], data: tf.data.Dataset, map_fn, reduce_fn=tf.add, **kwargs):
     """
     Iterate over elements in a tf.data.Dataset.
     Fetches new elements until "last_elem" appears at `idx[-1]`.
