@@ -26,7 +26,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
@@ -46,14 +46,18 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+
         estimator = Estimator(
             input_data=input_data,
-            quick_scale=quick_scale
+            quick_scale=quick_scale,
+            provide_optimizers=provide_optimizers
         )
         estimator.initialize()
         # Do not train, evalute at initialization!
@@ -82,7 +86,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         pkg_constants.JACOBIAN_MODE = "analytic"
         estimator_analytic = self.estimate(input_data, quick_scale)
         t0_analytic = time.time()
-        J_analytic = estimator_analytic['full_gradient']
+        J_analytic = estimator_analytic['gradients']
         a_analytic = estimator_analytic.a.values
         b_analytic = estimator_analytic.b.values
         t1_analytic = time.time()
@@ -93,7 +97,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         pkg_constants.JACOBIAN_MODE = "tf"
         estimator_tf = self.estimate(input_data, quick_scale)
         t0_tf = time.time()
-        J_tf = estimator_tf['full_gradient']
+        J_tf = estimator_tf['gradients']
         a_tf = estimator_tf.a.values
         b_tf = estimator_tf.b.values
         t1_tf = time.time()

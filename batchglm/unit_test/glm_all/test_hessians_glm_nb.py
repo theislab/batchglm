@@ -40,10 +40,13 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+
         estimator = Estimator(
             input_data=input_data,
             termination_type="by_feature",
-            noise_model=self.noise_model
+            provide_optimizers=provide_optimizers
         )
         estimator.initialize()
         estimator.train_sequence(training_strategy=[
@@ -52,7 +55,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "ADAM"  # Newton is very slow if hessian is evaluated through tf
+                "optim_algo": "adam"  # Newton is very slow if hessian is evaluated through tf
             },
         ])
         return estimator

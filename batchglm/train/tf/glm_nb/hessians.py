@@ -64,8 +64,8 @@ class Hessians(HessianGLMALL):
         else:
             r_plus_x = X + r
 
-        scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
-        scalar_two = tf.constant(2, shape=(), dtype=X.dtype)
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
+        scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
         # Pre-define sub-graphs that are used multiple times:
         r_plus_mu = r + mu
         # Define graphs for individual terms of constant term of hessian:

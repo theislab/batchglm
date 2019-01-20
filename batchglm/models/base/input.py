@@ -325,22 +325,28 @@ class _InputData_Base:
     def feature_isallzero(self):
         return self.data.coords["feature_allzero"]
 
-    def fetch_X(self, idx):
-        return self.X[idx].values
+    def fetch_X_dense(self, idx):
+        data = self.X[idx,:].values
+
+        if idx.shape[0] == 1:
+            data = np.squeeze(data, axis=0)
+
+        return data
 
     def fetch_X_sparse(self, idx):
-        data = self.X.X[idx]
-        data_shape_0 = len(idx)
-        # Need to cast also integer columns into data accuracy to that
-        # this is a homogeneous tensor in the tensorflow interface.
-        data_idx = np.asarray(np.vstack(data.nonzero()).T, dtype=np.int64)
-        data_val = data.data
+        assert isinstance(self.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
 
-        if idx.size == 1:
+        data = self.X.X[idx]
+
+        data_idx = np.asarray(np.vstack(data.nonzero()).T, np.int64)
+        data_val = data.data
+        data_shape = np.asarray(data.shape, np.int64)
+
+        if idx.shape[0] == 1:
             data_val = np.squeeze(data_val, axis=0)
             data_idx = np.squeeze(data_idx, axis=0)
 
-        return data_idx, data_val, data_shape_0
+        return data_idx, data_val, data_shape
 
     def set_chunk_size(self, cs: int):
         self.X = self.X.chunk({"observations": cs})

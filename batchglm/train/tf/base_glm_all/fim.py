@@ -2,9 +2,7 @@ import tensorflow as tf
 
 import logging
 
-from .external import FIMGLM, ModelVarsGLM
-from .external import op_utils
-from .external import pkg_constants
+from .external import FIMGLM
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +15,8 @@ class FIMGLMALL(FIMGLM):
 
     def analytic(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
+            batched_data
     ):
         """
         Compute the closed-form of the base_glm_all model hessian
@@ -37,7 +30,7 @@ class FIMGLMALL(FIMGLM):
         else:
             raise ValueError("noise model %s was not recognized" % self.noise_model)
 
-        def _a_byobs(design_loc, constraints_loc, mu, r):
+        def _a_byobs(design_loc, mu, r):
             """
             Compute the mean model diagonal block of the
             closed form hessian of base_glm_all model by observation across features
@@ -60,13 +53,13 @@ class FIMGLMALL(FIMGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
-            XH = tf.matmul(design_loc, constraints_loc)
+            XH = tf.matmul(design_loc, self.constraints_loc)
             FIM = tf.einsum('ofc,od->fcd',
                             tf.einsum('of,oc->ofc', W, XH),
                             XH)
             return FIM
 
-        def _b_byobs(X, design_scale, constraints_scale, mu, r):
+        def _b_byobs(X, design_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by observation across features.
@@ -82,13 +75,13 @@ class FIMGLMALL(FIMGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
-            XH = tf.matmul(design_scale, constraints_scale)
+            XH = tf.matmul(design_scale, self.constraints_scale)
             FIM = tf.einsum('ofc,od->fcd',
                             tf.einsum('of,oc->ofc', W, XH),
                             XH)
             return FIM
 
-        def _assemble_byobs(idx, data):
+        def assemble_batch(idx, data):
             """
             Assemble hessian of a single observation across all features.
 
@@ -108,17 +101,17 @@ class FIMGLMALL(FIMGLM):
                 Hessian evaluated on a single observation, provided in data.
             """
             X, design_loc, design_scale, size_factors = data
-            a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
+            a_split, b_split = tf.split(self.model_vars.params, tf.TensorShape([p_shape_a, p_shape_b]))
 
             model = BasicModelGraph(
                 X=X,
                 design_loc=design_loc,
                 design_scale=design_scale,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
+                constraints_loc=self.constraints_loc,
+                constraints_scale=self.constraints_scale,
                 a_var=a_split,
                 b_var=b_split,
-                dtype=dtype,
+                dtype=self.dtype,
                 size_factors=size_factors
             )
             mu = model.mu
@@ -130,48 +123,20 @@ class FIMGLMALL(FIMGLM):
             # Here, the non-zero model-wise diagonal blocks are computed and returned
             # as a dictionary. The according score function vectors are also returned as a dictionary.
             if self._update_a and self._update_b:
-                fim_a = _a_byobs(design_loc=design_loc, constraints_loc=constraints_loc, mu=mu, r=r)
-                fim_b = _b_byobs(X=X, design_scale=design_scale, constraints_scale=constraints_scale, mu=mu, r=r)
+                fim_a = _a_byobs(design_loc=design_loc, mu=mu, r=r)
+                fim_b = _b_byobs(X=X, design_scale=design_scale, mu=mu, r=r)
             elif self._update_a and not self._update_b:
-                fim_a = _a_byobs(design_loc=design_loc, constraints_loc=constraints_loc, mu=mu, r=r)
+                fim_a = _a_byobs(design_loc=design_loc, mu=mu, r=r)
                 fim_b = tf.zeros(shape=())
             elif not self._update_a and self._update_b:
                 fim_a = tf.zeros(shape=())
-                fim_b = _b_byobs(X=X, design_scale=design_scale, constraints_scale=constraints_scale, mu=mu, r=r)
+                fim_b = _b_byobs(X=X, design_scale=design_scale, mu=mu, r=r)
             else:
                 raise ValueError("either require hess_a or hess_b")
 
             return fim_a, fim_b
 
-        def _red(prev, cur):
-            """
-            Reduction operation for fisher information matrix computation across observations.
+        p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-            Every evaluation of the hessian on an observation yields a full
-            hessian matrix. This function sums over consecutive evaluations
-            of this hessian so that not all separate evaluations have to be
-            stored.
-            """
-            fim_a = tf.add(prev[0], cur[0])
-            fim_b = tf.add(prev[1], cur[1])
-            return fim_a, fim_b
-
-        params = model_vars.params
-        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
-
-        if iterator:
-            fims = op_utils.map_reduce(
-                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-                data=batched_data,
-                map_fn=_assemble_byobs,
-                reduce_fn=_red,
-                parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-            )
-        else:
-            fims = _assemble_byobs(
-                idx=sample_indices,
-                data=batched_data
-            )
-
-        return fims
+        return assemble_batch(idx=sample_indices, data=batched_data)

@@ -1,12 +1,10 @@
 import logging
-from typing import List
+from typing import List, Tuple
 
-import numpy as np
 import tensorflow as tf
 
-from .external import op_utils
 from .external import pkg_constants
-from .external import ModelVarsGLM, HessiansGLM
+from .external import HessiansGLM
 
 logger = logging.getLogger(__name__)
 
@@ -16,21 +14,11 @@ class HessianGLMALL(HessiansGLM):
     Compute the Hessian matrix for a GLM by gene using gradients from tensorflow.
     """
 
-    noise_model: str
-
-    _compute_hess_a: bool
-    _compute_hess_b: bool
-
     def byobs(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
-    ):
+            batched_data
+    ) -> Tuple:
         """
         Compute the closed-form of the base_glm_all model hessian
         by evaluating its terms grouped by observations.
@@ -43,7 +31,7 @@ class HessianGLMALL(HessiansGLM):
         else:
             raise ValueError("noise model %s was not recognized" % self.noise_model)
 
-        def _aa_byobs_batched(X, design_loc, constraints_loc, mu, r):
+        def _aa_byobs_batched(X, design_loc, mu, r):
             """
             Compute the mean model diagonal block of the
             closed form hessian of base_glm_all model by observation across features
@@ -67,13 +55,13 @@ class HessianGLMALL(HessiansGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
-            XH = tf.matmul(design_loc, constraints_loc)
+            XH = tf.matmul(design_loc, self.constraints_loc)
             Hblock = tf.einsum('ofc,od->fcd',
                                tf.einsum('of,oc->ofc', W, XH),
                                XH)
             return Hblock
 
-        def _bb_byobs_batched(X, design_scale, constraints_scale, mu, r):
+        def _bb_byobs_batched(X, design_scale, mu, r):
             """
             Compute the dispersion model diagonal block of the
             closed form hessian of base_glm_all model by observation across features.
@@ -89,13 +77,13 @@ class HessianGLMALL(HessiansGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
-            XH = tf.matmul(design_scale, constraints_scale)
+            XH = tf.matmul(design_scale, self.constraints_scale)
             Hblock = tf.einsum('ofc,od->fcd',
                                tf.einsum('of,oc->ofc', W, XH),
                                XH)
             return Hblock
 
-        def _ab_byobs_batched(X, design_loc, design_scale, constraints_loc, constraints_scale, mu, r):
+        def _ab_byobs_batched(X, design_loc, design_scale, mu, r):
             """
             Compute the mean-dispersion model off-diagonal block of the
             closed form hessian of base_glm_all model by observastion across features.
@@ -115,14 +103,14 @@ class HessianGLMALL(HessiansGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
-            XHloc = tf.matmul(design_loc, constraints_loc)
-            XHscale = tf.matmul(design_scale, constraints_scale)
+            XHloc = tf.matmul(design_loc, self.constraints_loc)
+            XHscale = tf.matmul(design_scale, self.constraints_scale)
             Hblock = tf.einsum('ofc,od->fcd',
                                tf.einsum('of,oc->ofc', W, XHloc),
                                XHscale)
             return Hblock
 
-        def _assemble_batch(idx, data):
+        def assemble_batch(idx, data):
             """
             Assemble hessian of a batch of observations across all features.
 
@@ -142,17 +130,17 @@ class HessianGLMALL(HessiansGLM):
                 Hessian evaluated on a single observation, provided in data.
             """
             X, design_loc, design_scale, size_factors = data
-            a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
+            a_split, b_split = tf.split(self.model_vars.params, tf.TensorShape([p_shape_a, p_shape_b]))
 
             model = BasicModelGraph(
                 X=X,
                 design_loc=design_loc,
                 design_scale=design_scale,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
+                constraints_loc=self.constraints_loc,
+                constraints_scale=self.constraints_scale,
                 a_var=a_split,
                 b_var=b_split,
-                dtype=dtype,
+                dtype=self.dtype,
                 size_factors=size_factors
             )
             mu = model.mu
@@ -162,14 +150,12 @@ class HessianGLMALL(HessiansGLM):
                 H_aa = _aa_byobs_batched(
                     X=X,
                     design_loc=design_loc,
-                    constraints_loc=constraints_loc,
                     mu=mu,
                     r=r
                 )
                 H_bb = _bb_byobs_batched(
                     X=X,
                     design_scale=design_scale,
-                    constraints_scale=constraints_scale,
                     mu=mu,
                     r=r
                 )
@@ -177,8 +163,6 @@ class HessianGLMALL(HessiansGLM):
                     X=X,
                     design_loc=design_loc,
                     design_scale=design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
                     mu=mu,
                     r=r
                 )
@@ -192,7 +176,6 @@ class HessianGLMALL(HessiansGLM):
                 H = _aa_byobs_batched(
                     X=X,
                     design_loc=design_loc,
-                    constraints_loc=constraints_loc,
                     mu=mu,
                     r=r
                 )
@@ -200,7 +183,6 @@ class HessianGLMALL(HessiansGLM):
                 H = _bb_byobs_batched(
                     X=X,
                     design_scale=design_scale,
-                    constraints_scale=constraints_scale,
                     mu=mu,
                     r=r
                 )
@@ -209,47 +191,16 @@ class HessianGLMALL(HessiansGLM):
 
             return H
 
-        def _red(prev, cur):
-            """
-            Reduction operation for hessian computation across observations.
+        p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-            Every evaluation of the hessian on an observation yields a full
-            hessian matrix. This function sums over consecutive evaluations
-            of this hessian so that not all separate evaluations have to be
-            stored.
-            """
-            return tf.add(prev, cur)
-
-        params = model_vars.params
-        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
-
-        if iterator:
-            H = op_utils.map_reduce(
-                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-                data=batched_data,
-                map_fn=_assemble_batch,
-                reduce_fn=_red,
-                parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-            )
-        else:
-            H = _assemble_batch(
-                idx=sample_indices,
-                data=batched_data
-            )
-
-        return H
+        return assemble_batch(idx=sample_indices, data=batched_data)
 
     def byfeature(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
-    ):
+            batched_data
+    ) -> Tuple:
         """
         Compute the closed-form of the base_glm_all model hessian
         by evaluating its terms grouped by features.
@@ -266,7 +217,6 @@ class HessianGLMALL(HessiansGLM):
         def _aa_byfeature(
                 X,
                 design_loc,
-                constraints_loc,
                 mu,
                 r
         ):
@@ -289,7 +239,7 @@ class HessianGLMALL(HessiansGLM):
             # The second dimension of const is only one element long,
             # this was a feature before but is no recycled into coefficients.
             # const = tf.broadcast_to(const, shape=design_loc.shape)  # [observations, coefficients]
-            XH = tf.matmul(design_loc, constraints_loc)
+            XH = tf.matmul(design_loc, self.constraints_loc)
             Hblock = tf.matmul(  # [coefficients, coefficients]
                 tf.transpose(XH),  # [coefficients, observations]
                 tf.multiply(XH, W)  # [observations, coefficients]
@@ -299,7 +249,6 @@ class HessianGLMALL(HessiansGLM):
         def _bb_byfeature(
                 X,
                 design_scale,
-                constraints_scale,
                 mu,
                 r
         ):
@@ -315,7 +264,7 @@ class HessianGLMALL(HessiansGLM):
             # The second dimension of const is only one element long,
             # this was a feature before but is no recycled into coefficients.
             # const = tf.broadcast_to(const, shape=design_scale.shape)  # [observations, coefficients]
-            XH = tf.matmul(design_scale, constraints_scale)
+            XH = tf.matmul(design_scale, self.constraints_scale)
             Hblock = tf.matmul(  # [coefficients, coefficients]
                 tf.transpose(XH),  # [coefficients, observations]
                 tf.multiply(XH, W)  # [observations, coefficients]
@@ -326,8 +275,6 @@ class HessianGLMALL(HessiansGLM):
                 X,
                 design_loc,
                 design_scale,
-                constraints_loc,
-                constraints_scale,
                 mu,
                 r
         ):
@@ -347,15 +294,15 @@ class HessianGLMALL(HessiansGLM):
             # The second dimension of const is only one element long,
             # this was a feature before but is no recycled into coefficients_scale.
             # const = tf.broadcast_to(const, shape=design_scale.shape)  # [observations, coefficients_scale]
-            XHloc = tf.matmul(design_loc, constraints_loc)
-            XHscale = tf.matmul(design_scale, constraints_scale)
+            XHloc = tf.matmul(design_loc, self.constraints_loc)
+            XHscale = tf.matmul(design_scale, self.constraints_scale)
             Hblock = tf.matmul(  # [coefficients_loc, coefficients_scale]
                 tf.transpose(XHloc),  # [coefficients_loc, observations]
                 tf.multiply(XHscale, W)  # [observations, coefficients_scale]
             )
             return Hblock
 
-        def _map(idx, data):
+        def assemble_batch(idx, data):
             def _assemble_byfeature(data):
                 """
                 Assemble hessian of a single feature.
@@ -379,11 +326,11 @@ class HessianGLMALL(HessiansGLM):
                     X=X,
                     design_loc=design_loc,
                     design_scale=design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
+                    constraints_loc=self.constraints_loc,
+                    constraints_scale=self.constraints_scale,
                     a_var=a_split,
                     b_var=b_split,
-                    dtype=dtype,
+                    dtype=self.dtype,
                     size_factors=size_factors
                 )
                 mu = model.mu
@@ -400,7 +347,6 @@ class HessianGLMALL(HessiansGLM):
                     H_bb = _bb_byfeature(
                         X=X,
                         design_scale=design_scale,
-                        constraints_scale=constraints_scale,
                         mu=mu,
                         r=r
                     )
@@ -408,8 +354,6 @@ class HessianGLMALL(HessiansGLM):
                         X=X,
                         design_loc=design_loc,
                         design_scale=design_scale,
-                        constraints_loc=constraints_loc,
-                        constraints_scale=constraints_scale,
                         mu=mu,
                         r=r
                     )
@@ -423,7 +367,6 @@ class HessianGLMALL(HessiansGLM):
                     H = _aa_byfeature(
                         X=X,
                         design_loc=design_loc,
-                        constraints_loc=constraints_loc,
                         mu=mu,
                         r=r
                     )
@@ -431,7 +374,6 @@ class HessianGLMALL(HessiansGLM):
                     H = _bb_byfeature(
                         X=X,
                         design_scale=design_scale,
-                        constraints_scale=constraints_scale,
                         mu=mu,
                         r=r
                     )
@@ -443,7 +385,7 @@ class HessianGLMALL(HessiansGLM):
             X, design_loc, design_scale, size_factors = data
             X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
             size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
-            params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
+            params_t = tf.transpose(tf.expand_dims(self.model_vars.params, axis=0), perm=[2, 0, 1])
 
             H = tf.map_fn(
                 fn=_assemble_byfeature,
@@ -454,39 +396,16 @@ class HessianGLMALL(HessiansGLM):
 
             return H
 
-        def _red(prev, cur):
-            return [tf.add(p, c) for p, c in zip(prev, cur)]
+        p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+        p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-        params = model_vars.params
-        p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        p_shape_b = model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
-
-        if iterator:
-            H = op_utils.map_reduce(
-                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-                data=batched_data,
-                map_fn=_map,
-                reduce_fn=_red,
-                parallel_iterations=1
-            )
-        else:
-            H = _map(
-                idx=sample_indices,
-                data=batched_data
-            )
-
-        return H[0]
+        return assemble_batch(idx=sample_indices, data=batched_data)
 
     def tf_byfeature(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc: np.ndarray,
-            constraints_scale: np.ndarray,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
-    ) -> List[tf.Tensor]:
+            batched_data
+    ) -> Tuple:
         """
         Compute hessians via tf.hessian for all gene-wise models separately.
 
@@ -511,8 +430,6 @@ class HessianGLMALL(HessiansGLM):
                 X,
                 design_loc,
                 design_scale,
-                constraints_loc,
-                constraints_scale,
                 params,
                 p_shape_a,
                 p_shape_b,
@@ -523,9 +440,6 @@ class HessianGLMALL(HessiansGLM):
             Compute hessians via tf.hessian for all gene-wise models separately
             for a given batch of data.
             """
-
-            dtype = X.dtype
-
             # Hessian computation will be mapped across genes/features.
             # The map function maps across dimension zero, the slices have to
             # be 2D tensors to fit into BasicModelGraph, accordingly,
@@ -548,7 +462,7 @@ class HessianGLMALL(HessiansGLM):
                 X = tf.transpose(X_t)  # observations x features
                 params = tf.transpose(params_t)  # design_params x features
 
-                a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
+                a_split, b_split = tf.split(self.model_vars, params, tf.TensorShape([p_shape_a, p_shape_b]))
 
                 # Define the model graph based on which the likelihood is evaluated
                 # which which the hessian is computed:
@@ -556,11 +470,11 @@ class HessianGLMALL(HessiansGLM):
                     X=X,
                     design_loc=design_loc,
                     design_scale=design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
+                    constraints_loc=self.constraints_loc,
+                    constraints_scale=self.constraints_scale,
                     a_var=a_split,
                     b_var=b_split,
-                    dtype=dtype,
+                    dtype=self.dtype,
                     size_factors=size_factors
                 )
 
@@ -588,36 +502,17 @@ class HessianGLMALL(HessiansGLM):
 
             return H
 
-        def _map(idx, data):
+        def assemble_batch(idx, data):
             X, design_loc, design_scale, size_factors = data
             return feature_wises_batch(
                 X=X,
                 design_loc=design_loc,
                 design_scale=design_scale,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                params=model_vars.params,
-                p_shape_a=model_vars.a_var.shape[0],  # This has to be _var to work with constraints.
-                p_shape_b=model_vars.b_var.shape[0],  # This has to be _var to work with constraints.
-                dtype=dtype,
+                params=self.model_vars.params,
+                p_shape_a=self.model_vars.a_var.shape[0],  # This has to be _var to work with constraints.
+                p_shape_b=self.model_vars.b_var.shape[0],  # This has to be _var to work with constraints.
+                dtype=self.dtype,
                 size_factors=size_factors
             )
 
-        def _red(prev, cur):
-            return [tf.add(p, c) for p, c in zip(prev, cur)]
-
-        if iterator:
-            H = op_utils.map_reduce(
-                last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-                data=batched_data,
-                map_fn=_map,
-                reduce_fn=_red,
-                parallel_iterations=1
-            )
-        else:
-            H = _map(
-                idx=sample_indices,
-                data=batched_data
-            )
-
-        return H[0]
+        return assemble_batch(idx=sample_indices, data=batched_data)

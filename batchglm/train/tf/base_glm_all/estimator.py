@@ -41,7 +41,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             termination_type: str = "by_feature",
             extended_summary=False,
             noise_model: str = None,
-            dtype="float64",
+            dtype=tf.float64
     ):
         """
         Create a new Estimator
@@ -131,41 +131,21 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 idx = tf.expand_dims(idx, axis=0)
 
             if isinstance(input_data.X, SparseXArrayDataArray):
-                X_tensor_idx, X_tensor_val, X_shape_0 = tf.py_func(
+                X_tensor_idx, X_tensor_val, X_shape = tf.py_function(
                     func=input_data.fetch_X_sparse,
                     inp=[idx],
-                    Tout=[tf.int64, input_data.X.dtype, tf.int64],
-                    stateful=False
+                    Tout=[tf.int64, dtype, tf.int64]
                 )
-                X_shape_0.set_shape([1])
-                X_tensor_idx.set_shape(idx.get_shape().as_list() + [2])
-                X_tensor_val.set_shape(idx.get_shape().as_list())
-                # Need this to properly propagate the size of the first dimension:
-                if idx.get_shape().as_list()[0] is None:
-                    X_shape = tf.concat([X_shape_0, tf.constant([input_data.num_features], dtype=tf.int64)], axis=0)
-                else:
-                    X_shape = tf.constant([idx.get_shape().as_list()[0], input_data.num_features], dtype=tf.int64)
-
-                X_tensor = tf.SparseTensorValue(
-                    indices=tf.cast(X_tensor_idx, dtype=tf.int64),
-                    values=tf.cast(X_tensor_val, dtype=dtype),
-                    dense_shape=X_shape
-                )
-
-                #X_tensor = tf.cast(X_tensor, dtype=dtype)
-                #X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
-                #X_sparse = tf.constant([True])
+                X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
             else:
-                X_tensor = tf.py_func(
-                    func=input_data.fetch_X,
+                X_tensor = tf.py_function(
+                    func=input_data.fetch_X_dense,
                     inp=[idx],
-                    Tout=input_data.X.dtype,
-                    stateful=False
+                    Tout=dtype
                 )
                 X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
-                X_tensor = tf.cast(X_tensor, dtype=dtype)
-                #X_tensor_idx = None
-                #X_shape = None
+                #X_tensor = (tf.cast(X_tensor, dtype=dtype_data),)
+                X_tensor = (X_tensor,)
 
             design_loc_tensor = tf.py_func(
                 func=input_data.fetch_design_loc,

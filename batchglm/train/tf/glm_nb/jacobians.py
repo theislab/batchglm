@@ -43,7 +43,7 @@ class Jacobians(JacobiansGLMALL):
             r,
     ):
         # Pre-define sub-graphs that are used multiple times:
-        scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
             r_plus_x = tf.sparse.add(X, r)
         else:

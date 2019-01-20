@@ -99,13 +99,13 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
             if isinstance(X, tf.SparseTensorValue):
                 X = tf.SparseTensor.from_value(X)
-            print(X.shape)
             log_probs_sparse = X * (self.eta_loc - log_r_plus_mu)
             log_probs_dense = tf.math.lgamma(tf.sparse.add(X, model_scale)) - \
-                              tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=X.dtype))) + \
+                              tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=dtype))) + \
                               tf.math.lgamma(model_scale) + \
                               tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
             log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
+            print(log_probs.shape)
         else:
             log_probs = tf.math.lgamma(model_scale + X) - \
                         tf.math.lgamma(X + tf.ones_like(X)) - tf.math.lgamma(model_scale) + \

@@ -13,7 +13,10 @@ class FIMGLM:
     Compute expected fisher information matrix (FIM)
     for iteratively re-weighted least squares (IWLS or IRLS) parameter updates for GLMs.
     """
-
+    noise_model: str
+    constraints_loc: tf.Tensor
+    constraints_scale: tf.Tensor
+    model_vars: ModelVarsGLM
     _update_a: bool
     _update_b: bool
 
@@ -30,7 +33,6 @@ class FIMGLM:
             model_vars: ModelVarsGLM,
             noise_model: str,
             dtype,
-            mode="obs",
             iterator=True,
             update_a=True,
             update_b=True,
@@ -81,18 +83,55 @@ class FIMGLM:
             Wether to compute IWLS updates for b parameters.
         """
         self.noise_model = noise_model
+        self.constraints_loc = constraints_loc
+        self.constraints_scale = constraints_scale
+        self.model_vars = model_vars
+        self.dtype = dtype
         self._update_a = update_a
         self._update_b = update_b
 
-        fim_a, fim_b = self.analytic(
-            batched_data=batched_data,
-            sample_indices=sample_indices,
-            constraints_loc=constraints_loc,
-            constraints_scale=constraints_scale,
-            model_vars=model_vars,
-            iterator=iterator,
-            dtype=dtype
-        )
+        def map_fun(idx, data):
+            return self.analytic(
+                sample_indices=idx,
+                batched_data=data
+            )
+
+        def reduce_fun(old, new):
+            fim_a = tf.add(old[0], new[0])
+            fim_b = tf.add(old[1], new[1])
+            return fim_a, fim_b
+
+        def init_fun():
+            if self._update_a and self._update_b:
+                return (tf.zeros([model_vars.n_features,
+                                  model_vars.a_var.shape[0],
+                                  model_vars.a_var.shape[0]], dtype=dtype),
+                        tf.zeros([model_vars.n_features,
+                                  model_vars.b_var.shape[0],
+                                  model_vars.b_var.shape[0]], dtype=dtype))
+            elif self._update_a and not self._update_b:
+                return (tf.zeros([model_vars.n_features,
+                                  model_vars.a_var.shape[0],
+                                  model_vars.a_var.shape[0]], dtype=dtype),
+                        tf.zeros((), dtype=dtype))
+            elif not self._update_a and self._update_b:
+                return (tf.zeros((), dtype=dtype),
+                        tf.zeros([model_vars.n_features,
+                                  model_vars.b_var.shape[0],
+                                  model_vars.b_var.shape[0]], dtype=dtype))
+
+        if iterator:
+            # Perform a reduction operation across data set.
+            fim_a, fim_b = batched_data.reduce(
+                initial_state=init_fun(),
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]))
+            )
+        else:
+            # Only evaluate FIM for given data batch.
+            fim_a, fim_b = map_fun(
+                idx=sample_indices,
+                data=batched_data
+            )
 
         self.fim_a = fim_a
         self.fim_b = fim_b
@@ -100,13 +139,8 @@ class FIMGLM:
     @abc.abstractmethod
     def analytic(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
+            batched_data
     ):
         pass
 
