@@ -89,7 +89,7 @@ class SparseXArrayDataArray:
     def groupby(self, key):
         grouping = self.coords[key]
         groups = np.unique(self.coords[key]).tolist()
-        self.groups = np.arange(0, len(groups))
+        self.groups = np.arange(0, len(groups))  # TODO: no sorting in xarray?
         self.grouping = np.array([groups.index(x) for x in grouping])
 
     def add(self, a):

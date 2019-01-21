@@ -164,7 +164,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
 
-                    logger.info("Using closed-form MME initialization for dispersion")
+                    logger.debug("Using closed-form MME initialization for dispersion")
                     logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_b)
                     logger.info("Should train r: %s", self._train_scale)
                 except np.linalg.LinAlgError:
@@ -172,8 +172,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             elif init_b.lower() == "standard" or init_b.lower() == "all_zero":
                 init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]])
 
-                logger.info("Using standard initialization for dispersion")
-                logger.info("Should train r: %s", self._train_scale)
+                logger.debug("Using standard initialization for dispersion")
+                logger.debug("Should train r: %s", self._train_scale)
 
         if init_model is not None:
             # Locations model:
@@ -188,7 +188,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_loc[my_idx] = init_model.par_link_loc[init_idx]
 
                 init_a = init_loc
-                logger.info("Using initialization based on input model for mean")
+                logger.debug("Using initialization based on input model for mean")
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
@@ -202,7 +202,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_scale[my_idx] = init_model.par_link_scale[init_idx]
 
                 init_b = init_scale
-                logger.info("Using initialization based on input model for dispersion")
+                logger.debug("Using initialization based on input model for dispersion")
 
         return init_a, init_b
 

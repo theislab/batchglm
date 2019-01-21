@@ -24,7 +24,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
         if noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if noise_model=="nb":
+            if noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
@@ -145,12 +145,12 @@ class Test_AccuracyAnalytic_GLM_NB(
     """
 
     def test_a_and_b(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.DEBUG)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_and_b()")
 
         self.noise_model = "nb"
-        self._test_a_and_b(sparse=False)
+        #self._test_a_and_b(sparse=False)
         self._test_a_and_b(sparse=True)
 
 

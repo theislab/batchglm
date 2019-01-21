@@ -29,7 +29,7 @@ class _Test_AccuracyAnalytic_GLM_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "nr",
+                "optim_algo": "nr_tr",
             },
         ])
 
