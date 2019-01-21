@@ -130,44 +130,48 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            if isinstance(input_data.X, SparseXArrayDataArray):
-                X_tensor_idx, X_tensor_val, X_shape = tf.py_function(
-                    func=input_data.fetch_X_sparse,
-                    inp=[idx],
-                    Tout=[tf.int64, dtype, tf.int64]
-                )
-                X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
-            else:
-                X_tensor = tf.py_function(
-                    func=input_data.fetch_X_dense,
-                    inp=[idx],
-                    Tout=dtype
-                )
-                X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
-                #X_tensor = (tf.cast(X_tensor, dtype=dtype_data),)
-                X_tensor = (X_tensor,)
-
-            design_loc_tensor = tf.py_function(
-                func=input_data.fetch_design_loc,
+            #if isinstance(input_data.X, SparseXArrayDataArray):
+            #    X_tensor_idx, X_tensor_val, X_shape = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+            #        func=input_data.fetch_X_sparse,
+            #        inp=[idx],
+            #        Tout=[tf.int64, input_data.X.dtype, tf.int64],
+            #        stateful=False  #  TODO: remove with tf>=v1.13
+            #    )
+            #    X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
+            #else:
+            X_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                func=input_data.fetch_X_dense,
                 inp=[idx],
-                Tout=dtype
+                Tout=input_data.X.dtype,
+                stateful=False  #  TODO: remove with tf>=v1.13
+            )
+            X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
+            X_tensor = tf.cast(X_tensor, dtype=dtype)
+
+            design_loc_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                func=input_data.fetch_design_loc,
+                inp=input_data.design_loc.dtype,
+                Tout=dtype,
+                stateful=False  #  TODO: remove with tf>=v1.13
             )
             design_loc_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_loc_params])
             design_loc_tensor = tf.cast(design_loc_tensor, dtype=dtype)
 
-            design_scale_tensor = tf.py_function(
+            design_scale_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                 func=input_data.fetch_design_scale,
                 inp=[idx],
-                Tout=dtype
+                Tout=input_data.design_scale.dtype,
+                stateful=False  #  TODO: remove with tf>=v1.13
             )
             design_scale_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_scale_params])
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None:
-                size_factors_tensor = tf.log(tf.py_function(
+                size_factors_tensor = tf.log(tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_size_factors,
                     inp=[idx],
-                    Tout=dtype
+                    Tout=input_data.size_factors.dtype,
+                    stateful=False  #  TODO: remove with tf>=v1.13
                 ))
                 size_factors_tensor.set_shape(idx.get_shape())
                 # Here, we broadcast the size_factor tensor to the batch size,

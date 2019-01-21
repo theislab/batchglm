@@ -326,12 +326,7 @@ class _InputData_Base:
         return self.data.coords["feature_allzero"]
 
     def fetch_X_dense(self, idx):
-        data = self.X[idx,:].values
-
-        if idx.shape[0] == 1:
-            data = np.squeeze(data, axis=0)
-
-        return data
+        return self.X[idx].values
 
     def fetch_X_sparse(self, idx):
         assert isinstance(self.X.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
