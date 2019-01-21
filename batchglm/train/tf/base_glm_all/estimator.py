@@ -147,30 +147,27 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 #X_tensor = (tf.cast(X_tensor, dtype=dtype_data),)
                 X_tensor = (X_tensor,)
 
-            design_loc_tensor = tf.py_func(
+            design_loc_tensor = tf.py_function(
                 func=input_data.fetch_design_loc,
                 inp=[idx],
-                Tout=input_data.design_loc.dtype,
-                stateful=False
+                Tout=dtype
             )
             design_loc_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_loc_params])
             design_loc_tensor = tf.cast(design_loc_tensor, dtype=dtype)
 
-            design_scale_tensor = tf.py_func(
+            design_scale_tensor = tf.py_function(
                 func=input_data.fetch_design_scale,
                 inp=[idx],
-                Tout=input_data.design_scale.dtype,
-                stateful=False
+                Tout=dtype
             )
             design_scale_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_scale_params])
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None:
-                size_factors_tensor = tf.log(tf.py_func(
+                size_factors_tensor = tf.log(tf.py_function(
                     func=input_data.fetch_size_factors,
                     inp=[idx],
-                    Tout=input_data.size_factors.dtype,
-                    stateful=False
+                    Tout=dtype
                 ))
                 size_factors_tensor.set_shape(idx.get_shape())
                 # Here, we broadcast the size_factor tensor to the batch size,
@@ -387,6 +384,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def gradients(self):
+        print(self.gradients)
         return self.to_xarray("gradients", coords=self.input_data.data.coords)
 
     @property

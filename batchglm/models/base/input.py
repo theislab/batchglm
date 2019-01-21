@@ -334,7 +334,7 @@ class _InputData_Base:
         return data
 
     def fetch_X_sparse(self, idx):
-        assert isinstance(self.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
+        assert isinstance(self.X.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
 
         data = self.X.X[idx]
 

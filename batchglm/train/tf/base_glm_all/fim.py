@@ -127,9 +127,9 @@ class FIMGLMALL(FIMGLM):
                 fim_b = _b_byobs(X=X, design_scale=design_scale, mu=mu, r=r)
             elif self._update_a and not self._update_b:
                 fim_a = _a_byobs(design_loc=design_loc, mu=mu, r=r)
-                fim_b = tf.zeros(shape=())
+                fim_b = tf.zeros(shape=(), dtype=self.dtype)
             elif not self._update_a and self._update_b:
-                fim_a = tf.zeros(shape=())
+                fim_a = tf.zeros(shape=(), dtype=self.dtype)
                 fim_b = _b_byobs(X=X, design_scale=design_scale, mu=mu, r=r)
             else:
                 raise ValueError("either require hess_a or hess_b")

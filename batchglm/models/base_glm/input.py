@@ -6,6 +6,7 @@ except ImportError:
     anndata = None
 import xarray as xr
 import numpy as np
+import scipy.sparse
 import pandas as pd
 
 from .utils import parse_constraints, parse_design
@@ -33,7 +34,7 @@ class InputData(_InputData_Base):
     @classmethod
     def new(
             cls,
-            data: Union[np.ndarray, anndata.AnnData, xr.DataArray, xr.Dataset],
+            data: Union[np.ndarray, anndata.AnnData, xr.DataArray, xr.Dataset, scipy.sparse.csr_matrix],
             design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,

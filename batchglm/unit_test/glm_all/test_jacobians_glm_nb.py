@@ -2,6 +2,7 @@ import logging
 import unittest
 import time
 import numpy as np
+import scipy.sparse
 
 import batchglm.api as glm
 import batchglm.data as data_utils
@@ -66,7 +67,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
     def compare_jacs(
             self,
             design,
-            quick_scale
+            quick_scale,
+            sparse
     ):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
@@ -80,7 +82,18 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         design_loc = data_utils.design_matrix(sample_description, formula=design)
         design_scale = data_utils.design_matrix(sample_description, formula=design)
 
-        input_data = InputData.new(self.sim.X, design_loc=design_loc, design_scale=design_scale)
+        if sparse:
+            input_data = InputData.new(
+                data=scipy.sparse.csr_matrix(self.sim.X),
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
+        else:
+            input_data = InputData.new(
+                data=self.sim.X,
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
 
         logger.debug("** Running analytic Jacobian test")
         pkg_constants.JACOBIAN_MODE = "analytic"
@@ -118,43 +131,55 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         assert max_rel_dev < 1e-10
         return True
 
-    def _test_compute_jacobians(self):
+    def _test_compute_jacobians_dense(self):
+        logger.debug("* Running Jacobian tests dense data")
         self.simulate()
-        self._test_compute_jacobians_a_and_b()
-        self._test_compute_jacobians_a_only()
-        self._test_compute_jacobians_b_only()
+        self._test_compute_jacobians_a_and_b(sparse=False)
+        self._test_compute_jacobians_a_only(sparse=False)
+        self._test_compute_jacobians_b_only(sparse=False)
 
-    def _test_compute_jacobians_a_and_b(self):
+    def _test_compute_jacobians_sparse(self):
+        logger.debug("* Running Jacobian tests sparse data")
+        self.simulate()
+        self._test_compute_jacobians_a_and_b(sparse=True)
+        self._test_compute_jacobians_a_only(sparse=True)
+        self._test_compute_jacobians_b_only(sparse=True)
+
+    def _test_compute_jacobians_a_and_b(self, sparse):
         logger.debug("* Running Jacobian tests for a and b training")
         return self.compare_jacs(
             design="~ 1 + condition + batch",
-            quick_scale=False
+            quick_scale=False,
+            sparse=sparse
         )
 
-    def _test_compute_jacobians_a_only(self):
+    def _test_compute_jacobians_a_only(self, sparse):
         logger.debug("* Running Jacobian tests for a only training")
         return self.compare_jacs(
             design="~ 1 + condition + batch",
-            quick_scale=True
+            quick_scale=True,
+            sparse=sparse
         )
 
-    def _test_compute_jacobians_b_only(self):
+    def _test_compute_jacobians_b_only(self, sparse):
         logger.debug("* Running Jacobian tests for b only training")
         return self.compare_jacs(
             design="~ 1 + condition",
-            quick_scale=False
+            quick_scale=False,
+            sparse=sparse
         )
 
 
 class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 
         self.noise_model = "nb"
-        self._test_compute_jacobians()
+        #self._test_compute_jacobians_dense()
+        self._test_compute_jacobians_sparse()
 
 
 if __name__ == '__main__':

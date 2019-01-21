@@ -67,8 +67,8 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
         data_indices = data_indices.batch(batch_size)
         batched_data = data_indices.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
 
-        def map_sparse(idx, data_batch):
-            X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data_batch
+        def map_sparse(idx, data):
+            X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
             if len(X_tensor_ls) > 1:
                 X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
             else:
@@ -82,8 +82,10 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
             def init_fun():
                 return tf.zeros([model_vars.n_features], dtype=dtype)
 
-            def map_fun(idx, data_batch) -> BasicModelGraph:
+            def map_fun(data) -> BasicModelGraph:
+                idx, data_batch = data
                 X, design_loc, design_scale, size_factors = data_batch
+                print(X)
                 basic_model = BasicModelGraph(
                     X=X,
                     design_loc=design_loc,
@@ -96,14 +98,12 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
                     size_factors=size_factors)
                 return basic_model
 
-            model = map_fun(*fetch_fn(sample_indices))  # TODO depreceate
-
             def reduce_fun(old, new):
                 return tf.add(old, new)
 
             log_likelihood = batched_data.reduce(
                 initial_state=init_fun(),
-                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]).log_likelihood)
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new).log_likelihood)
             )
             norm_log_likelihood = log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
             norm_neg_log_likelihood = - norm_log_likelihood
@@ -115,23 +115,12 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
         self.train_a = train_a
         self.train_b = train_b
         self.dtype = dtype
+        self.constraints_loc = constraints_loc
+        self.constraints_scale = constraints_scale
 
-        self.X = model.X
-        self.design_loc = model.design_loc
-        self.design_scale = model.design_scale
-        self.constraints_loc = model.constraints_loc
-        self.constraints_scale = model.constraints_scale
-
-        self.full_model = model
         self.batched_data = batched_data
         self.sample_indices = sample_indices
 
-        self.mu = model.mu
-        self.r = model.r
-        self.sigma2 = model.sigma2
-
-        #self.probs = model.probs
-        #self.log_probs = model.log_probs
         self.log_likelihood = log_likelihood
         self.norm_log_likelihood = norm_log_likelihood
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
@@ -383,7 +372,7 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
             training_data = training_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
             training_data = training_data.prefetch(buffer_size)
 
-            iterator = training_data.make_one_shot_iterator()
+            iterator = tf.compat.v1.data.make_one_shot_iterator(training_data)
 
             batch_sample_index, batch_data = iterator.get_next()
             (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data

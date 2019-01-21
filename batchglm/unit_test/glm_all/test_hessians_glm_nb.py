@@ -60,7 +60,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         ])
         return estimator
 
-    def _test_compute_hessians(self):
+    def _test_compute_hessians(self, sparse):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:

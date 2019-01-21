@@ -105,7 +105,6 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
                               tf.math.lgamma(model_scale) + \
                               tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
             log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
-            print(log_probs.shape)
         else:
             log_probs = tf.math.lgamma(model_scale + X) - \
                         tf.math.lgamma(X + tf.ones_like(X)) - tf.math.lgamma(model_scale) + \
