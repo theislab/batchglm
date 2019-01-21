@@ -1,6 +1,7 @@
 from typing import List
 import unittest
 import logging
+import scipy.sparse
 
 import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM
@@ -18,7 +19,8 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             simulator,
             quick_scale,
             termination,
-            noise_model
+            noise_model,
+            sparse
     ):
         if noise_model is None:
             raise ValueError("noise_model is None")
@@ -30,8 +32,22 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
 
         batch_size = 900
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
+
+        if sparse:
+            input_data = InputData.new(
+                data=scipy.sparse.csr_matrix(simulator.input_data.X),
+                design_loc=simulator.input_data.design_loc,
+                design_scale=simulator.input_data.design_scale
+            )
+        else:
+            input_data = InputData.new(
+                data=simulator.input_data.X,
+                design_loc=simulator.input_data.design_loc,
+                design_scale=simulator.input_data.design_scale
+            )
+
         estimator = Estimator(
-            input_data=simulator.input_data,
+            input_data=input_data,
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
@@ -100,14 +116,16 @@ class Test_AccuracySizeFactors_GLM_ALL(
             batched,
             termination,
             train_loc,
-            train_scale
+            train_scale,
+            sparse
     ):
         algos = ["ADAM", "ADAGRAD", "NR", "IRLS"]
         estimator = _Test_AccuracySizeFactors_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             termination=termination,
-            noise_model=self.noise_model
+            noise_model=self.noise_model,
+            sparse=sparse
         )
         return self._basic_test(
             estimator=estimator,
@@ -116,25 +134,19 @@ class Test_AccuracySizeFactors_GLM_ALL(
             algos=algos
         )
 
-    def _test_full(self):
+    def _test_full(self, sparse):
         self.simulate()
         logger.debug("* Running tests for full data")
-        logger.debug("** Running tests for a and b training")
-        super()._test_full_a_and_b()
-        logger.debug("** Running tests for a only training")
-        super()._test_full_a_only()
-        logger.debug("** Running tests for b only training")
-        super()._test_full_b_only()
+        super()._test_full_a_and_b(sparse=sparse)
+        super()._test_full_a_only(sparse=sparse)
+        super()._test_full_b_only(sparse=sparse)
 
-    def _test_batched(self):
+    def _test_batched(self, sparse):
         self.simulate()
         logger.debug("* Running tests for batched data")
-        logger.debug("** Running tests for a and b training")
-        super()._test_batched_a_and_b()
-        logger.debug("** Running tests for a only training")
-        super()._test_batched_a_only()
-        logger.debug("** Running tests for b only training")
-        super()._test_batched_b_only()
+        super()._test_batched_a_and_b(sparse=sparse)
+        super()._test_batched_a_only(sparse=sparse)
+        super()._test_batched_b_only(sparse=sparse)
 
 
 class Test_AccuracySizeFactors_GLM_NB(
@@ -151,7 +163,8 @@ class Test_AccuracySizeFactors_GLM_NB(
         logger.error("Test_AccuracySizeFactors_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
-        self._test_full()
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
 
     def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -159,7 +172,8 @@ class Test_AccuracySizeFactors_GLM_NB(
         logger.error("Test_AccuracySizeFactors_GLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
-        self._test_batched()
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
 
 
 if __name__ == '__main__':

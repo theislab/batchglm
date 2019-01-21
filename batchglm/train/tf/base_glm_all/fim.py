@@ -139,4 +139,5 @@ class FIMGLMALL(FIMGLM):
         p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-        return assemble_batch(idx=sample_indices, data=batched_data)
+        FIM = assemble_batch(idx=sample_indices, data=batched_data)
+        return FIM

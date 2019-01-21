@@ -70,6 +70,10 @@ class SparseXArrayDataArray:
         return self.X.dtype
 
     @property
+    def shape(self):
+        return self.X.shape
+
+    @property
     def ndim(self):
         return len(self.dims)
 

@@ -33,7 +33,8 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
                 raise ValueError("noise_model not recognized")
 
         batch_size = 900
-        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
 
         input_data = simulator.input_data
         design_loc = np.hstack([

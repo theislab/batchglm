@@ -1,6 +1,7 @@
 from typing import List
 import unittest
 import logging
+import scipy.sparse
 
 import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM
@@ -17,20 +18,36 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
             self,
             simulator,
             train_scale,
-            noise_model
+            noise_model,
+            sparse
     ):
         if noise_model is None:
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.glm_nb import Estimator
+                from batchglm.api.models.glm_nb import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
         batch_size = 500
-        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+
+        if sparse:
+            input_data = InputData.new(
+                data=scipy.sparse.csr_matrix(simulator.input_data.X),
+                design_loc=simulator.input_data.design_loc,
+                design_scale=simulator.input_data.design_scale
+            )
+        else:
+            input_data = InputData.new(
+                data=simulator.input_data.X,
+                design_loc=simulator.input_data.design_loc,
+                design_scale=simulator.input_data.design_scale
+            )
+
         estimator = Estimator(
-            input_data=simulator.input_data,
+            input_data=input_data,
             batch_size=batch_size,
             quick_scale=train_scale,
             provide_optimizers=provide_optimizers,
@@ -95,27 +112,28 @@ class Test_AccuracyAnalytic_GLM_ALL(
             num_features=2
         )
 
-    def get_estimator(self, train_scale):
+    def get_estimator(self, train_scale, sparse):
         return _Test_AccuracyAnalytic_GLM_ALL_Estim(
             simulator=self.sim,
             train_scale=train_scale,
-            noise_model=self.noise_model
+            noise_model=self.noise_model,
+            sparse=sparse
         )
 
-    def _test_a_and_b(self):
+    def _test_a_and_b(self, sparse):
         self.simulate()
         logger.debug("* Running tests for closed form of a and b model")
-        self._test_a_and_b_closed()
+        self._test_a_and_b_closed(sparse=sparse)
 
-    def _test_a_only(self):
+    def _test_a_only(self, sparse):
         self.simulate()
         logger.debug("* Running tests for closed form of a model")
-        self._test_a_closed()
+        self._test_a_closed(sparse=sparse)
 
-    def _test_b_only(self):
+    def _test_b_only(self, sparse):
         self.simulate()
         logger.debug("* Running tests for closed form of b model")
-        self._test_b_closed()
+        self._test_b_closed(sparse=sparse)
 
 
 class Test_AccuracyAnalytic_GLM_NB(
@@ -127,12 +145,13 @@ class Test_AccuracyAnalytic_GLM_NB(
     """
 
     def test_a_and_b(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_and_b()")
 
         self.noise_model = "nb"
-        self._test_a_and_b()
+        self._test_a_and_b(sparse=False)
+        self._test_a_and_b(sparse=True)
 
 
 if __name__ == '__main__':

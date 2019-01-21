@@ -97,30 +97,6 @@ class HessiansGLM:
         self._compute_hess_a = hess_a
         self._compute_hess_b = hess_b
 
-        if mode == "obs_batched":
-            map_fun_base = self.byobs
-
-            def reduce_fun(old, new):
-                return tf.add(old, new)
-        elif mode == "feature":
-            map_fun_base = self.byfeature
-
-            def reduce_fun(old, new):
-                return [tf.add(o, n) for o, n in zip(old, new)][0]
-        elif mode == "tf":
-            map_fun_base = self.tf_byfeature
-
-            def reduce_fun(old, new):
-                return [tf.add(o, n) for o, n in zip(old, new)][0]
-        else:
-            raise ValueError("mode %s not recognized" % mode)
-
-        def map_fun(idx, data):
-            return map_fun_base(
-                sample_indices=idx,
-                batched_data=data
-            )
-
         def init_fun():
             if self._compute_hess_a and self._compute_hess_b:
                 return tf.zeros([model_vars.n_features,
@@ -134,6 +110,24 @@ class HessiansGLM:
                 return tf.zeros([model_vars.n_features,
                                  model_vars.b_var.shape[0],
                                  model_vars.b_var.shape[0]], dtype=dtype)
+
+        if mode == "obs_batched":
+            map_fun_base = self.byobs
+        elif mode == "feature":
+            map_fun_base = self.byfeature
+        elif mode == "tf":
+            map_fun_base = self.tf_byfeature
+        else:
+            raise ValueError("mode %s not recognized" % mode)
+
+        def map_fun(idx, data):
+            return map_fun_base(
+                sample_indices=idx,
+                batched_data=data
+            )
+
+        def reduce_fun(old, new):
+            return tf.add(old, new)
 
         if iterator:
             # Perform a reduction operation across data set.

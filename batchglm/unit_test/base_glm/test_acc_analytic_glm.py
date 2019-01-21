@@ -110,11 +110,11 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         self.sim.generate_data()
 
     @abc.abstractmethod
-    def get_estimator(self, train_scale):
+    def get_estimator(self, train_scale, sparse):
         pass
 
-    def _test_a_and_b_closed(self):
-        estimator = self.get_estimator(train_scale=False)
+    def _test_a_and_b_closed(self, sparse):
+        estimator = self.get_estimator(train_scale=False, sparse=sparse)
         estimator.estimate()
         estimator_store = estimator.estimator.finalize()
         self._estims.append(estimator)
@@ -129,8 +129,8 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         return True
 
 
-    def _test_a_closed(self):
-        estimator = self.get_estimator(train_scale=False)
+    def _test_a_closed(self, sparse):
+        estimator = self.get_estimator(train_scale=False, sparse=sparse)
         estimator.estimate()
         estimator_store = estimator.estimator.finalize()
         self._estims.append(estimator)
@@ -140,8 +140,8 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         assert success, "closed form for a model was inaccurate"
         return True
 
-    def _test_b_closed(self):
-        estimator = self.get_estimator(train_scale=False)
+    def _test_b_closed(self, sparse):
+        estimator = self.get_estimator(train_scale=False, sparse=sparse)
         estimator.estimate()
         estimator_store = estimator.estimator.finalize()
         self._estims.append(estimator)

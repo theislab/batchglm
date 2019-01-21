@@ -177,56 +177,63 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             batched,
             termination,
             train_loc,
-            train_scale
+            train_scale,
+            sparse
     ):
         pass
 
-    def _test_full_a_and_b(self):
+    def _test_full_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
             train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_full_a_only(self):
+    def _test_full_a_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
             train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_full_b_only(self):
+    def _test_full_b_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
             train_loc=False,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_a_and_b(self):
+    def _test_batched_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
             train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_a_only(self):
+    def _test_batched_a_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
             train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_batched_b_only(self):
+    def _test_batched_b_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
             train_loc=False,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
 

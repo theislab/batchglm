@@ -3,6 +3,7 @@ import unittest
 import time
 
 import numpy as np
+import scipy.sparse
 
 import batchglm.api as glm
 import batchglm.data as data_utils
@@ -150,12 +151,12 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
         self._test_compute_hessians_dense()
-        #self._test_compute_hessians_sparse()
+        #self._test_compute_hessians_sparse()  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
 
         return True
 

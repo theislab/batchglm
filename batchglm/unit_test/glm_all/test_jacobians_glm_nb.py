@@ -117,7 +117,6 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         estimator_tf.close_session()
         t_tf = t1_tf - t0_tf
 
-        i = 1
         logger.info("run time tensorflow solution: %f" % t_tf)
         logger.info("run time observation batch-wise analytic solution: %f" % t_analytic)
         logger.info("relative difference of mean estimates for analytic jacobian to observation-wise jacobian:")
@@ -128,22 +127,11 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         logger.info((J_tf - J_analytic) / J_tf)
 
         max_rel_dev = np.max(np.abs((J_tf - J_analytic) / J_tf))
+        print(J_tf)
+        print(J_analytic)
+        print((J_tf - J_analytic) / J_tf)
         assert max_rel_dev < 1e-10
         return True
-
-    def _test_compute_jacobians_dense(self):
-        logger.debug("* Running Jacobian tests dense data")
-        self.simulate()
-        self._test_compute_jacobians_a_and_b(sparse=False)
-        self._test_compute_jacobians_a_only(sparse=False)
-        self._test_compute_jacobians_b_only(sparse=False)
-
-    def _test_compute_jacobians_sparse(self):
-        logger.debug("* Running Jacobian tests sparse data")
-        self.simulate()
-        self._test_compute_jacobians_a_and_b(sparse=True)
-        self._test_compute_jacobians_a_only(sparse=True)
-        self._test_compute_jacobians_b_only(sparse=True)
 
     def _test_compute_jacobians_a_and_b(self, sparse):
         logger.debug("* Running Jacobian tests for a and b training")
@@ -169,17 +157,31 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             sparse=sparse
         )
 
+    def _test_compute_jacobians_dense(self):
+        logger.debug("* Running Jacobian tests dense data")
+        self.simulate()
+        self._test_compute_jacobians_a_and_b(sparse=False)
+        self._test_compute_jacobians_a_only(sparse=False)
+        self._test_compute_jacobians_b_only(sparse=False)
+
+    def _test_compute_jacobians_sparse(self):
+        logger.debug("* Running Jacobian tests sparse data")
+        self.simulate()
+        self._test_compute_jacobians_a_and_b(sparse=True)
+        self._test_compute_jacobians_a_only(sparse=True)
+        self._test_compute_jacobians_b_only(sparse=True)
+
 
 class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 
         self.noise_model = "nb"
-        #self._test_compute_jacobians_dense()
-        self._test_compute_jacobians_sparse()
+        self._test_compute_jacobians_dense()
+        #self._test_compute_jacobians_sparse()  #TODO automatic differnetiation does not seems to work here yet.
 
 
 if __name__ == '__main__':

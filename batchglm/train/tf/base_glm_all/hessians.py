@@ -194,7 +194,8 @@ class HessianGLMALL(HessiansGLM):
         p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-        return assemble_batch(idx=sample_indices, data=batched_data)
+        H = assemble_batch(idx=sample_indices, data=batched_data)
+        return H
 
     def byfeature(
             self,
@@ -382,7 +383,13 @@ class HessianGLMALL(HessiansGLM):
                 return [H]
 
             X, design_loc, design_scale, size_factors = data
-            X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
+            if isinstance(X, tf.SparseTensor):  # TODO tf>=1.13
+                logger.error("Hessian evaluation by_feature not supplied for sparse input data.")
+                # TODO: tf.sparse_expand dims throws and error here, replace later when this works?
+                #X_t = tf.transpose(tf.sparse.expand_dims(X, axis=0), perm=[2, 0, 1])
+                assert False, "see logger.error"
+            else:
+                X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
             size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
             params_t = tf.transpose(tf.expand_dims(self.model_vars.params, axis=0), perm=[2, 0, 1])
 
@@ -393,12 +400,13 @@ class HessianGLMALL(HessiansGLM):
                 parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
             )
 
-            return H
+            return H[0]
 
         p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-        return assemble_batch(idx=sample_indices, data=batched_data)
+        H = assemble_batch(idx=sample_indices, data=batched_data)
+        return H
 
     def tf_byfeature(
             self,
@@ -446,7 +454,13 @@ class HessianGLMALL(HessiansGLM):
             # and cells or parameters with an extra padding dimension in the second
             # and third dimension. Note that size_factors is not a 1xobservations array
             # but is implicitly broadcasted to observations x features in Estimator.
-            X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
+            if isinstance(X, tf.SparseTensor):  # TODO tf>=1.13
+                logger.error("Hessian evaluation by_feature not supplied for sparse input data.")
+                # TODO: tf.sparse_expand dims throws and error here, replace later when this works?
+                X_t = tf.transpose(tf.sparse.expand_dims(X, axis=0), perm=[2, 0, 1])
+                #assert False, "see logger.error"
+            else:
+                X_t = tf.transpose(tf.expand_dims(X, axis=0), perm=[2, 0, 1])
             size_factors_t = tf.transpose(tf.expand_dims(size_factors, axis=0), perm=[2, 0, 1])
             params_t = tf.transpose(tf.expand_dims(params, axis=0), perm=[2, 0, 1])
 
@@ -461,7 +475,7 @@ class HessianGLMALL(HessiansGLM):
                 X = tf.transpose(X_t)  # observations x features
                 params = tf.transpose(params_t)  # design_params x features
 
-                a_split, b_split = tf.split(self.model_vars, params, tf.TensorShape([p_shape_a, p_shape_b]))
+                a_split, b_split = tf.split(params, tf.TensorShape([p_shape_a, p_shape_b]))
 
                 # Define the model graph based on which the likelihood is evaluated
                 # which which the hessian is computed:
@@ -499,7 +513,7 @@ class HessianGLMALL(HessiansGLM):
 
             H = [tf.squeeze(tf.squeeze(tf.stack(h), axis=2), axis=3) for h in H]
 
-            return H
+            return H[0]
 
         def assemble_batch(idx, data):
             X, design_loc, design_scale, size_factors = data
@@ -514,4 +528,5 @@ class HessianGLMALL(HessiansGLM):
                 size_factors=size_factors
             )
 
-        return assemble_batch(idx=sample_indices, data=batched_data)
+        H = assemble_batch(idx=sample_indices, data=batched_data)
+        return H

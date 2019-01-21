@@ -101,7 +101,8 @@ class JacobiansGLMALL(JacobiansGLM):
 
             return J
 
-        return assemble_bybatch(idx=sample_indices, data=batched_data)
+        J = assemble_bybatch(idx=sample_indices, data=batched_data)
+        return J
 
     def tf(
             self,
@@ -174,4 +175,5 @@ class JacobiansGLMALL(JacobiansGLM):
                 raise ValueError("either require jac_a or jac_b")
             return J
 
-        return assemble_bybatch(idx=sample_indices, data=batched_data)
+        J = assemble_bybatch(idx=sample_indices, data=batched_data)
+        return J
