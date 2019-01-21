@@ -167,7 +167,10 @@ class SparseXArrayDataSet:
         return len(self.dims)
 
     def __getitem__(self, key):
-        return self.__getattribute__(key)
+        if key in self.coords:
+            return self.coords[key]
+        else:
+            return self.__getattribute__(key)
 
     def __setitem__(self, key, value):
         for dim_i in value.dims:

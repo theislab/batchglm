@@ -340,7 +340,6 @@ class HessianGLMALL(HessiansGLM):
                     H_aa = _aa_byfeature(
                         X=X,
                         design_loc=design_loc,
-                        constraints_loc=constraints_loc,
                         mu=mu,
                         r=r
                     )
@@ -390,7 +389,7 @@ class HessianGLMALL(HessiansGLM):
             H = tf.map_fn(
                 fn=_assemble_byfeature,
                 elems=(X_t, size_factors_t, params_t),
-                dtype=[dtype],
+                dtype=[self.dtype],
                 parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
             )
 
@@ -494,7 +493,7 @@ class HessianGLMALL(HessiansGLM):
             H = tf.map_fn(
                 fn=hessian,
                 elems=(X_t, size_factors_t, params_t),
-                dtype=[dtype],
+                dtype=[self.dtype],
                 parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
             )
 

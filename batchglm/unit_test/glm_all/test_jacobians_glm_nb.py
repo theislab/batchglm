@@ -173,7 +173,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
 class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 

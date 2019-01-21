@@ -130,28 +130,31 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            #if isinstance(input_data.X, SparseXArrayDataArray):
-            #    X_tensor_idx, X_tensor_val, X_shape = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
-            #        func=input_data.fetch_X_sparse,
-            #        inp=[idx],
-            #        Tout=[tf.int64, input_data.X.dtype, tf.int64],
-            #        stateful=False  #  TODO: remove with tf>=v1.13
-            #    )
-            #    X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
-            #else:
-            X_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
-                func=input_data.fetch_X_dense,
-                inp=[idx],
-                Tout=input_data.X.dtype,
-                stateful=False  #  TODO: remove with tf>=v1.13
-            )
-            X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
-            X_tensor = tf.cast(X_tensor, dtype=dtype)
+            if isinstance(input_data.X, SparseXArrayDataArray):
+                X_tensor_idx, X_tensor_val, X_shape = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                    func=input_data.fetch_X_sparse,
+                    inp=[idx],
+                    Tout=[np.int64, input_data.X.dtype, np.int64],
+                    stateful=False  #  TODO: remove with tf>=v1.13
+                )
+                X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
+                X_shape = tf.cast(X_shape, dtype=tf.int64)
+                X_tensor_val = tf.cast(X_tensor_val, dtype=dtype)
+                X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
+            else:
+                X_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                    func=input_data.fetch_X_dense,
+                    inp=[idx],
+                    Tout=input_data.X.dtype,
+                    stateful=False  #  TODO: remove with tf>=v1.13
+                )
+                X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
+                X_tensor = (tf.cast(X_tensor, dtype=dtype),)
 
             design_loc_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                 func=input_data.fetch_design_loc,
-                inp=input_data.design_loc.dtype,
-                Tout=dtype,
+                inp=[idx],
+                Tout=input_data.design_loc.dtype,
                 stateful=False  #  TODO: remove with tf>=v1.13
             )
             design_loc_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_loc_params])
@@ -388,7 +391,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     @property
     def gradients(self):
-        print(self.gradients)
         return self.to_xarray("gradients", coords=self.input_data.data.coords)
 
     @property

@@ -63,16 +63,16 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
-        data_indices = tf.data.Dataset.from_tensor_slices(sample_indices)
-        batched_data = data_indices.batch(batch_size)
+        dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
+        batched_data = dataset.batch(batch_size)
         batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
 
         def map_sparse(idx, data):
             X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
-            if False: #len(X_tensor_ls) > 1:
+            if len(X_tensor_ls) > 1:
                 X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
             else:
-                X_tensor = X_tensor_ls#[0]
+                X_tensor = X_tensor_ls[0]
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
         batched_data = batched_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
@@ -84,7 +84,6 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
 
             def map_fun(idx, data) -> BasicModelGraph:
                 X, design_loc, design_scale, size_factors = data
-                print(X)
                 basic_model = BasicModelGraph(
                     X=X,
                     design_loc=design_loc,
@@ -100,35 +99,16 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
             def reduce_fun(old, new):
                 return tf.add(old, new)
 
-            #log_likelihood = batched_data.reduce(
-            #    initial_state=init_fun(),
-            #    reduce_func=lambda old, new: reduce_fun(old, map_fun(new).log_likelihood)
-            #)
-
-            model = map_fun(*fetch_fn(sample_indices))
-
-            with tf.name_scope("log_likelihood"):
-                log_likelihood = op_utils.map_reduce(
-                    last_elem=tf.gather(sample_indices, tf.size(sample_indices) - 1),
-                    data=batched_data,
-                    map_fn=lambda idx, data: map_fun(idx, data).log_likelihood,
-                    parallel_iterations=1,
-                )
+            log_likelihood = batched_data.reduce(
+                initial_state=init_fun(),
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]).log_likelihood)
+            )
 
             norm_log_likelihood = log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
             norm_neg_log_likelihood = - norm_log_likelihood
             loss = tf.reduce_sum(norm_neg_log_likelihood)
 
         # Save attributes necessary for reinitialization:
-        self.X = model.X
-        self.design_loc = model.design_loc
-        self.design_scale = model.design_scale
-        self.mu = model.mu
-        self.r = model.r
-        self.sigma2 = model.sigma2
-        self.probs = model.probs
-        self.log_probs = model.log_probs
-
         self.fetch_fn = fetch_fn
         self.batch_size = batch_size
         self.train_a = train_a
@@ -368,7 +348,7 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
         if noise_model == "nb":
             from .external_nb import BasicModelGraph, Jacobians
         else:
-            raise ValueError("noise model not rewcognized")
+            raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
         with tf.name_scope("input_pipeline"):
@@ -383,14 +363,13 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
 
             def map_sparse(idx, data_batch):
                 X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data_batch
-                if False: #len(X_tensor_ls) > 1:
+                if len(X_tensor_ls) > 1:
                     X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
                 else:
-                    X_tensor = X_tensor_ls#[0]
+                    X_tensor = X_tensor_ls[0]
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-            #training_data = training_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-
+            training_data = training_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
             iterator = training_data.make_one_shot_iterator()  # tf.compat.v1.data.make_one_shot_iterator(training_data) TODO: replace with tf>=v1.13
 
             batch_sample_index, batch_data = iterator.get_next()
