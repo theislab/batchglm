@@ -174,7 +174,7 @@ def closedform_glm_mean(
     linker_groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
         dmat=dmat,
         apply_fun=apply_fun,
-        constraints=constraints.values
+        constraints=constraints
     )
 
     return inv_link_fn(linker_groupwise_means), mu, rmsd
@@ -239,7 +239,7 @@ def closedform_glm_var(
     groupwise_variance, phi, rmsd, rank, s = groupwise_solve_lm(
         dmat=dmat,
         apply_fun=apply_fun,
-        constraints=constraints.values
+        constraints=constraints
     )
 
     return groupwise_variance, phi, rmsd

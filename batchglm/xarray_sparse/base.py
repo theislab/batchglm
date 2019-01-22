@@ -80,10 +80,13 @@ class SparseXArrayDataArray:
         else:
             self.X = self.X.power(n=2)
 
-    def mean(self, dim):
-        assert dim in self.dims, "dim not recognized"
-        axis = self.dims.index(dim)
-        return np.asarray(self.X.mean(axis=axis)).flatten()
+    def mean(self, dim=None):
+        if dim is not None:
+            assert dim in self.dims, "dim not recognized"
+            axis = self.dims.index(dim)
+            return np.asarray(self.X.mean(axis=axis)).flatten()
+        else:
+            return np.asarray(self.X.mean()).flatten()
 
     def var(self, dim):
         assert dim in self.dims, "dim not recognized"

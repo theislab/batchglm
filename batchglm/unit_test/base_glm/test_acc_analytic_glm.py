@@ -38,18 +38,12 @@ class _Test_AccuracyAnalytic_GLM_Estim():
             estimator_store,
             init
     ):
-        threshold_dev = 0.05
-        threshold_std = 0.1
+        threshold_dev = 1e-2
+        threshold_std = 1e-1
 
-        print(estimator_store.a.values)
-        print(self.sim.a.values)
-        print(estimator_store.b.values)
-        print(self.sim.b.values)
         if init == "standard":
-            mean_dev = np.mean([estimator_store.a.values[0, :] - self.sim.a.values[0, :],
-                                estimator_store.a.values[1, :]])
-            std_dev = np.std([estimator_store.a.values[0, :] - self.sim.a.values[0, :],
-                              estimator_store.a.values[1, :]])
+            mean_dev = np.mean(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
+            std_dev = np.std(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
         elif init == "closed_form":
             mean_dev = np.mean(estimator_store.a.values - self.sim.a.values)
             std_dev = np.std(estimator_store.a.values - self.sim.a.values)
@@ -74,10 +68,8 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         threshold_std = 0.1
 
         if init == "standard":
-            mean_dev = np.mean([estimator_store.b.values[0, :] - self.sim.b.values[0, :],
-                                estimator_store.b.values[1, :]])
-            std_dev = np.std([estimator_store.b.values[0, :] - self.sim.b.values[0, :],
-                              estimator_store.b.values[1, :]])
+            mean_dev = np.mean(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
+            std_dev = np.std(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
         elif init == "closed_form":
             mean_dev = np.mean(estimator_store.b.values - self.sim.b.values)
             std_dev = np.std(estimator_store.b.values - self.sim.b.values)
@@ -139,8 +131,8 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
 
         self.sim.generate_params(
             rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.zeros(shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1, 3, shape)
+            rand_fn_loc=lambda shape: np.ones(shape),
+            rand_fn_scale=lambda shape: np.random.uniform(5, 20, shape)
         )
         self.sim.generate_data()
 
@@ -149,13 +141,13 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
 
         def rand_fn_standard(shape):
-            theta = np.zeros(shape)
-            theta[0, :] = np.random.uniform(1, 3, [shape[1]])
+            theta = np.ones(shape)
+            theta[0, :] = np.random.uniform(5, 20, shape[1])
             return theta
 
         self.sim.generate_params(
             rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.random.uniform(1, 3, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(5, 20, shape),
             rand_fn_scale=lambda shape: rand_fn_standard(shape)
         )
         self.sim.generate_data()
@@ -165,13 +157,13 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
 
         def rand_fn_standard(shape):
-            theta = np.zeros(shape)
-            theta[0, :] = np.random.uniform(1, 3, [shape[1]])
+            theta = np.ones(shape)
+            theta[0, :] = np.random.uniform(5, 20, shape[1])
             return theta
 
         self.sim.generate_params(
             rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.zeros(shape),
+            rand_fn_loc=lambda shape: np.ones(shape),
             rand_fn_scale=lambda shape: rand_fn_standard(shape)
         )
         self.sim.generate_data()

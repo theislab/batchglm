@@ -150,9 +150,10 @@ def closedform_nb_glm_logphi(
 
             if weights is None:
                 if isinstance(X, SparseXArrayDataArray):
+                    Xdiff.square(copy=False)
                     Xdiff.assign_coords(coords=("group", grouping))
                     Xdiff.groupby("group")
-                    variance = X.group_means(X.dims[0])
+                    variance = Xdiff.group_means(X.dims[0])
                 else:
                     variance = np.square(Xdiff).groupby("group").mean(X.dims[0])
             else:
@@ -183,7 +184,7 @@ def closedform_nb_glm_logphi(
     groupwise_scales, logphi, rmsd, rank, _ = groupwise_solve_lm(
         dmat=design_scale,
         apply_fun=apply_fun,
-        constraints=constraints.values
+        constraints=constraints
     )
 
     return groupwise_scales, logphi, rmsd

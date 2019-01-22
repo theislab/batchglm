@@ -100,7 +100,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
                     X=self.input_data.X,
                     design_loc=self.input_data.design_loc,
-                    constraints_loc=self.input_data.constraints_loc,
+                    constraints_loc=self.input_data.constraints_loc.values,
                     size_factors=size_factors_init,
                     link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
                 )
@@ -118,12 +118,12 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 #    logger.warning("Closed form initialization failed!")
             elif init_a.lower() == "standard":
                 if isinstance(self.input_data.X, SparseXArrayDataArray):
-                    overall_means = self.input_data.X.mean()
+                    overall_means = self.input_data.X.mean(dim="observations")
                 else:
                     overall_means = self.input_data.X.mean(dim="observations").values  # directly calculate the mean
                 overall_means = self.np_clip_param(overall_means, "mu")
 
-                init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features]) - 250
+                init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features])
                 init_a[0, :] = np.log(overall_means)
                 self._train_loc = True
 
@@ -140,20 +140,18 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
         if isinstance(init_b, str):
             if init_b.lower() == "auto":
-                init_b = "closed_form"
+                init_b = "standard"
 
             if init_b.lower() == "closed_form" or init_b.lower() == "standard":
                 #try:
-                if groupwise_means is None or \
-                        np.any(self.input_data.design_scale.values != self.input_data.design_scale.values):
+                if np.any(self.input_data.design_loc.values != self.input_data.design_scale.values) or \
+                        init_a != init_b:
                     # Have to recompute group-wise means.
-                    pass
-
-                groupwise_means = None
+                    groupwise_means = None
 
                 # Watch out: init_mu is full obs x features matrix and is very large in many cases.
-                # TODO: only compute this if scale model is not a subset of mean model.
-                if np.any(self.input_data.design_scale.values != self.input_data.design_scale.values):
+                if np.any(self.input_data.design_loc.values != self.input_data.design_scale.values) or \
+                        init_a != init_b:
                     if isinstance(self.input_data.X, SparseXArrayDataArray):
                         init_mu = np.exp(np.matmul(
                             self.input_data.design_loc.values,
@@ -171,7 +169,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         X=self.input_data.X,
                         mu=init_mu,
                         design_scale=self.input_data.design_scale,
-                        constraints=self.input_data.constraints_scale,
+                        constraints=self.input_data.constraints_scale.values,
                         size_factors=size_factors_init,
                         groupwise_means=groupwise_means,
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
@@ -180,16 +178,16 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     logger.debug("Using closed-form MME initialization for dispersion")
                     logger.debug("Should train r: %s", self._train_scale)
                 elif init_b.lower() == "standard":
-                    _, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
+                    groupwise_scales, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
                         X=self.input_data.X,
                         mu=init_mu,
                         design_scale=self.input_data.design_scale[:,[0]],
-                        constraints=self.input_data.constraints_scale[[0], [0]],
+                        constraints=self.input_data.constraints_scale[[0], [0]].values,
                         size_factors=size_factors_init,
-                        groupwise_means=groupwise_means,
+                        groupwise_means=None,
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
-                    init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]]) - 250
+                    init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]])
                     init_b[0, :] = init_b_intercept
 
                     logger.debug("Using closed-form MME initialization for dispersion")
