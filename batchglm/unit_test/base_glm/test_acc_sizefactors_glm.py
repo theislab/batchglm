@@ -154,7 +154,7 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            logger.warning("algorithm: %s" % algo)
+            logger.debug("algorithm: %s" % algo)
             estimator.estimate(
                 algo=algo,
                 batched=batched,

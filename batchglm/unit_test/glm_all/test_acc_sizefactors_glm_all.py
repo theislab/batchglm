@@ -26,12 +26,13 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.glm_nb import Estimator
+                from batchglm.api.models.glm_nb import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
         batch_size = 900
-        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
 
         if sparse:
             input_data = InputData.new(
