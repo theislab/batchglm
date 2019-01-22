@@ -183,7 +183,7 @@ class Test_Accuracy_GLM_NB(
         self._test_full_byfeature(sparse=True)
 
     def test_batched_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_Accuracy_GLM_NB.test_batched_byfeature_nb()")
 

@@ -159,8 +159,8 @@ class Test_AccuracyAnalytic_GLM_NB(
 
     def test_a_closed_b_standard(self):
         # TODO this is still inexact!
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_standard()")
 
         self.noise_model = "nb"

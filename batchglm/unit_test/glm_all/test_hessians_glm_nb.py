@@ -138,14 +138,6 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         assert max_rel_dev2 < 1e-10
         return True
 
-    def _test_compute_hessians_dense(self):
-        logger.debug("* Running Hessian tests dense data")
-        self._test_compute_hessians(sparse=False)
-
-    def _test_compute_hessians_sparse(self):
-        logger.debug("* Running Hessian tests sparse data")
-        self._test_compute_hessians(sparse=True)
-
 
 class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
@@ -155,8 +147,8 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
         logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
-        self._test_compute_hessians_dense()
-        #self._test_compute_hessians_sparse()  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
 
         return True
 

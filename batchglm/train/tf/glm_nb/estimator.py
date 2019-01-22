@@ -90,7 +90,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             )
 
         groupwise_means = None
+        init_a_str = None
         if isinstance(init_a, str):
+            init_a_str = init_a.lower()
             # Chose option if auto was chosen
             if init_a.lower() == "auto":
                 init_a = "closed_form"
@@ -144,14 +146,22 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
             if init_b.lower() == "closed_form" or init_b.lower() == "standard":
                 #try:
-                if np.any(self.input_data.design_loc.values != self.input_data.design_scale.values) or \
-                        init_a != init_b:
-                    # Have to recompute group-wise means.
+                # Check whether it is necessary to recompute group-wise means.
+                dmats_unequal = False
+                if self.input_data.design_loc.shape[1] == self.input_data.design_scale.shape[1]:
+                    if np.any(self.input_data.design_loc.values != self.input_data.design_scale.values):
+                        dmats_unequal = True
+
+                inits_unequal = False
+                if init_a_str is not None:
+                    if init_a_str != init_b:
+                        inits_unequal = True
+
+                if inits_unequal or dmats_unequal:
                     groupwise_means = None
 
                 # Watch out: init_mu is full obs x features matrix and is very large in many cases.
-                if np.any(self.input_data.design_loc.values != self.input_data.design_scale.values) or \
-                        init_a != init_b:
+                if inits_unequal or dmats_unequal:
                     if isinstance(self.input_data.X, SparseXArrayDataArray):
                         init_mu = np.exp(np.matmul(
                             self.input_data.design_loc.values,

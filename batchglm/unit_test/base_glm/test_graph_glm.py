@@ -108,7 +108,8 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             termination,
             train_loc,
             train_scale,
-            algo
+            algo,
+            sparse
     ):
         pass
 
@@ -123,24 +124,15 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
 
         return True
 
-    @abc.abstractmethod
     def basic_test(
             self,
             batched,
             termination,
             train_loc,
-            train_scale
-    ):
-        pass
-
-    def _basic_test(
-            self,
-            batched,
-            termination,
-            train_loc,
             train_scale,
-            algos
+            sparse
     ):
+        algos = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR", "IRLS"]
         for algo in algos:
             logger.info("algorithm: %s" % algo)
             self.basic_test_one_algo(
@@ -148,103 +140,116 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
                 termination=termination,
                 train_loc=train_loc,
                 train_scale=train_scale,
-                algo=algo
+                algo=algo,
+                sparse=sparse
             )
 
-    def _test_full_byfeature_a_and_b(self):
+    def _test_full_byfeature_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
             train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_full_byfeature_a_only(self):
+    def _test_full_byfeature_a_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
             train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_full_byfeature_b_only(self):
+    def _test_full_byfeature_b_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
             train_loc=False,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_byfeature_a_and_b(self):
+    def _test_batched_byfeature_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
             train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_byfeature_a_only(self):
+    def _test_batched_byfeature_a_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
             train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_batched_byfeature_b_only(self):
+    def _test_batched_byfeature_b_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
             train_loc=False,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_full_global_a_and_b(self):
+    def _test_full_global_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
             termination="global",
             train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_full_global_a_only(self):
+    def _test_full_global_a_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="global",
             train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_full_global_b_only(self):
+    def _test_full_global_b_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="global",
             train_loc=False,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_global_a_and_b(self):
+    def _test_batched_global_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
             termination="global",
             train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_global_a_only(self):
+    def _test_batched_global_a_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="global",
             train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_batched_global_b_only(self):
+    def _test_batched_global_b_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="global",
             train_loc=False,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
 if __name__ == '__main__':
