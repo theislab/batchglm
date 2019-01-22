@@ -89,6 +89,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 shape=[self.input_data.num_observations, self.input_data.num_features]
             )
 
+        groupwise_means = None
         if isinstance(init_a, str):
             # Chose option if auto was chosen
             if init_a.lower() == "auto":
@@ -112,7 +113,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     self._train_loc = True
 
                 logger.debug("Using closed-form MLE initialization for mean")
-                logger.debug("RMSE of closed-form mean:\n%s", rmsd_a)
                 logger.debug("Should train mu: %s", self._train_loc)
                 #except np.linalg.LinAlgError:
                 #    logger.warning("Closed form initialization failed!")
@@ -123,27 +123,37 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     overall_means = self.input_data.X.mean(dim="observations").values  # directly calculate the mean
                 overall_means = self.np_clip_param(overall_means, "mu")
 
-                init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features])
+                init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features]) - 250
                 init_a[0, :] = np.log(overall_means)
                 self._train_loc = True
 
                 logger.debug("Using standard initialization for mean")
                 logger.debug("Should train mu: %s", self._train_loc)
-
             elif init_a.lower() == "all_zero":
                 init_a = np.zeros([self.input_data.num_loc_params, self.input_data.num_features])
                 self._train_loc = True
 
                 logger.debug("Using all_zero initialization for mean")
                 logger.debug("Should train mu: %s", self._train_loc)
+            else:
+                raise ValueError("init_a string %s not recognized" % init_a)
 
         if isinstance(init_b, str):
             if init_b.lower() == "auto":
                 init_b = "closed_form"
 
-            if init_b.lower() == "closed_form":
-                try:
-                    # TODO: memory inefficient and not sparse friendly:
+            if init_b.lower() == "closed_form" or init_b.lower() == "standard":
+                #try:
+                if groupwise_means is None or \
+                        np.any(self.input_data.design_scale.values != self.input_data.design_scale.values):
+                    # Have to recompute group-wise means.
+                    pass
+
+                groupwise_means = None
+
+                # Watch out: init_mu is full obs x features matrix and is very large in many cases.
+                # TODO: only compute this if scale model is not a subset of mean model.
+                if np.any(self.input_data.design_scale.values != self.input_data.design_scale.values):
                     if isinstance(self.input_data.X, SparseXArrayDataArray):
                         init_mu = np.exp(np.matmul(
                             self.input_data.design_loc.values,
@@ -153,27 +163,46 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
                         init_a_xr.coords["loc_params"] = self.input_data.constraints_loc.coords["loc_params"]
                         init_mu = np.exp(self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)))
+                else:
+                    init_mu = None
 
+                if init_b.lower() == "closed_form":
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
                         X=self.input_data.X,
                         mu=init_mu,
                         design_scale=self.input_data.design_scale,
                         constraints=self.input_data.constraints_scale,
                         size_factors=size_factors_init,
-                        groupwise_means=None,
+                        groupwise_means=groupwise_means,
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
 
                     logger.debug("Using closed-form MME initialization for dispersion")
-                    logger.debug("RMSE of closed-form dispersion:\n%s", rmsd_b)
-                    logger.info("Should train r: %s", self._train_scale)
-                except np.linalg.LinAlgError:
-                    logger.warning("Closed form initialization failed!")
-            elif init_b.lower() == "standard" or init_b.lower() == "all_zero":
+                    logger.debug("Should train r: %s", self._train_scale)
+                elif init_b.lower() == "standard":
+                    _, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
+                        X=self.input_data.X,
+                        mu=init_mu,
+                        design_scale=self.input_data.design_scale[:,[0]],
+                        constraints=self.input_data.constraints_scale[[0], [0]],
+                        size_factors=size_factors_init,
+                        groupwise_means=groupwise_means,
+                        link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
+                    )
+                    init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]]) - 250
+                    init_b[0, :] = init_b_intercept
+
+                    logger.debug("Using closed-form MME initialization for dispersion")
+                    logger.debug("Should train r: %s", self._train_scale)
+                #except np.linalg.LinAlgError:
+                #    logger.warning("Closed form initialization failed!")
+            elif init_b.lower() == "all_zero":
                 init_b = np.zeros([self.input_data.num_scale_params, self.input_data.X.shape[1]])
 
                 logger.debug("Using standard initialization for dispersion")
                 logger.debug("Should train r: %s", self._train_scale)
+            else:
+                raise ValueError("init_b string %s not recognized" % init_b)
 
         if init_model is not None:
             # Locations model:

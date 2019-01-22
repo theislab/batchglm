@@ -19,7 +19,9 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
             simulator,
             train_scale,
             noise_model,
-            sparse
+            sparse,
+            init_a,
+            init_b
     ):
         if noise_model is None:
             raise ValueError("noise_model is None")
@@ -51,7 +53,9 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
             batch_size=batch_size,
             quick_scale=train_scale,
             provide_optimizers=provide_optimizers,
-            termination_type="by_feature"
+            termination_type="by_feature",
+            init_a=init_a,
+            init_b=init_b
         )
         super().__init__(
             estimator=estimator,
@@ -108,32 +112,35 @@ class Test_AccuracyAnalytic_GLM_ALL(
                 raise ValueError("noise_model not recognized")
 
         return Simulator(
-            num_observations=100000,
-            num_features=2
+            num_observations=10000,
+            num_features=3
         )
 
-    def get_estimator(self, train_scale, sparse):
+    def get_estimator(self, train_scale, sparse, init_a, init_b):
         return _Test_AccuracyAnalytic_GLM_ALL_Estim(
             simulator=self.sim,
             train_scale=train_scale,
             noise_model=self.noise_model,
-            sparse=sparse
+            sparse=sparse,
+            init_a=init_a,
+            init_b=init_b
         )
 
-    def _test_a_and_b(self, sparse):
-        self.simulate()
-        logger.debug("* Running tests for closed form of a and b model")
-        self._test_a_and_b_closed(sparse=sparse)
+    def _test_a_closed_b_closed(self, sparse):
+        self.simulate_complex()
+        self._test_a_and_b_closed(sparse=sparse, init_a="closed_form", init_b="closed_form")
 
-    def _test_a_only(self, sparse):
-        self.simulate()
-        logger.debug("* Running tests for closed form of a model")
-        self._test_a_closed(sparse=sparse)
+    def _test_a_closed_b_standard(self, sparse):
+        self.simulate_b_easy()
+        self._test_a_and_b_closed(sparse=sparse, init_a="closed_form", init_b="standard")
 
-    def _test_b_only(self, sparse):
-        self.simulate()
-        logger.debug("* Running tests for closed form of b model")
-        self._test_b_closed(sparse=sparse)
+    def _test_a_standard_b_closed(self, sparse):
+        self.simulate_a_easy()
+        self._test_a_and_b_closed(sparse=sparse, init_a="standard", init_b="closed_form")
+
+    def _test_a_standard_b_standard(self, sparse):
+        self.simulate_a_b_easy()
+        self._test_a_and_b_closed(sparse=sparse, init_a="standard", init_b="standard")
 
 
 class Test_AccuracyAnalytic_GLM_NB(
@@ -144,14 +151,42 @@ class Test_AccuracyAnalytic_GLM_NB(
     Test whether optimizers yield exact results for negative binomial noise.
     """
 
-    def test_a_and_b(self):
+    def test_a_closed_b_closed(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.DEBUG)
-        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_and_b()")
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_closed()")
 
         self.noise_model = "nb"
-        #self._test_a_and_b(sparse=False)
-        self._test_a_and_b(sparse=True)
+        self._test_a_closed_b_closed(sparse=False)
+        self._test_a_closed_b_closed(sparse=True)
+
+    def test_a_closed_b_standard(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_standard()")
+
+        self.noise_model = "nb"
+        self._test_a_closed_b_standard(sparse=False)
+        self._test_a_closed_b_standard(sparse=True)
+
+    def test_a_standard_b_closed(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_standard_b_closed()")
+
+        self.noise_model = "nb"
+        self._test_a_standard_b_closed(sparse=False)
+        self._test_a_standard_b_closed(sparse=True)
+
+    def test_a_standard_b_standard(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_standard_b_standard()")
+
+        self.noise_model = "nb"
+        self._test_a_standard_b_standard(sparse=False)
+        self._test_a_standard_b_standard(sparse=True)
+
 
 
 if __name__ == '__main__':

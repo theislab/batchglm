@@ -109,8 +109,14 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             default: rand_fn = lambda shape: np.random.uniform(0.5, 2, shape)
         :param rand_fn_loc: random function taking one argument `shape`.
             If not provided, will use `rand_fn` instead.
+            This function generates location model parameters in inverse linker space,
+            ie. these parameter will be log transformed if a log linker function is used!
+            Values below 1e-08 will be set to 1e-08 to map them into the positive support.
         :param rand_fn_scale: random function taking one argument `shape`.
             If not provided, will use `rand_fn` instead.
+            This function generates scale model parameters in inverse linker space,
+            ie. these parameter will be log transformed if a log linker function is used!
+            Values below 1e-08 will be set to 1e-08 to map them into the positive support.
         """
         if rand_fn_loc is None:
             rand_fn_loc = rand_fn
@@ -157,8 +163,9 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             dims=self.param_shapes()["a_var"],
             data=np.log(
                 np.concatenate([
-                    np.expand_dims(rand_fn_ave(self.num_features), axis=0),  # intercept
-                    rand_fn_loc((self.data.design_loc.shape[1] - 1, self.num_features))
+                    np.expand_dims(rand_fn_ave([self.num_features]), axis=0),  # intercept
+                    np.maximum(rand_fn_loc((self.data.design_loc.shape[1] - 1, self.num_features)),
+                               np.zeros([self.data.design_loc.shape[1] - 1, self.num_features]) + 1e-08)
                 ], axis=0)
             ),
             coords={"loc_params": self.data.loc_params}
@@ -167,7 +174,8 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             dims=self.param_shapes()["b_var"],
             data=np.log(
                 np.concatenate([
-                    rand_fn_scale((self.data.design_scale.shape[1], self.num_features))
+                    np.maximum(rand_fn_scale((self.data.design_scale.shape[1], self.num_features)),
+                               np.zeros([self.data.design_scale.shape[1], self.num_features]) + 1e-08)
                 ], axis=0)
             ),
             coords={"scale_params": self.data.scale_params}

@@ -110,7 +110,8 @@ def closedform_glm_mean(
         constraints=None,
         size_factors=None,
         weights=None,
-        link_fn: Union[callable, None] = None
+        link_fn: Union[callable, None] = None,
+        inv_link_fn: Union[callable, None] = None
 ):
     r"""
     Calculates a closed-form solution for the mean parameters of GLMs.
@@ -141,7 +142,7 @@ def closedform_glm_mean(
 
         if weights is None:
             if isinstance(X, SparseXArrayDataArray):
-                groupwise_means = X.group_means()
+                groupwise_means = X.group_means(X.dims[0])
             else:
                 groupwise_means = grouped_data.mean(X.dims[0]).values
         else:
@@ -170,13 +171,13 @@ def closedform_glm_mean(
         else:
             return link_fn(groupwise_means)
 
-    groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
+    linker_groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
         dmat=dmat,
         apply_fun=apply_fun,
-        constraints=constraints
+        constraints=constraints.values
     )
 
-    return groupwise_means, mu, rmsd
+    return inv_link_fn(linker_groupwise_means), mu, rmsd
 
 
 def closedform_glm_var(
@@ -213,7 +214,7 @@ def closedform_glm_var(
 
         if weights is None:
             if isinstance(X, SparseXArrayDataArray):
-                groupwise_variance = X.group_var()
+                groupwise_variance = X.group_vars(X.dims[0])
             else:
                 groupwise_variance = grouped_data.var(X.dims[0]).values
         else:
@@ -238,7 +239,7 @@ def closedform_glm_var(
     groupwise_variance, phi, rmsd, rank, s = groupwise_solve_lm(
         dmat=dmat,
         apply_fun=apply_fun,
-        constraints=constraints
+        constraints=constraints.values
     )
 
     return groupwise_variance, phi, rmsd

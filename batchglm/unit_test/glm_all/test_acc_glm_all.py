@@ -175,7 +175,7 @@ class Test_Accuracy_GLM_NB(
 
     def test_full_byfeature_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
 
         self.noise_model = "nb"
