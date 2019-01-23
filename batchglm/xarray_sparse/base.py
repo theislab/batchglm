@@ -10,14 +10,14 @@ class SparseXArrayDataArray:
     def __init__(
             self,
             X,
-            obs_names,
-            feature_names,
+            obs_names=None,
+            feature_names=None,
             dims=("observations", "features")
     ):
-        if feature_names is None:
-            feature_names = ["feature_" + str(i) for i in range(X.shape[1])]
         if obs_names is None:
             obs_names = ["obs_" + str(i) for i in range(X.shape[0])]
+        if feature_names is None:
+            feature_names = ["feature_" + str(i) for i in range(X.shape[1])]
 
         self.X = X
         self.dims = dims
@@ -35,18 +35,31 @@ class SparseXArrayDataArray:
     def new(
             cls,
             X,
-            feature_names,
             obs_names,
+            feature_names,
             dims
     ):
         retval = cls(
             X=X,
-            feature_names=feature_names,
             obs_names=obs_names,
+            feature_names=feature_names,
             dims=dims
         )
 
         return retval
+
+    def new_from_x(self, x):
+        new_x = self.new(
+            X=x,
+            obs_names=self.coords["observations"],
+            feature_names=self.coords["features"],
+            dims=self.dims
+        )
+        new_x.coords = self.coords
+        return new_x
+
+    def copy(self):
+        return self.new_from_x(self.X)
 
     @property
     def dtype(self):
@@ -79,22 +92,32 @@ class SparseXArrayDataArray:
     def assign_coords(self, coords):
         self.coords.update({coords[0]: coords[1]})
 
-    def add(self, a):
+    def add(self, a, copy=False):
         assert a.shape[0] == self.X.shape[0]
         assert a.shape[1] == self.X.shape[1]
-        new_x = self.new(
-            X=scipy.sparse.csc_matrix(self.X + a),
-            obs_names=self.coords["observations"],
-            feature_names=self.coords["features"],
-            dims=self.dims
-        )
-        return new_x
+        assert a.shape[0] == self.X.shape[0]
+        assert a.shape[1] == self.X.shape[1]
+        new_x = scipy.sparse.csr_matrix(self.X + a)
+        if copy:
+            return self.new_from_x(new_x)
+        else:
+            self.X = new_x
+
+    def multiply(self, a, copy=False):
+        assert a.shape[0] == self.X.shape[0]
+        assert a.shape[1] == self.X.shape[1]
+        new_x = self.X.multiply(a).tocsr()
+        if copy:
+            return self.new_from_x(new_x)
+        else:
+            self.X = new_x
 
     def square(self, copy=False):
+        new_x = self.X.power(n=2)
         if copy:
-            return self.X.power(n=2)
+            return self.new_from_x(new_x)
         else:
-            self.X = self.X.power(n=2)
+            self.X = new_x
 
     def mean(self, dim=None):
         if dim is not None:
@@ -121,16 +144,14 @@ class SparseXArrayDataArray:
         self.grouping = grouping  #group_order[grouping]
         self._group_means = None  # Set back to None in case grouping are applied iteratively.
 
-    def group_add(self, a):
+    def group_add(self, a, copy=False):
         assert a.shape[0] == self.X.shape[1]
         assert a.shape[1] == len(self.groups)
-        new_x = self.new(
-            X=self.X + a[:, self.grouping],
-            obs_names=self.coords["observations"],
-            feature_names=self.coords["features"],
-            dims=self.dims
-        )
-        return new_x
+        new_x = scipy.sparse.csr_matrix(self.X + a[:, self.grouping])
+        if copy:
+            return self.new_from_x(new_x)
+        else:
+            self.X = new_x
 
     def group_means(self, dim):
         assert dim in self.dims, "dim not recognized"
@@ -146,7 +167,7 @@ class SparseXArrayDataArray:
         assert self.groups is not None, "set groups first"
         axis = self.dims.index(dim)
         Xsq = self.square(copy=True)
-        expect_xsq = np.vstack([Xsq[np.where(self.grouping == x)[0], :].mean(axis=axis)
+        expect_xsq = np.vstack([Xsq.X[np.where(self.grouping == x)[0], :].mean(axis=axis)
                                 for x in self.groups])
         expect_x_sq = np.square(self.group_means(dim=dim))
         group_vars = np.asarray(expect_xsq - expect_x_sq)

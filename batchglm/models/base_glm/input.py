@@ -10,7 +10,7 @@ import scipy.sparse
 import pandas as pd
 
 from .utils import parse_constraints, parse_design
-from .external import _InputData_Base, INPUT_DATA_PARAMS
+from .external import _InputData_Base, INPUT_DATA_PARAMS, SparseXArrayDataSet, SparseXArrayDataArray
 
 import patsy
 
@@ -219,10 +219,14 @@ class InputData(_InputData_Base):
             del self.data.coords["size_factors"]
 
         dims = self.param_shapes()["size_factors"]
-        self.data.coords["size_factors"] = xr.DataArray(
-            dims=dims,
-            data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
-        )
+        sf = xr.DataArray(
+                dims=dims,
+                data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
+            )
+        if isinstance(self.data, SparseXArrayDataSet):
+            self.data.size_factors = sf
+        else:
+            self.data.coords["size_factors"] = sf
 
     @property
     def num_design_loc_params(self):

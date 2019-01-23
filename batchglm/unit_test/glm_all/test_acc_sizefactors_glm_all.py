@@ -40,13 +40,13 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
-            input_data.size_factors = simulator.size_factors
         else:
             input_data = InputData.new(
                 data=simulator.input_data.X,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
+        input_data.size_factors = simulator.size_factors
 
         estimator = Estimator(
             input_data=input_data,

@@ -105,17 +105,20 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if graph is None:
                 graph = tf.Graph()
 
-            self._input_data = input_data
             self._train_loc = True
             self._train_scale = not quick_scale
 
+            #from copy import deepcopy
             (init_a, init_b) = self.init_par(
+                input_data=input_data,
                 init_a=init_a,
                 init_b=init_b,
                 init_model=init_model
             )
             init_a = init_a.astype(dtype)
             init_b = init_b.astype(dtype)
+
+            self._input_data = input_data
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
@@ -177,10 +180,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     stateful=False  #  TODO: remove with tf>=v1.13
                 ))
                 size_factors_tensor.set_shape(idx.get_shape())
-                # Here, we broadcast the size_factor tensor to the batch size,
-                # note that this should not consum any more memory than
-                # keeping the 1D array and performing implicit broadcasting in 
-                # the arithmetic operations in the graph.
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
@@ -415,6 +414,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def init_par(
             self,
+            input_data,
             init_a,
             init_b,
             init_model

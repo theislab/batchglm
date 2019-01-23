@@ -4,6 +4,8 @@ try:
     import anndata
 except ImportError:
     anndata = None
+
+import scipy.sparse
 import xarray as xr
 import numpy as np
 import pandas as pd
@@ -105,7 +107,7 @@ def parse_constraints(
 
 
 def closedform_glm_mean(
-        X: xr.DataArray,
+        Xmat: Union[xr.DataArray, scipy.sparse.csr_matrix],
         dmat,
         constraints=None,
         size_factors=None,
@@ -127,9 +129,14 @@ def closedform_glm_mean(
     :param link_fn: linker function for GLM
     :return: tuple: (groupwise_means, mu, rmsd)
     """
+    if isinstance(Xmat, scipy.sparse.csr_matrix):
+        X = SparseXArrayDataArray(X=Xmat)
+    else:
+        X = Xmat
+
     if size_factors is not None:
         if isinstance(X, SparseXArrayDataArray):
-            X.X = X.X.multiply(1/size_factors).tocsr()
+            X.multiply(np.ones_like(size_factors) / size_factors, copy=False)
         else:
             X = np.divide(X, size_factors)
 
@@ -181,7 +188,7 @@ def closedform_glm_mean(
 
 
 def closedform_glm_var(
-        X: xr.DataArray,
+        Xmat: Union[xr.DataArray, scipy.sparse.csr_matrix],
         dmat,
         constraints=None,
         size_factors=None,
@@ -199,9 +206,14 @@ def closedform_glm_var(
     :param link_fn: linker function for GLM
     :return: tuple: (groupwise_variance, phi, rmsd)
     """
+    if isinstance(Xmat, scipy.sparse.csr_matrix):
+        X = SparseXArrayDataArray(X=Xmat)
+    else:
+        X = Xmat
+
     if size_factors is not None:
         if isinstance(X, SparseXArrayDataArray):
-            X.X = X.X.multiply(1/size_factors).tocsr()
+            X.multiply(np.ones_like(size_factors) / size_factors, copy=False)
         else:
             X = np.divide(X, size_factors)
 
