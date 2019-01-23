@@ -1,4 +1,5 @@
 import abc
+from copy import deepcopy
 from typing import Union
 import logging
 import pprint
@@ -105,10 +106,10 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if graph is None:
                 graph = tf.Graph()
 
+            self._input_data = deepcopy(input_data)
             self._train_loc = True
             self._train_scale = not quick_scale
 
-            #from copy import deepcopy
             (init_a, init_b) = self.init_par(
                 input_data=input_data,
                 init_a=init_a,
@@ -117,8 +118,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             )
             init_a = init_a.astype(dtype)
             init_b = init_b.astype(dtype)
-
-            self._input_data = input_data
 
         # ### prepare fetch_fn:
         def fetch_fn(idx):
