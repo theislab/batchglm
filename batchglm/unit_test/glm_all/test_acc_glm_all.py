@@ -137,28 +137,24 @@ class Test_Accuracy_GLM_ALL(
         )
 
     def _test_full_byfeature(self, sparse):
-        self.simulate()
         logger.debug("* Running tests for full data and feature-wise termination")
         super()._test_full_byfeature_a_and_b(sparse=sparse)
         super()._test_full_byfeature_a_only(sparse=sparse)
         super()._test_full_byfeature_b_only(sparse=sparse)
 
     def _test_batched_byfeature(self, sparse):
-        self.simulate()
         logger.debug("* Running tests for batched data and feature-wise termination")
         super()._test_batched_byfeature_a_and_b(sparse=sparse)
         super()._test_batched_byfeature_a_only(sparse=sparse)
         super()._test_batched_byfeature_b_only(sparse=sparse)
 
     def _test_full_global(self, sparse):
-        self.simulate()
         logger.debug("* Running tests for full data and global termination")
         super()._test_full_global_a_and_b(sparse=sparse)
         super()._test_full_global_a_only(sparse=sparse)
         super()._test_full_global_b_only(sparse=sparse)
 
     def _test_batched_global(self, sparse):
-        self.simulate()
         logger.debug("* Running tests for batched data and global termination")
         super()._test_batched_global_a_and_b(sparse=sparse)
         super()._test_batched_global_a_only(sparse=sparse)
@@ -174,11 +170,12 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
 
         self.noise_model = "nb"
+        self.simulate()
         self._test_full_byfeature(sparse=False)
         self._test_full_byfeature(sparse=True)
 
@@ -188,6 +185,7 @@ class Test_Accuracy_GLM_NB(
         logger.error("Test_Accuracy_GLM_NB.test_batched_byfeature_nb()")
 
         self.noise_model = "nb"
+        self.simulate()
         self._test_batched_byfeature(sparse=False)
         self._test_batched_byfeature(sparse=True)
 
@@ -197,6 +195,7 @@ class Test_Accuracy_GLM_NB(
         logger.error("Test_Accuracy_GLM_NB.test_full_global_nb()")
 
         self.noise_model = "nb"
+        self.simulate()
         self._test_full_global(sparse=False)
         self._test_full_global(sparse=True)
 
@@ -206,6 +205,7 @@ class Test_Accuracy_GLM_NB(
         logger.error("Test_Accuracy_GLM_NB.test_batched_global_nb()")
 
         self.noise_model = "nb"
+        self.simulate()
         self._test_batched_global(sparse=False)
         self._test_batched_global(sparse=True)
 

@@ -155,7 +155,7 @@ class Test_AccuracySizeFactors_GLM_NB(
     """
 
     def test_full_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracySizeFactors_GLM_NB.test_full_nb()")
 

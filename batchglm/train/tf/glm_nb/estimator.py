@@ -173,7 +173,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         init_mu = self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr))
 
                     if size_factors_init is not None:
-                        init_mu = init_mu + size_factors_init
+                        init_mu = init_mu + np.log(size_factors_init)
                     init_mu = np.exp(init_mu)
                 else:
                     init_mu = None
