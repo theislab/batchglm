@@ -102,10 +102,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
                               tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=dtype))) - \
                               tf.math.lgamma(model_scale) + \
                               tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
-            #log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
-            #log_probs = tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=dtype)))
-            #log_probs = tf.sparse.add(X.__mul__(self.eta_loc - log_r_plus_mu), tf.zeros(shape=X.dense_shape, dtype=dtype))
-            log_probs = tf.sparse.add(X, tf.zeros(shape=X.dense_shape, dtype=dtype))
+            log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
             log_probs.set_shape([None, a_var.shape[1]])  # Need this so as shape is completely lost.
         else:
             log_probs = tf.math.lgamma(model_scale + X) - \
@@ -113,11 +110,8 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
                         tf.math.lgamma(model_scale) + \
                         tf.multiply(X, self.eta_loc - log_r_plus_mu) + \
                         tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
-            #log_probs = tf.math.lgamma(X + tf.ones_like(X))
-            #log_probs = tf.multiply(X, self.eta_loc - log_r_plus_mu) + tf.zeros_like(X)
-            log_probs = X + tf.zeros_like(X)
 
-        #log_probs = self.tf_clip_param(log_probs, "log_probs")
+        log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:
         sigma2 = model_loc + tf.multiply(tf.square(model_loc), model_scale)

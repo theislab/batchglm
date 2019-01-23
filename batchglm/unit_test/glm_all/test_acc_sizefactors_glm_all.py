@@ -138,7 +138,7 @@ class Test_AccuracySizeFactors_GLM_ALL(
     def _test_full(self, sparse):
         logger.debug("* Running tests for full data")
         self._test_full_a_and_b(sparse=sparse)
-        #self._test_full_a_only(sparse=sparse)
+        self._test_full_a_only(sparse=sparse)
 
     def _test_batched(self, sparse):
         logger.debug("* Running tests for batched data")

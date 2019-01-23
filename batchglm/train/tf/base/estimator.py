@@ -261,13 +261,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 "Step: \t0\t loss: %f\t models converged 0",
                 global_loss
             )
-            if isinstance(self.input_data.X, SparseXArrayDataArray):
-                x = self.input_data.X.X[:5, :5].todense()
-            else:
-                x = self.input_data.X[:5, :5].values
-            tf.logging.info(x)
 
-            while False and np.any(self.model.model_vars.converged == False):
+            while np.any(self.model.model_vars.converged == False):
                 # Update convergence metric reference:
                 t0 = time.time()
                 metric_prev = metric_current

@@ -93,15 +93,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
         if isinstance(input_data.X, SparseXArrayDataArray):
             X_mat = input_data.X #.copy()
-            #X_mat = self.input_data.X.X.copy()
-            #X_mat = scipy.sparse.csr_matrix(
-            #    (
-            #        self.input_data.X.X.data,
-            #        self.input_data.X.X.indices,
-            #        self.input_data.X.X.indptr
-            #    ),
-            #    shape=self.input_data.X.X.shape
-            #)
         else:
             X_mat = input_data.X #.copy()
 
