@@ -71,6 +71,7 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
             X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
             if len(X_tensor_ls) > 1:
                 X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
+                X_tensor = tf.cast(X_tensor, dtype=dtype)
             else:
                 X_tensor = X_tensor_ls[0]
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
@@ -365,6 +366,7 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
                 X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data_batch
                 if len(X_tensor_ls) > 1:
                     X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
+                    X_tensor = tf.cast(X_tensor, dtype=dtype)
                 else:
                     X_tensor = X_tensor_ls[0]
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)

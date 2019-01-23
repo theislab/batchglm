@@ -163,14 +163,19 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 # Watch out: init_mu is full obs x features matrix and is very large in many cases.
                 if inits_unequal or dmats_unequal:
                     if isinstance(self.input_data.X, SparseXArrayDataArray):
-                        init_mu = np.exp(np.matmul(
-                            self.input_data.design_loc.values,
-                            np.matmul(self.input_data.constraints_loc.values, init_a)
-                        ))
+                        init_mu = np.exp(
+                            np.matmul(
+                                self.input_data.design_loc.values,
+                                np.matmul(self.input_data.constraints_loc.values, init_a)
+                            ) + size_factors_init
+                        )
                     else:
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
                         init_a_xr.coords["loc_params"] = self.input_data.constraints_loc.coords["loc_params"]
-                        init_mu = np.exp(self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)))
+                        init_mu = np.exp(
+                            self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)) +
+                            size_factors_init
+                        )
                 else:
                     init_mu = None
 

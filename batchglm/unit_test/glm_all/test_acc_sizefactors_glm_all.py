@@ -40,6 +40,7 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
+            input_data.size_factors = simulator.size_factors
         else:
             input_data = InputData.new(
                 data=simulator.input_data.X,
@@ -116,13 +117,12 @@ class Test_AccuracySizeFactors_GLM_ALL(
             self,
             batched,
             termination,
-            train_loc,
             train_scale,
             sparse
     ):
-        algos = ["ADAM", "ADAGRAD", "NR", "IRLS"]
+        algos = ["NR_TR"]  #["ADAM", "NR_TR", "IRLS_TR"]
         estimator = _Test_AccuracySizeFactors_GLM_ALL_Estim(
-            simulator=self.simulator(train_loc=train_loc),
+            simulator=self.sim,
             quick_scale=False if train_scale else True,
             termination=termination,
             noise_model=self.noise_model,
@@ -136,18 +136,14 @@ class Test_AccuracySizeFactors_GLM_ALL(
         )
 
     def _test_full(self, sparse):
-        self.simulate()
         logger.debug("* Running tests for full data")
-        super()._test_full_a_and_b(sparse=sparse)
-        super()._test_full_a_only(sparse=sparse)
-        super()._test_full_b_only(sparse=sparse)
+        self._test_full_a_and_b(sparse=sparse)
+        self._test_full_a_only(sparse=sparse)
 
     def _test_batched(self, sparse):
-        self.simulate()
         logger.debug("* Running tests for batched data")
-        super()._test_batched_a_and_b(sparse=sparse)
-        super()._test_batched_a_only(sparse=sparse)
-        super()._test_batched_b_only(sparse=sparse)
+        self._test_batched_a_and_b(sparse=sparse)
+        self._test_batched_a_only(sparse=sparse)
 
 
 class Test_AccuracySizeFactors_GLM_NB(
@@ -160,19 +156,21 @@ class Test_AccuracySizeFactors_GLM_NB(
 
     def test_full_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracySizeFactors_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
+        self.simulate()
         self._test_full(sparse=False)
         self._test_full(sparse=True)
 
     def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracySizeFactors_GLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
+        self.simulate()
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 

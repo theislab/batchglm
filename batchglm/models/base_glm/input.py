@@ -211,18 +211,18 @@ class InputData(_InputData_Base):
 
     @property
     def size_factors(self):
-        return self.data.coords.get("size_factors")
+        return self.data.coords["size_factors"]
 
     @size_factors.setter
     def size_factors(self, data):
         if data is None and "size_factors" in self.data.coords:
             del self.data.coords["size_factors"]
-        else:
-            dims = self.param_shapes()["size_factors"]
-            self.data.coords["size_factors"] = xr.DataArray(
-                dims=dims,
-                data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
-            )
+
+        dims = self.param_shapes()["size_factors"]
+        self.data.coords["size_factors"] = xr.DataArray(
+            dims=dims,
+            data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
+        )
 
     @property
     def num_design_loc_params(self):

@@ -60,6 +60,22 @@ class SparseXArrayDataArray:
     def ndim(self):
         return len(self.dims)
 
+    @property
+    def feature_allzero(self):
+        return self.coords["feature_allzero"]
+
+    @feature_allzero.setter
+    def feature_allzero(self, data):
+        self.coords["feature_allzero"] = data
+
+    @property
+    def size_factors(self):
+        return self.coords["size_factors"]
+
+    @size_factors.setter
+    def size_factors(self, data):
+        self.coords["size_factors"] = data
+
     def assign_coords(self, coords):
         self.coords.update({coords[0]: coords[1]})
 
@@ -100,8 +116,9 @@ class SparseXArrayDataArray:
         return np.sqrt(self.var(dim=dim))
 
     def groupby(self, key):
-        groups, self.grouping = np.unique(self.coords[key], return_inverse=True)
+        groups, group_order, grouping = np.unique(self.coords[key], return_index=True, return_inverse=True)
         self.groups = np.arange(0, len(groups))
+        self.grouping = grouping  #group_order[grouping]
         self._group_means = None  # Set back to None in case grouping are applied iteratively.
 
     def group_add(self, a):
@@ -176,6 +193,24 @@ class SparseXArrayDataSet:
     @property
     def ndim(self):
         return len(self.dims)
+
+    @property
+    def feature_allzero(self):
+        return self.X.coords["feature_allzero"]
+
+    @feature_allzero.setter
+    def feature_allzero(self, data):
+        self.coords["feature_allzero"] = data
+        self.X.coords["feature_allzero"] = data
+
+    @property
+    def size_factors(self):
+        return self.X.coords["size_factors"]
+
+    @size_factors.setter
+    def size_factors(self, data):
+        self.coords["size_factors"] = data
+        self.X.coords["size_factors"] = data
 
     def __getitem__(self, key):
         if key in self.coords:

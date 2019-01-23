@@ -66,7 +66,7 @@ def closedform_nb_glm_logphi(
     """
     if size_factors is not None:
         if isinstance(X, SparseXArrayDataArray):
-            X.X = X.X.multiply(1/size_factors).tocsr()
+            X.X = X.X.multiply(np.ones_like(size_factors) / size_factors).tocsr()
         else:
             X = np.divide(X, size_factors)
 
