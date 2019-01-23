@@ -219,7 +219,7 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
 
     @property
     def size_factors(self):
-        return self.data.coords["size_factors"]
+        return self.data.coords.get("size_factors")
 
     @size_factors.setter
     def size_factors(self, data):

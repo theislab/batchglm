@@ -211,7 +211,7 @@ class InputData(_InputData_Base):
 
     @property
     def size_factors(self):
-        return self.data.coords["size_factors"]
+        return self.data.coords.get("size_factors")
 
     @size_factors.setter
     def size_factors(self, data):

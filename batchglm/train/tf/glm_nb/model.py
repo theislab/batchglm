@@ -103,11 +103,13 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
                               tf.math.lgamma(model_scale) + \
                               tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
             log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
+            log_probs.set_shape([None, a_var.shape[1]])  # Need this so as shape is completely lost.
         else:
             log_probs = tf.math.lgamma(model_scale + X) - \
                         tf.math.lgamma(X + tf.ones_like(X)) - tf.math.lgamma(model_scale) + \
                         tf.multiply(X, self.eta_loc - log_r_plus_mu) + \
                         tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:

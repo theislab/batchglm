@@ -110,9 +110,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 # train mu, if the closed-form solution is inaccurate
                 self._train_loc = not np.all(rmsd_a == 0)
 
-                # Temporal fix: train mu if size factors are given as closed form may be different:
                 if self.input_data.size_factors is not None:
-                    self._train_loc = True
+                    if np.any(self.input_data.size_factors != 1):
+                        self._train_loc = True
 
                 logger.debug("Using closed-form MLE initialization for mean")
                 logger.debug("Should train mu: %s", self._train_loc)
@@ -163,19 +163,18 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 # Watch out: init_mu is full obs x features matrix and is very large in many cases.
                 if inits_unequal or dmats_unequal:
                     if isinstance(self.input_data.X, SparseXArrayDataArray):
-                        init_mu = np.exp(
-                            np.matmul(
+                        init_mu = np.matmul(
                                 self.input_data.design_loc.values,
                                 np.matmul(self.input_data.constraints_loc.values, init_a)
-                            ) + size_factors_init
                         )
                     else:
                         init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
                         init_a_xr.coords["loc_params"] = self.input_data.constraints_loc.coords["loc_params"]
-                        init_mu = np.exp(
-                            self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr)) +
-                            size_factors_init
-                        )
+                        init_mu = self.input_data.design_loc.dot(self.input_data.constraints_loc.dot(init_a_xr))
+
+                    if size_factors_init is not None:
+                        init_mu = init_mu + size_factors_init
+                    init_mu = np.exp(init_mu)
                 else:
                     init_mu = None
 

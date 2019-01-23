@@ -64,8 +64,8 @@ class _Test_AccuracyAnalytic_GLM_Estim():
             estimator_store,
             init
     ):
-        threshold_dev = 0.05
-        threshold_std = 0.1
+        threshold_dev = 1e-2
+        threshold_std = 12-1
 
         if init == "standard":
             mean_dev = np.mean(estimator_store.b.values[0, :] - self.sim.b.values[0, :])

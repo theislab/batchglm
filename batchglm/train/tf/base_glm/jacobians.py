@@ -88,10 +88,6 @@ class JacobiansGLM:
         """
         assert jac_a or jac_b
 
-        logger.debug("jacobian mode: %s" % mode)
-        logger.debug("compute jacobian for a model: %s" % str(jac_a))
-        logger.debug("compute jacobian for b model: %s" % str(jac_b))
-
         self.noise_model = noise_model
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
