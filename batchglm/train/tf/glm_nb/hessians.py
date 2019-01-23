@@ -37,7 +37,7 @@ class Hessians(HessianGLMALL):
             r,
     ):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            X_by_r_plus_one = tf.sparse.add(X * tf.divide(tf.ones_like(r), r), tf.ones_like(r))
+            X_by_r_plus_one = tf.sparse.add(X.__div__(r), tf.ones_like(r))
         else:
             X_by_r_plus_one = X / r + tf.ones_like(r)
 
