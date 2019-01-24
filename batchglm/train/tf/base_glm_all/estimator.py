@@ -126,6 +126,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     Tout=[np.int64, np.float64, np.int64],
                     stateful=False  #  TODO: remove with tf>=v1.13
                 )
+                # Note on Tout: np.float64 for val seems to be required to avoid crashing v1.12.
                 X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
                 X_shape = tf.cast(X_shape, dtype=tf.int64)
                 X_tensor_val = tf.cast(X_tensor_val, dtype=dtype)

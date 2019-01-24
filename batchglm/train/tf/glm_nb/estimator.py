@@ -52,7 +52,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         )
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
-        
+
         EstimatorAll.__init__(
             self=self,
             input_data=input_data,
