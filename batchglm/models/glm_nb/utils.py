@@ -1,3 +1,4 @@
+from copy import copy, deepcopy
 from typing import Union
 
 import numpy as np
@@ -10,7 +11,7 @@ from .external import SparseXArrayDataArray
 
 
 def closedform_nb_glm_logmu(
-        X: Union[xr.DataArray, scipy.sparse.csr_matrix],
+        X: Union[xr.DataArray, SparseXArrayDataArray],
         design_loc,
         constraints_loc,
         size_factors=None,
@@ -41,7 +42,7 @@ def closedform_nb_glm_logmu(
 
 
 def closedform_nb_glm_logphi(
-        Xmat: Union[xr.DataArray, scipy.sparse.csr_matrix],
+        X: Union[xr.DataArray, SparseXArrayDataArray],
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
@@ -65,14 +66,9 @@ def closedform_nb_glm_logphi(
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
     :return: tuple (groupwise_scales, logphi, rmsd)
     """
-    if isinstance(Xmat, scipy.sparse.csr_matrix):
-        X = SparseXArrayDataArray(X=Xmat)
-    else:
-        X = Xmat
-
     if size_factors is not None:
         if isinstance(X, SparseXArrayDataArray):
-            X.multiply(np.ones_like(size_factors) / size_factors, copy=False)
+            X = X.multiply(np.ones_like(size_factors) / size_factors, copy=True)
         else:
             X = np.divide(X, size_factors)
 

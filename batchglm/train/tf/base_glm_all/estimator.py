@@ -1,5 +1,5 @@
 import abc
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import Union
 import logging
 import pprint
@@ -106,19 +106,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if graph is None:
                 graph = tf.Graph()
 
-            self._input_data = deepcopy(input_data)
-            self._train_loc = True
-            self._train_scale = not quick_scale
-
-            (init_a, init_b) = self.init_par(
-                input_data=input_data,
-                init_a=init_a,
-                init_b=init_b,
-                init_model=init_model
-            )
-            init_a = init_a.astype(dtype)
-            init_b = init_b.astype(dtype)
-
         # ### prepare fetch_fn:
         def fetch_fn(idx):
             r"""
@@ -136,7 +123,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 X_tensor_idx, X_tensor_val, X_shape = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_X_sparse,
                     inp=[idx],
-                    Tout=[np.int64, input_data.X.dtype, np.int64],
+                    Tout=[np.int64, np.float64, np.int64],
                     stateful=False  #  TODO: remove with tf>=v1.13
                 )
                 X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
@@ -193,19 +180,19 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # create model
             model = EstimatorGraph(
                 fetch_fn=fetch_fn,
-                feature_isnonzero=input_data.feature_isnonzero,
-                num_observations=input_data.num_observations,
-                num_features=input_data.num_features,
-                num_design_loc_params=input_data.num_design_loc_params,
-                num_design_scale_params=input_data.num_design_scale_params,
-                num_loc_params=input_data.num_loc_params,
-                num_scale_params=input_data.num_scale_params,
+                feature_isnonzero=self._input_data.feature_isnonzero,
+                num_observations=self._input_data.num_observations,
+                num_features=self._input_data.num_features,
+                num_design_loc_params=self._input_data.num_design_loc_params,
+                num_design_scale_params=self._input_data.num_design_scale_params,
+                num_loc_params=self._input_data.num_loc_params,
+                num_scale_params=self._input_data.num_scale_params,
                 batch_size=batch_size,
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                constraints_loc=input_data.constraints_loc,
-                constraints_scale=input_data.constraints_scale,
+                constraints_loc=self._input_data.constraints_loc,
+                constraints_scale=self._input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
                 train_loc=self._train_loc,
                 train_scale=self._train_scale,
@@ -368,7 +355,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             logger.info("Training sequence #%d complete", idx + 1)
 
     @property
-    def input_data(self) -> InputData:
+    def input_data(self):
         return self._input_data
 
     @property

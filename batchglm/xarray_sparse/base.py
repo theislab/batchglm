@@ -35,9 +35,9 @@ class SparseXArrayDataArray:
     def new(
             cls,
             X,
-            obs_names,
-            feature_names,
-            dims
+            obs_names=None,
+            feature_names=None,
+            dims=None
     ):
         retval = cls(
             X=X,
@@ -57,9 +57,6 @@ class SparseXArrayDataArray:
         )
         new_x.coords = self.coords
         return new_x
-
-    def copy(self):
-        return self.new_from_x(self.X)
 
     @property
     def dtype(self):
@@ -172,6 +169,9 @@ class SparseXArrayDataArray:
         expect_x_sq = np.square(self.group_means(dim=dim))
         group_vars = np.asarray(expect_xsq - expect_x_sq)
         return group_vars
+
+    def __copy__(self):
+        return type(self)(self.X)
 
 
 class SparseXArrayDataSet:

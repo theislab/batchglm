@@ -176,7 +176,7 @@ class _InputData_Base:
         data = self.X.X[idx]
 
         data_idx = np.asarray(np.vstack(data.nonzero()).T, np.int64)
-        data_val = data.data
+        data_val = np.asarray(data.data, np.float64)
         data_shape = np.asarray(data.shape, np.int64)
 
         if idx.shape[0] == 1:

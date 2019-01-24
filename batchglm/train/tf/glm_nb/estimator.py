@@ -1,3 +1,4 @@
+from copy import copy, deepcopy
 import logging
 from typing import Union
 
@@ -35,9 +36,23 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             provide_optimizers: dict = None,
             termination_type: str = "by_feature",
             extended_summary=False,
-            dtype="float64",
+            dtype="float64"
     ):
         self.TrainingStrategies = TrainingStrategies
+
+        self._input_data = input_data
+        self._train_loc = True
+        self._train_scale = not quick_scale
+
+        (init_a, init_b) = self.init_par(
+            input_data=input_data,
+            init_a=init_a,
+            init_b=init_b,
+            init_model=init_model
+        )
+        init_a = init_a.astype(dtype)
+        init_b = init_b.astype(dtype)
+        
         EstimatorAll.__init__(
             self=self,
             input_data=input_data,
@@ -91,11 +106,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 shape=[input_data.num_observations, input_data.num_features]
             )
 
-        if isinstance(input_data.X, SparseXArrayDataArray):
-            X_mat = input_data.X #.copy()
-        else:
-            X_mat = input_data.X #.copy()
-
         groupwise_means = None
         init_a_str = None
         if isinstance(init_a, str):
@@ -107,7 +117,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             if init_a.lower() == "closed_form":
                 #try:
                 groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
-                    Xmat=X_mat,
+                    X=input_data.X,
                     design_loc=input_data.design_loc,
                     constraints_loc=input_data.constraints_loc.values,
                     size_factors=size_factors_init,
@@ -187,7 +197,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                 if init_b.lower() == "closed_form":
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
-                        Xmat=X_mat,
+                        X=input_data.X,
                         mu=init_mu,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale.values,
@@ -200,7 +210,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     logger.debug("Should train r: %s", self._train_scale)
                 elif init_b.lower() == "standard":
                     groupwise_scales, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
-                        Xmat=X_mat,
+                        X=input_data.X,
                         mu=init_mu,
                         design_scale=input_data.design_scale[:,[0]],
                         constraints=input_data.constraints_scale[[0], [0]].values,
