@@ -56,7 +56,7 @@ def _sparse_to_xarray(data, dims):
 
 
 def xarray_from_data(
-        data: Union[anndata.AnnData, xr.DataArray, xr.Dataset, np.ndarray],
+        data: Union[anndata.AnnData, anndata.base.Raw, xr.DataArray, xr.Dataset, np.ndarray, scipy.sparse.csr_matrix],
         dims: Union[Tuple, List] = ("observations", "features")
 ):
     """
@@ -85,27 +85,34 @@ def xarray_from_data(
                 dims=dims
             )
         else:
-            X = xr.DataArray(data.X, dims=dims, coords={
-                dims[0]: np.asarray(obs_names),
-                dims[1]: np.asarray(data.var_names),
-            })
+            X = xr.DataArray(
+                data.X,
+                dims=dims,
+                coords={
+                    dims[0]: np.asarray(obs_names),
+                    dims[1]: np.asarray(data.var_names),
+                }
+            )
     elif isinstance(data, xr.Dataset):
         X: xr.DataArray = data["X"]
     elif isinstance(data, xr.DataArray):
         X = data
+    elif isinstance(data, SparseXArrayDataSet):
+        X = data
+    elif scipy.sparse.issparse(data):
+        # X = _sparse_to_xarray(data, dims=dims)
+        # X.coords[dims[0]] = np.asarray(data.obs_names)
+        # X.coords[dims[1]] = np.asarray(data.var_names)
+        X = SparseXArrayDataSet(
+            X=data,
+            obs_names=None,
+            feature_names=None,
+            dims=dims
+        )
+    elif isinstance(data, np.ndarray):
+        X = xr.DataArray(data, dims=dims)
     else:
-        if scipy.sparse.issparse(data):
-            # X = _sparse_to_xarray(data, dims=dims)
-            # X.coords[dims[0]] = np.asarray(data.obs_names)
-            # X.coords[dims[1]] = np.asarray(data.var_names)
-            X = SparseXArrayDataSet(
-                X=data,
-                obs_names=None,
-                feature_names=None,
-                dims=dims
-            )
-        else:
-            X = xr.DataArray(data, dims=dims)
+        raise ValueError("batchglm data parsing: data format %s not recognized" % type(data))
 
     return X
 

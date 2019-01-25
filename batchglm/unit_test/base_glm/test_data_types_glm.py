@@ -92,8 +92,9 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         return estimator.test_estimation()
 
     def _test_numpy(self, sparse):
+        X = self.sim.X
         if sparse:
-            X = scipy.sparse.csr_matrix(self.sim.X)
+            X = scipy.sparse.csr_matrix(X)
 
         success = self.basic_test(
             data=X,

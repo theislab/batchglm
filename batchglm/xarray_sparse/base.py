@@ -116,15 +116,19 @@ class SparseXArrayDataArray:
         else:
             self.X = new_x
 
-    def mean(self, dim=None):
+    def mean(self, dim: str = None, axis: int = None):
+        assert not (dim is not None and axis is not None), "only supply dim or axis"
         if dim is not None:
             assert dim in self.dims, "dim not recognized"
             axis = self.dims.index(dim)
             return np.asarray(self.X.mean(axis=axis)).flatten()
+        elif axis is not None:
+            assert axis < len(self.X.shape), "axis index out of range"
+            return np.asarray(self.X.mean(axis=axis)).flatten()
         else:
             return np.asarray(self.X.mean()).flatten()
 
-    def var(self, dim):
+    def var(self, dim: str):
         assert dim in self.dims, "dim not recognized"
         axis = self.dims.index(dim)
         Xsq = self.square(copy=True)
@@ -132,7 +136,7 @@ class SparseXArrayDataArray:
         expect_xsq = np.mean(Xsq, axis=axis)
         return np.asarray(expect_xsq - expect_x_sq).flatten()
 
-    def std(self, dim):
+    def std(self, dim: str):
         return np.sqrt(self.var(dim=dim))
 
     def groupby(self, key):
@@ -214,6 +218,10 @@ class SparseXArrayDataSet:
     @property
     def ndim(self):
         return len(self.dims)
+
+    @property
+    def shape(self):
+        return self.X.shape
 
     @property
     def feature_allzero(self):
