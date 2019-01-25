@@ -95,8 +95,8 @@ def xarray_from_data(
             # X.coords[dims[1]] = np.asarray(data.var_names)
             X = SparseXArrayDataSet(
                 X=data,
-                obs_names=np.asarray(data.obs_names),
-                feature_names=np.asarray(data.var_names),
+                obs_names=None,
+                feature_names=None,
                 dims=dims
             )
         else:
