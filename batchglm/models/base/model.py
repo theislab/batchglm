@@ -62,7 +62,7 @@ class _Model_Base(metaclass=abc.ABCMeta):
             output = xr.Dataset(output)
             if coords is not None:
                 for i in output.dims:
-                    if i in coords:
+                    if i in coords.coords:
                         output.coords[i] = coords[i]
 
         return output

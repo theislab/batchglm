@@ -4,6 +4,8 @@ try:
     import anndata
 except ImportError:
     anndata = None
+
+import scipy.sparse
 import xarray as xr
 import numpy as np
 import pandas as pd
@@ -12,6 +14,7 @@ import patsy
 
 from .external import groupwise_solve_lm
 from .external import weighted_mean, weighted_variance
+from .external import SparseXArrayDataArray
 
 
 def parse_design(
@@ -74,7 +77,7 @@ def parse_constraints(
         dmat: xr.Dataset,
         dims,
         constraints: np.ndarray = None,
-        constraint_par_names: list = None,
+        constraint_par_names: list = None
 ) -> xr.DataArray:
     r"""
     Parser for constraint matrices.
@@ -87,7 +90,11 @@ def parse_constraints(
     """
     if constraints is None:
         constraints = np.identity(n=dmat.shape[1])
+        # Use given parameter names if constraint matrix is identity.
+        par_names = dmat.coords[dims[0]]
     else:
+        # Cannot use given parameter names if constraint matrix is not identity: Make up new ones.
+        par_names = ["var_"+str(x) for x in range(constraints.shape[1])]
         assert constraints.shape[0] == dmat.shape[1], "constraint dimension mismatch"
 
     constraints_mat = xr.DataArray(
@@ -96,7 +103,7 @@ def parse_constraints(
     )
     constraints_mat.coords[dims[0]] = dmat.coords[dims[0]]
     if constraint_par_names is None:
-        constraint_par_names = ["var_"+str(x) for x in range(constraints_mat.shape[1])]
+        constraint_par_names = par_names
 
     constraints_mat.coords[dims[1]] = constraint_par_names
 
@@ -104,12 +111,13 @@ def parse_constraints(
 
 
 def closedform_glm_mean(
-        X: xr.DataArray,
+        X: Union[xr.DataArray, SparseXArrayDataArray],
         dmat,
         constraints=None,
         size_factors=None,
         weights=None,
-        link_fn: Union[callable, None] = None
+        link_fn: Union[callable, None] = None,
+        inv_link_fn: Union[callable, None] = None
 ):
     r"""
     Calculates a closed-form solution for the mean parameters of GLMs.
@@ -126,14 +134,27 @@ def closedform_glm_mean(
     :return: tuple: (groupwise_means, mu, rmsd)
     """
     if size_factors is not None:
-        X = np.divide(X, size_factors)
+        if isinstance(X, SparseXArrayDataArray):
+            X = X.multiply(np.ones_like(size_factors) / size_factors, copy=True)
+        else:
+            X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
+        if isinstance(X, SparseXArrayDataArray):
+            X.assign_coords(coords=("group", grouping))
+            X.groupby("group")
+        else:
+            grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
 
         if weights is None:
-            groupwise_means = grouped_data.mean(X.dims[0]).values
+            if isinstance(X, SparseXArrayDataArray):
+                groupwise_means = X.group_means(X.dims[0])
+            else:
+                groupwise_means = grouped_data.mean(X.dims[0]).values
         else:
+            if isinstance(X, SparseXArrayDataArray):
+                assert False, "not implemented"
+
             grouped_weights = xr.DataArray(
                 data=weights,
                 dims=(X.dims[0],),
@@ -156,17 +177,17 @@ def closedform_glm_mean(
         else:
             return link_fn(groupwise_means)
 
-    groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
+    linker_groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
         dmat=dmat,
         apply_fun=apply_fun,
         constraints=constraints
     )
 
-    return groupwise_means, mu, rmsd
+    return inv_link_fn(linker_groupwise_means), mu, rmsd
 
 
 def closedform_glm_var(
-        X: xr.DataArray,
+        X: Union[xr.DataArray, SparseXArrayDataArray],
         dmat,
         constraints=None,
         size_factors=None,
@@ -185,12 +206,23 @@ def closedform_glm_var(
     :return: tuple: (groupwise_variance, phi, rmsd)
     """
     if size_factors is not None:
-        X = np.divide(X, size_factors)
+        if isinstance(X, SparseXArrayDataArray):
+            X = X.multiply(np.ones_like(size_factors) / size_factors, copy=True)
+        else:
+            X = np.divide(X, size_factors)
 
     def apply_fun(grouping):
-        grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
+        if isinstance(X, SparseXArrayDataArray):
+            X.assign_coords(coords=("group", grouping))
+            X.groupby("group")
+        else:
+            grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
+
         if weights is None:
-            groupwise_variance = grouped_data.var(X.dims[0]).values
+            if isinstance(X, SparseXArrayDataArray):
+                groupwise_variance = X.group_vars(X.dims[0])
+            else:
+                groupwise_variance = grouped_data.var(X.dims[0]).values
         else:
             grouped_weights = xr.DataArray(
                 data=weights,

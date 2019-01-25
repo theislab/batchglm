@@ -8,7 +8,7 @@ import numpy as np
 import xarray as xr
 import tensorflow as tf
 
-from .external import _Estimator_Base, pkg_constants, stat_utils
+from .external import _Estimator_Base, pkg_constants, stat_utils, SparseXArrayDataArray
 from batchglm.train.tf.train import StopAtLossHook, TimedRunHook
 
 
@@ -127,9 +127,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 return False
 
         # Report initialization:
-        global_loss = self.session.run(
-            (loss), feed_dict=feed_dict
-        )
+        global_loss = self.session.run(self.model.loss)
         tf.logging.info(
             "Step: \t0\tloss: %f",
             global_loss
@@ -141,10 +139,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 (self.model.global_step, train_op),
                 feed_dict=feed_dict
             )
-            global_loss = self.session.run(
-                (loss),
-                feed_dict=feed_dict
-            )
+            global_loss = self.session.run(self.model.loss)
             t1 = time.time()
 
             tf.logging.info(
@@ -226,9 +221,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
 
             # Report initialization:
-            global_loss = self.session.run(
-                (loss), feed_dict=feed_dict
-            )
+            global_loss = self.session.run(self.model.loss)
             tf.logging.info(
                 "Step: \t0\tloss: %s",
                 global_loss
@@ -258,15 +251,14 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 metric_current = self.session.run(self.model.model_vars.params)
             elif convergence_criteria == "all_converged_ll":
                 metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                metric_theta_current = self.session.run(self.model.model_vars.params)
             else:
-                raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+                raise ValueError("convergence_criteria %s not recgonized" % convergence_criteria)
 
             # Report initialization:
-            global_loss = self.session.run(
-                (loss), feed_dict=feed_dict
-            )
+            global_loss = self.session.run(self.model.loss)
             tf.logging.info(
-                "Step: \t0\t loss: \t%f\t models converged \t0",
+                "Step: \t0\t loss: %f\t models converged 0",
                 global_loss
             )
 
@@ -278,10 +270,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     (self.model.global_step, train_op),
                     feed_dict=feed_dict
                 )
-                global_loss = self.session.run(
-                    (loss),
-                    feed_dict=feed_dict
-                )
+                global_loss = self.session.run(self.model.loss)
                 # Evaluate convergence metric:
                 if convergence_criteria == "all_converged_theta":
                     metric_current = self.session.run(self.model.model_vars.params)
@@ -291,22 +280,37 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 elif convergence_criteria == "all_converged_ll":
                     metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
                     metric_delta = np.abs(metric_current - metric_prev)
+                    # Use parameter space convergence as a helper:
+                    metric_theta_prev = metric_theta_current
+                    metric_theta_current = self.session.run(self.model.model_vars.params)
+                    metric_theta_delta = np.abs(np.exp(metric_theta_prev) - np.exp(metric_theta_current))
+                    # Evaluate convergence based on maximally varying parameter per gene:
+                    theta_update_small = np.max(metric_theta_delta, axis=0) < pkg_constants.THETA_MIN_LL_BY_FEATURE
                 else:
-                    raise ValueError("convergence_criterium %s not recgonized" % convergence_criteria)
+                    raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
                 # Update convergence status of non-converged features:
+                features_updated = self.session.run(self.model.model_vars.updated)
+                previously_converged = self.model.model_vars.converged
                 self.model.model_vars.converged = np.logical_or(
                     self.model.model_vars.converged,
-                    metric_delta < stopping_criteria
+                    np.logical_and(metric_delta < stopping_criteria, features_updated)
                 )
+                if convergence_criteria == "all_converged_ll":
+                    self.model.model_vars.converged = np.logical_or(
+                        self.model.model_vars.converged,
+                        theta_update_small
+                    )
+                self.model.model_vars_eval.converged = self.model.model_vars.converged
                 t1 = time.time()
 
                 tf.logging.info(
-                    "Step: \t%d\t loss: \t%f\t models converged \t%i\t in %s sec",
+                    "Step: \t%d\t loss: %f\t models converged %i\t in %s sec., models updated %i",
                     train_step,
                     global_loss,
                     np.sum(self.model.model_vars.converged).astype("int32"),
-                    str(np.round(t1 - t0, 3))
+                    str(np.round(t1 - t0, 3)),
+                    np.sum(np.logical_and(features_updated, previously_converged == False)).astype("int32")
                 )
         else:
             self._train_to_convergence(

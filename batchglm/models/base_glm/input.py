@@ -6,10 +6,11 @@ except ImportError:
     anndata = None
 import xarray as xr
 import numpy as np
+import scipy.sparse
 import pandas as pd
 
 from .utils import parse_constraints, parse_design
-from .external import _InputData_Base, INPUT_DATA_PARAMS
+from .external import _InputData_Base, INPUT_DATA_PARAMS, SparseXArrayDataSet, SparseXArrayDataArray
 
 import patsy
 
@@ -33,7 +34,7 @@ class InputData(_InputData_Base):
     @classmethod
     def new(
             cls,
-            data: Union[np.ndarray, anndata.AnnData, xr.DataArray, xr.Dataset],
+            data: Union[np.ndarray, anndata.AnnData, xr.DataArray, xr.Dataset, scipy.sparse.csr_matrix],
             design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
             design_loc_names: Union[list, np.ndarray, xr.DataArray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, xr.DataArray] = None,
@@ -216,12 +217,16 @@ class InputData(_InputData_Base):
     def size_factors(self, data):
         if data is None and "size_factors" in self.data.coords:
             del self.data.coords["size_factors"]
-        else:
-            dims = self.param_shapes()["size_factors"]
-            self.data.coords["size_factors"] = xr.DataArray(
+
+        dims = self.param_shapes()["size_factors"]
+        sf = xr.DataArray(
                 dims=dims,
                 data=np.broadcast_to(data, [self.data.dims[d] for d in dims])
             )
+        if isinstance(self.data, SparseXArrayDataSet):
+            self.data.size_factors = sf
+        else:
+            self.data.coords["size_factors"] = sf
 
     @property
     def num_design_loc_params(self):

@@ -3,6 +3,7 @@ import unittest
 import time
 
 import numpy as np
+import scipy.sparse
 
 import batchglm.api as glm
 import batchglm.data as data_utils
@@ -40,10 +41,13 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+
         estimator = Estimator(
             input_data=input_data,
             termination_type="by_feature",
-            noise_model=self.noise_model
+            provide_optimizers=provide_optimizers
         )
         estimator.initialize()
         estimator.train_sequence(training_strategy=[
@@ -52,12 +56,12 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "ADAM"  # Newton is very slow if hessian is evaluated through tf
+                "optim_algo": "adam"  # Newton is very slow if hessian is evaluated through tf
             },
         ])
         return estimator
 
-    def _test_compute_hessians(self):
+    def _test_compute_hessians(self, sparse):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
@@ -77,7 +81,18 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
-        input_data = InputData.new(sim.X, design_loc=design_loc, design_scale=design_scale)
+        if sparse:
+            input_data = InputData.new(
+                data=scipy.sparse.csr_matrix(sim.X),
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
+        else:
+            input_data = InputData.new(
+                data=sim.X,
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
 
         logger.debug("* Running analytic Hessian by observation tests")
         pkg_constants.HESSIAN_MODE = "obs_batched"
@@ -128,11 +143,14 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
-        self._test_compute_hessians()
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
 
 
 if __name__ == '__main__':

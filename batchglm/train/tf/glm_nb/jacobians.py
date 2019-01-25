@@ -15,14 +15,24 @@ class Jacobians(JacobiansGLMALL):
             mu,
             r,
     ):
-        const = tf.multiply(  # [observations, features]
-            tf.add(X, r),
-            tf.divide(
-                mu,
-                tf.add(mu, r)
+        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+            const = tf.multiply(
+                tf.sparse.add(X, r),
+                tf.divide(
+                    mu,
+                    tf.add(mu, r)
+                )
             )
-        )
-        const = tf.subtract(X, const)
+            const = tf.sparse.add(X, -const)
+        else:
+            const = tf.multiply(
+                tf.add(X, r),
+                tf.divide(
+                    mu,
+                    tf.add(mu, r)
+                )
+            )
+            const = tf.subtract(X, const)
         return const
 
 
@@ -32,10 +42,15 @@ class Jacobians(JacobiansGLMALL):
             mu,
             r,
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
         # Pre-define sub-graphs that are used multiple times:
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
+        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+            r_plus_x = tf.sparse.add(X, r)
+        else:
+            r_plus_x = r + X
+
         r_plus_mu = r + mu
-        r_plus_x = r + X
+
         # Define graphs for individual terms of constant term of hessian:
         const1 = tf.subtract(
             tf.math.digamma(x=r_plus_x),
@@ -48,4 +63,5 @@ class Jacobians(JacobiansGLMALL):
         )
         const = tf.add_n([const1, const2, const3])  # [observations, features]
         const = r * const
+
         return const

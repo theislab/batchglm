@@ -1,13 +1,15 @@
-from typing import Union, Dict, Callable, List
 import contextlib
 import logging
-
+import sys
 import time
 import threading
+from typing import Union, Dict, Callable, List
 
 import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
+
+from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +216,7 @@ class StopAtLossHook(tf.train.SessionRunHook):
 
 
 class MultiTrainer:
+
     def __init__(
             self,
             learning_rate,
@@ -221,11 +224,22 @@ class MultiTrainer:
             variables: tf.Variable = None,
             gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
+            features_updated: tf.Variable = None,
+            model_ll=None,
+            model_vars_eval = None,
+            model_eval = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
+            newton_tr_delta: tf.Tensor = None,
+            nr_tr_radius: tf.Variable = None,
+            nr_tr_pred_cost_gain: tf.Tensor = None,
+            irls_tr_delta: tf.Tensor = None,
+            irls_tr_radius: tf.Variable = None,
+            irls_tr_pred_cost_gain: tf.Tensor = None,
             global_step=None,
             apply_train_ops: callable = None,
             provide_optimizers: Union[dict, None] = None,
+            session = None,
             name=None
     ):
         r"""
@@ -244,6 +258,7 @@ class MultiTrainer:
         :param apply_train_ops: callable which will be applied to all train ops
         :param name: optional name scope
         """
+        self.session = session
         with contextlib.ExitStack() as stack:
             if name is not None:
                 gs = stack.enter_context(tf.name_scope(name))
@@ -254,22 +269,22 @@ class MultiTrainer:
 
                 logger.debug(" **** Compute gradients using tensorflow")
                 plain_gradients = tf.gradients(loss, variables)
-                plain_gradients = [(g, v) for g, v in zip(plain_gradients, variables)]
+                plain_gradients_vars = [(g, v) for g, v in zip(plain_gradients, variables)]
             else:
-                plain_gradients = [(gradients, variables)]
+                plain_gradients_vars = [(gradients, variables)]
 
             if callable(apply_gradients):
-                gradients = [(apply_gradients(g), v) for g, v in plain_gradients]
+                gradients_vars = [(apply_gradients(g), v) for g, v in plain_gradients_vars]
             elif isinstance(apply_gradients, dict):
-                gradients = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients]
+                gradients_vars = [(apply_gradients[v](g) if v in apply_gradients else g, v) for g, v in plain_gradients_vars]
             else:
-                gradients = plain_gradients
+                gradients_vars = plain_gradients_vars
 
             # Standard tensorflow optimizers.
             if provide_optimizers["gd"]:
                 logger.debug(" **** Building optimizer: GD")
                 optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-                train_op_GD = optim_GD.apply_gradients(gradients, global_step=global_step)
+                train_op_GD = optim_GD.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_GD = apply_train_ops(train_op_GD)
             else:
@@ -279,7 +294,7 @@ class MultiTrainer:
             if provide_optimizers["adam"]:
                 logger.debug(" **** Building optimizer: ADAM")
                 optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
-                train_op_Adam = optim_Adam.apply_gradients(gradients, global_step=global_step)
+                train_op_Adam = optim_Adam.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adam = apply_train_ops(train_op_Adam)
             else:
@@ -289,7 +304,7 @@ class MultiTrainer:
             if provide_optimizers["adagrad"]:
                 logger.debug(" **** Building optimizer: ADAGRAD")
                 optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
-                train_op_Adagrad = optim_Adagrad.apply_gradients(gradients, global_step=global_step)
+                train_op_Adagrad = optim_Adagrad.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adagrad = apply_train_ops(train_op_Adagrad)
             else:
@@ -299,7 +314,7 @@ class MultiTrainer:
             if provide_optimizers["rmsprop"]:
                 logger.debug(" **** Building optimizer: RMSPROP")
                 optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
-                train_op_RMSProp = optim_RMSProp.apply_gradients(gradients, global_step=global_step)
+                train_op_RMSProp = optim_RMSProp.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_RMSProp = apply_train_ops(train_op_RMSProp)
             else:
@@ -325,9 +340,7 @@ class MultiTrainer:
             #    train_op_bfgs = None
 
             # Custom optimizers.
-            optim_nr = None
             if provide_optimizers["nr"] and newton_delta is not None:
-                logger.debug(" **** Building optimizer: NR")
                 theta_new_nr = variables - learning_rate * newton_delta
                 train_op_nr = tf.group(
                     tf.assign(variables, theta_new_nr),
@@ -338,9 +351,107 @@ class MultiTrainer:
             else:
                 train_op_nr = None
 
-            optim_irls = None
+            if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
+                # Set trust region hyperparameters
+                eta0 = pkg_constants.TRUST_REGION_ETA0
+                eta1 = pkg_constants.TRUST_REGION_ETA1
+                eta2 = pkg_constants.TRUST_REGION_ETA2
+                t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=variables.dtype)
+                t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=variables.dtype)
+                upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=variables.dtype)
+
+                # Propose parameter update:
+                theta_new = variables - tf.expand_dims(nr_tr_radius, axis=0) * newton_tr_delta
+
+                # Check approximation based on new and old loss:
+                ## Rebuild graph starting from injected parameter tensor:
+                model_vars_eval.new(params=theta_new)
+                model_eval.new(model_vars=model_vars_eval)
+                ll_eval = model_eval.norm_log_likelihood
+                ## Check deviation between predicted and observed loss:
+                delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
+                delta_f_pred = nr_tr_pred_cost_gain
+                delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
+
+                # Include parameter updates only if update improves cost function:
+                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
+                theta_new_nr_tr = tf.stack([
+                    tf.cond(pred=update_theta[i], true_fn=lambda: theta_new[:,i], false_fn=lambda: variables[:,i])
+                    for i in range(newton_tr_delta.shape[1])
+                ], axis=1)
+
+                # Update trusted region according:
+                nr_tr_radius_new = tf.stack([
+                    tf.cond(
+                        pred=delta_f_ratio[i] < eta1,
+                        true_fn=lambda: nr_tr_radius[i] * t1,
+                        false_fn=lambda: tf.cond(
+                            pred=delta_f_ratio[i] > eta2,
+                            true_fn=lambda: tf.minimum(nr_tr_radius[i] * t2, upper_bound),
+                            false_fn=lambda: nr_tr_radius[i]
+                        )
+                    )
+                    for i in range(newton_tr_delta.shape[1])
+                ], axis=0)
+
+                # Group tf.Variable updates into one operation:
+                train_op_nr_tr = tf.group(
+                    tf.assign(variables, theta_new_nr_tr),
+                    tf.assign(nr_tr_radius, nr_tr_radius_new),
+                    tf.assign(features_updated, update_theta),
+                    tf.assign_add(global_step, 1)
+                )
+                if apply_train_ops is not None:
+                    train_op_nr_tr = apply_train_ops(train_op_nr_tr)
+            else:
+                train_op_nr_tr = None
+
+            #if provide_optimizers["nr_ls"] and newton_delta is not None:
+            #    def value_and_gradients_function(x):
+            #        # Compute parameters at proposed step length:
+            #        theta_new = variables - x * newton_delta
+            #        # Rebuild graph starting from injected parameter tensor:
+            #        model_vars_eval.new(params=theta_new)
+            #        full_model_eval.new(model_vars=model_vars_eval)
+            #        batched_model_eval.new(model_vars=model_vars_eval)
+            #        gradients_eval.new(
+            #            model_vars=model_vars_eval,
+            #            full_data_model=full_model_eval,
+            #            batched_data_model=batched_model_eval
+            #        )
+            #        loss = full_model_eval.loss
+            #        gradient = tf.reduce_sum(tf.matmul(
+            #            tf.negative(tf.transpose(gradients_eval.gradients_full)),  # TODO full?
+            #            newton_delta
+            #        ))
+            #        return loss, gradient
+            #    a_nr = tf.cast(tfp.optimizer.linesearch.hager_zhang(
+            #        value_and_gradients_function=value_and_gradients_function,
+            #        initial_step_size=tf.constant(1, dtype=variables.dtype),  # quadratic approximation
+            #        objective_at_zero=None,
+            #        grad_objective_at_zero=None,
+            #        objective_at_initial_step_size=None,
+            #        grad_objective_at_initial_step_size=None,
+            #        threshold_use_approximate_wolfe_condition=1e-06,
+            #        shrinkage_param=0.66,
+            #        expansion_param=5.0,
+            #        sufficient_decrease_param=0.1,
+            #        curvature_param=0.9,
+            #        step_size_shrink_param=0.1,
+            #        max_iterations=50
+            #    ).left_pt, dtype=newton_delta.dtype)
+            #    logger.debug("a: ", a_nr)
+            #    theta_new_nr_ls = variables - a_nr * newton_delta
+            #    train_op_nr_ls = tf.group(
+            #        tf.assign(variables, theta_new_nr_ls),
+            #        tf.assign_add(global_step, 1)
+            #    )
+            #    if apply_train_ops is not None:
+            #        train_op_nr_ls = apply_train_ops(train_op_nr_ls)
+            #else:
+            #    train_op_nr_ls = None
+
             if provide_optimizers["irls"] and irls_delta is not None:
-                logger.debug(" **** Building optimizer: IRLS")
                 theta_new_irls = variables - learning_rate * irls_delta
                 train_op_irls = tf.group(
                     tf.assign(variables, theta_new_irls),
@@ -351,25 +462,80 @@ class MultiTrainer:
             else:
                 train_op_irls = None
 
+            if provide_optimizers["irls_tr"] and irls_tr_delta is not None:
+                # Set trust region hyperparameters
+                eta0 = pkg_constants.TRUST_REGION_ETA0
+                eta1 = pkg_constants.TRUST_REGION_ETA1
+                eta2 = pkg_constants.TRUST_REGION_ETA2
+                t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=variables.dtype)
+                t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=variables.dtype)
+                upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=variables.dtype)
+
+                # Propose parameter update:
+                theta_new = variables - tf.expand_dims(irls_tr_radius, axis=0) * irls_tr_delta
+
+                # Check approximation based on new and old loss:
+                ## Rebuild graph starting from injected parameter tensor:
+                model_vars_eval.new(params=theta_new)
+                model_eval.new(model_vars=model_vars_eval)
+                ll_eval = model_eval.norm_log_likelihood
+                ## Check deviation between predicted and observed loss:
+                delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
+                delta_f_pred = irls_tr_pred_cost_gain
+                delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
+
+                # Include parameter updates only if update improves cost function:
+                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
+                theta_new_irls_tr = tf.stack([
+                    tf.cond(pred=update_theta[i], true_fn=lambda: theta_new[:,i], false_fn=lambda: variables[:,i])
+                    for i in range(irls_tr_delta.shape[1])
+                ], axis=1)
+
+                # Update trusted region according:
+                irls_tr_radius_new = tf.stack([
+                    tf.cond(
+                        pred=delta_f_ratio[i] < eta1,
+                        true_fn=lambda: irls_tr_radius[i] * t1,
+                        false_fn=lambda: tf.cond(
+                            pred=delta_f_ratio[i] > eta2,
+                            true_fn=lambda: tf.minimum(irls_tr_radius[i] * t2, upper_bound),
+                            false_fn=lambda: irls_tr_radius[i]
+                        )
+                    )
+                    for i in range(irls_tr_delta.shape[1])
+                ], axis=0)
+
+                # Group tf.Variable updates into one operation:
+                train_op_irls_tr = tf.group(
+                    tf.assign(variables, theta_new_irls_tr),
+                    tf.assign(irls_tr_radius, irls_tr_radius_new),
+                    tf.assign(features_updated, update_theta),
+                    tf.assign_add(global_step, 1)
+                )
+                if apply_train_ops is not None:
+                    train_op_irls_tr = apply_train_ops(train_op_irls_tr)
+            else:
+                train_op_irls_tr = None
+
             self.global_step = global_step
-            self.plain_gradients = plain_gradients
-            self.gradients = gradients
+            self.plain_gradients = plain_gradients_vars
+            self.gradients = gradients_vars
 
             self.optim_GD = optim_GD
             self.optim_Adam = optim_Adam
             self.optim_Adagrad = optim_Adagrad
             self.optim_RMSProp = optim_RMSProp
-            self.optim_NR = optim_nr
-            self.optim_irls = optim_irls
-            #self.optim_bfgs = optim_bfgs
 
             self.train_op_GD = train_op_GD
             self.train_op_Adam = train_op_Adam
             self.train_op_Adagrad = train_op_Adagrad
             self.train_op_RMSProp = train_op_RMSProp
             self.train_op_nr = train_op_nr
+            self.train_op_nr_tr = train_op_nr_tr
             self.train_op_irls = train_op_irls
+            self.train_op_irls_tr = train_op_irls_tr
             #self.train_op_bfgs = train_op_bfgs
+
 
     def train_op_by_name(self, name: str):
         """
@@ -411,11 +577,29 @@ class MultiTrainer:
             if self.train_op_nr is None:
                 raise ValueError("Newton-rhapson not provided in initialization.")
             return self.train_op_nr
+        elif name_lower.lower() == "newton-trust-region" or \
+                name_lower.lower() == "newton_trust_region" or \
+                name_lower.lower() == "newton-raphson-trust-region" or \
+                name_lower.lower() == "newton_raphson_trust_region" or \
+                name_lower.lower() == "newton_tr" or \
+                name_lower.lower() == "nr_tr":
+            if self.train_op_nr_tr is None:
+                raise ValueError("Newton-rhapson trust-region not provided in initialization.")
+            return self.train_op_nr_tr
         elif name_lower.lower() == "irls" or \
-             name_lower.lower() == "iwls":
+                name_lower.lower() == "iwls":
             if self.train_op_irls is None:
                 raise ValueError("IRLS not provided in initialization.")
             return self.train_op_irls
+        elif name_lower.lower() == "irls_tr" or \
+                name_lower.lower() == "iwls_tr" or \
+                name_lower.lower() == "irls_trust_region" or \
+                name_lower.lower() == "iwls_trust_region" or \
+                name_lower.lower() == "irls-trust-region" or \
+                name_lower.lower() == "iwls-trust-region":
+            if self.train_op_irls is None:
+                raise ValueError("IRLS not provided in initialization.")
+            return self.train_op_irls_tr
         else:
             raise ValueError("Unknown optimizer %s" % name)
 

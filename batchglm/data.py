@@ -13,6 +13,8 @@ import xarray as xr
 import dask
 import dask.array
 
+from .external import SparseXArrayDataArray, SparseXArrayDataSet
+
 try:
     import anndata
 except ImportError:
@@ -31,17 +33,18 @@ def _sparse_to_xarray(data, dims):
         if idx.size == 1:
             retval = np.squeeze(retval, axis=0)
 
-        return retval.astype(np.float32)
+        return retval.astype(np.float64)
 
     delayed_fetch = dask.delayed(fetch_X, pure=True)
     X = [
         dask.array.from_delayed(
             delayed_fetch(idx),
             shape=(num_features,),
-            dtype=np.float32
+            dtype=np.float64
         ) for idx in range(num_observations)
     ]
-    X = xr.DataArray(dask.array.stack(X), dims=dims)
+
+    X = data
 
     # currently broken:
     # X = data.X
@@ -53,9 +56,9 @@ def _sparse_to_xarray(data, dims):
 
 
 def xarray_from_data(
-        data: Union[anndata.AnnData, xr.DataArray, xr.Dataset, np.ndarray],
+        data: Union[anndata.AnnData, anndata.base.Raw, xr.DataArray, xr.Dataset, np.ndarray, scipy.sparse.csr_matrix],
         dims: Union[Tuple, List] = ("observations", "features")
-) -> xr.DataArray:
+):
     """
     Parse any array-like object, xr.DataArray, xr.Dataset or anndata.Anndata and return a xarray containing
     the observations.
@@ -64,26 +67,52 @@ def xarray_from_data(
     :param dims: tuple or list with two strings. Specifies the names of the xarray dimensions.
     :return: xr.DataArray of shape `dims`
     """
-    if anndata is not None and isinstance(data, anndata.AnnData):
-        if scipy.sparse.issparse(data.X):
-            X = _sparse_to_xarray(data.X, dims=dims)
-            X.coords[dims[0]] = np.asarray(data.obs_names)
-            X.coords[dims[1]] = np.asarray(data.var_names)
+    if anndata is not None and (isinstance(data, anndata.AnnData) or isinstance(data, anndata.base.Raw)):
+        # Anndata.raw does not have obs_names.
+        if isinstance(data, anndata.AnnData):
+            obs_names = np.asarray(data.obs_names)
         else:
-            X = data.X
-            X = xr.DataArray(X, dims=dims, coords={
-                dims[0]: np.asarray(data.obs_names),
-                dims[1]: np.asarray(data.var_names),
-            })
+            obs_names = ["obs_" + str(i) for i in range(data.X.shape[0])]
+
+        if scipy.sparse.issparse(data.X):
+            # X = _sparse_to_xarray(data.X, dims=dims)
+            # X.coords[dims[0]] = np.asarray(data.obs_names)
+            # X.coords[dims[1]] = np.asarray(data.var_names)
+            X = SparseXArrayDataSet(
+                X=data.X,
+                obs_names=np.asarray(obs_names),
+                feature_names=np.asarray(data.var_names),
+                dims=dims
+            )
+        else:
+            X = xr.DataArray(
+                data.X,
+                dims=dims,
+                coords={
+                    dims[0]: np.asarray(obs_names),
+                    dims[1]: np.asarray(data.var_names),
+                }
+            )
     elif isinstance(data, xr.Dataset):
         X: xr.DataArray = data["X"]
     elif isinstance(data, xr.DataArray):
         X = data
+    elif isinstance(data, SparseXArrayDataSet):
+        X = data
+    elif scipy.sparse.issparse(data):
+        # X = _sparse_to_xarray(data, dims=dims)
+        # X.coords[dims[0]] = np.asarray(data.obs_names)
+        # X.coords[dims[1]] = np.asarray(data.var_names)
+        X = SparseXArrayDataSet(
+            X=data,
+            obs_names=None,
+            feature_names=None,
+            dims=dims
+        )
+    elif isinstance(data, np.ndarray):
+        X = xr.DataArray(data, dims=dims)
     else:
-        if scipy.sparse.issparse(data):
-            X = _sparse_to_xarray(data, dims=dims)
-        else:
-            X = xr.DataArray(data, dims=dims)
+        raise ValueError("batchglm data parsing: data format %s not recognized" % type(data))
 
     return X
 
@@ -537,7 +566,7 @@ def parse_constraints(
     Parse constraint matrix into xarray.
 
     :param dmat: Design matrix.
-    :param a constraint matrix
+    :param constraints: a constraint matrix
     :return: constraint matrix in xarray format
     """
     constraints_ar = xr.DataArray(

@@ -25,8 +25,8 @@ class FIM(FIMGLMALL):
             mu,
             r
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
-        scalar_two = tf.constant(2, shape=(), dtype=X.dtype)
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
+        scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
 
         r_plus_mu = r+mu
         digamma_r = tf.math.digamma(x=r)

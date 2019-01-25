@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import List
+from typing import Tuple, Union
 
 import tensorflow as tf
 
@@ -14,8 +14,19 @@ class HessiansGLM:
     Wrapper to compute the Hessian matrix for a GLM.
     """
 
+    noise_model: str
+    constraints_loc: tf.Tensor
+    constraints_scale: tf.Tensor
+    model_vars: ModelVarsGLM
+    _compute_hess_a: bool
+    _compute_hess_b: bool
+
     hessian: tf.Tensor
+    hessian_aa: Union[tf.Tensor, None]
+    hessian_bb: Union[tf.Tensor, None]
     neg_hessian: tf.Tensor
+    neg_hessian_aa: Union[tf.Tensor, None]
+    neg_hessian_bb: Union[tf.Tensor, None]
 
     def __init__(
             self,
@@ -79,41 +90,57 @@ class HessiansGLM:
             the entire hessian with the off-diagonal a-b block is computed in self.hessian.
         """
         self.noise_model = noise_model
+        self.constraints_loc = constraints_loc
+        self.constraints_scale = constraints_scale
+        self.model_vars = model_vars
+        self.dtype = dtype
         self._compute_hess_a = hess_a
         self._compute_hess_b = hess_b
 
+        def init_fun():
+            if self._compute_hess_a and self._compute_hess_b:
+                return tf.zeros([model_vars.n_features,
+                                 model_vars.params.shape[0],
+                                 model_vars.params.shape[0]], dtype=dtype)
+            elif self._compute_hess_a and not self._compute_hess_b:
+                return tf.zeros([model_vars.n_features,
+                                 model_vars.a_var.shape[0],
+                                 model_vars.a_var.shape[0]], dtype=dtype)
+            elif not self._compute_hess_a and self._compute_hess_b:
+                return tf.zeros([model_vars.n_features,
+                                 model_vars.b_var.shape[0],
+                                 model_vars.b_var.shape[0]], dtype=dtype)
+
         if mode == "obs_batched":
-            H = self.byobs(
-                batched_data=batched_data,
-                sample_indices=sample_indices,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                model_vars=model_vars,
-                iterator=iterator,
-                dtype=dtype
-            )
+            map_fun_base = self.byobs
         elif mode == "feature":
-            H = self.byfeature(
-                batched_data=batched_data,
-                sample_indices=sample_indices,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                model_vars=model_vars,
-                iterator=iterator,
-                dtype=dtype
-            )
+            map_fun_base = self.byfeature
         elif mode == "tf":
-            H = self.tf_byfeature(
-                batched_data=batched_data,
-                sample_indices=sample_indices,
-                constraints_loc=constraints_loc,
-                constraints_scale=constraints_scale,
-                model_vars=model_vars,
-                iterator=iterator,
-                dtype=dtype
-            )
+            map_fun_base = self.tf_byfeature
         else:
             raise ValueError("mode %s not recognized" % mode)
+
+        def map_fun(idx, data):
+            return map_fun_base(
+                sample_indices=idx,
+                batched_data=data
+            )
+
+        def reduce_fun(old, new):
+            return tf.add(old, new)
+
+        if iterator:
+            # Perform a reduction operation across data set.
+            H = batched_data.reduce(
+                initial_state=init_fun(),
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]))
+            )
+        else:
+            # Only evaluate Hessian for given data batch.
+            H = map_fun(
+                idx=sample_indices,
+                data=batched_data
+            )
 
         # Assign jacobian blocks.
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
@@ -147,38 +174,23 @@ class HessiansGLM:
 
     def byobs(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
-    ):
+            batched_data
+    ) -> Tuple:
         raise NotImplementedError()
 
     def byfeature(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
-    ):
+            batched_data
+    ) -> Tuple:
         raise NotImplementedError()
 
     def tf_byfeature(
             self,
-            batched_data,
             sample_indices,
-            constraints_loc,
-            constraints_scale,
-            model_vars: ModelVarsGLM,
-            iterator,
-            dtype
-    ) -> List[tf.Tensor]:
+            batched_data
+    ) -> Tuple:
         raise NotImplementedError()
 
     @abc.abstractmethod

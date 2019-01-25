@@ -33,7 +33,8 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
                 raise ValueError("noise_model not recognized")
 
         batch_size = 900
-        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
 
         input_data = simulator.input_data
         design_loc = np.hstack([
@@ -153,21 +154,15 @@ class Test_AccuracyConstrained_VGLM_ALL(
     def _test_full(self):
         self.simulate()
         logger.debug("* Running tests for full data")
-        logger.debug("** Running tests for a and b training")
         super()._test_full_a_and_b()
-        logger.debug("** Running tests for a only training")
         super()._test_full_a_only()
-        logger.debug("** Running tests for b only training")
         super()._test_full_b_only()
 
     def _test_batched(self):
         self.simulate()
         logger.debug("* Running tests for batched data")
-        logger.debug("** Running tests for a and b training")
         super()._test_batched_a_and_b()
-        logger.debug("** Running tests for a only training")
         super()._test_batched_a_only()
-        logger.debug("** Running tests for b only training")
         super()._test_batched_b_only()
 
 

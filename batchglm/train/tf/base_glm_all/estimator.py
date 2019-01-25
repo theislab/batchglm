@@ -1,4 +1,5 @@
 import abc
+from copy import copy, deepcopy
 from typing import Union
 import logging
 import pprint
@@ -9,7 +10,7 @@ import tensorflow as tf
 import numpy as np
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, InputData, _Model_GLM
+from .external import MonitoredTFEstimator, InputData, _Model_GLM, SparseXArrayDataArray
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             termination_type: str = "by_feature",
             extended_summary=False,
             noise_model: str = None,
-            dtype="float64",
+            dtype=tf.float64
     ):
         """
         Create a new Estimator
@@ -105,18 +106,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if graph is None:
                 graph = tf.Graph()
 
-            self._input_data = input_data
-            self._train_loc = True
-            self._train_scale = not quick_scale
-
-            (init_a, init_b) = self.init_par(
-                init_a=init_a,
-                init_b=init_b,
-                init_model=init_model
-            )
-            init_a = init_a.astype(dtype)
-            init_b = init_b.astype(dtype)
-
         # ### prepare fetch_fn:
         def fetch_fn(idx):
             r"""
@@ -130,45 +119,54 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            X_tensor = tf.py_func(
-                func=input_data.fetch_X,
-                inp=[idx],
-                Tout=input_data.X.dtype,
-                stateful=False
-            )
-            X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
-            X_tensor = tf.cast(X_tensor, dtype=dtype)
+            if isinstance(input_data.X, SparseXArrayDataArray):
+                X_tensor_idx, X_tensor_val, X_shape = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                    func=input_data.fetch_X_sparse,
+                    inp=[idx],
+                    Tout=[np.int64, np.float64, np.int64],
+                    stateful=False  #  TODO: remove with tf>=v1.13
+                )
+                # Note on Tout: np.float64 for val seems to be required to avoid crashing v1.12.
+                X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
+                X_shape = tf.cast(X_shape, dtype=tf.int64)
+                X_tensor_val = tf.cast(X_tensor_val, dtype=dtype)
+                X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
+            else:
+                X_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                    func=input_data.fetch_X_dense,
+                    inp=[idx],
+                    Tout=input_data.X.dtype,
+                    stateful=False  #  TODO: remove with tf>=v1.13
+                )
+                X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
+                X_tensor = (tf.cast(X_tensor, dtype=dtype),)
 
-            design_loc_tensor = tf.py_func(
+            design_loc_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                 func=input_data.fetch_design_loc,
                 inp=[idx],
                 Tout=input_data.design_loc.dtype,
-                stateful=False
+                stateful=False  #  TODO: remove with tf>=v1.13
             )
             design_loc_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_loc_params])
             design_loc_tensor = tf.cast(design_loc_tensor, dtype=dtype)
 
-            design_scale_tensor = tf.py_func(
+            design_scale_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                 func=input_data.fetch_design_scale,
                 inp=[idx],
                 Tout=input_data.design_scale.dtype,
-                stateful=False
+                stateful=False  #  TODO: remove with tf>=v1.13
             )
             design_scale_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_scale_params])
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None:
-                size_factors_tensor = tf.log(tf.py_func(
+                size_factors_tensor = tf.log(tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_size_factors,
                     inp=[idx],
                     Tout=input_data.size_factors.dtype,
-                    stateful=False
+                    stateful=False  #  TODO: remove with tf>=v1.13
                 ))
                 size_factors_tensor.set_shape(idx.get_shape())
-                # Here, we broadcast the size_factor tensor to the batch size,
-                # note that this should not consum any more memory than
-                # keeping the 1D array and performing implicit broadcasting in 
-                # the arithmetic operations in the graph.
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
@@ -179,24 +177,23 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-        logger.debug(" * Building graph")
         with graph.as_default():
             # create model
             model = EstimatorGraph(
                 fetch_fn=fetch_fn,
-                feature_isnonzero=input_data.feature_isnonzero,
-                num_observations=input_data.num_observations,
-                num_features=input_data.num_features,
-                num_design_loc_params=input_data.num_design_loc_params,
-                num_design_scale_params=input_data.num_design_scale_params,
-                num_loc_params=input_data.num_loc_params,
-                num_scale_params=input_data.num_scale_params,
+                feature_isnonzero=self._input_data.feature_isnonzero,
+                num_observations=self._input_data.num_observations,
+                num_features=self._input_data.num_features,
+                num_design_loc_params=self._input_data.num_design_loc_params,
+                num_design_scale_params=self._input_data.num_design_scale_params,
+                num_loc_params=self._input_data.num_loc_params,
+                num_scale_params=self._input_data.num_scale_params,
                 batch_size=batch_size,
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                constraints_loc=input_data.constraints_loc,
-                constraints_scale=input_data.constraints_scale,
+                constraints_loc=self._input_data.constraints_loc,
+                constraints_scale=self._input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
                 train_loc=self._train_loc,
                 train_scale=self._train_scale,
@@ -206,8 +203,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 dtype=dtype
             )
 
-        logger.debug(" * Initialize graph")
         MonitoredTFEstimator.__init__(self, model)
+        model.session = self.session
 
     def _scaffold(self):
         with self.model.graph.as_default():
@@ -280,7 +277,19 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 optim_algo.lower() == "newton_raphson" or \
                 optim_algo.lower() == "nr" or \
                 optim_algo.lower() == "irls" or \
-                optim_algo.lower() == "iwls":
+                optim_algo.lower() == "iwls" or \
+                optim_algo.lower() == "newton-trust-region" or \
+                optim_algo.lower() == "newton_trust_region" or \
+                optim_algo.lower() == "newton-raphson-trust-region" or \
+                optim_algo.lower() == "newton_raphson_trust_region" or \
+                optim_algo.lower() == "newton_tr" or \
+                optim_algo.lower() == "nr_tr" or \
+                optim_algo.lower() == "irls_tr" or \
+                optim_algo.lower() == "iwls_tr" or \
+                optim_algo.lower() == "irls_trust_region" or \
+                optim_algo.lower() == "iwls_trust_region" or \
+                optim_algo.lower() == "irls-trust-region" or \
+                optim_algo.lower() == "iwls-trust-region":
             newton_type_mode = True
         # Set learning rae defaults if not set by user.
         if learning_rate is None:
@@ -347,7 +356,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             logger.info("Training sequence #%d complete", idx + 1)
 
     @property
-    def input_data(self) -> InputData:
+    def input_data(self):
         return self._input_data
 
     @property
@@ -392,6 +401,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def init_par(
             self,
+            input_data,
             init_a,
             init_b,
             init_model

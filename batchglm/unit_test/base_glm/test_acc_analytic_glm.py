@@ -29,19 +29,26 @@ class _Test_AccuracyAnalytic_GLM_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "nr",
+                "optim_algo": "nr_tr",
             },
         ])
 
     def eval_estimation_a(
             self,
-            estimator_store
+            estimator_store,
+            init
     ):
         threshold_dev = 1e-2
         threshold_std = 1e-1
 
-        mean_dev = np.mean(estimator_store.a.values - self.sim.a.values)
-        std_dev = np.std(estimator_store.a.values - self.sim.a.values)
+        if init == "standard":
+            mean_dev = np.mean(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
+            std_dev = np.std(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
+        elif init == "closed_form":
+            mean_dev = np.mean(estimator_store.a.values - self.sim.a.values)
+            std_dev = np.std(estimator_store.a.values - self.sim.a.values)
+        else:
+            assert False
 
         logger.info("mean_dev_a %f" % mean_dev)
         logger.info("std_dev_a %f" % std_dev)
@@ -54,13 +61,20 @@ class _Test_AccuracyAnalytic_GLM_Estim():
 
     def eval_estimation_b(
             self,
-            estimator_store
+            estimator_store,
+            init
     ):
         threshold_dev = 1e-2
-        threshold_std = 1e-1
+        threshold_std = 12-1
 
-        mean_dev = np.mean(estimator_store.b.values - self.sim.b.values)
-        std_dev = np.std(estimator_store.b.values - self.sim.b.values)
+        if init == "standard":
+            mean_dev = np.mean(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
+            std_dev = np.std(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
+        elif init == "closed_form":
+            mean_dev = np.mean(estimator_store.b.values - self.sim.b.values)
+            std_dev = np.std(estimator_store.b.values - self.sim.b.values)
+        else:
+            assert False
 
         logger.info("mean_dev_b %f" % mean_dev)
         logger.info("std_dev_b %f" % std_dev)
@@ -101,52 +115,81 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def get_simulator(self):
         pass
 
-    def simulate(self):
+    def simulate_complex(self):
         self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
         self.sim.generate_params(
             rand_fn_ave=lambda shape: np.random.uniform(1e5, 2*1e5, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(1, 3, shape),
+            rand_fn_scale=lambda shape: np.random.uniform(1, 3, shape)
+        )
+        self.sim.generate_data()
+
+    def simulate_a_easy(self):
+        self.sim = self.get_simulator()
+        self.sim.generate_sample_description(num_batches=1, num_conditions=2)
+
+        self.sim.generate_params(
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn_loc=lambda shape: np.ones(shape),
+            rand_fn_scale=lambda shape: np.random.uniform(5, 20, shape)
+        )
+        self.sim.generate_data()
+
+    def simulate_b_easy(self):
+        self.sim = self.get_simulator()
+        self.sim.generate_sample_description(num_batches=1, num_conditions=2)
+
+        def rand_fn_standard(shape):
+            theta = np.ones(shape)
+            theta[0, :] = np.random.uniform(5, 20, shape[1])
+            return theta
+
+        self.sim.generate_params(
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(5, 20, shape),
+            rand_fn_scale=lambda shape: rand_fn_standard(shape)
+        )
+        self.sim.generate_data()
+
+    def simulate_a_b_easy(self):
+        self.sim = self.get_simulator()
+        self.sim.generate_sample_description(num_batches=1, num_conditions=2)
+
+        def rand_fn_standard(shape):
+            theta = np.ones(shape)
+            theta[0, :] = np.random.uniform(5, 20, shape[1])
+            return theta
+
+        self.sim.generate_params(
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn_loc=lambda shape: np.ones(shape),
+            rand_fn_scale=lambda shape: rand_fn_standard(shape)
         )
         self.sim.generate_data()
 
     @abc.abstractmethod
-    def get_estimator(self, train_scale):
+    def get_estimator(self, train_scale, sparse, init_a, init_b):
         pass
 
-    def _test_a_and_b_closed(self):
-        estimator = self.get_estimator(train_scale=False)
+    def _test_a_and_b_closed(self, sparse, init_a, init_b):
+        estimator = self.get_estimator(
+            train_scale=False,
+            sparse=sparse,
+            init_a=init_a,
+            init_b=init_b
+        )
         estimator.estimate()
         estimator_store = estimator.estimator.finalize()
         self._estims.append(estimator)
         success = estimator.eval_estimation_a(
-            estimator_store=estimator_store
+            estimator_store=estimator_store,
+            init=init_a
         )
         assert success, "closed form for a model was inaccurate"
         success = estimator.eval_estimation_b(
-            estimator_store=estimator_store
-        )
-        assert success, "closed form for b model was inaccurate"
-        return True
-
-
-    def _test_a_closed(self):
-        estimator = self.get_estimator(train_scale=False)
-        estimator.estimate()
-        estimator_store = estimator.estimator.finalize()
-        self._estims.append(estimator)
-        success = estimator.eval_estimation_a(
-            estimator_store=estimator_store
-        )
-        assert success, "closed form for a model was inaccurate"
-        return True
-
-    def _test_b_closed(self):
-        estimator = self.get_estimator(train_scale=False)
-        estimator.estimate()
-        estimator_store = estimator.estimator.finalize()
-        self._estims.append(estimator)
-        success = estimator.eval_estimation_b(
-            estimator_store=estimator_store
+            estimator_store=estimator_store,
+            init=init_b
         )
         assert success, "closed form for b model was inaccurate"
         return True

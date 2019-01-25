@@ -15,13 +15,19 @@ class Hessians(HessianGLMALL):
             mu,
             r,
     ):
+        if isinstance(X, tf.SparseTensor):
+            X_minus_mu = tf.sparse.add(X, -mu)
+        else:
+            X_minus_mu = X - mu
+
         const = tf.multiply(
             mu * r,
             tf.divide(
-                X - mu,
+                X_minus_mu,
                 tf.square(mu + r)
             )
         )
+
         return const
 
     def _W_aa(
@@ -30,13 +36,19 @@ class Hessians(HessianGLMALL):
             mu,
             r,
     ):
+        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+            X_by_r_plus_one = tf.sparse.add(X.__div__(r), tf.ones_like(r))
+        else:
+            X_by_r_plus_one = X / r + tf.ones_like(r)
+
         const = tf.negative(tf.multiply(
             mu,
             tf.divide(
-                (X / r) + 1,
-                tf.square((mu / r) + 1)
+                X_by_r_plus_one,
+                tf.square((mu / r) + tf.ones_like(mu))
             )
         ))
+
         return const
 
     def _W_bb(
@@ -45,11 +57,15 @@ class Hessians(HessianGLMALL):
             mu,
             r,
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=X.dtype)
-        scalar_two = tf.constant(2, shape=(), dtype=X.dtype)
+        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+            r_plus_x = tf.sparse.add(X, r)
+        else:
+            r_plus_x = X + r
+
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
+        scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
         # Pre-define sub-graphs that are used multiple times:
         r_plus_mu = r + mu
-        r_plus_x = r + X
         # Define graphs for individual terms of constant term of hessian:
         const1 = tf.add(
             tf.math.digamma(x=r_plus_x),

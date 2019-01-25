@@ -31,7 +31,7 @@ class _Test_AccuracyConstrained_VGLM_Estim():
         self.estimator.initialize()
 
         # Choose learning rate based on optimizer
-        if algo.lower() in ["nr", "irls"]:
+        if algo.lower() in ["nr", "nr_tr", "irls", "irls_tr"]:
             lr = 1
         elif algo.lower() == "gd":
             lr = 0.05

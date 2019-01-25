@@ -91,36 +91,42 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         estimator = self.get_estimator(input_data=input_data)
         return estimator.test_estimation()
 
-    def _test_numpy_dense(self):
-        return self.basic_test(
-            data=self.sim.X,
+    def _test_numpy(self, sparse):
+        X = self.sim.X
+        if sparse:
+            X = scipy.sparse.csr_matrix(X)
+
+        success = self.basic_test(
+            data=X,
             design_loc=self.sim.design_loc,
             design_scale=self.sim.design_scale
         )
+        assert success, "_test_anndata with sparse=%s did not work" % sparse
 
-    def _test_scipy_sparse(self):
-        return self.basic_test(
-            data=scipy.sparse.csr_matrix(self.sim.X),
-            design_loc=self.sim.design_loc,
-            design_scale=self.sim.design_scale
-        )
-
-    def _test_anndata_dense(self):
+    def _test_anndata(self, sparse):
         adata = self.sim.data_to_anndata()
-        return self.basic_test(
+        if sparse:
+            adata.X = scipy.sparse.csr_matrix(adata.X)
+
+        success = self.basic_test(
             data=adata,
             design_loc=self.sim.design_loc,
             design_scale=self.sim.design_scale
         )
+        assert success, "_test_anndata with sparse=%s did not work" % sparse
 
-    def _test_anndata_sparse(self):
+    def _test_anndata_raw(self, sparse):
         adata = self.sim.data_to_anndata()
-        adata.X = scipy.sparse.csr_matrix(adata.X)
-        return self.basic_test(
-            data=adata,
+        if sparse:
+            adata.X = scipy.sparse.csr_matrix(adata.X)
+
+        adata.raw = adata
+        success = self.basic_test(
+            data=adata.raw,
             design_loc=self.sim.design_loc,
             design_scale=self.sim.design_scale
         )
+        assert success, "_test_anndata with sparse=%s did not work" % sparse
 
 
 if __name__ == '__main__':

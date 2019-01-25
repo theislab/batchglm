@@ -31,7 +31,7 @@ class _Test_AccuracySizeFactors_GLM_Estim():
         self.estimator.initialize()
 
         # Choose learning rate based on optimizer
-        if algo.lower() in ["nr", "irls"]:
+        if algo.lower() in ["nr", "nr_tr", "irls", "irls_tr"]:
             lr = 1
         elif algo.lower() == "gd":
             lr = 0.05
@@ -118,33 +118,20 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             e.estimator.close_session()
 
     def simulate(self):
-        self.simulate1()
-        self.simulate2()
+        self._simulate()
 
     @abc.abstractmethod
     def get_simulator(self):
         pass
 
-    def _simulate(self, num_batches):
+    def _simulate(self):
         sim = self.get_simulator()
-        sim.generate_sample_description(num_batches=num_batches, num_conditions=2)
+        sim.generate_sample_description(num_batches=2, num_conditions=2)
         sim.generate_params()
         sim.size_factors = np.random.uniform(0.1, 2, size=sim.num_observations)
         sim.generate_data()
         logger.debug(" Size factor standard deviation % f" % np.std(sim.size_factors.data))
-        return sim
-
-    def simulate1(self):
-        self.sim1 = self._simulate(num_batches=2)
-
-    def simulate2(self):
-        self.sim2 = self._simulate(num_batches=0)
-
-    def simulator(self, train_loc):
-        if train_loc:
-            return self.sim1
-        else:
-            return self.sim2
+        self.sim = sim
 
     def _basic_test(
             self,
@@ -154,12 +141,12 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            logger.warning("algorithm: %s" % algo)
+            logger.debug("algorithm: %s" % algo)
             estimator.estimate(
                 algo=algo,
                 batched=batched,
                 termination=termination,
-                acc=1e-6 if algo == "NR" else 1e-3
+                acc=1e-6 if algo in ["NR_TR"] else 1e-3
             )
             estimator_store = estimator.estimator.finalize()
             self._estims.append(estimator)
@@ -176,59 +163,42 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             self,
             batched,
             termination,
-            train_loc,
-            train_scale
+            train_scale,
+            sparse
     ):
         pass
 
-    def _test_full_a_and_b(self):
+    def _test_full_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
-            train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_full_a_only(self):
+    def _test_full_a_only(self, sparse):
         return self.basic_test(
             batched=False,
             termination="by_feature",
-            train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
 
-    def _test_full_b_only(self):
-        return self.basic_test(
-            batched=False,
-            termination="by_feature",
-            train_loc=False,
-            train_scale=True
-        )
-
-    def _test_batched_a_and_b(self):
+    def _test_batched_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
-            train_loc=True,
-            train_scale=True
+            train_scale=True,
+            sparse=sparse
         )
 
-    def _test_batched_a_only(self):
+    def _test_batched_a_only(self, sparse):
         return self.basic_test(
             batched=True,
             termination="by_feature",
-            train_loc=True,
-            train_scale=False
+            train_scale=False,
+            sparse=sparse
         )
-
-    def _test_batched_b_only(self):
-        return self.basic_test(
-            batched=True,
-            termination="by_feature",
-            train_loc=False,
-            train_scale=True
-        )
-
 
 if __name__ == '__main__':
     unittest.main()

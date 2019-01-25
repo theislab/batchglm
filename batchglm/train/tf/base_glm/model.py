@@ -1,5 +1,6 @@
 import abc
 import logging
+from typing import Union
 
 import tensorflow as tf
 import numpy as np
@@ -50,8 +51,7 @@ class ModelVarsGLM(ProcessModelGLM):
             init_a,
             init_b,
             constraints_loc,
-            constraints_scale,
-            name="ModelVars",
+            constraints_scale
     ):
         """
 
@@ -70,52 +70,102 @@ class ModelVarsGLM(ProcessModelGLM):
             parameters arises from indepedent parameters: all = <constraints, indep>.
             This tensor describes this relation for the dispersion model.
             This form of constraints is used in vector generalized linear models (VGLMs).
-        :param name: tensorflow subgraph name.
         """
-        with tf.name_scope(name):
-            with tf.name_scope("initialization"):
+        self.init_a = tf.convert_to_tensor(init_a, dtype=dtype)
+        self.init_b = tf.convert_to_tensor(init_b, dtype=dtype)
 
-                init_a = tf.convert_to_tensor(init_a, dtype=dtype)
-                init_b = tf.convert_to_tensor(init_b, dtype=dtype)
-
-                init_a = self.tf_clip_param(init_a, "a_var")
-                init_b = self.tf_clip_param(init_b, "b_var")
+        init_a_clipped = self.tf_clip_param(self.init_a, "a_var")
+        init_b_clipped = self.tf_clip_param(self.init_b, "b_var")
 
         # Param is the only tf.Variable in the graph.
         # a_var and b_var have to be slices of params.
-        params = tf.Variable(tf.concat(
+        self.params = tf.Variable(tf.concat(
             [
-                init_a,
-                init_b,
+                init_a_clipped,
+                init_b_clipped,
             ],
             axis=0
         ), name="params")
+
+        # Feature batching code for future:
+        #idx_featurebatch = tf.random_uniform([100], minval=0, maxval=self.params.shape[1]-1, dtype=tf.int32)
+        #params_featurebatch = tf.gather(self.params, indi [:,idx_featurebatch]
 
         #params_by_gene = [tf.expand_dims(params[:, i], axis=-1) for i in range(params.shape[1])]
         #a_by_gene = [x[0:init_a.shape[0],:] for x in params_by_gene]
         #b_by_gene = [x[init_a.shape[0]:, :] for x in params_by_gene]
         #a_var = tf.concat(a_by_gene, axis=1)
         #b_var = tf.concat(b_by_gene, axis=1)
-        a_var = params[0:init_a.shape[0]]
-        b_var = params[init_a.shape[0]:]
+        a_var = self.params[0:init_a.shape[0]]
+        b_var = self.params[init_a.shape[0]:]
 
-        a_var = self.tf_clip_param(a_var, "a_var")
-        b_var = self.tf_clip_param(b_var, "b_var")
+        self.a_var = self.tf_clip_param(a_var, "a_var")
+        self.b_var = self.tf_clip_param(b_var, "b_var")
 
-        a = tf.matmul(constraints_loc,  a_var)
-        b = tf.matmul(constraints_scale,  b_var)
+        self.a = tf.matmul(constraints_loc,  self.a_var)
+        self.b = tf.matmul(constraints_scale,  self.b_var)
 
-        self.a_var = a_var
-        self.b_var = b_var
-        self.a = a
-        self.b = b
-        self.params = params
         # Properties to follow gene-wise convergence.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
-        self.n_features = self.params.shape[1]
+        self.updated = tf.Variable(np.repeat(a=True, repeats=self.params.shape[1]))  # Initialise to is updated.
         #self.params_by_gene = params_by_gene
         #self.a_by_gene = a_by_gene
         #self.b_by_gene = b_by_gene
+
+        self.dtype = dtype
+        self.constraints_loc = constraints_loc
+        self.constraints_scale = constraints_scale
+        self.n_features = self.params.shape[1]
+
+    @abc.abstractmethod
+    def param_bounds(self, dtype):
+        pass
+
+
+class ModelVarsEvalGLM(ProcessModelGLM):
+
+    a: tf.Tensor
+    b: tf.Tensor
+    a_var: tf.Tensor
+    b_var: tf.Tensor
+    params: tf.Tensor
+
+    def __init__(
+            self,
+            dtype,
+            init_a,
+            init_b,
+            constraints_loc,
+            constraints_scale
+    ):
+        self.dtype = dtype
+        self.constraints_loc = constraints_loc
+        self.constraints_scale = constraints_scale
+
+        # Properties to follow gene-wise convergence.
+        self.converged = np.repeat(a=False, repeats=init_a.shape[1])  # Initialise to non-converged.
+        self.n_features = init_a.shape[1]
+
+        self.init_a_shape = init_a.shape
+        self.init_b_shape = init_b.shape
+
+    def new(
+            self,
+            params: tf.Tensor
+    ):
+        """
+
+        """
+        self.params = params
+
+        a_var = self.params[:self.init_a_shape[0]]
+        b_var = self.params[self.init_a_shape[0]:]
+
+        self.a_var = self.tf_clip_param(a_var, "a_var")
+        self.b_var = self.tf_clip_param(b_var, "b_var")
+
+        self.a = tf.matmul(self.constraints_loc,  self.a_var)
+        self.b = tf.matmul(self.constraints_scale,  self.b_var)
 
     @abc.abstractmethod
     def param_bounds(self, dtype):
@@ -126,14 +176,13 @@ class BasicModelGraphGLM(ProcessModelGLM):
     """
 
     """
-    X: tf.Tensor
+    X: Union[tf.Tensor, tf.SparseTensor]
     design_loc: tf.Tensor
     design_scale: tf.Tensor
     constraints_loc: tf.Tensor
     constraints_scale: tf.Tensor
 
     probs: tf.Tensor
-    log_probs: tf.Tensor
     log_likelihood: tf.Tensor
     norm_log_likelihood: tf.Tensor
     norm_neg_log_likelihood: tf.Tensor

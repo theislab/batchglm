@@ -29,7 +29,8 @@ class _Test_ExtremValues_GLM_ALL_Estim(_Test_ExtremValues_GLM_Estim):
                 raise ValueError("noise_model not recognized")
 
         batch_size = 10
-        provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False, "nr": True, "irls": True}
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
 
         estimator = Estimator(
             input_data=input_data,

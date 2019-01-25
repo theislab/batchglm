@@ -5,6 +5,7 @@ import tensorflow as tf
 import numpy as np
 
 from .external import ProcessModelGLM, ModelVarsGLM, BasicModelGraphGLM
+from ..base_glm.model import ModelVarsEvalGLM
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,12 @@ class ModelVars(ProcessModel, ModelVarsGLM):
     """
 
 
+class ModelVarsEval(ProcessModel, ModelVarsEvalGLM):
+    """
+    Full class.
+    """
+
+
 class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
 
     def __init__(
@@ -89,10 +96,21 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
 
         # Log-likelihood:
         log_r_plus_mu = tf.log(model_scale + model_loc)
-        log_probs = tf.math.lgamma(model_scale + X) - \
-                    tf.math.lgamma(X + 1) - tf.math.lgamma(model_scale) + \
-                    tf.multiply(X, self.eta_loc - log_r_plus_mu) + \
-                    tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+            log_probs_sparse = X.__mul__(self.eta_loc - log_r_plus_mu)
+            log_probs_dense = tf.math.lgamma(tf.sparse.add(X, model_scale)) - \
+                              tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=dtype))) - \
+                              tf.math.lgamma(model_scale) + \
+                              tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+            log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
+            log_probs.set_shape([None, a_var.shape[1]])  # Need this so as shape is completely lost.
+        else:
+            log_probs = tf.math.lgamma(model_scale + X) - \
+                        tf.math.lgamma(X + tf.ones_like(X)) - \
+                        tf.math.lgamma(model_scale) + \
+                        tf.multiply(X, self.eta_loc - log_r_plus_mu) + \
+                        tf.multiply(model_scale, self.eta_scale - log_r_plus_mu)
+
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:

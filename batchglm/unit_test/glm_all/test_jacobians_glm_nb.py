@@ -2,6 +2,7 @@ import logging
 import unittest
 import time
 import numpy as np
+import scipy.sparse
 
 import batchglm.api as glm
 import batchglm.data as data_utils
@@ -26,7 +27,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
             else:
                 raise ValueError("noise_model not recognized")
@@ -46,14 +47,18 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+
         estimator = Estimator(
             input_data=input_data,
-            quick_scale=quick_scale
+            quick_scale=quick_scale,
+            provide_optimizers=provide_optimizers
         )
         estimator.initialize()
         # Do not train, evalute at initialization!
@@ -62,7 +67,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
     def compare_jacs(
             self,
             design,
-            quick_scale
+            quick_scale,
+            sparse
     ):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
@@ -76,13 +82,24 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         design_loc = data_utils.design_matrix(sample_description, formula=design)
         design_scale = data_utils.design_matrix(sample_description, formula=design)
 
-        input_data = InputData.new(self.sim.X, design_loc=design_loc, design_scale=design_scale)
+        if sparse:
+            input_data = InputData.new(
+                data=scipy.sparse.csr_matrix(self.sim.X),
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
+        else:
+            input_data = InputData.new(
+                data=self.sim.X,
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
 
         logger.debug("** Running analytic Jacobian test")
         pkg_constants.JACOBIAN_MODE = "analytic"
         estimator_analytic = self.estimate(input_data, quick_scale)
         t0_analytic = time.time()
-        J_analytic = estimator_analytic['full_gradient']
+        J_analytic = estimator_analytic['gradients']
         a_analytic = estimator_analytic.a.values
         b_analytic = estimator_analytic.b.values
         t1_analytic = time.time()
@@ -93,14 +110,13 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         pkg_constants.JACOBIAN_MODE = "tf"
         estimator_tf = self.estimate(input_data, quick_scale)
         t0_tf = time.time()
-        J_tf = estimator_tf['full_gradient']
+        J_tf = estimator_tf['gradients']
         a_tf = estimator_tf.a.values
         b_tf = estimator_tf.b.values
         t1_tf = time.time()
         estimator_tf.close_session()
         t_tf = t1_tf - t0_tf
 
-        i = 1
         logger.info("run time tensorflow solution: %f" % t_tf)
         logger.info("run time observation batch-wise analytic solution: %f" % t_analytic)
         logger.info("relative difference of mean estimates for analytic jacobian to observation-wise jacobian:")
@@ -111,46 +127,50 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         logger.info((J_tf - J_analytic) / J_tf)
 
         max_rel_dev = np.max(np.abs((J_tf - J_analytic) / J_tf))
-        assert max_rel_dev < 1e-10
+        assert max_rel_dev < 1e-8
         return True
 
-    def _test_compute_jacobians(self):
-        self.simulate()
-        self._test_compute_jacobians_a_and_b()
-        self._test_compute_jacobians_a_only()
-        self._test_compute_jacobians_b_only()
-
-    def _test_compute_jacobians_a_and_b(self):
+    def _test_compute_jacobians_a_and_b(self, sparse):
         logger.debug("* Running Jacobian tests for a and b training")
         return self.compare_jacs(
             design="~ 1 + condition + batch",
-            quick_scale=False
+            quick_scale=False,
+            sparse=sparse
         )
 
-    def _test_compute_jacobians_a_only(self):
+    def _test_compute_jacobians_a_only(self, sparse):
         logger.debug("* Running Jacobian tests for a only training")
         return self.compare_jacs(
             design="~ 1 + condition + batch",
-            quick_scale=True
+            quick_scale=True,
+            sparse=sparse
         )
 
-    def _test_compute_jacobians_b_only(self):
+    def _test_compute_jacobians_b_only(self, sparse):
         logger.debug("* Running Jacobian tests for b only training")
         return self.compare_jacs(
             design="~ 1 + condition",
-            quick_scale=False
+            quick_scale=False,
+            sparse=sparse
         )
+
+    def _test_compute_jacobians(self, sparse):
+        self.simulate()
+        self._test_compute_jacobians_a_and_b(sparse=sparse)
+        self._test_compute_jacobians_a_only(sparse=sparse)
+        self._test_compute_jacobians_b_only(sparse=sparse)
 
 
 class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 
         self.noise_model = "nb"
-        self._test_compute_jacobians()
+        self._test_compute_jacobians(sparse=False)
+        #self._test_compute_jacobians(sparse=True)  #TODO automatic differnetiation does not seems to work here yet.
 
 
 if __name__ == '__main__':
