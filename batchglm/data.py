@@ -67,21 +67,26 @@ def xarray_from_data(
     :param dims: tuple or list with two strings. Specifies the names of the xarray dimensions.
     :return: xr.DataArray of shape `dims`
     """
-    if anndata is not None and isinstance(data, anndata.AnnData):
+    if anndata is not None and (isinstance(data, anndata.AnnData) or isinstance(data, anndata.base.Raw)):
+        # Anndata.raw does not have obs_names.
+        if isinstance(data, anndata.AnnData):
+            obs_names = np.asarray(data.obs_names)
+        else:
+            obs_names = ["obs_" + str(i) for i in range(data.X.shape[0])]
+
         if scipy.sparse.issparse(data.X):
             # X = _sparse_to_xarray(data.X, dims=dims)
             # X.coords[dims[0]] = np.asarray(data.obs_names)
             # X.coords[dims[1]] = np.asarray(data.var_names)
             X = SparseXArrayDataSet(
                 X=data.X,
-                obs_names=np.asarray(data.obs_names),
+                obs_names=np.asarray(obs_names),
                 feature_names=np.asarray(data.var_names),
                 dims=dims
             )
         else:
-            X = data.X
-            X = xr.DataArray(X, dims=dims, coords={
-                dims[0]: np.asarray(data.obs_names),
+            X = xr.DataArray(data.X, dims=dims, coords={
+                dims[0]: np.asarray(obs_names),
                 dims[1]: np.asarray(data.var_names),
             })
     elif isinstance(data, xr.Dataset):

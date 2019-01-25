@@ -99,18 +99,6 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             noise_model=self.noise_model
         )
 
-    def _test_standard(self):
-        self.simulate()
-        logger.debug("* Running tests on numpy/scipy")
-        self._test_numpy_dense()
-        self._test_scipy_sparse()
-
-    def _test_anndata(self):
-        self.simulate()
-        logger.debug("* Running tests on anndata")
-        self._test_anndata_dense()
-        self._test_anndata_sparse()
-
 
 class Test_DataTypes_GLM_NB(
     Test_DataTypes_GLM_ALL,
@@ -120,22 +108,31 @@ class Test_DataTypes_GLM_NB(
     Test whether training graphs work for negative binomial noise.
     """
 
-    def test_standard_nb(self):
+    def test_standard(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_DataTypes_GLM_NB.test_standard_nb()")
 
         self.noise_model = "nb"
-        self._test_standard()
+        self.simulate()
+        self._test_numpy(sparse=False)
+        self._test_numpy(sparse=True)
 
-    def test_anndata_nb(self):
+        return True
+
+    def test_anndata(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_DataTypes_GLM_NB.test_anndata_nb()")
 
         self.noise_model = "nb"
-        self._test_anndata()
+        self.simulate()
+        self._test_anndata(sparse=False)
+        self._test_anndata(sparse=True)
+        self._test_anndata_raw(sparse=False)
+        self._test_anndata_raw(sparse=True)
 
+        return True
 
 if __name__ == '__main__':
     unittest.main()
