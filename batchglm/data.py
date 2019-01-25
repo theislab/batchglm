@@ -13,6 +13,8 @@ import xarray as xr
 import dask
 import dask.array
 
+from .external import SparseXArrayDataArray, SparseXArrayDataSet
+
 try:
     import anndata
 except ImportError:
@@ -22,25 +24,25 @@ logger = logging.getLogger(__name__)
 
 
 def _sparse_to_xarray(data, dims):
-    #num_observations, num_features = data.shape
+    num_observations, num_features = data.shape
 
-    #def fetch_X(idx):
-    #    idx = np.asarray(idx).reshape(-1)
-    #    retval = data[idx].toarray()
-    #
-    #    if idx.size == 1:
-    #        retval = np.squeeze(retval, axis=0)
-    #
-    #    return retval.astype(np.float32)
-    #
-    #delayed_fetch = dask.delayed(fetch_X, pure=True)
-    #X = [
-    #    dask.array.from_delayed(
-    #        delayed_fetch(idx),
-    #        shape=(num_features,),
-    #        dtype=np.float32
-    #    ) for idx in range(num_observations)
-    #]
+    def fetch_X(idx):
+        idx = np.asarray(idx).reshape(-1)
+        retval = data[idx].toarray()
+
+        if idx.size == 1:
+            retval = np.squeeze(retval, axis=0)
+
+        return retval.astype(np.float64)
+
+    delayed_fetch = dask.delayed(fetch_X, pure=True)
+    X = [
+        dask.array.from_delayed(
+            delayed_fetch(idx),
+            shape=(num_features,),
+            dtype=np.float64
+        ) for idx in range(num_observations)
+    ]
 
     X = data
 
@@ -67,9 +69,15 @@ def xarray_from_data(
     """
     if anndata is not None and isinstance(data, anndata.AnnData):
         if scipy.sparse.issparse(data.X):
-            X = _sparse_to_xarray(data.X, dims=dims)
-            X.coords[dims[0]] = np.asarray(data.obs_names)
-            X.coords[dims[1]] = np.asarray(data.var_names)
+            # X = _sparse_to_xarray(data.X, dims=dims)
+            # X.coords[dims[0]] = np.asarray(data.obs_names)
+            # X.coords[dims[1]] = np.asarray(data.var_names)
+            X = SparseXArrayDataSet(
+                X=data.X,
+                obs_names=np.asarray(data.obs_names),
+                feature_names=np.asarray(data.var_names),
+                dims=dims
+            )
         else:
             X = data.X
             X = xr.DataArray(X, dims=dims, coords={
@@ -82,7 +90,15 @@ def xarray_from_data(
         X = data
     else:
         if scipy.sparse.issparse(data):
-            X = _sparse_to_xarray(data, dims=dims)
+            # X = _sparse_to_xarray(data, dims=dims)
+            # X.coords[dims[0]] = np.asarray(data.obs_names)
+            # X.coords[dims[1]] = np.asarray(data.var_names)
+            X = SparseXArrayDataSet(
+                X=data,
+                obs_names=np.asarray(data.obs_names),
+                feature_names=np.asarray(data.var_names),
+                dims=dims
+            )
         else:
             X = xr.DataArray(data, dims=dims)
 

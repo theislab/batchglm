@@ -63,10 +63,23 @@ class _InputData_Base:
 
         if scipy.sparse.issparse(X):
             retval = cls(SparseXArrayDataSet(
-                    X=X,
-                    feature_names=feature_names,
-                    obs_names=observation_names
+                X=X,
+                obs_names=observation_names,
+                feature_names=feature_names
             ))
+        elif isinstance(X, SparseXArrayDataArray):
+            retval = cls(SparseXArrayDataSet(
+                X=X.X,
+                obs_names=X.coords[X.dims[0]] if observation_names is None else observation_names,
+                feature_names=X.coords[X.dims[1]] if feature_names is None else feature_names,
+                dims=X.dims
+            ))
+        elif isinstance(X, SparseXArrayDataSet):
+            retval = cls(X)
+            if observation_names is not None:
+                retval.observations = observation_names
+            if feature_names is not None:
+                retval.features = feature_names
         else:
             retval = cls(xr.Dataset({
                 "X": X,
