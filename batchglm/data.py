@@ -566,7 +566,7 @@ def parse_constraints(
     Parse constraint matrix into xarray.
 
     :param dmat: Design matrix.
-    :param a constraint matrix
+    :param constraints: a constraint matrix
     :return: constraint matrix in xarray format
     """
     constraints_ar = xr.DataArray(

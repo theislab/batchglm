@@ -187,7 +187,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                             )
                         else:
                             init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
-                            init_a_xr.coords["loc_params"] = input_data.constraints_loc.coords["loc_params"]
+                            init_a_xr.coords["loc_params"] = input_data.constraints_loc.coords["loc_params"].values
                             init_mu = input_data.design_loc.dot(input_data.constraints_loc.dot(init_a_xr))
 
                         if size_factors_init is not None:
@@ -236,28 +236,28 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         else:
             # Locations model:
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
-                my_loc_names = set(input_data.design_loc_names.values)
-                my_loc_names = my_loc_names.intersection(init_model.input_data.design_loc_names.values)
+                my_loc_names = set(input_data.loc_names.values)
+                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names.values))
 
                 init_loc = np.zeros([input_data.num_loc_params, input_data.num_features])
                 for parm in my_loc_names:
-                    init_idx = np.where(init_model.input_data.design_loc_names == parm)
-                    my_idx = np.where(input_data.design_loc_names == parm)
-                    init_loc[my_idx] = init_model.par_link_loc[init_idx]
+                    init_idx = np.where(init_model.input_data.loc_names == parm)[0]
+                    my_idx = np.where(input_data.loc_names == parm)[0]
+                    init_loc[my_idx] = init_model.a_var[init_idx]
 
                 init_a = init_loc
                 logger.debug("Using initialization based on input model for mean")
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
-                my_scale_names = set(input_data.design_scale_names.values)
-                my_scale_names = my_scale_names.intersection(init_model.input_data.design_scale_names.values)
+                my_scale_names = set(input_data.scale_names.values)
+                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names.values)
 
                 init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
                 for parm in my_scale_names:
-                    init_idx = np.where(init_model.input_data.design_scale_names == parm)
-                    my_idx = np.where(input_data.design_scale_names == parm)
-                    init_scale[my_idx] = init_model.par_link_scale[init_idx]
+                    init_idx = np.where(init_model.input_data.scale_names == parm)[0]
+                    my_idx = np.where(input_data.scale_names == parm)[0]
+                    init_scale[my_idx] = init_model.b_var[init_idx]
 
                 init_b = init_scale
                 logger.debug("Using initialization based on input model for dispersion")

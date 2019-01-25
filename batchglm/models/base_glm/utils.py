@@ -77,7 +77,7 @@ def parse_constraints(
         dmat: xr.Dataset,
         dims,
         constraints: np.ndarray = None,
-        constraint_par_names: list = None,
+        constraint_par_names: list = None
 ) -> xr.DataArray:
     r"""
     Parser for constraint matrices.
@@ -90,7 +90,11 @@ def parse_constraints(
     """
     if constraints is None:
         constraints = np.identity(n=dmat.shape[1])
+        # Use given parameter names if constraint matrix is identity.
+        par_names = dmat.coords[dims[0]]
     else:
+        # Cannot use given parameter names if constraint matrix is not identity: Make up new ones.
+        par_names = ["var_"+str(x) for x in range(constraints.shape[1])]
         assert constraints.shape[0] == dmat.shape[1], "constraint dimension mismatch"
 
     constraints_mat = xr.DataArray(
@@ -99,7 +103,7 @@ def parse_constraints(
     )
     constraints_mat.coords[dims[0]] = dmat.coords[dims[0]]
     if constraint_par_names is None:
-        constraint_par_names = ["var_"+str(x) for x in range(constraints_mat.shape[1])]
+        constraint_par_names = par_names
 
     constraints_mat.coords[dims[1]] = constraint_par_names
 

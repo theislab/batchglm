@@ -62,6 +62,9 @@ class SparseXArrayDataArray:
     def dtype(self):
         return self.X.dtype
 
+    def astype(self, dtype):
+        return self.new_from_x(self.X.astype(dtype))
+
     @property
     def shape(self):
         return self.X.shape
@@ -128,12 +131,19 @@ class SparseXArrayDataArray:
         else:
             return np.asarray(self.X.mean()).flatten()
 
-    def var(self, dim: str):
-        assert dim in self.dims, "dim not recognized"
-        axis = self.dims.index(dim)
+    def var(self, dim: str = None, axis: int = None):
+        assert not (dim is not None and axis is not None), "only supply dim or axis"
+        if dim is not None:
+            assert dim in self.dims, "dim not recognized"
+            axis = self.dims.index(dim)
+        elif axis is not None:
+            assert axis < len(self.X.shape), "axis index out of range"
+        else:
+            assert False, "supply either dim or axis"
+
         Xsq = self.square(copy=True)
-        expect_x_sq = np.square(self.mean(dim=dim))
-        expect_xsq = np.mean(Xsq, axis=axis)
+        expect_x_sq = np.square(self.mean(axis=axis))
+        expect_xsq = Xsq.mean(axis=axis)
         return np.asarray(expect_xsq - expect_x_sq).flatten()
 
     def std(self, dim: str):
@@ -176,6 +186,14 @@ class SparseXArrayDataArray:
 
     def __copy__(self):
         return type(self)(self.X)
+
+    def __getitem__(self, key):
+        if isinstance(key, np.ndarray) or isinstance(key, slice):  # This is an observation wise slice!
+            return self.new_from_x(x=self.X[key])
+        elif key in self.coords:
+            return self.coords[key]
+        else:
+            return self.__getattribute__(key)
 
 
 class SparseXArrayDataSet:
