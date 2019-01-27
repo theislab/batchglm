@@ -34,6 +34,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             quick_scale: bool = False,
             model: EstimatorGraph = None,
             provide_optimizers: dict = None,
+            provide_batched: bool = False,
             termination_type: str = "by_feature",
             extended_summary=False,
             dtype="float64"
@@ -64,6 +65,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             quick_scale=quick_scale,
             model=model,
             provide_optimizers=provide_optimizers,
+            provide_batched=provide_batched,
             termination_type=termination_type,
             extended_summary=extended_summary,
             noise_model="nb",

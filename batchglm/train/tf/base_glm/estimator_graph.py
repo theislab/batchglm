@@ -114,11 +114,13 @@ class GradientGraphGLM:
             if termination_type == "by_feature":
                 logger.debug(" ** Build gradients for training graph: by_feature")
                 self.gradients_full_byfeature()
-                self.gradients_batched_byfeature()
+                if self.batched_data_model is not None:
+                    self.gradients_batched_byfeature()
             elif termination_type == "global":
                 logger.debug(" ** Build gradients for training graph: global")
                 self.gradients_full_global()
-                self.gradients_batched_global()
+                if self.batched_data_model is not None:
+                    self.gradients_batched_global()
             else:
                 raise ValueError("convergence_type %s not recognized." % termination_type)
 
@@ -126,22 +128,25 @@ class GradientGraphGLM:
             # the shape of model_vars.params.
             if train_loc:
                 if train_scale:
-                    gradients_batch = self.gradients_batch_raw
+                    if self.batched_data_model is not None:
+                        gradients_batch = self.gradients_batch_raw
                     gradients_full = self.gradients_full_raw
                 else:
-                    gradients_batch = tf.concat([
-                        self.gradients_batch_raw,
-                        tf.zeros_like(self.model_vars.b_var)
-                    ], axis=0)
+                    if self.batched_data_model is not None:
+                        gradients_batch = tf.concat([
+                            self.gradients_batch_raw,
+                            tf.zeros_like(self.model_vars.b_var)
+                        ], axis=0)
                     gradients_full = tf.concat([
                         self.gradients_full_raw,
                         tf.zeros_like(self.model_vars.b_var)
                     ], axis=0)
             else:
-                gradients_batch = tf.concat([
-                    tf.zeros_like(self.model_vars.a_var),
-                    self.gradients_batch_raw
-                ], axis=0)
+                if self.batched_data_model is not None:
+                    gradients_batch = tf.concat([
+                        tf.zeros_like(self.model_vars.a_var),
+                        self.gradients_batch_raw
+                    ], axis=0)
                 gradients_full = tf.concat([
                     tf.zeros_like(self.model_vars.a_var),
                     self.gradients_full_raw
@@ -151,7 +156,8 @@ class GradientGraphGLM:
             # In this case, closed form estimates were used, one could
             # still evaluate the gradients here but we do not do
             # this to speed up run time.
-            gradients_batch = tf.zeros_like(self.model_vars.params)
+            if self.batched_data_model is not None:
+                gradients_batch = tf.zeros_like(self.model_vars.params)
             gradients_full = tf.zeros_like(self.model_vars.params)
 
         # Save attributes necessary for reinitialization:
@@ -160,7 +166,10 @@ class GradientGraphGLM:
         self.termination_type = termination_type
 
         self.gradients_full = gradients_full
-        self.gradients_batch = gradients_batch
+        if self.batched_data_model is not None:
+            self.gradients_batch = gradients_batch
+        else:
+            self.gradients_batch = None
 
     def gradients_full_byfeature(self):
         gradients_full_all = tf.transpose(self.full_data_model.jac_train.neg_jac)
@@ -240,11 +249,17 @@ class NewtonGraphGLM:
     ):
         if train_mu or train_r:
             if provide_optimizers["nr"]:
+                if self.batched_data_model is None:
+                    batched_lhs = None
+                    batched_rhs = None
+                else:
+                    batched_lhs = self.batched_data_model.hessians_train.neg_hessian
+                    batched_rhs = self.batched_data_model.jac_train.neg_jac
                 nr_update_full_raw, nr_update_batched_raw = self.build_updates(
                     full_lhs=self.full_data_model.hessians_train.neg_hessian,
-                    batched_lhs=self.batched_data_model.hessians_train.neg_hessian,
+                    batched_lhs=batched_lhs,
                     full_rhs=self.full_data_model.jac_train.neg_jac,
-                    batched_rhs=self.batched_data_model.jac_train.neg_jac,
+                    batched_rhs=batched_rhs,
                     termination_type=termination_type,
                     psd=False
                 )
@@ -267,17 +282,24 @@ class NewtonGraphGLM:
                 ])
                 nr_B_full = self.full_data_model.hessians_train.neg_hessian + trust_region_diagonal_full
 
-                trust_region_diagonal_batched = tf.stack([
-                    tf.diag(nr_tr_radius[i] * tf.diag_part(self.batched_data_model.hessians_train.neg_hessian[i, :, :]))
-                    for i in range(nr_tr_radius.shape[0])
-                ])
-                nr_B_batched = self.batched_data_model.hessians_train.neg_hessian + trust_region_diagonal_batched
+                if self.batched_data_model is not None:
+                    trust_region_diagonal_batched = tf.stack([
+                        tf.diag(nr_tr_radius[i] * tf.diag_part(self.batched_data_model.hessians_train.neg_hessian[i, :, :]))
+                        for i in range(nr_tr_radius.shape[0])
+                    ])
+                    nr_B_batched = self.batched_data_model.hessians_train.neg_hessian + trust_region_diagonal_batched
+                else:
+                    nr_B_batched = None
 
+                if self.batched_data_model is None:
+                    batched_rhs = None
+                else:
+                    batched_rhs = self.batched_data_model.jac_train.neg_jac
                 nr_tr_update_full_raw, nr_tr_update_batched_raw = self.build_updates(
                     full_lhs=nr_B_full,
                     batched_lhs=nr_B_batched,
                     full_rhs=self.full_data_model.jac_train.neg_jac,
-                    batched_rhs=self.batched_data_model.jac_train.neg_jac,
+                    batched_rhs=batched_rhs,
                     termination_type=termination_type,
                     psd=False
                 )
@@ -288,7 +310,7 @@ class NewtonGraphGLM:
                     update_batched_raw=nr_tr_update_batched_raw
                 )
 
-                n_obs = tf.cast(self.batched_data_model.num_observations, dtype=dtype)
+                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
                 nr_tr_proposed_vector_full = tf.multiply(nr_tr_radius, nr_tr_update_full_raw)
                 nr_tr_pred_cost_gain_full = tf.add(
                     tf.einsum(
@@ -303,19 +325,22 @@ class NewtonGraphGLM:
                     )
                 ) / tf.square(n_obs)
 
-                nr_tr_proposed_vector_batched = tf.multiply(nr_tr_radius, nr_tr_update_batched_raw)
-                nr_tr_pred_cost_gain_batched = tf.add(
-                    tf.einsum(
-                        'ni,in->n',
-                        self.batched_data_model.jac_train.neg_jac / n_obs,
-                        nr_tr_proposed_vector_batched
-                    ),
-                    0.5 * tf.einsum(
-                        'nix,inx->n',
-                        tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1), nr_B_batched),
-                        tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1)
-                    )
-                ) / tf.square(n_obs)
+                if self.batched_data_model is not None:
+                    nr_tr_proposed_vector_batched = tf.multiply(nr_tr_radius, nr_tr_update_batched_raw)
+                    nr_tr_pred_cost_gain_batched = tf.add(
+                        tf.einsum(
+                            'ni,in->n',
+                            self.batched_data_model.jac_train.neg_jac / n_obs,
+                            nr_tr_proposed_vector_batched
+                        ),
+                        0.5 * tf.einsum(
+                            'nix,inx->n',
+                            tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1), nr_B_batched),
+                            tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1)
+                        )
+                    ) / tf.square(n_obs)
+                else:
+                    nr_tr_pred_cost_gain_batched = None
             else:
                 nr_tr_update_full = None
                 nr_tr_update_batched = None
@@ -330,11 +355,17 @@ class NewtonGraphGLM:
                     # positive semi-definite and can therefore be inverted
                     # with the Cholesky decomposition. This information is
                     # passed here with psd=True.
+                    if self.batched_data_model is None:
+                        batched_lhs = None
+                        batched_rhs = None
+                    else:
+                        batched_lhs = self.batched_data_model.fim_train.fim_a
+                        batched_rhs = self.batched_data_model.jac_train.neg_jac_a
                     irls_update_a_full, irls_update_a_batched = self.build_updates(
                         full_lhs=self.full_data_model.fim_train.fim_a,
-                        batched_lhs=self.batched_data_model.fim_train.fim_a,
+                        batched_lhs=batched_lhs,
                         full_rhs=self.full_data_model.jac_train.neg_jac_a,
-                        batched_rhs=self.batched_data_model.jac_train.neg_jac_a,
+                        batched_rhs=batched_rhs,
                         termination_type=termination_type,
                         psd=True
                     )
@@ -343,11 +374,17 @@ class NewtonGraphGLM:
                     irls_update_a_batched = None
 
                 if train_r:
+                    if self.batched_data_model is None:
+                        batched_lhs = None
+                        batched_rhs = None
+                    else:
+                        batched_lhs = self.batched_data_model.fim_train.fim_b
+                        batched_rhs = self.batched_data_model.jac_train.neg_jac_b
                     irls_update_b_full, irls_update_b_batched = self.build_updates(
                         full_lhs=self.full_data_model.fim_train.fim_b,
-                        batched_lhs=self.batched_data_model.fim_train.fim_b,
+                        batched_lhs=batched_lhs,
                         full_rhs=self.full_data_model.jac_train.neg_jac_b,
-                        batched_rhs=self.batched_data_model.jac_train.neg_jac_b,
+                        batched_rhs=batched_rhs,
                         termination_type=termination_type,
                         psd=False
                     )
@@ -357,16 +394,28 @@ class NewtonGraphGLM:
 
                 if train_mu and train_r:
                     irls_update_full_raw = tf.concat([irls_update_a_full, irls_update_b_full], axis=0)
-                    irls_update_batched_raw = tf.concat([irls_update_a_batched, irls_update_b_batched], axis=0)
+                    if self.batched_data_model is not None:
+                        irls_update_batched_raw = tf.concat([irls_update_a_batched, irls_update_b_batched], axis=0)
+                    else:
+                        irls_update_batched_raw = None
                 elif train_mu:
                     irls_update_full_raw = irls_update_a_full
-                    irls_update_batched_raw = irls_update_a_batched
+                    if self.batched_data_model is not None:
+                        irls_update_batched_raw = irls_update_a_batched
+                    else:
+                        irls_update_batched_raw = None
                 elif train_r:
                     irls_update_full_raw = irls_update_b_full
-                    irls_update_batched_raw = irls_update_b_batched
+                    if self.batched_data_model is not None:
+                        irls_update_batched_raw = irls_update_b_batched
+                    else:
+                        irls_update_batched_raw = None
                 else:
                     irls_update_full_raw = None
-                    irls_update_batched_raw = None
+                    if self.batched_data_model is not None:
+                        irls_update_batched_raw = None
+                    else:
+                        irls_update_batched_raw = None
 
                 irls_update_full, irls_update_batched = self.pad_updates(
                     train_mu=train_mu,
@@ -390,22 +439,29 @@ class NewtonGraphGLM:
                     ])
                     irls_B_a_full = self.full_data_model.fim_train.fim_a + irls_tr_diagonal_a_full
 
-                    irls_tr_diagonal_a_batched = tf.stack([
-                        tf.diag(
-                            irls_tr_radius[i] * tf.diag_part(self.batched_data_model.fim_train.fim_a[i, :, :]))
-                        for i in range(irls_tr_radius.shape[0])
-                    ])
-                    irls_B_a_batched = self.batched_data_model.fim_train.fim_a + irls_tr_diagonal_a_batched
+                    if self.batched_data_model is not None:
+                        irls_tr_diagonal_a_batched = tf.stack([
+                            tf.diag(
+                                irls_tr_radius[i] * tf.diag_part(self.batched_data_model.fim_train.fim_a[i, :, :]))
+                            for i in range(irls_tr_radius.shape[0])
+                        ])
+                        irls_B_a_batched = self.batched_data_model.fim_train.fim_a + irls_tr_diagonal_a_batched
+                    else:
+                        irls_B_a_batched = None
 
                     # The FIM of the mean model is guaranteed to be
                     # positive semi-definite and can therefore be inverted
                     # with the Cholesky decomposition. This information is
                     # passed here with psd=True.
+                    if self.batched_data_model is None:
+                        batched_rhs = None
+                    else:
+                        batched_rhs = self.batched_data_model.jac_train.neg_jac_a
                     irls_tr_update_a_full, irls_tr_update_a_batched = self.build_updates(
                         full_lhs=irls_B_a_full,
                         batched_lhs=irls_B_a_batched,
                         full_rhs=self.full_data_model.jac_train.neg_jac_a,
-                        batched_rhs=self.batched_data_model.jac_train.neg_jac_a,
+                        batched_rhs=batched_rhs,
                         termination_type=termination_type,
                         psd=True
                     )
@@ -424,18 +480,26 @@ class NewtonGraphGLM:
                     ])
                     irls_B_b_full = self.full_data_model.fim_train.fim_b + irls_tr_diagonal_b_full
 
-                    irls_tr_diagonal_b_batched = tf.stack([
-                        tf.diag(
-                            irls_tr_radius[i] * tf.diag_part(self.batched_data_model.fim_train.fim_b[i, :, :]))
-                        for i in range(irls_tr_radius.shape[0])
-                    ])
-                    irls_B_b_batched = self.batched_data_model.fim_train.fim_b + irls_tr_diagonal_b_batched
+                    if self.batched_data_model is not None:
+                        irls_tr_diagonal_b_batched = tf.stack([
+                            tf.diag(
+                                irls_tr_radius[i] * tf.diag_part(self.batched_data_model.fim_train.fim_b[i, :, :]))
+                            for i in range(irls_tr_radius.shape[0])
+                        ])
+                        irls_B_b_batched = self.batched_data_model.fim_train.fim_b + irls_tr_diagonal_b_batched
+                    else:
+                        irls_B_b_batched = None
 
+
+                    if self.batched_data_model is None:
+                        batched_rhs = None
+                    else:
+                        batched_rhs = self.batched_data_model.jac_train.neg_jac_b
                     irls_tr_update_b_full, irls_tr_update_b_batched = self.build_updates(
                         full_lhs=irls_B_b_full,
                         batched_lhs=irls_B_b_batched,
                         full_rhs=self.full_data_model.jac_train.neg_jac_b,
-                        batched_rhs=self.batched_data_model.jac_train.neg_jac_b,
+                        batched_rhs=batched_rhs,
                         termination_type=termination_type,
                         psd=False
                     )
@@ -448,13 +512,23 @@ class NewtonGraphGLM:
 
                 if train_mu and train_r:
                     irls_tr_update_full_raw = tf.concat([irls_tr_update_a_full, irls_tr_update_b_full], axis=0)
-                    irls_tr_update_batched_raw = tf.concat([irls_tr_update_a_batched, irls_tr_update_b_batched], axis=0)
+                    if self.batched_data_model is not None:
+                        irls_tr_update_batched_raw = tf.concat([irls_tr_update_a_batched,
+                                                                irls_tr_update_b_batched], axis=0)
+                    else:
+                        irls_tr_update_batched_raw = None
                 elif train_mu:
                     irls_tr_update_full_raw = irls_tr_update_a_full
-                    irls_tr_update_batched_raw = irls_tr_update_a_batched
+                    if self.batched_data_model is not None:
+                        irls_tr_update_batched_raw = irls_tr_update_a_batched
+                    else:
+                        irls_tr_update_batched_raw = None
                 elif train_r:
                     irls_tr_update_full_raw = irls_tr_update_b_full
-                    irls_tr_update_batched_raw = irls_tr_update_b_batched
+                    if self.batched_data_model is not None:
+                        irls_tr_update_batched_raw = irls_tr_update_b_batched
+                    else:
+                        irls_tr_update_batched_raw = None
                 else:
                     irls_tr_update_full_raw = None
                     irls_tr_update_batched_raw = None
@@ -466,7 +540,7 @@ class NewtonGraphGLM:
                     update_batched_raw=irls_tr_update_batched_raw
                 )
 
-                n_obs = tf.cast(self.batched_data_model.num_observations, dtype=dtype)
+                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
                 irls_tr_proposed_vector_full = tf.multiply(irls_tr_radius, irls_tr_update_full_raw)
                 irls_tr_pred_cost_gain_full = tf.einsum(
                     'ni,in->n',
@@ -499,37 +573,40 @@ class NewtonGraphGLM:
                     )
                 irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full / tf.square(n_obs)
 
-                irls_tr_proposed_vector_batched = tf.multiply(irls_tr_radius, irls_tr_update_batched_raw)
-                irls_tr_pred_cost_gain_batched = tf.einsum(
-                    'ni,in->n',
-                    self.batched_data_model.jac_train.neg_jac,
-                    irls_tr_proposed_vector_batched
-                )
-                if train_mu:
-                    irls_proposed_vector_a_batched = tf.multiply(irls_tr_radius, irls_tr_update_a_batched)
-                    irls_tr_pred_cost_gain_batched = tf.add(
-                        irls_tr_pred_cost_gain_batched,
-                        0.5 * tf.einsum(
-                            'nix,inx->n',
-                            tf.einsum('inx,nij->njx',
-                                      tf.expand_dims(irls_proposed_vector_a_batched, axis=-1),
-                                      irls_B_a_batched),
-                            tf.expand_dims(irls_proposed_vector_a_batched, axis=-1)
-                        )
+                if self.batched_data_model is not None:
+                    irls_tr_proposed_vector_batched = tf.multiply(irls_tr_radius, irls_tr_update_batched_raw)
+                    irls_tr_pred_cost_gain_batched = tf.einsum(
+                        'ni,in->n',
+                        self.batched_data_model.jac_train.neg_jac,
+                        irls_tr_proposed_vector_batched
                     )
-                if train_r:
-                    irls_proposed_vector_b_batched = tf.multiply(irls_tr_radius, irls_tr_update_b_batched)
-                    irls_tr_pred_cost_gain_batched = tf.add(
-                        irls_tr_pred_cost_gain_batched,
-                        0.5 * tf.einsum(
-                            'nix,inx->n',
-                            tf.einsum('inx,nij->njx',
-                                      tf.expand_dims(irls_proposed_vector_b_batched, axis=-1),
-                                      irls_B_b_batched),
-                            tf.expand_dims(irls_proposed_vector_b_batched, axis=-1)
+                    if train_mu:
+                        irls_proposed_vector_a_batched = tf.multiply(irls_tr_radius, irls_tr_update_a_batched)
+                        irls_tr_pred_cost_gain_batched = tf.add(
+                            irls_tr_pred_cost_gain_batched,
+                            0.5 * tf.einsum(
+                                'nix,inx->n',
+                                tf.einsum('inx,nij->njx',
+                                          tf.expand_dims(irls_proposed_vector_a_batched, axis=-1),
+                                          irls_B_a_batched),
+                                tf.expand_dims(irls_proposed_vector_a_batched, axis=-1)
+                            )
                         )
-                    )
-                    irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched / tf.square(n_obs)
+                    if train_r:
+                        irls_proposed_vector_b_batched = tf.multiply(irls_tr_radius, irls_tr_update_b_batched)
+                        irls_tr_pred_cost_gain_batched = tf.add(
+                            irls_tr_pred_cost_gain_batched,
+                            0.5 * tf.einsum(
+                                'nix,inx->n',
+                                tf.einsum('inx,nij->njx',
+                                          tf.expand_dims(irls_proposed_vector_b_batched, axis=-1),
+                                          irls_B_b_batched),
+                                tf.expand_dims(irls_proposed_vector_b_batched, axis=-1)
+                            )
+                        )
+                        irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched / tf.square(n_obs)
+                else:
+                    irls_tr_pred_cost_gain_batched = None
             else:
                 irls_tr_update_full = None
                 irls_tr_update_batched = None
@@ -588,22 +665,28 @@ class NewtonGraphGLM:
                 rhs=full_rhs,
                 psd=psd
             )
-            update_batched = self.newton_type_update_byfeature(
-                lhs=batched_lhs,
-                rhs=batched_rhs,
-                psd=psd
-            )
+            if batched_lhs is not None:
+                update_batched = self.newton_type_update_byfeature(
+                    lhs=batched_lhs,
+                    rhs=batched_rhs,
+                    psd=psd
+                )
+            else:
+                update_batched = None
         elif termination_type == "global":
             update_full = self.newton_type_update_global(
                 lhs=full_lhs,
                 rhs=full_rhs,
                 psd=psd
             )
-            update_batched = self.newton_type_update_global(
-                lhs=batched_lhs,
-                rhs=batched_rhs,
-                psd=psd
-            )
+            if batched_lhs is not None:
+                update_batched = self.newton_type_update_global(
+                    lhs=batched_lhs,
+                    rhs=batched_rhs,
+                    psd=psd
+                )
+            else:
+                update_batched = None
         else:
             raise ValueError("convergence_type %s not recognized." % termination_type)
 
@@ -627,19 +710,25 @@ class NewtonGraphGLM:
                     update_full_raw,
                     tf.zeros_like(self.model_vars.b_var)
                 ], axis=0)
-                newton_type_update_batched = tf.concat([
-                    update_batched_raw,
-                    tf.zeros_like(self.model_vars.b_var)
-                ], axis=0)
+                if update_batched_raw is not None:
+                    newton_type_update_batched = tf.concat([
+                        update_batched_raw,
+                        tf.zeros_like(self.model_vars.b_var)
+                    ], axis=0)
+                else:
+                    newton_type_update_batched = None
         elif train_r:
             netwon_type_update_full = tf.concat([
                 tf.zeros_like(self.model_vars.a_var),
                 update_full_raw
             ], axis=0)
-            newton_type_update_batched = tf.concat([
-                tf.zeros_like(self.model_vars.a_var),
-                update_batched_raw
-            ], axis=0)
+            if update_batched_raw is not None:
+                newton_type_update_batched = tf.concat([
+                    tf.zeros_like(self.model_vars.a_var),
+                    update_batched_raw
+                ], axis=0)
+            else:
+                newton_type_update_batched = None
         else:
             raise ValueError("No training necessary")
 
@@ -740,9 +829,6 @@ class TrainerGraphGLM:
     class _FullDataModelGraphEval(FullDataModelGraphGLM):
         pass
 
-    class _BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
-        pass
-
     class _GradientGraphGLMEval(GradientGraphGLM):
         def __init__(
                 self,
@@ -781,11 +867,11 @@ class TrainerGraphGLM:
             # Create trainers that produce training operations.
             full_data_model_eval = self._FullDataModelGraphEval(self.full_data_model)
 
-            if train_loc or train_scale:
+            if (train_loc or train_scale) and self.batched_data_model is not None:
                 trainer_batch = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_batch,
-                    features_updated=self. model_vars.updated,
+                    features_updated=self.model_vars.updated,
                     model_ll=self.full_data_model.norm_log_likelihood,
                     model_vars_eval=self.model_vars_eval,
                     model_eval=full_data_model_eval,

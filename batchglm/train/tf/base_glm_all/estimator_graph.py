@@ -21,6 +21,7 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
 
     def __init__(
             self,
+            num_observations,
             sample_indices: tf.Tensor,
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
@@ -117,6 +118,7 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
         self.dtype = dtype
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
+        self.num_observations = num_observations
 
         self.batched_data = batched_data
         self.sample_indices = sample_indices
@@ -175,6 +177,7 @@ class FullDataModelGraph(FullDataModelGraphEval):
 
     def __init__(
             self,
+            num_observations,
             sample_indices: tf.Tensor,
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
@@ -218,6 +221,7 @@ class FullDataModelGraph(FullDataModelGraphEval):
 
         FullDataModelGraphEval.__init__(
             self=self,
+            num_observations=num_observations,
             sample_indices=sample_indices,
             fetch_fn=fetch_fn,
             batch_size=batch_size,
@@ -564,6 +568,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 self,
                 full_data_model: FullDataModelGraph
         ):
+            self.num_observations = full_data_model.num_observations
             self.sample_indices = full_data_model.sample_indices
             self.fetch_fn = full_data_model.fetch_fn
             self.batch_size = full_data_model.batch_size
@@ -580,44 +585,10 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         ):
             FullDataModelGraphEval.__init__(
                 self=self,
+                num_observations=self.num_observations,
                 sample_indices=self.sample_indices,
                 fetch_fn=self.fetch_fn,
                 batch_size=self.batch_size,
-                model_vars=model_vars,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                noise_model=self.noise_model,
-                train_a=self.train_a,
-                train_b=self.train_b,
-                dtype=self.dtype
-            )
-
-    class _BatchedDataModelGraphEval(BatchedDataModelGraphEval):
-        def __init__(
-                self,
-                batched_data_model: BatchedDataModelGraph
-        ):
-            self.num_observations = batched_data_model.num_observations
-            self.fetch_fn = batched_data_model.fetch_fn
-            self.batch_size = batched_data_model.batch_size
-            self.buffer_size = batched_data_model.buffer_size
-            self.constraints_loc = batched_data_model.constraints_loc
-            self.constraints_scale = batched_data_model.constraints_scale
-            self.noise_model = batched_data_model.noise_model
-            self.train_a = batched_data_model.train_a
-            self.train_b = batched_data_model.train_b
-            self.dtype = batched_data_model.dtype
-
-        def new(
-                self,
-                model_vars: ModelVarsGLM
-        ):
-            BatchedDataModelGraphEval.__init__(
-                self=self,
-                num_observations=self.num_observations,
-                fetch_fn=self.fetch_fn,
-                batch_size=self.batch_size,
-                buffer_size=self.buffer_size,
                 model_vars=model_vars,
                 constraints_loc=self.constraints_loc,
                 constraints_scale=self.constraints_scale,
@@ -649,6 +620,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             train_loc: bool = True,
             train_scale: bool = True,
             provide_optimizers: Union[dict, None] = None,
+            provide_batched: bool = False,
             termination_type: str = "global",
             extended_summary=False,
             noise_model: str = None,
@@ -741,19 +713,23 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
             with tf.name_scope("batched_data"):
                 logger.debug(" ** Build batched data model")
-                self.batched_data_model = BatchedDataModelGraph(
-                    num_observations=self.num_observations,
-                    fetch_fn=fetch_fn,
-                    batch_size=batch_size,
-                    buffer_size=buffer_size,
-                    model_vars=self.model_vars,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    train_a=train_loc,
-                    train_b=train_scale,
-                    noise_model=noise_model,
-                    dtype=dtype
-                )
+
+                if provide_batched:
+                    self.batched_data_model = BatchedDataModelGraph(
+                        num_observations=self.num_observations,
+                        fetch_fn=fetch_fn,
+                        batch_size=batch_size,
+                        buffer_size=buffer_size,
+                        model_vars=self.model_vars,
+                        constraints_loc=constraints_loc,
+                        constraints_scale=constraints_scale,
+                        train_a=train_loc,
+                        train_b=train_scale,
+                        noise_model=noise_model,
+                        dtype=dtype
+                    )
+                else:
+                    self.batched_data_model = None
 
             with tf.name_scope("full_data"):
                 logger.debug(" ** Build full data model")
@@ -764,9 +740,10 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     name="sample_selection"
                 )
                 self.full_data_model = FullDataModelGraph(
+                    num_observations=self.num_observations,
                     sample_indices=sample_selection,
                     fetch_fn=fetch_fn,
-                    batch_size=batch_size * buffer_size,
+                    batch_size=batch_size,
                     model_vars=self.model_vars,
                     constraints_loc=constraints_loc,
                     constraints_scale=constraints_scale,
@@ -797,13 +774,11 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             self.gradients = tf.reduce_sum(tf.transpose(self.gradients_full), axis=1)
 
         with tf.name_scope('summaries'):
-            tf.summary.histogram('a_var', self.model_vars.a_var)
-            tf.summary.histogram('b_var', self.model_vars.b_var)
-            tf.summary.scalar('loss', self.batched_data_model.loss)
-            tf.summary.scalar('learning_rate', self.learning_rate)
-
             if extended_summary:
-                pass
+                tf.summary.histogram('a_var', self.model_vars.a_var)
+                tf.summary.histogram('b_var', self.model_vars.b_var)
+                tf.summary.scalar('loss', self.full_data_model.loss)
+                tf.summary.scalar('learning_rate', self.learning_rate)
 
         self.saver = tf.train.Saver()
         self.merged_summary = tf.summary.merge_all()
