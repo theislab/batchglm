@@ -187,6 +187,7 @@ class FullDataModelGraph(FullDataModelGraphEval):
             train_a,
             train_b,
             noise_model: str,
+            provide_fim: bool,
             dtype
     ):
         """
@@ -270,42 +271,46 @@ class FullDataModelGraph(FullDataModelGraphEval):
             else:
                 hessians_train = None
 
-            fim_full = FIM(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                noise_model=noise_model,
-                iterator=True,
-                update_a=True,
-                update_b=True,
-                dtype=dtype
-            )
-            # Fisher information matrix of sub-model which is to be trained.
-            if train_a or train_b:
-                if not train_a or not train_b:
-                    fim_train = FIM(
-                        batched_data=self.batched_data,
-                        sample_indices=self.sample_indices,
-                        constraints_loc=self.constraints_loc,
-                        constraints_scale=self.constraints_scale,
-                        model_vars=model_vars,
-                        noise_model=noise_model,
-                        iterator=True,
-                        update_a=train_a,
-                        update_b=train_b,
-                        dtype=dtype
-                    )
+            if provide_fim:
+                fim_full = FIM(
+                    batched_data=self.batched_data,
+                    sample_indices=self.sample_indices,
+                    constraints_loc=self.constraints_loc,
+                    constraints_scale=self.constraints_scale,
+                    model_vars=model_vars,
+                    noise_model=noise_model,
+                    iterator=True,
+                    update_a=True,
+                    update_b=True,
+                    dtype=dtype
+                )
+                # Fisher information matrix of sub-model which is to be trained.
+                if train_a or train_b:
+                    if not train_a or not train_b:
+                        fim_train = FIM(
+                            batched_data=self.batched_data,
+                            sample_indices=self.sample_indices,
+                            constraints_loc=self.constraints_loc,
+                            constraints_scale=self.constraints_scale,
+                            model_vars=model_vars,
+                            noise_model=noise_model,
+                            iterator=True,
+                            update_a=train_a,
+                            update_b=train_b,
+                            dtype=dtype
+                        )
+                    else:
+                        fim_train = fim_full
                 else:
-                    fim_train = fim_full
+                    fim_train = None
             else:
+                fim_full = None
                 fim_train = None
-
 
         self.hessians = hessians_full
         self.hessians_train = hessians_train
 
+        self.provide_fim = provide_fim
         self.fim = fim_full
         self.fim_train = fim_train
 
@@ -466,6 +471,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphEval):
             train_a,
             train_b,
             noise_model: str,
+            provide_fim: bool,
             dtype
     ):
         """
@@ -534,7 +540,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphEval):
         # Define the IRLS components on the batched model:
         # (note that these are the IRLS matrix blocks
         # of the trained subset of parameters).
-        if train_a or train_b:
+        if (train_a or train_b) and provide_fim:
             batch_fim = FIM(
                 batched_data=self.batched_data,
                 sample_indices=self.sample_indices,
@@ -551,6 +557,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphEval):
             batch_fim = None
 
         self.hessians_train = batch_hessians
+        self.provide_fim = provide_fim
         self.fim_train = batch_fim
 
 
@@ -577,6 +584,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             self.noise_model = full_data_model.noise_model
             self.train_a = full_data_model.train_a
             self.train_b = full_data_model.train_b
+            self.provide_fim = full_data_model.provide_fim
             self.dtype = full_data_model.dtype
 
         def new(
@@ -711,6 +719,13 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             # ### performance related settings
             buffer_size = 4
 
+            # Check whether it is necessary to compute FIM:
+            # The according sub-graphs are only compiled if this is needed during training.
+            if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
+                provide_fim = True
+            else:
+                provide_fim = False
+
             with tf.name_scope("batched_data"):
                 logger.debug(" ** Build batched data model")
 
@@ -726,6 +741,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                         train_a=train_loc,
                         train_b=train_scale,
                         noise_model=noise_model,
+                        provide_fim=provide_fim,
                         dtype=dtype
                     )
                 else:
@@ -750,6 +766,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     train_a=train_loc,
                     train_b=train_scale,
                     noise_model=noise_model,
+                    provide_fim=provide_fim,
                     dtype=dtype
                 )
 
