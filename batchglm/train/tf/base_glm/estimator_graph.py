@@ -826,34 +826,6 @@ class TrainerGraphGLM:
 
     session: tf.Session
 
-    class _FullDataModelGraphEval(FullDataModelGraphGLM):
-        pass
-
-    class _GradientGraphGLMEval(GradientGraphGLM):
-        def __init__(
-                self,
-                gradient_graph: GradientGraphGLM
-        ):
-            self.termination_type = gradient_graph.termination_type
-            self.train_loc = gradient_graph.train_loc
-            self.train_scale = gradient_graph.train_scale
-
-        def new(
-                self,
-                model_vars: ModelVarsGLM,
-                full_data_model: FullDataModelGraphGLM,
-                batched_data_model: BatchedDataModelGraphGLM
-        ):
-            GradientGraphGLM.__init__(
-                    self=self,
-                    model_vars=model_vars,
-                    full_data_model=full_data_model,
-                    batched_data_model=batched_data_model,
-                    termination_type=self.termination_type,
-                    train_loc=self.train_loc,
-                    train_scale=self.train_scale
-            )
-
     def __init__(
             self,
             provide_optimizers,
@@ -864,17 +836,11 @@ class TrainerGraphGLM:
         with tf.name_scope("training_graphs"):
             global_step = tf.train.get_or_create_global_step()
 
-            # Create trainers that produce training operations.
-            full_data_model_eval = self._FullDataModelGraphEval(self.full_data_model)
-
             if (train_loc or train_scale) and self.batched_data_model is not None:
                 trainer_batch = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_batch,
                     features_updated=self.model_vars.updated,
-                    model_ll=self.full_data_model.norm_log_likelihood,
-                    model_vars_eval=self.model_vars_eval,
-                    model_eval=full_data_model_eval,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
                     newton_tr_delta=self.nr_tr_update_batched,
@@ -900,9 +866,6 @@ class TrainerGraphGLM:
                     variables=self.model_vars.params,
                     gradients=self.gradients_full,
                     features_updated=self.model_vars.updated,
-                    model_ll=self.full_data_model.norm_log_likelihood,
-                    model_vars_eval=self.model_vars_eval,
-                    model_eval=full_data_model_eval,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
                     newton_tr_delta=self.nr_tr_update_full,

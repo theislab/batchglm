@@ -253,41 +253,62 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
                 metric_theta_current = self.session.run(self.model.model_vars.params)
             else:
-                raise ValueError("convergence_criteria %s not recgonized" % convergence_criteria)
+                raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
             # Report initialization:
-            global_loss = self.session.run(self.model.loss)
+            if trust_region:
+                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                loss_global = np.sum(ll_current)
+            else:
+                loss_global = self.session.run(self.model.loss)
             tf.logging.info(
                 "Step: \t0\t loss: %f\t models converged 0",
-                global_loss
+                loss_global
             )
 
             while np.any(self.model.model_vars.converged == False):
                 # Update convergence metric reference:
                 t0 = time.time()
-                metric_prev = metric_current
-                train_step, _ = self.session.run(
-                    (self.model.global_step, train_op),
-                    feed_dict=feed_dict
-                )
-                global_loss = self.session.run(self.model.loss)
-                # Evaluate convergence metric:
-                if convergence_criteria == "all_converged_theta":
-                    metric_current = self.session.run(self.model.model_vars.params)
-                    metric_delta = np.abs(np.exp(metric_prev) - np.exp(metric_current))
-                    # Evaluate convergence based on maximally varying parameter per gene:
-                    metric_delta = np.max(metric_delta, axis=0)
-                elif convergence_criteria == "all_converged_ll":
-                    metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                    metric_delta = np.abs(metric_current - metric_prev)
-                    # Use parameter space convergence as a helper:
-                    metric_theta_prev = metric_theta_current
-                    metric_theta_current = self.session.run(self.model.model_vars.params)
-                    metric_theta_delta = np.abs(np.exp(metric_theta_prev) - np.exp(metric_theta_current))
-                    # Evaluate convergence based on maximally varying parameter per gene:
-                    theta_update_small = np.max(metric_theta_delta, axis=0) < pkg_constants.THETA_MIN_LL_BY_FEATURE
+                if trust_region:
+                    ll_prev = ll_current
+                    train_step, _ = self.session.run(
+                        (self.model.global_step, train_op[0]),
+                        feed_dict=feed_dict
+                    )
+                    ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+
+                    # Check approximation based on new and old loss:
+                    ## Check deviation between predicted and observed loss:
+                    delta_f_actual = ll_current - ll_prev
+                    _ = self.session.run(train_op[1], feed_dict={delta_f_actual: delta_f_actual})
+                    _ = self.session.run(train_op[2])
+
+                    ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                    loss_global = np.sum(ll_current)
                 else:
-                    raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
+                    metric_prev = metric_current
+                    train_step, _ = self.session.run(
+                        (self.model.global_step, train_op),
+                        feed_dict=feed_dict
+                    )
+                    loss_global = self.session.run(self.model.loss)
+                    # Evaluate convergence metric:
+                    if convergence_criteria == "all_converged_theta":
+                        metric_current = self.session.run(self.model.model_vars.params)
+                        metric_delta = np.abs(np.exp(metric_prev) - np.exp(metric_current))
+                        # Evaluate convergence based on maximally varying parameter per gene:
+                        metric_delta = np.max(metric_delta, axis=0)
+                    elif convergence_criteria == "all_converged_ll":
+                        metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                        metric_delta = np.abs(metric_current - metric_prev)
+                        # Use parameter space convergence as a helper:
+                        metric_theta_prev = metric_theta_current
+                        metric_theta_current = self.session.run(self.model.model_vars.params)
+                        metric_theta_delta = np.abs(np.exp(metric_theta_prev) - np.exp(metric_theta_current))
+                        # Evaluate convergence based on maximally varying parameter per gene:
+                        theta_update_small = np.max(metric_theta_delta, axis=0) < pkg_constants.THETA_MIN_LL_BY_FEATURE
+                    else:
+                        raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
                 # Update convergence status of non-converged features:
                 features_updated = self.session.run(self.model.model_vars.updated)
@@ -307,7 +328,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 tf.logging.info(
                     "Step: \t%d\t loss: %f\t models converged %i\t in %s sec., models updated %i",
                     train_step,
-                    global_loss,
+                    loss_global,
                     np.sum(self.model.model_vars.converged).astype("int32"),
                     str(np.round(t1 - t0, 3)),
                     np.sum(np.logical_and(features_updated, previously_converged == False)).astype("int32")

@@ -222,12 +222,10 @@ class MultiTrainer:
             learning_rate,
             loss=None,
             variables: tf.Variable = None,
+            model = None,
             gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
             features_updated: tf.Variable = None,
-            model_ll=None,
-            model_vars_eval = None,
-            model_eval = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
             newton_tr_delta: tf.Tensor = None,
@@ -353,34 +351,34 @@ class MultiTrainer:
 
             if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
                 # Set trust region hyperparameters
-                eta0 = pkg_constants.TRUST_REGION_ETA0
-                eta1 = pkg_constants.TRUST_REGION_ETA1
-                eta2 = pkg_constants.TRUST_REGION_ETA2
+                eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=variables.dtype)
+                eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=variables.dtype)
+                eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=variables.dtype)
                 t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=variables.dtype)
                 t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=variables.dtype)
                 upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=variables.dtype)
 
-                # Propose parameter update:
-                theta_new = variables - tf.expand_dims(nr_tr_radius, axis=0) * newton_tr_delta
-
-                # Check approximation based on new and old loss:
-                ## Rebuild graph starting from injected parameter tensor:
-                model_vars_eval.new(params=theta_new)
-                model_eval.new(model_vars=model_vars_eval)
-                ll_eval = model_eval.norm_log_likelihood
-                ## Check deviation between predicted and observed loss:
-                delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
-                delta_f_pred = nr_tr_pred_cost_gain
-                delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
+                # Evaluate model at proposed new parameter set:
+                theta_new_nr_tr_trial = variables - tf.expand_dims(nr_tr_radius, axis=0) * newton_tr_delta
+                train_op_nr_tr_0 = tf.group(
+                    tf.assign(variables, theta_new_nr_tr_trial)
+                )
+                train_op_nr_tr_1 = nr_tr_pred_cost_gain  # Relay predicted cost to evaluate via session.run.
 
                 # Include parameter updates only if update improves cost function:
-                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
+                delta_f_actual = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
+                delta_f_pred = nr_tr_pred_cost_gain
+                delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
+                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)
+
                 theta_new_nr_tr = tf.stack([
-                    tf.cond(pred=update_theta[i], true_fn=lambda: theta_new[:,i], false_fn=lambda: variables[:,i])
+                    tf.cond(pred=update_theta[i],
+                            true_fn=lambda: theta_new_nr_tr_trial[:, i],
+                            false_fn=lambda: variables[:, i])
                     for i in range(newton_tr_delta.shape[1])
                 ], axis=1)
 
-                # Update trusted region according:
+                # Update trusted region accordingly:
                 nr_tr_radius_new = tf.stack([
                     tf.cond(
                         pred=delta_f_ratio[i] < eta1,
@@ -394,15 +392,15 @@ class MultiTrainer:
                     for i in range(newton_tr_delta.shape[1])
                 ], axis=0)
 
-                # Group tf.Variable updates into one operation:
-                train_op_nr_tr = tf.group(
+                train_op_nr_tr_2 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
                     tf.assign(nr_tr_radius, nr_tr_radius_new),
                     tf.assign(features_updated, update_theta),
                     tf.assign_add(global_step, 1)
                 )
-                if apply_train_ops is not None:
-                    train_op_nr_tr = apply_train_ops(train_op_nr_tr)
+                train_op_nr_tr = [train_op_nr_tr_0,
+                                  train_op_nr_tr_1,
+                                  train_op_nr_tr_2]
             else:
                 train_op_nr_tr = None
 
@@ -421,7 +419,7 @@ class MultiTrainer:
             #        )
             #        loss = full_model_eval.loss
             #        gradient = tf.reduce_sum(tf.matmul(
-            #            tf.negative(tf.transpose(gradients_eval.gradients_full)),  # TODO full?
+            #            tf.negative(tf.transpose(gradients_eval.gradients_full)),
             #            newton_delta
             #        ))
             #        return loss, gradient

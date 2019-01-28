@@ -570,42 +570,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
     as during a line search.
     """
 
-    class _FullDataModelGraphEval(FullDataModelGraphEval):
-        def __init__(
-                self,
-                full_data_model: FullDataModelGraph
-        ):
-            self.num_observations = full_data_model.num_observations
-            self.sample_indices = full_data_model.sample_indices
-            self.fetch_fn = full_data_model.fetch_fn
-            self.batch_size = full_data_model.batch_size
-            self.constraints_loc = full_data_model.constraints_loc
-            self.constraints_scale = full_data_model.constraints_scale
-            self.noise_model = full_data_model.noise_model
-            self.train_a = full_data_model.train_a
-            self.train_b = full_data_model.train_b
-            self.provide_fim = full_data_model.provide_fim
-            self.dtype = full_data_model.dtype
-
-        def new(
-                self,
-                model_vars: ModelVarsGLM
-        ):
-            FullDataModelGraphEval.__init__(
-                self=self,
-                num_observations=self.num_observations,
-                sample_indices=self.sample_indices,
-                fetch_fn=self.fetch_fn,
-                batch_size=self.batch_size,
-                model_vars=model_vars,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                noise_model=self.noise_model,
-                train_a=self.train_a,
-                train_b=self.train_b,
-                dtype=self.dtype
-            )
-
     mu: tf.Tensor
     sigma2: tf.Tensor
 
@@ -701,13 +665,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
             with tf.name_scope("model_vars"):
                 self.model_vars = ModelVars(
-                    dtype=dtype,
-                    init_a=init_a,
-                    init_b=init_b,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale
-                )
-                self.model_vars_eval = ModelVarsEval(
                     dtype=dtype,
                     init_a=init_a,
                     init_b=init_b,
