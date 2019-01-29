@@ -359,6 +359,20 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     str(np.round(t1 - t0, 3)),
                     np.sum(np.logical_and(features_updated, previously_converged == False)).astype("int32")
                 )
+                if trustregion_mode:
+                    if is_nr_tr:
+                        tr_radius = self.session.run(self.model.nr_tr_radius)
+                    elif is_irls_tr:
+                        tr_radius = self.session.run(self.model.irls_tr_radius)
+                    else:
+                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
+
+                    tf.logging.debug(
+                        "trust region radius nr: min=%f, mean=%f, max=%f",
+                        np.round(np.min(tr_radius), 5),
+                        np.round(np.mean(tr_radius), 5),
+                        np.round(np.max(tr_radius), 5)
+                    )
         else:
             self._train_to_convergence(
                 loss=loss,
