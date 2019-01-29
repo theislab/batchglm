@@ -400,6 +400,7 @@ class MultiTrainer:
                 train_op_nr_tr = [train_op_nr_tr_0,
                                   train_op_nr_tr_1]
             else:
+                self.delta_f_actual_nr_tr = None
                 train_op_nr_tr = None
 
             #if provide_optimizers["nr_ls"] and newton_delta is not None:
@@ -511,6 +512,7 @@ class MultiTrainer:
                 train_op_irls_tr = [train_op_irls_tr_0,
                                     train_op_irls_tr_1]
             else:
+                self.delta_f_actual_irls_tr = None
                 train_op_irls_tr = None
 
             self.global_step = global_step

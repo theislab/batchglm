@@ -12,11 +12,11 @@ from .external import pkg_constants
 logger = logging.getLogger(__name__)
 
 
-class FullDataModelGraphEval(FullDataModelGraphGLM):
+class FullDataModelGraph(FullDataModelGraphGLM):
     """
-    Basic computational graph to evaluate negative binomial GLM metrics on full data set.
+    Computational graph to evaluate negative binomial GLM metrics on full data set.
 
-    Evaluate model and cost function and Jacobians.
+    Evaluate model and cost function, Jacobians, Hessians and Fisher information matrix.
     """
 
     def __init__(
@@ -31,6 +31,7 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
             noise_model,
             train_a,
             train_b,
+            provide_fim,
             dtype
     ):
         """
@@ -59,7 +60,7 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians
+            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -144,96 +145,17 @@ class FullDataModelGraphEval(FullDataModelGraphGLM):
                 dtype=dtype
             )
             # Jacobian of submodel which is to be trained.
-            if train_a or train_b:
-                if not train_a or not train_b:
-                    jacobian_train = Jacobians(
-                        batched_data=self.batched_data,
-                        sample_indices=self.sample_indices,
-                        constraints_loc=self.constraints_loc,
-                        constraints_scale=self.constraints_scale,
-                        model_vars=model_vars,
-                        mode=pkg_constants.JACOBIAN_MODE,
-                        noise_model=noise_model,
-                        iterator=True,
-                        jac_a=train_a,
-                        jac_b=train_b,
-                        dtype=dtype
-                    )
-                else:
-                    jacobian_train = jacobian_full
+            if train_a and train_b:
+                neg_jac_train = jacobian_full.neg_jac
+            elif train_a and not train_b:
+                neg_jac_train = jacobian_full.neg_jac_a
+            elif not train_a and train_b:
+                neg_jac_train = jacobian_full.neg_jac_b
             else:
-                jacobian_train = None
+                neg_jac_train = None
 
-        self.jac = jacobian_full.jac
-        self.jac_train = jacobian_train
-
-
-class FullDataModelGraph(FullDataModelGraphEval):
-    """
-    Extended computational graph to evaluate negative binomial GLM metrics on full data set.
-
-    Inherits base graph which evaluates cost function and adds Hessians and Fisher information matrix.
-    """
-
-    def __init__(
-            self,
-            num_observations,
-            sample_indices: tf.Tensor,
-            fetch_fn,
-            batch_size: Union[int, tf.Tensor],
-            model_vars,
-            constraints_loc,
-            constraints_scale,
-            train_a,
-            train_b,
-            noise_model: str,
-            provide_fim: bool,
-            dtype
-    ):
-        """
-        :param sample_indices:
-            TODO
-        :param fetch_fn:
-            TODO
-        :param batch_size: int
-            Size of mini-batches used.
-        :param model_vars: ModelVars
-            Variables of model. Contains tf.Variables which are optimized.
-        :param constraints_loc: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the mean model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param constraints_scale: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the dispersion model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param train_mu: bool
-            Whether to train mean model. If False, the initialisation is kept.
-        :param train_r: bool
-            Whether to train dispersion model. If False, the initialisation is kept.
-        :param dtype: Precision used in tensorflow.
-        """
-        if noise_model == "nb":
-            from .external_nb import Hessians, FIM
-        else:
-            raise ValueError("noise model not recognized")
-
-        FullDataModelGraphEval.__init__(
-            self=self,
-            num_observations=num_observations,
-            sample_indices=sample_indices,
-            fetch_fn=fetch_fn,
-            batch_size=batch_size,
-            model_vars=model_vars,
-            constraints_loc=constraints_loc,
-            constraints_scale=constraints_scale,
-            train_a=train_a,
-            train_b=train_b,
-            noise_model=noise_model,
-            dtype=dtype
-        )
+        self.jac = jacobian_full
+        self.neg_jac_train = neg_jac_train
 
         with tf.name_scope("hessians"):
             # Hessian of full model for reporting.
@@ -251,26 +173,16 @@ class FullDataModelGraph(FullDataModelGraphEval):
                 dtype=dtype
             )
             # Hessian of submodel which is to be trained.
-            if train_a or train_b:
-                if not train_a or not train_b:
-                    hessians_train = Hessians(
-                        batched_data=self.batched_data,
-                        sample_indices=self.sample_indices,
-                        constraints_loc=self.constraints_loc,
-                        constraints_scale=self.constraints_scale,
-                        model_vars=model_vars,
-                        mode=pkg_constants.HESSIAN_MODE,
-                        noise_model=noise_model,
-                        iterator=True,
-                        hess_a=train_a,
-                        hess_b=train_b,
-                        dtype=dtype
-                    )
-                else:
-                    hessians_train = hessians_full
+            if train_a and train_b:
+                neg_hessians_train = hessians_full.neg_hessian
+            elif train_a and not train_b:
+                neg_hessians_train = hessians_full.neg_hessian_aa
+            elif not train_a and train_b:
+                neg_hessians_train = hessians_full.neg_hessian_bb
             else:
-                hessians_train = None
+                neg_hessians_train = None
 
+        with tf.name_scope("fim"):
             if provide_fim:
                 fim_full = FIM(
                     batched_data=self.batched_data,
@@ -284,42 +196,21 @@ class FullDataModelGraph(FullDataModelGraphEval):
                     update_b=True,
                     dtype=dtype
                 )
-                # Fisher information matrix of sub-model which is to be trained.
-                if train_a or train_b:
-                    if not train_a or not train_b:
-                        fim_train = FIM(
-                            batched_data=self.batched_data,
-                            sample_indices=self.sample_indices,
-                            constraints_loc=self.constraints_loc,
-                            constraints_scale=self.constraints_scale,
-                            model_vars=model_vars,
-                            noise_model=noise_model,
-                            iterator=True,
-                            update_a=train_a,
-                            update_b=train_b,
-                            dtype=dtype
-                        )
-                    else:
-                        fim_train = fim_full
-                else:
-                    fim_train = None
             else:
                 fim_full = None
-                fim_train = None
 
         self.hessians = hessians_full
-        self.hessians_train = hessians_train
+        self.neg_hessians_train = neg_hessians_train
 
         self.provide_fim = provide_fim
         self.fim = fim_full
-        self.fim_train = fim_train
 
 
-class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
+class BatchedDataModelGraph(BatchedDataModelGraphGLM):
     """
     Basic computational graph to evaluate negative binomial GLM metrics on batched data set.
 
-    Evaluate model and cost function and Jacobians.
+    Evaluate model and cost function and Jacobians, Hessians and Fisher information matrix.
     """
 
     def __init__(
@@ -334,6 +225,7 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
             noise_model: str,
             train_a,
             train_b,
+            provide_fim,
             dtype
     ):
         """
@@ -450,72 +342,6 @@ class BatchedDataModelGraphEval(BatchedDataModelGraphGLM):
             batch_jac = None
 
         self.jac_train = batch_jac
-
-
-class BatchedDataModelGraph(BatchedDataModelGraphEval):
-    """
-    Extended computational graph to evaluate negative binomial GLM metrics on batched data set
-
-    Inherits base graph which evaluates cost function and adds Hessians and Fisher information matrix.
-    """
-
-    def __init__(
-            self,
-            num_observations,
-            fetch_fn,
-            batch_size: Union[int, tf.Tensor],
-            buffer_size: int,
-            model_vars,
-            constraints_loc,
-            constraints_scale,
-            train_a,
-            train_b,
-            noise_model: str,
-            provide_fim: bool,
-            dtype
-    ):
-        """
-        :param fetch_fn:
-            TODO
-        :param batch_size: int
-            Size of mini-batches used.
-        :param model_vars: ModelVars
-            Variables of model. Contains tf.Variables which are optimized.
-        :param constraints_loc: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the mean model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param constraints_scale: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the dispersion model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param train_mu: bool
-            Whether to train mean model. If False, the initialisation is kept.
-        :param train_r: bool
-            Whether to train dispersion model. If False, the initialisation is kept.
-        :param dtype: Precision used in tensorflow.
-        """
-        if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Hessians, FIM
-        else:
-            raise ValueError("noise model not rewcognized")
-
-        BatchedDataModelGraphEval.__init__(
-            self=self,
-            num_observations=num_observations,
-            fetch_fn=fetch_fn,
-            batch_size=batch_size,
-            buffer_size=buffer_size,
-            model_vars=model_vars,
-            constraints_loc=constraints_loc,
-            constraints_scale=constraints_scale,
-            train_a=train_a,
-            train_b=train_b,
-            noise_model=noise_model,
-            dtype=dtype
-        )
 
         # Define the hessian on the batched model for newton-rhapson:
         # (note that these are the Hessian matrix blocks

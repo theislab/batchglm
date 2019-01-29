@@ -27,7 +27,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        sim = Simulator(num_observations=50, num_features=10)
+        sim = Simulator(num_observations=50, num_features=1000)
         sim.generate_sample_description(num_batches=2, num_conditions=2)
         sim.generate()
 
@@ -47,7 +47,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        batch_size = 1
+        batch_size = 10
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
                               "nr": False, "nr_tr": True, "irls": False, "irls_tr": True}
 
@@ -66,7 +66,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "irls_tr",
+                "optim_algo": "nr_tr",
             },
         ])
         estimator_store = estimator.finalize()
