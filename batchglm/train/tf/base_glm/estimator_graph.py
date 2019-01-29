@@ -793,7 +793,6 @@ class NewtonGraphGLM:
     ):
         delta_t = tf.squeeze(tf.matrix_solve_ls(
             lhs,
-            # (full_data_model.hessians + tf.transpose(full_data_model.hessians, perm=[0, 2, 1])) / 2,  # symmetrization, don't need this with closed forms
             tf.expand_dims(rhs, axis=-1),
             fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)

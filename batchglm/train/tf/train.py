@@ -350,7 +350,15 @@ class MultiTrainer:
                 train_op_nr = None
 
             if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
-                # Set trust region hyperparameters
+                # Check hyper-parameters:
+                assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
+                    "eta0 must be smaller than eta1"
+                assert pkg_constants.TRUST_REGION_ETA1 < pkg_constants.TRUST_REGION_ETA2, \
+                    "eta1 must be smaller than eta2"
+                assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
+                assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
+                assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
+                # Set trust region hyper-parameters
                 eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=variables.dtype)
                 eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=variables.dtype)
                 eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=variables.dtype)
@@ -378,12 +386,16 @@ class MultiTrainer:
                 )
 
                 # Update trusted region accordingly:
-                update_radius = tf.logical_and(delta_f_ratio < eta1, delta_f_ratio > eta2)
-                update_radius_numeric = tf.cast(update_radius, variables.dtype)
-                nr_tr_radius_new = tf.add(
-                    tf.multiply(tf.minimum(nr_tr_radius * t2, upper_bound), update_radius_numeric),
-                    tf.multiply(nr_tr_radius, tf.ones_like(update_radius_numeric) - update_radius_numeric),
+                decrease_radius_numeric = tf.cast(delta_f_ratio < eta1, variables.dtype)
+                increase_radius_numeric = tf.cast(delta_f_ratio > eta2, variables.dtype)
+                nr_tr_radius_update = tf.multiply(
+                    tf.ones_like(irls_tr_radius),
+                    tf.multiply(
+                        tf.multiply(t1, decrease_radius_numeric),
+                        tf.multiply(t2, increase_radius_numeric)
+                    )
                 )
+                nr_tr_radius_new = tf.minimum(tf.multiply(nr_tr_radius, nr_tr_radius_update), upper_bound)
 
                 train_op_nr_tr_1 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
@@ -455,7 +467,15 @@ class MultiTrainer:
 
             if provide_optimizers["irls_tr"] and irls_tr_delta is not None:
                 logger.debug(" *** Building optimizer: IRLS_TR")
-                # Set trust region hyperparameters
+                # Check hyper-parameters:
+                assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
+                    "eta0 must be smaller than eta1"
+                assert pkg_constants.TRUST_REGION_ETA1 < pkg_constants.TRUST_REGION_ETA2, \
+                    "eta1 must be smaller than eta2"
+                assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
+                assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
+                assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
+                # Set trust region hyper-parameters:
                 eta0 = pkg_constants.TRUST_REGION_ETA0
                 eta1 = pkg_constants.TRUST_REGION_ETA1
                 eta2 = pkg_constants.TRUST_REGION_ETA2
@@ -475,29 +495,26 @@ class MultiTrainer:
                 self.delta_f_actual_irls_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
                 delta_f_pred_nr_tr = irls_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(self.delta_f_actual_irls_tr, delta_f_pred_nr_tr)
-                update_theta = tf.logical_and(self.delta_f_actual_irls_tr > eta0, delta_f_ratio > eta1)
 
                 # Include parameter updates only if update improves cost function:
-                theta_new_irls_tr = tf.stack([
-                    tf.cond(pred=update_theta[i],
-                            true_fn=lambda: theta_new_irls_tr_trial[:,i],
-                            false_fn=lambda: variables[:,i])
-                    for i in range(irls_tr_delta.shape[1])
-                ], axis=1)
+                update_theta = tf.logical_and(self.delta_f_actual_irls_tr > eta0, delta_f_ratio > eta1)
+                update_theta_numeric = tf.cast(update_theta, variables.dtype)
+                theta_new_irls_tr = tf.add(
+                    tf.multiply(theta_new_irls_tr_trial, update_theta_numeric),
+                    tf.multiply(variables, tf.ones_like(update_theta_numeric) - update_theta_numeric),
+                )
 
                 # Update trusted region according:
-                irls_tr_radius_new = tf.stack([
-                    tf.cond(
-                        pred=delta_f_ratio[i] < eta1,
-                        true_fn=lambda: irls_tr_radius[i] * t1,
-                        false_fn=lambda: tf.cond(
-                            pred=delta_f_ratio[i] > eta2,
-                            true_fn=lambda: tf.minimum(irls_tr_radius[i] * t2, upper_bound),
-                            false_fn=lambda: irls_tr_radius[i]
-                        )
+                decrease_radius_numeric = tf.cast(delta_f_ratio < eta1, variables.dtype)
+                increase_radius_numeric = tf.cast(delta_f_ratio > eta2, variables.dtype)
+                irls_tr_radius_update = tf.multiply(
+                    tf.ones_like(irls_tr_radius),
+                    tf.multiply(
+                        tf.multiply(t1, decrease_radius_numeric),
+                        tf.multiply(t2, increase_radius_numeric)
                     )
-                    for i in range(irls_tr_delta.shape[1])
-                ], axis=0)
+                )
+                irls_tr_radius_new = tf.minimum(tf.multiply(irls_tr_radius, irls_tr_radius_update), upper_bound)
 
                 train_op_irls_tr_1 = tf.group(
                     tf.assign(variables, theta_new_irls_tr),
