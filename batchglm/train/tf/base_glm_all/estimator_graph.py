@@ -734,6 +734,20 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 train_scale=train_scale,
                 dtype=dtype
             )
+            # Link placeholders:
+            if self.trainer_full is not None:
+                self.trainer_full_delta_f_actual_nr_tr = self.trainer_full.delta_f_actual_nr_tr
+                self.trainer_full_delta_f_actual_irls_tr = self.trainer_full.delta_f_actual_irls_tr
+            else:
+                self.trainer_full_delta_f_actual_nr_tr = None
+                self.trainer_full_delta_f_actual_irls_tr = None
+
+            if self.trainer_batch is not None:
+                self.trainer_batch_delta_f_actual_nr_tr = self.trainer_batch.delta_f_actual_nr_tr
+                self.trainer_batch_delta_f_actual_irls_tr = self.trainer_batch.delta_f_actual_irls_tr
+            else:
+                self.trainer_batch_delta_f_actual_nr_tr = None
+                self.trainer_batch_delta_f_actual_irls_tr = None
 
             # Define output metrics:
             self._set_out_var(

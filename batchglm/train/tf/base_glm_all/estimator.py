@@ -274,25 +274,40 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         # Check whether newton-rhapson is desired:
         newton_type_mode = False
+        trustregion_mode = False
+        is_nr_tr = False
+        is_irls_tr = False
+
         if optim_algo.lower() == "newton" or \
                 optim_algo.lower() == "newton-raphson" or \
                 optim_algo.lower() == "newton_raphson" or \
-                optim_algo.lower() == "nr" or \
-                optim_algo.lower() == "irls" or \
-                optim_algo.lower() == "iwls" or \
-                optim_algo.lower() == "newton-trust-region" or \
+                optim_algo.lower() == "nr":
+            newton_type_mode = True
+
+        if optim_algo.lower() == "irls" or \
+                optim_algo.lower() == "iwls":
+            newton_type_mode = True
+
+        if optim_algo.lower() == "newton-trust-region" or \
                 optim_algo.lower() == "newton_trust_region" or \
                 optim_algo.lower() == "newton-raphson-trust-region" or \
                 optim_algo.lower() == "newton_raphson_trust_region" or \
                 optim_algo.lower() == "newton_tr" or \
-                optim_algo.lower() == "nr_tr" or \
-                optim_algo.lower() == "irls_tr" or \
+                optim_algo.lower() == "nr_tr":
+            newton_type_mode = True
+            trustregion_mode = True
+            is_nr_tr = True
+
+        if optim_algo.lower() == "irls_tr" or \
                 optim_algo.lower() == "iwls_tr" or \
                 optim_algo.lower() == "irls_trust_region" or \
                 optim_algo.lower() == "iwls_trust_region" or \
                 optim_algo.lower() == "irls-trust-region" or \
                 optim_algo.lower() == "iwls-trust-region":
             newton_type_mode = True
+            trustregion_mode = True
+            is_irls_tr = True
+
         # Set learning rae defaults if not set by user.
         if learning_rate is None:
             if newton_type_mode:
@@ -338,6 +353,9 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           stopping_criteria=stopping_criteria,
                           loss=loss,
                           train_op=train_op,
+                          trustregion_mode=trustregion_mode,
+                          is_nr_tr=is_nr_tr,
+                          is_irls_tr=is_irls_tr,
                           **kwargs)
 
     def train_sequence(self, training_strategy):

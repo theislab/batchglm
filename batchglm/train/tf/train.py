@@ -361,15 +361,15 @@ class MultiTrainer:
                 # Evaluate model at proposed new parameter set:
                 theta_new_nr_tr_trial = variables - tf.expand_dims(nr_tr_radius, axis=0) * newton_tr_delta
                 train_op_nr_tr_0 = tf.group(
-                    tf.assign(variables, theta_new_nr_tr_trial)
+                    tf.assign(variables, theta_new_nr_tr_trial),
+                    tf.assign_add(global_step, 1)
                 )
-                train_op_nr_tr_1 = nr_tr_pred_cost_gain  # Relay predicted cost to evaluate via session.run.
 
                 # Include parameter updates only if update improves cost function:
-                delta_f_actual = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
-                delta_f_pred = nr_tr_pred_cost_gain
-                delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
-                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)
+                self.delta_f_actual_nr_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
+                delta_f_pred_nr_tr = nr_tr_pred_cost_gain
+                delta_f_ratio = tf.divide(self.delta_f_actual_nr_tr, delta_f_pred_nr_tr)
+                update_theta = tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1)
 
                 theta_new_nr_tr = tf.stack([
                     tf.cond(pred=update_theta[i],
@@ -392,15 +392,13 @@ class MultiTrainer:
                     for i in range(newton_tr_delta.shape[1])
                 ], axis=0)
 
-                train_op_nr_tr_2 = tf.group(
+                train_op_nr_tr_1 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
                     tf.assign(nr_tr_radius, nr_tr_radius_new),
-                    tf.assign(features_updated, update_theta),
-                    tf.assign_add(global_step, 1)
+                    tf.assign(features_updated, update_theta)
                 )
                 train_op_nr_tr = [train_op_nr_tr_0,
-                                  train_op_nr_tr_1,
-                                  train_op_nr_tr_2]
+                                  train_op_nr_tr_1]
             else:
                 train_op_nr_tr = None
 
@@ -470,22 +468,24 @@ class MultiTrainer:
                 upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=variables.dtype)
 
                 # Propose parameter update:
-                theta_new = variables - tf.expand_dims(irls_tr_radius, axis=0) * irls_tr_delta
+                theta_new_irls_tr_trial = variables - tf.expand_dims(irls_tr_radius, axis=0) * irls_tr_delta
 
-                # Check approximation based on new and old loss:
-                ## Rebuild graph starting from injected parameter tensor:
-                model_vars_eval.new(params=theta_new)
-                model_eval.new(model_vars=model_vars_eval)
-                ll_eval = model_eval.norm_log_likelihood
-                ## Check deviation between predicted and observed loss:
-                delta_f_actual = ll_eval - model_ll  # This is the negative of the difference because LL is maximized.
-                delta_f_pred = irls_tr_pred_cost_gain
-                delta_f_ratio = tf.divide(delta_f_actual, delta_f_pred)
+                train_op_irls_tr_0 = tf.group(
+                    tf.assign(variables, theta_new_irls_tr_trial),
+                    tf.assign_add(global_step, 1)
+                )
 
                 # Include parameter updates only if update improves cost function:
-                update_theta = tf.logical_and(delta_f_actual > eta0, delta_f_ratio > eta1)  # delta_f_actual > eta0
+                self.delta_f_actual_irls_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
+                delta_f_pred_nr_tr = irls_tr_pred_cost_gain
+                delta_f_ratio = tf.divide(self.delta_f_actual_irls_tr, delta_f_pred_nr_tr)
+                update_theta = tf.logical_and(self.delta_f_actual_irls_tr > eta0, delta_f_ratio > eta1)
+
+                # Include parameter updates only if update improves cost function:
                 theta_new_irls_tr = tf.stack([
-                    tf.cond(pred=update_theta[i], true_fn=lambda: theta_new[:,i], false_fn=lambda: variables[:,i])
+                    tf.cond(pred=update_theta[i],
+                            true_fn=lambda: theta_new_irls_tr_trial[:,i],
+                            false_fn=lambda: variables[:,i])
                     for i in range(irls_tr_delta.shape[1])
                 ], axis=1)
 
@@ -503,15 +503,13 @@ class MultiTrainer:
                     for i in range(irls_tr_delta.shape[1])
                 ], axis=0)
 
-                # Group tf.Variable updates into one operation:
-                train_op_irls_tr = tf.group(
+                train_op_irls_tr_1 = tf.group(
                     tf.assign(variables, theta_new_irls_tr),
                     tf.assign(irls_tr_radius, irls_tr_radius_new),
-                    tf.assign(features_updated, update_theta),
-                    tf.assign_add(global_step, 1)
+                    tf.assign(features_updated, update_theta)
                 )
-                if apply_train_ops is not None:
-                    train_op_irls_tr = apply_train_ops(train_op_irls_tr)
+                train_op_irls_tr = [train_op_irls_tr_0,
+                                    train_op_irls_tr_1]
             else:
                 train_op_irls_tr = None
 
@@ -595,8 +593,8 @@ class MultiTrainer:
                 name_lower.lower() == "iwls_trust_region" or \
                 name_lower.lower() == "irls-trust-region" or \
                 name_lower.lower() == "iwls-trust-region":
-            if self.train_op_irls is None:
-                raise ValueError("IRLS not provided in initialization.")
+            if self.train_op_irls_tr is None:
+                raise ValueError("IRLS trust-region not provided in initialization.")
             return self.train_op_irls_tr
         else:
             raise ValueError("Unknown optimizer %s" % name)
