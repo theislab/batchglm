@@ -183,6 +183,9 @@ class BasicModelGraphGLM(ProcessModelGLM):
         :param size_factors: tensor (observations x features)
             Constant scaling factors for mean model, such as library size factors.
         """
+        a_var = self.tf_clip_param(a_var, "a_var")
+        b_var = self.tf_clip_param(b_var, "a_var")
+
         if constraints_loc is not None:
             eta_loc = tf.matmul(design_loc, tf.matmul(constraints_loc, a_var))
         else:

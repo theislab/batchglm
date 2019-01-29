@@ -367,6 +367,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     else:
                         raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
 
+                    tr_radius = tr_radius[previously_converged == False]
+
                     tf.logging.debug(
                         "trust region radius nr: min=%f, mean=%f, max=%f",
                         np.round(np.min(tr_radius), 5),
