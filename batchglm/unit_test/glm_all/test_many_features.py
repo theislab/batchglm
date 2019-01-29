@@ -49,14 +49,12 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
 
         batch_size = 10
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                              "nr": False, "nr_tr": True, "irls": False, "irls_tr": True}
+                              "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
 
         estimator = Estimator(
             input_data=self.input,
             batch_size=batch_size,
             quick_scale=True,
-            init_a="standard",
-            init_b="standard",
             provide_optimizers=provide_optimizers,
             provide_batched=False,
             termination_type="by_feature",

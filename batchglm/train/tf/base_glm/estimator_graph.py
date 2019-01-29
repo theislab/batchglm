@@ -1109,7 +1109,6 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             #)
         else:
             # Check if identity was supplied:
-            print(np.sum(constraints - np.eye(constraints.shape[0], dtype=constraints.dtype)))
             if constraints.shape[0] == constraints.shape[1]:
                 if np.sum(constraints - np.eye(constraints.shape[0], dtype=constraints.dtype)) < 1e-12:
                     return None

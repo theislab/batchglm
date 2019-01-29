@@ -254,7 +254,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians
+            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
