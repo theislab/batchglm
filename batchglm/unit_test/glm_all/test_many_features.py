@@ -74,8 +74,8 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
         return estimator_store
 
     def test_many_features(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.DEBUG)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("Test_ManyFeatures_GLM_ALL.test_many_features()")
 
         self.noise_model = "nb"
