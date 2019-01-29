@@ -54,7 +54,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
         estimator = Estimator(
             input_data=self.input,
             batch_size=batch_size,
-            quick_scale=True,
+            quick_scale=False,
             provide_optimizers=provide_optimizers,
             provide_batched=False,
             termination_type="by_feature",

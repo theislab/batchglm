@@ -26,9 +26,9 @@ class _Test_ExtremValues_GLM_Estim():
         self.estimator.train_sequence(training_strategy=[
             {
                 "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-4,
+                "stopping_criteria": 1e-8,
                 "use_batching": False,
-                "optim_algo": "IRLS",
+                "optim_algo": "NR_TR",
             },
         ])
 

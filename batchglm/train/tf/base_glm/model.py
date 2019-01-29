@@ -190,6 +190,7 @@ class BasicModelGraphGLM(ProcessModelGLM):
 
         if size_factors is not None:
             eta_loc = tf.add(eta_loc, size_factors)
+
         eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
 
         if constraints_loc is not None:

@@ -380,7 +380,8 @@ class MultiTrainer:
 
             if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
                 # Propose parameter update:
-                theta_new_nr_tr_trial = variables - tf.multiply(tf.expand_dims(nr_tr_radius, 0), newton_tr_delta)
+                newton_tr_delta_step = tf.multiply(tf.expand_dims(nr_tr_radius, 0), newton_tr_delta)
+                theta_new_nr_tr_trial = variables - newton_tr_delta_step
                 train_op_nr_tr_0 = tf.group(
                     tf.assign(variables, theta_new_nr_tr_trial),
                     tf.assign_add(global_step, 1)
@@ -394,8 +395,9 @@ class MultiTrainer:
                 update_theta = tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1)
                 update_theta_numeric = tf.cast(update_theta, variables.dtype)
                 theta_new_nr_tr = tf.add(
-                    tf.multiply(theta_new_nr_tr_trial, update_theta_numeric),
-                    tf.multiply(variables, tf.ones_like(update_theta_numeric) - update_theta_numeric),
+                    tf.multiply(theta_new_nr_tr_trial, update_theta_numeric),  # new values
+                    tf.multiply(theta_new_nr_tr_trial + newton_tr_delta_step,  # old values
+                                tf.ones_like(update_theta_numeric) - update_theta_numeric),
                 )
 
                 # Update trusted region accordingly:
@@ -426,7 +428,8 @@ class MultiTrainer:
             if provide_optimizers["irls_tr"] and irls_tr_delta is not None:
                 logger.debug(" *** Building optimizer: IRLS_TR")
                 # Propose parameter update:
-                theta_new_irls_tr_trial = variables - tf.multiply(tf.expand_dims(irls_tr_radius, axis=0), irls_tr_delta)
+                irls_tr_delta_step = tf.multiply(tf.expand_dims(irls_tr_radius, axis=0), irls_tr_delta)
+                theta_new_irls_tr_trial = variables - irls_tr_delta_step
 
                 train_op_irls_tr_0 = tf.group(
                     tf.assign(variables, theta_new_irls_tr_trial),
@@ -442,8 +445,9 @@ class MultiTrainer:
                 update_theta = tf.logical_and(self.delta_f_actual_irls_tr > eta0, delta_f_ratio > eta1)
                 update_theta_numeric = tf.cast(update_theta, variables.dtype)
                 theta_new_irls_tr = tf.add(
-                    tf.multiply(theta_new_irls_tr_trial, update_theta_numeric),
-                    tf.multiply(variables, tf.ones_like(update_theta_numeric) - update_theta_numeric),
+                    tf.multiply(theta_new_irls_tr_trial, update_theta_numeric),  # new values
+                    tf.multiply(theta_new_irls_tr_trial + irls_tr_delta_step,   # old values
+                                tf.ones_like(update_theta_numeric) - update_theta_numeric),
                 )
 
                 # Update trusted region according:

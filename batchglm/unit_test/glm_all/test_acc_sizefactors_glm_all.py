@@ -120,7 +120,7 @@ class Test_AccuracySizeFactors_GLM_ALL(
             train_scale,
             sparse
     ):
-        algos = ["ADAM", "NR_TR", "IRLS_TR"]
+        algos = ["NR_TR", "IRLS_TR"]
         estimator = _Test_AccuracySizeFactors_GLM_ALL_Estim(
             simulator=self.sim,
             quick_scale=False if train_scale else True,
