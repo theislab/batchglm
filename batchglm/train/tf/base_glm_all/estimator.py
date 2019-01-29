@@ -1,5 +1,4 @@
 import abc
-from copy import copy, deepcopy
 from typing import Union
 import logging
 import pprint
@@ -10,7 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, InputData, _Model_GLM, SparseXArrayDataArray
+from .external import MonitoredTFEstimator, InputData, SparseXArrayDataArray
 
 logger = logging.getLogger(__name__)
 

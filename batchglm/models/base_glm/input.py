@@ -10,7 +10,7 @@ import scipy.sparse
 import pandas as pd
 
 from .utils import parse_constraints, parse_design
-from .external import _InputData_Base, INPUT_DATA_PARAMS, SparseXArrayDataSet, SparseXArrayDataArray
+from .external import _InputData_Base, INPUT_DATA_PARAMS, SparseXArrayDataSet
 
 import patsy
 
