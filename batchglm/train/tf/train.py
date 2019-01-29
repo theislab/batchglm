@@ -222,7 +222,6 @@ class MultiTrainer:
             learning_rate,
             loss=None,
             variables: tf.Variable = None,
-            model = None,
             gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
             features_updated: tf.Variable = None,
@@ -351,7 +350,6 @@ class MultiTrainer:
                 train_op_nr = None
 
             if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
-                logger.debug(" *** Building optimizer: NR_TR")
                 # Set trust region hyperparameters
                 eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=variables.dtype)
                 eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=variables.dtype)
@@ -368,44 +366,30 @@ class MultiTrainer:
                 )
 
                 # Include parameter updates only if update improves cost function:
-                logger.debug(" *** Building optimizer: NR_TR - flag 1")
                 self.delta_f_actual_nr_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
-                logger.debug(" *** Building optimizer: NR_TR - flag 2")
                 delta_f_pred_nr_tr = nr_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(self.delta_f_actual_nr_tr, delta_f_pred_nr_tr)
-                update_theta = tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1)
-                #update_theta_numeric = tf.cast(update_theta, tf.int32)
-                logger.debug(" *** Building optimizer: NR_TR - flag 3")
 
-                theta_new_nr_tr = tf.stack([
-                    tf.cond(pred=update_theta[i],
-                            true_fn=lambda: theta_new_nr_tr_trial[:, i],
-                            false_fn=lambda: variables[:, i])
-                    for i in range(newton_tr_delta.shape[1])
-                ], axis=1)
-                logger.debug(" *** Building optimizer: NR_TR - flag 4")
+                update_theta = tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1)
+                update_theta_numeric = tf.cast(update_theta, variables.dtype)
+                theta_new_nr_tr = tf.add(
+                    tf.multiply(theta_new_nr_tr_trial, update_theta_numeric),
+                    tf.multiply(variables, tf.ones_like(update_theta_numeric) - update_theta_numeric),
+                )
 
                 # Update trusted region accordingly:
-                nr_tr_radius_new = tf.stack([
-                    tf.cond(
-                        pred=delta_f_ratio[i] < eta1,
-                        true_fn=lambda: nr_tr_radius[i] * t1,
-                        false_fn=lambda: tf.cond(
-                            pred=delta_f_ratio[i] > eta2,
-                            true_fn=lambda: tf.minimum(nr_tr_radius[i] * t2, upper_bound),
-                            false_fn=lambda: nr_tr_radius[i]
-                        )
-                    )
-                    for i in range(newton_tr_delta.shape[1])
-                ], axis=0)
-                logger.debug(" *** Building optimizer: NR_TR - flag 5")
+                update_radius = tf.logical_and(delta_f_ratio < eta1, delta_f_ratio > eta2)
+                update_radius_numeric = tf.cast(update_radius, variables.dtype)
+                nr_tr_radius_new = tf.add(
+                    tf.multiply(tf.minimum(nr_tr_radius * t2, upper_bound), update_radius_numeric),
+                    tf.multiply(nr_tr_radius, tf.ones_like(update_radius_numeric) - update_radius_numeric),
+                )
 
                 train_op_nr_tr_1 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
                     tf.assign(nr_tr_radius, nr_tr_radius_new),
                     tf.assign(features_updated, update_theta)
                 )
-                logger.debug(" *** Building optimizer: NR_TR - flag 6")
                 train_op_nr_tr = [train_op_nr_tr_0,
                                   train_op_nr_tr_1]
             else:

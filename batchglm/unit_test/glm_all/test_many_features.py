@@ -27,7 +27,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        sim = Simulator(num_observations=500, num_features=200)
+        sim = Simulator(num_observations=500, num_features=20000)
         sim.generate_sample_description(num_batches=2, num_conditions=2)
         sim.generate()
 
@@ -57,8 +57,8 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             quick_scale=True,
             provide_optimizers=provide_optimizers,
             provide_batched=False,
-            termination_type="by_feature",
-            dtype="float32"
+            termination_type="global",
+            dtype="float64"
         )
         estimator.initialize()
 
