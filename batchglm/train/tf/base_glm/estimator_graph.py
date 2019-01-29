@@ -115,12 +115,12 @@ class GradientGraphGLM:
 
         if train_loc or train_scale:
             if termination_type == "by_feature":
-                logger.debug(" ** Build gradients for training graph: by_feature")
+                logger.debug(" ** building gradients for training graph: by_feature")
                 self.gradients_full_byfeature()
                 if self.batched_data_model is not None:
                     self.gradients_batched_byfeature()
             elif termination_type == "global":
-                logger.debug(" ** Build gradients for training graph: global")
+                logger.debug(" ** building gradients for training graph: global")
                 self.gradients_full_global()
                 if self.batched_data_model is not None:
                     self.gradients_batched_global()
@@ -129,6 +129,7 @@ class GradientGraphGLM:
 
             # Pad gradients to receive update tensors that match
             # the shape of model_vars.params.
+            logger.debug(" ** pad gradients for training graph")
             if train_loc:
                 if train_scale:
                     if self.batched_data_model is not None:
@@ -258,6 +259,8 @@ class NewtonGraphGLM:
                 else:
                     batched_lhs = self.batched_data_model.neg_hessians_train
                     batched_rhs = self.batched_data_model.neg_jac_train
+
+                logger.debug(" ** building nr updates")
                 nr_update_full_raw, nr_update_batched_raw = self.build_updates(
                     full_lhs=self.full_data_model.neg_hessians_train,
                     batched_lhs=batched_lhs,
@@ -266,6 +269,7 @@ class NewtonGraphGLM:
                     termination_type=termination_type,
                     psd=False
                 )
+                logger.debug(" ** padding nr updates")
                 nr_update_full, nr_update_batched = self.pad_updates(
                     train_mu=train_mu,
                     train_r=train_r,
@@ -277,6 +281,7 @@ class NewtonGraphGLM:
                 nr_update_batched = None
 
             if provide_optimizers["nr_tr"]:
+                logger.debug(" ** building nr_tr updates")
                 nr_tr_radius = tf.Variable(np.zeros(shape=[self.model_vars.n_features]) + 1, dtype=dtype)
 
                 trust_region_diagonal_full = tf.stack([
@@ -306,6 +311,7 @@ class NewtonGraphGLM:
                     termination_type=termination_type,
                     psd=False
                 )
+                logger.debug(" ** padding nr_tr updates")
                 nr_tr_update_full, nr_tr_update_batched = self.pad_updates(
                     train_mu=train_mu,
                     train_r=train_r,
@@ -313,6 +319,7 @@ class NewtonGraphGLM:
                     update_batched_raw=nr_tr_update_batched_raw
                 )
 
+                logger.debug(" ** building predicted loss of nr_tr updates")
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
                 nr_tr_proposed_vector_full = tf.multiply(nr_tr_radius, nr_tr_update_full_raw)
                 nr_tr_pred_cost_gain_full = tf.add(
@@ -322,9 +329,9 @@ class NewtonGraphGLM:
                         nr_tr_proposed_vector_full
                     ),
                     0.5 * tf.einsum(
-                        'nix,inx->n',
+                        'nix,xin->n',
                         tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_full, axis=-1), nr_B_full),
-                        tf.expand_dims(nr_tr_proposed_vector_full, axis=-1)
+                        tf.expand_dims(nr_tr_proposed_vector_full, axis=0)
                     )
                 ) / tf.square(n_obs)
 
@@ -337,9 +344,9 @@ class NewtonGraphGLM:
                             nr_tr_proposed_vector_batched
                         ),
                         0.5 * tf.einsum(
-                            'nix,inx->n',
+                            'nix,xin->n',
                             tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1), nr_B_batched),
-                            tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1)
+                            tf.expand_dims(nr_tr_proposed_vector_batched, axis=0)
                         )
                     ) / tf.square(n_obs)
                 else:
@@ -354,6 +361,7 @@ class NewtonGraphGLM:
             if provide_optimizers["irls"]:
                 # Compute a and b model updates separately.
                 if train_mu:
+                    logger.debug(" ** building irls a updates")
                     # The FIM of the mean model is guaranteed to be
                     # positive semi-definite and can therefore be inverted
                     # with the Cholesky decomposition. This information is
@@ -377,6 +385,7 @@ class NewtonGraphGLM:
                     irls_update_a_batched = None
 
                 if train_r:
+                    logger.debug(" ** building irls b updates")
                     if self.batched_data_model is None:
                         batched_lhs = None
                         batched_rhs = None
@@ -395,6 +404,7 @@ class NewtonGraphGLM:
                     irls_update_b_full = None
                     irls_update_b_batched = None
 
+                logger.debug(" ** assembling and padding irls updates")
                 if train_mu and train_r:
                     irls_update_full_raw = tf.concat([irls_update_a_full, irls_update_b_full], axis=0)
                     if self.batched_data_model is not None:
@@ -435,6 +445,7 @@ class NewtonGraphGLM:
 
                 # Compute a and b model updates separately.
                 if train_mu:
+                    logger.debug(" ** building irls_tr a updates")
                     irls_tr_diagonal_a_full = tf.stack([
                         tf.diag(
                             irls_tr_radius[i] * tf.diag_part(self.full_data_model.fim.fim_a[i, :, :]))
@@ -476,6 +487,7 @@ class NewtonGraphGLM:
                     irls_B_a_batched = None
 
                 if train_r:
+                    logger.debug(" ** building irls_tr b updates")
                     irls_tr_diagonal_b_full = tf.stack([
                         tf.diag(
                             irls_tr_radius[i] * tf.diag_part(self.full_data_model.fim.fim_b[i, :, :]))
@@ -513,6 +525,7 @@ class NewtonGraphGLM:
                     irls_B_b_full = None
                     irls_B_b_batched = None
 
+                logger.debug(" ** assembling and padding irls_tr updates")
                 if train_mu and train_r:
                     irls_tr_update_full_raw = tf.concat([irls_tr_update_a_full, irls_tr_update_b_full], axis=0)
                     if self.batched_data_model is not None:
@@ -543,6 +556,7 @@ class NewtonGraphGLM:
                     update_batched_raw=irls_tr_update_batched_raw
                 )
 
+                logger.debug(" ** building predicted cost of irls_tr updates")
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
                 irls_tr_proposed_vector_full = tf.multiply(irls_tr_radius, irls_tr_update_full_raw)
                 irls_tr_pred_cost_gain_full = tf.einsum(
@@ -555,11 +569,11 @@ class NewtonGraphGLM:
                     irls_tr_pred_cost_gain_full = tf.add(
                         irls_tr_pred_cost_gain_full,
                         0.5 * tf.einsum(
-                            'nix,inx->n',
+                            'nix,xin->n',
                             tf.einsum('inx,nij->njx',
                                       tf.expand_dims(irls_proposed_vector_a_full, axis=-1),
                                       irls_B_a_full),
-                            tf.expand_dims(irls_proposed_vector_a_full, axis=-1)
+                            tf.expand_dims(irls_proposed_vector_a_full, axis=0)
                         )
                     )
                 if train_r:
@@ -567,11 +581,11 @@ class NewtonGraphGLM:
                     irls_tr_pred_cost_gain_full = tf.add(
                         irls_tr_pred_cost_gain_full,
                         0.5 * tf.einsum(
-                            'nix,inx->n',
+                            'nix,xin->n',
                             tf.einsum('inx,nij->njx',
                                       tf.expand_dims(irls_proposed_vector_b_full, axis=-1),
                                       irls_B_b_full),
-                            tf.expand_dims(irls_proposed_vector_b_full, axis=-1)
+                            tf.expand_dims(irls_proposed_vector_b_full, axis=0)
                         )
                     )
                 irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full / tf.square(n_obs)
@@ -840,6 +854,7 @@ class TrainerGraphGLM:
             global_step = tf.train.get_or_create_global_step()
 
             if (train_loc or train_scale) and self.batched_data_model is not None:
+                logger.debug(" ** building batched trainers")
                 trainer_batch = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_batch,
@@ -865,6 +880,7 @@ class TrainerGraphGLM:
                 batch_gradient = None
 
             if train_loc or train_scale:
+                logger.debug(" ** building full trainers")
                 trainer_full = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_full,
@@ -941,17 +957,17 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
 
     def __init__(
             self,
-            num_observations,
-            num_features,
-            num_design_loc_params,
-            num_design_scale_params,
-            num_loc_params,
-            num_scale_params,
+            num_observations: int,
+            num_features: int,
+            num_design_loc_params: int,
+            num_design_scale_params: int,
+            num_loc_params: int,
+            num_scale_params: int,
             graph: tf.Graph,
             batch_size: int,
             constraints_loc: xr.DataArray,
             constraints_scale: xr.DataArray,
-            dtype
+            dtype: str
     ):
         """
 
@@ -964,16 +980,18 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
         :param num_design_scale_params: int
             Number of parameters per feature in scale model.
         :param graph: tf.Graph
-        :param constraints_loc: tensor (all parameters x dependent parameters)
+        :param constraints_loc: tensor (all parameters x dependent parameters) or None
             Tensor that encodes how complete parameter set which includes dependent
             parameters arises from indepedent parameters: all = <constraints, indep>.
             This tensor describes this relation for the mean model.
             This form of constraints is used in vector generalized linear models (VGLMs).
-        :param constraints_scale: tensor (all parameters x dependent parameters)
+            Assumed to be an identity matrix if None.
+        :param constraints_scale: tensor (all parameters x dependent parameters) or None
             Tensor that encodes how complete parameter set which includes dependent
             parameters arises from indepedent parameters: all = <constraints, indep>.
             This tensor describes this relation for the dispersion model.
             This form of constraints is used in vector generalized linear models (VGLMs).
+            Assumed to be an identity matrix if None.
         """
         TFEstimatorGraph.__init__(
             self=self,
@@ -1009,6 +1027,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             train_scale,
             dtype
     ):
+        logger.debug(" * building gradient graph")
         self.gradient_graph = GradientGraphGLM(
             model_vars=self.model_vars,
             full_data_model=self.full_data_model,
@@ -1020,6 +1039,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
         self.gradients_batch = self.gradient_graph.gradients_batch
         self.gradients_full = self.gradient_graph.gradients_full
 
+        logger.debug(" * building newton-type update graph")
         NewtonGraphGLM.__init__(
             self=self,
             termination_type=termination_type,
@@ -1029,6 +1049,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             dtype=dtype
         )
 
+        logger.debug(" * building trainers")
         TrainerGraphGLM.__init__(
             self=self,
             provide_optimizers=provide_optimizers,
@@ -1078,11 +1099,18 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             dtype
     ):
         if constraints is None:
-            return tf.eye(
-                num_rows=tf.constant(num_design_params, shape=(), dtype="int32"),
-                dtype=dtype
-            )
+            return None
+            #return tf.eye(
+            #    num_rows=tf.constant(num_design_params, shape=(), dtype="int32"),
+            #    dtype=dtype
+            #)
         else:
+            # Check if identity was supplied:
+            print(np.sum(constraints - np.eye(constraints.shape[0], dtype=constraints.dtype)))
+            if constraints.shape[0] == constraints.shape[1]:
+                if np.sum(constraints - np.eye(constraints.shape[0], dtype=constraints.dtype)) < 1e-12:
+                    return None
+
             assert constraints.shape[0] == num_design_params, "constraint dimension mismatch"
             return tf.cast(constraints, dtype=dtype)
 

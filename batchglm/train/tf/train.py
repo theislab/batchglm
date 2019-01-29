@@ -280,7 +280,7 @@ class MultiTrainer:
 
             # Standard tensorflow optimizers.
             if provide_optimizers["gd"]:
-                logger.debug(" **** Building optimizer: GD")
+                logger.debug(" *** Building optimizer: GD")
                 optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
                 train_op_GD = optim_GD.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
@@ -290,7 +290,7 @@ class MultiTrainer:
                 train_op_GD = None
 
             if provide_optimizers["adam"]:
-                logger.debug(" **** Building optimizer: ADAM")
+                logger.debug(" *** Building optimizer: ADAM")
                 optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
                 train_op_Adam = optim_Adam.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
@@ -300,7 +300,7 @@ class MultiTrainer:
                 train_op_Adam = None
 
             if provide_optimizers["adagrad"]:
-                logger.debug(" **** Building optimizer: ADAGRAD")
+                logger.debug(" *** Building optimizer: ADAGRAD")
                 optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
                 train_op_Adagrad = optim_Adagrad.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
@@ -310,7 +310,7 @@ class MultiTrainer:
                 train_op_Adagrad = None
 
             if provide_optimizers["rmsprop"]:
-                logger.debug(" **** Building optimizer: RMSPROP")
+                logger.debug(" *** Building optimizer: RMSPROP")
                 optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
                 train_op_RMSProp = optim_RMSProp.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
@@ -339,6 +339,7 @@ class MultiTrainer:
 
             # Custom optimizers.
             if provide_optimizers["nr"] and newton_delta is not None:
+                logger.debug(" *** Building optimizer: NR")
                 theta_new_nr = variables - learning_rate * newton_delta
                 train_op_nr = tf.group(
                     tf.assign(variables, theta_new_nr),
@@ -350,6 +351,7 @@ class MultiTrainer:
                 train_op_nr = None
 
             if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
+                logger.debug(" *** Building optimizer: NR_TR")
                 # Set trust region hyperparameters
                 eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=variables.dtype)
                 eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=variables.dtype)
@@ -366,10 +368,14 @@ class MultiTrainer:
                 )
 
                 # Include parameter updates only if update improves cost function:
+                logger.debug(" *** Building optimizer: NR_TR - flag 1")
                 self.delta_f_actual_nr_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
+                logger.debug(" *** Building optimizer: NR_TR - flag 2")
                 delta_f_pred_nr_tr = nr_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(self.delta_f_actual_nr_tr, delta_f_pred_nr_tr)
                 update_theta = tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1)
+                #update_theta_numeric = tf.cast(update_theta, tf.int32)
+                logger.debug(" *** Building optimizer: NR_TR - flag 3")
 
                 theta_new_nr_tr = tf.stack([
                     tf.cond(pred=update_theta[i],
@@ -377,6 +383,7 @@ class MultiTrainer:
                             false_fn=lambda: variables[:, i])
                     for i in range(newton_tr_delta.shape[1])
                 ], axis=1)
+                logger.debug(" *** Building optimizer: NR_TR - flag 4")
 
                 # Update trusted region accordingly:
                 nr_tr_radius_new = tf.stack([
@@ -391,12 +398,14 @@ class MultiTrainer:
                     )
                     for i in range(newton_tr_delta.shape[1])
                 ], axis=0)
+                logger.debug(" *** Building optimizer: NR_TR - flag 5")
 
                 train_op_nr_tr_1 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
                     tf.assign(nr_tr_radius, nr_tr_radius_new),
                     tf.assign(features_updated, update_theta)
                 )
+                logger.debug(" *** Building optimizer: NR_TR - flag 6")
                 train_op_nr_tr = [train_op_nr_tr_0,
                                   train_op_nr_tr_1]
             else:
@@ -449,6 +458,7 @@ class MultiTrainer:
             #    train_op_nr_ls = None
 
             if provide_optimizers["irls"] and irls_delta is not None:
+                logger.debug(" *** Building optimizer: IRLS")
                 theta_new_irls = variables - learning_rate * irls_delta
                 train_op_irls = tf.group(
                     tf.assign(variables, theta_new_irls),
@@ -460,6 +470,7 @@ class MultiTrainer:
                 train_op_irls = None
 
             if provide_optimizers["irls_tr"] and irls_tr_delta is not None:
+                logger.debug(" *** Building optimizer: IRLS_TR")
                 # Set trust region hyperparameters
                 eta0 = pkg_constants.TRUST_REGION_ETA0
                 eta1 = pkg_constants.TRUST_REGION_ETA1

@@ -5,7 +5,6 @@ import tensorflow as tf
 import numpy as np
 
 from .external import ProcessModelGLM, ModelVarsGLM, BasicModelGraphGLM
-from ..base_glm.model import ModelVarsEvalGLM
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
@@ -52,12 +51,6 @@ class ProcessModel(ProcessModelGLM):
 
 
 class ModelVars(ProcessModel, ModelVarsGLM):
-    """
-    Full class.
-    """
-
-
-class ModelVarsEval(ProcessModel, ModelVarsEvalGLM):
     """
     Full class.
     """

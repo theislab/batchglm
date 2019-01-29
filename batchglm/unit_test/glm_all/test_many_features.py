@@ -27,7 +27,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        sim = Simulator(num_observations=50, num_features=1000)
+        sim = Simulator(num_observations=500, num_features=200)
         sim.generate_sample_description(num_batches=2, num_conditions=2)
         sim.generate()
 
@@ -49,7 +49,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
 
         batch_size = 10
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                              "nr": False, "nr_tr": True, "irls": False, "irls_tr": True}
+                              "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
 
         estimator = Estimator(
             input_data=self.input,
@@ -57,7 +57,8 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             quick_scale=True,
             provide_optimizers=provide_optimizers,
             provide_batched=False,
-            termination_type="by_feature"
+            termination_type="by_feature",
+            dtype="float32"
         )
         estimator.initialize()
 
@@ -74,7 +75,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
 
     def test_many_features(self):
         logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.DEBUG)
         logger.error("Test_ManyFeatures_GLM_ALL.test_many_features()")
 
         self.noise_model = "nb"

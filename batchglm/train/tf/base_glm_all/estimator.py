@@ -31,22 +31,20 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def __init__(
             self,
             input_data: InputData,
-            batch_size: int = 500,
-            graph: tf.Graph = None,
-            init_model: _Model_GLM = None,
-            init_a: Union[np.ndarray, str] = "AUTO",
-            init_b: Union[np.ndarray, str] = "AUTO",
-            quick_scale: bool = False,
-            model: EstimatorGraphAll = None,
-            provide_optimizers: dict = None,
-            provide_batched: bool = False,
-            termination_type: str = "by_feature",
-            extended_summary=False,
-            noise_model: str = None,
-            dtype=tf.float64
+            batch_size: int,
+            graph: tf.Graph,
+            init_a: Union[np.ndarray],
+            init_b: Union[np.ndarray],
+            model: EstimatorGraphAll,
+            provide_optimizers: dict,
+            provide_batched: bool,
+            termination_type: str,
+            extended_summary,
+            noise_model: str,
+            dtype: str
     ):
         """
-        Create a new Estimator
+        Create a new estimator for a GLM-like model.
 
         :param input_data: InputData
             The input data
@@ -55,40 +53,28 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param graph: (optional) tf.Graph
         :param init_model: (optional)
             If provided, this model will be used to initialize this Estimator.
-        :param init_a: (Optional)
-            Low-level initial values for a. Can be:
-
-            - str:
-                * "auto": automatically choose best initialization
-                * "random": initialize with random values
-                * "standard": initialize intercept with observed mean
-                * "init_model": initialize with another model (see `ìnit_model` parameter)
-                * "closed_form": try to initialize with closed form
-            - np.ndarray: direct initialization of 'a'
-        :param init_b: (Optional)
-            Low-level initial values for b. Can be:
-
-            - str:
-                * "auto": automatically choose best initialization
-                * "random": initialize with random values
-                * "standard": initialize with zeros
-                * "init_model": initialize with another model (see `ìnit_model` parameter)
-                * "closed_form": try to initialize with closed form
-            - np.ndarray: direct initialization of 'b'
+        :param init_a: np.ndarray
+            Initialization of 'a' (location) model.
+        :param init_b: np.ndarray
+            Initialization of 'b' (scale) model.
         :param quick_scale: bool
             Whether `scale` will be fitted faster and maybe less accurate.
         :param model: EstimatorGraph
             EstimatorGraph to use. Basically for debugging.
         :param provide_optimizers:
 
-            E.g. {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
-        :param termination_type:
-        :param extended_summary:
-        :param dtype: Precision used in tensorflow.
+            E.g.    {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
+                    "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
+        :param provide_batched: bool
+            Whether mini-batched optimizers should be provided.
+        :param termination_type: str, {"by_feature", "global"}
+            Estimation termination type:
 
-        Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
+                - "by_feature": Estimation is terminated for each feature individually.
+                - "global" Estimatino is terminated globally for all features.
         :param extended_summary: Include detailed information in the summaries.
-            Will drastically increase runtime of summary writer, use only for debugging.
+            Will increase runtime of summary writer, use only for debugging.
+        :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
             from .external_nb import EstimatorGraph
@@ -182,19 +168,19 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # create model
             model = EstimatorGraph(
                 fetch_fn=fetch_fn,
-                feature_isnonzero=self._input_data.feature_isnonzero,
-                num_observations=self._input_data.num_observations,
-                num_features=self._input_data.num_features,
-                num_design_loc_params=self._input_data.num_design_loc_params,
-                num_design_scale_params=self._input_data.num_design_scale_params,
-                num_loc_params=self._input_data.num_loc_params,
-                num_scale_params=self._input_data.num_scale_params,
+                feature_isnonzero=self.input_data.feature_isnonzero,
+                num_observations=self.input_data.num_observations,
+                num_features=self.input_data.num_features,
+                num_design_loc_params=self.input_data.num_design_loc_params,
+                num_design_scale_params=self.input_data.num_design_scale_params,
+                num_loc_params=self.input_data.num_loc_params,
+                num_scale_params=self.input_data.num_scale_params,
                 batch_size=batch_size,
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                constraints_loc=self._input_data.constraints_loc,
-                constraints_scale=self._input_data.constraints_scale,
+                constraints_loc=self.input_data.constraints_loc,
+                constraints_scale=self.input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
                 provide_batched=provide_batched,
                 train_loc=self._train_loc,

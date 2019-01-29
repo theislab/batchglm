@@ -65,22 +65,25 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
-        dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
-        batched_data = dataset.batch(batch_size)
-        batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+        logger.debug("building input pipeline")
+        with tf.name_scope("input_pipeline"):
+            dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
+            batched_data = dataset.batch(batch_size)
+            batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
 
-        def map_sparse(idx, data):
-            X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
-            if len(X_tensor_ls) > 1:
-                X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
-                X_tensor = tf.cast(X_tensor, dtype=dtype)
-            else:
-                X_tensor = X_tensor_ls[0]
-            return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
+            def map_sparse(idx, data):
+                X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
+                if len(X_tensor_ls) > 1:
+                    X_tensor = tf.SparseTensor(X_tensor_ls[0], X_tensor_ls[1], X_tensor_ls[2])
+                    X_tensor = tf.cast(X_tensor, dtype=dtype)
+                else:
+                    X_tensor = X_tensor_ls[0]
+                return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-        batched_data = batched_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-        batched_data = batched_data.prefetch(1)
+            batched_data = batched_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            batched_data = batched_data.prefetch(1)
 
+        logger.debug("building likelihood")
         with tf.name_scope("log_likelihood"):
             def init_fun():
                 return tf.zeros([model_vars.n_features], dtype=dtype)
@@ -129,6 +132,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.norm_neg_log_likelihood = norm_neg_log_likelihood
         self.loss = loss
 
+        logger.debug("building jacobians")
         with tf.name_scope("jacobians"):
             # Jacobian of full model for reporting.
             jacobian_full = Jacobians(
@@ -157,6 +161,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.jac = jacobian_full
         self.neg_jac_train = neg_jac_train
 
+        logger.debug("building hessians")
         with tf.name_scope("hessians"):
             # Hessian of full model for reporting.
             hessians_full = Hessians(
@@ -182,6 +187,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             else:
                 neg_hessians_train = None
 
+        logger.debug("building fim")
         with tf.name_scope("fim"):
             if provide_fim:
                 fim_full = FIM(
@@ -411,18 +417,18 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             num_scale_params,
             constraints_loc: xr.DataArray,
             constraints_scale: xr.DataArray,
-            graph: tf.Graph = None,
-            batch_size: int = None,
-            init_a=None,
-            init_b=None,
-            train_loc: bool = True,
-            train_scale: bool = True,
-            provide_optimizers: Union[dict, None] = None,
-            provide_batched: bool = False,
-            termination_type: str = "global",
-            extended_summary=False,
-            noise_model: str = None,
-            dtype="float64"
+            graph: tf.Graph,
+            batch_size: int,
+            init_a,
+            init_b,
+            train_loc: bool,
+            train_scale: bool,
+            provide_optimizers: Union[dict, None],
+            provide_batched: bool,
+            termination_type: str,
+            extended_summary: bool,
+            noise_model: str,
+            dtype: str
     ):
         """
 
@@ -466,7 +472,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, ModelVars, ModelVarsEval, Jacobians, Hessians, FIM
+            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, FIM
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -489,13 +495,14 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         # initial graph elements
         with self.graph.as_default():
 
+            logger.debug("building models variables")
             with tf.name_scope("model_vars"):
                 self.model_vars = ModelVars(
                     dtype=dtype,
                     init_a=init_a,
                     init_b=init_b,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale
+                    constraints_loc=self.constraints_loc,
+                    constraints_scale=self.constraints_scale
                 )
                 self.idx_nonconverged = np.where(self.model_vars.converged == False)[0]
 
@@ -510,8 +517,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 provide_fim = False
 
             with tf.name_scope("batched_data"):
-                logger.debug(" ** Build batched data model")
-
+                logger.debug("building batched data model")
                 if provide_batched:
                     self.batched_data_model = BatchedDataModelGraph(
                         num_observations=self.num_observations,
@@ -519,8 +525,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                         batch_size=batch_size,
                         buffer_size=buffer_size,
                         model_vars=self.model_vars,
-                        constraints_loc=constraints_loc,
-                        constraints_scale=constraints_scale,
+                        constraints_loc=self.constraints_loc,
+                        constraints_scale=self.constraints_scale,
                         train_a=train_loc,
                         train_b=train_scale,
                         noise_model=noise_model,
@@ -531,7 +537,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     self.batched_data_model = None
 
             with tf.name_scope("full_data"):
-                logger.debug(" ** Build full data model")
+                logger.debug("building full data model")
                 # ### alternative definitions for custom observations:
                 sample_selection = tf.placeholder_with_default(
                     tf.range(num_observations),
@@ -544,8 +550,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     fetch_fn=fetch_fn,
                     batch_size=batch_size,
                     model_vars=self.model_vars,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
+                    constraints_loc=self.constraints_loc,
+                    constraints_scale=self.constraints_scale,
                     train_a=train_loc,
                     train_b=train_scale,
                     noise_model=noise_model,
@@ -553,6 +559,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     dtype=dtype
                 )
 
+            logger.debug("building trainers")
             self._run_trainer_init(
                 termination_type=termination_type,
                 provide_optimizers=provide_optimizers,
@@ -576,6 +583,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 self.trainer_batch_delta_f_actual_irls_tr = None
 
             # Define output metrics:
+            logger.debug("building outputs")
             self._set_out_var(
                 feature_isnonzero=feature_isnonzero,
                 dtype=dtype

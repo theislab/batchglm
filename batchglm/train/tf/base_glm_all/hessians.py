@@ -55,7 +55,11 @@ class HessianGLMALL(HessiansGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the einsum to efficiently perform the two outer products and the marginalisation.
-            XH = tf.matmul(design_loc, self.constraints_loc)
+            if self.constraints_loc is not None:
+                XH = tf.matmul(design_loc, self.constraints_loc)
+            else:
+                XH = design_loc
+
             Hblock = tf.einsum('ofc,od->fcd',
                                tf.einsum('of,oc->ofc', W, XH),
                                XH)
@@ -77,7 +81,11 @@ class HessianGLMALL(HessiansGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
-            XH = tf.matmul(design_scale, self.constraints_scale)
+            if self.constraints_scale is not None:
+                XH = tf.matmul(design_scale, self.constraints_scale)
+            else:
+                XH = design_scale
+
             Hblock = tf.einsum('ofc,od->fcd',
                                tf.einsum('of,oc->ofc', W, XH),
                                XH)
@@ -103,8 +111,16 @@ class HessianGLMALL(HessiansGLM):
             # is too large too store in memory in most cases. However, the full 4D tensor is never
             # actually needed but only its marginal across features, the final hessian block shape.
             # Here, we use the Einstein summation to efficiently perform the two outer products and the marginalisation.
-            XHloc = tf.matmul(design_loc, self.constraints_loc)
-            XHscale = tf.matmul(design_scale, self.constraints_scale)
+            if self.constraints_loc is not None:
+                XHloc = tf.matmul(design_loc, self.constraints_loc)
+            else:
+                XHloc = design_loc
+
+            if self.constraints_scale is not None:
+                XHscale = tf.matmul(design_scale, self.constraints_scale)
+            else:
+                XHscale = design_scale
+
             Hblock = tf.einsum('ofc,od->fcd',
                                tf.einsum('of,oc->ofc', W, XHloc),
                                XHscale)

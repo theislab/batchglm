@@ -1,9 +1,7 @@
-from copy import copy, deepcopy
 import logging
 from typing import Union
 
 import numpy as np
-import scipy.sparse
 import tensorflow as tf
 
 from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
@@ -39,6 +37,56 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             extended_summary=False,
             dtype="float64"
     ):
+        """
+        Performs initialisation and creates a new estimator.
+
+        :param input_data: InputData
+            The input data
+        :param batch_size: int
+            Size of mini-batches used.
+        :param graph: (optional) tf.Graph
+        :param init_model: (optional)
+            If provided, this model will be used to initialize this Estimator.
+        :param init_a: (Optional)
+            Low-level initial values for a. Can be:
+
+            - str:
+                * "auto": automatically choose best initialization
+                * "random": initialize with random values
+                * "standard": initialize intercept with observed mean
+                * "init_model": initialize with another model (see `ìnit_model` parameter)
+                * "closed_form": try to initialize with closed form
+            - np.ndarray: direct initialization of 'a'
+        :param init_b: (Optional)
+            Low-level initial values for b. Can be:
+
+            - str:
+                * "auto": automatically choose best initialization
+                * "random": initialize with random values
+                * "standard": initialize with zeros
+                * "init_model": initialize with another model (see `ìnit_model` parameter)
+                * "closed_form": try to initialize with closed form
+            - np.ndarray: direct initialization of 'b'
+        :param quick_scale: bool
+            Whether `scale` will be fitted faster and maybe less accurate.
+            Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
+        :param model: EstimatorGraph
+            EstimatorGraph to use. Basically for debugging.
+        :param provide_optimizers:
+
+            E.g.    {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
+                    "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
+        :param provide_batched: bool
+            Whether mini-batched optimizers should be provided.
+        :param termination_type: str, {"by_feature", "global"}
+            Estimation termination type:
+
+                - "by_feature": Estimation is terminated for each feature individually.
+                - "global" Estimatino is terminated globally for all features.
+        :param extended_summary: Include detailed information in the summaries.
+            Will increase runtime of summary writer, use only for debugging.
+        :param dtype: Precision used in tensorflow.
+        """
         self.TrainingStrategies = TrainingStrategies
 
         self._input_data = input_data
@@ -59,10 +107,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             input_data=input_data,
             batch_size=batch_size,
             graph=graph,
-            init_model=init_model,
             init_a=init_a,
             init_b=init_b,
-            quick_scale=quick_scale,
             model=model,
             provide_optimizers=provide_optimizers,
             provide_batched=provide_batched,
