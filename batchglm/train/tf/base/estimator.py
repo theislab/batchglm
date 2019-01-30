@@ -315,6 +315,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         # Use parameter space convergence as a helper:
                         metric_theta_update = self.session.run(train_op[2])
                         # Evaluate convergence based on maximally varying parameter per gene:
+                        print(metric_theta_update[prev_converged == False])
                         theta_updated = metric_theta_update > pkg_constants.THETA_MIN_LL_BY_FEATURE
                     else:
                         raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
