@@ -573,13 +573,16 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 self.trainer_full_delta_f_actual_nr_tr = self.trainer_full.delta_f_actual_nr_tr
                 self.trainer_full_delta_f_actual_irls_tr = self.trainer_full.delta_f_actual_irls_tr
             else:
+                self.trainer_full_variables_old = None
                 self.trainer_full_delta_f_actual_nr_tr = None
                 self.trainer_full_delta_f_actual_irls_tr = None
 
             if self.trainer_batch is not None:
+                self.trainer_batch_variables_old = self.trainer_batch.variables_old
                 self.trainer_batch_delta_f_actual_nr_tr = self.trainer_batch.delta_f_actual_nr_tr
                 self.trainer_batch_delta_f_actual_irls_tr = self.trainer_batch.delta_f_actual_irls_tr
             else:
+                self.trainer_batch_variables_old = None
                 self.trainer_batch_delta_f_actual_nr_tr = None
                 self.trainer_batch_delta_f_actual_irls_tr = None
 

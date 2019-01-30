@@ -280,26 +280,34 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 if trustregion_mode:
                     ll_prev = ll_current
                     param_val_prev = self.session.run(self.model.model_vars.params)
+                    #if is_nr_tr:
+                    #    feed_dict = {self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
+                    #elif is_irls_tr:
+                    #    feed_dict = {self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
+                    #else:
+                    #    raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
+
                     if convergence_criteria == "all_converged_ll":
                         # Use parameter space convergence as a helper:
-                        metric_theta_update = self.session.run(train_op[0])
+                        metric_theta_update = self.session.run(train_op[0])  #, feed_dict=feed_dict)
                         # Evaluate convergence based on maximally varying parameter per gene:
                         theta_updated = metric_theta_update > pkg_constants.THETA_MIN_LL_BY_FEATURE
 
+                    # Run multiple steps of optimizing trust region:
+                    #for i in range(5):
                     train_step, _ = self.session.run(
                         (self.model.global_step, train_op[1]),
                         feed_dict=feed_dict
                     )
                     ll_current_trial = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
 
-                    # Check approximation based on new and old loss:
-                    ## Check deviation between predicted and observed loss:
                     delta_f_actual = ll_prev - ll_current_trial
                     if is_nr_tr:
                         feed_dict = {self.model.trainer_full_delta_f_actual_nr_tr: delta_f_actual,
                                      self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
                     elif is_irls_tr:
-                        feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual}
+                        feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual,
+                                     self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
                     else:
                         raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
 

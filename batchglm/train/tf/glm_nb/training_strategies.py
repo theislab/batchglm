@@ -27,3 +27,11 @@ class TrainingStrategies(Enum):
             "optim_algo": "nr_tr",
         },
     ]
+    IRLS = [
+        {
+            "convergence_criteria": "all_converged_ll",
+            "stopping_criteria": 1e-8,
+            "use_batching": False,
+            "optim_algo": "irls_tr",
+        },
+    ]

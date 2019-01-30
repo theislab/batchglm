@@ -381,6 +381,9 @@ class MultiTrainer:
 
             if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
                 features_converged = tf.convert_to_tensor(features_converged)
+                self.variables_old = tf.placeholder(shape=variables.shape, dtype=variables.dtype)  # TODO: bypass
+                self.delta_f_actual_nr_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
+
                 # Propose parameter update:
                 newton_tr_delta_step = tf.multiply(tf.expand_dims(nr_tr_radius, 0), newton_tr_delta)
                 theta_new_nr_tr_trial = variables - newton_tr_delta_step
@@ -391,22 +394,9 @@ class MultiTrainer:
                     tf.assign_add(global_step, 1)
                 )
 
-                # Include parameter updates only if update improves cost function:
-                self.delta_f_actual_nr_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
+                # Evaluate trust-region metrics.
                 delta_f_pred_nr_tr = nr_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(self.delta_f_actual_nr_tr, delta_f_pred_nr_tr)
-
-                update_theta = tf.logical_and(
-                    tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1),
-                    tf.logical_not(features_converged)
-                )
-                update_theta_numeric = tf.expand_dims(tf.cast(update_theta, variables.dtype), axis=0)
-                keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
-                self.variables_old = tf.placeholder(shape=variables.shape, dtype=variables.dtype)  # TODO: bypass
-                theta_new_nr_tr = tf.add(
-                    tf.multiply(self.variables_old, keep_theta_numeric),  # old values
-                    tf.multiply(variables, update_theta_numeric)  # new values
-                )
 
                 # Update trusted region accordingly:
                 decrease_radius = tf.logical_and(delta_f_ratio < eta1, tf.logical_not(features_converged))
@@ -421,6 +411,18 @@ class MultiTrainer:
                     tf.multiply(tf.ones_like(t1), keep_radius_numeric)
                 ])
                 nr_tr_radius_new = tf.minimum(tf.multiply(nr_tr_radius, nr_tr_radius_update), upper_bound)
+
+                # Compute parameter updates.
+                update_theta = tf.logical_and(
+                    tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1),
+                    tf.logical_not(features_converged)
+                )
+                update_theta_numeric = tf.expand_dims(tf.cast(update_theta, variables.dtype), axis=0)
+                keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
+                theta_new_nr_tr = tf.add(
+                    tf.multiply(self.variables_old, keep_theta_numeric),  # old values
+                    tf.multiply(variables, update_theta_numeric)  # new values
+                )
 
                 train_op_nr_tr_2 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),

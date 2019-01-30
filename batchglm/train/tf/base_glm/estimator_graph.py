@@ -787,26 +787,26 @@ class NewtonGraphGLM:
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
         # contains zero entries for updates of already converged genes.
-        delta_t_bygene = tf.concat([
-            tf.gather(delta_t_bygene_nonconverged,
-                      indices=np.where(self.idx_nonconverged == i)[0],
-                      axis=0)
-            if not self.model_vars.converged[i]
-            else tf.zeros([1, rhs.shape[1]], dtype=self.model_vars.params.dtype)
-            for i in range(self.model_vars.n_features)
-        ], axis=0)
-        # TODO try this vectorisation:
-        #indices = np.concatenate([
-        #    np.where(self.model_vars.converged)[0],
-        #    np.where(np.logical_not(self.model_vars.converged))[0]
+        #delta_t_bygene = tf.concat([
+        #    tf.gather(delta_t_bygene_nonconverged,
+        #              indices=np.where(self.idx_nonconverged == i)[0],
+        #              axis=0)
+        #    if not self.model_vars.converged[i]
+        #    else tf.zeros([1, rhs.shape[1]], dtype=self.model_vars.params.dtype)
+        #    for i in range(self.model_vars.n_features)
         #], axis=0)
-        #delta_t_bygene = tf.gather(tf.matmul(
-        #    delta_t_bygene_nonconverged,
-        #    tf.eye(num_rows=np.sum(np.logical_not(self.model_vars.converged)),
-        #           num_columns=len(self.model_vars.converged),
-        #           dtype=self.model_vars.params.dtype)
-        #), indices=indices, axis=1)
-        update_tensor = tf.transpose(delta_t_bygene)
+        #update_tensor = tf.transpose(delta_t_bygene)
+        # TODO try this vectorisation:
+        indices = np.concatenate([
+            np.where(self.model_vars.converged)[0],
+            np.where(np.logical_not(self.model_vars.converged))[0]
+        ], axis=0)
+        update_tensor = tf.gather(tf.matmul(
+            tf.transpose(delta_t_bygene_nonconverged),
+            tf.eye(num_rows=np.sum(np.logical_not(self.model_vars.converged)),
+                   num_columns=len(self.model_vars.converged),
+                   dtype=self.model_vars.params.dtype)
+        ), indices=indices, axis=1)
 
         return update_tensor
 
