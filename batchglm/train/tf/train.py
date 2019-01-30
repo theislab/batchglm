@@ -384,7 +384,9 @@ class MultiTrainer:
                 # Propose parameter update:
                 newton_tr_delta_step = tf.multiply(tf.expand_dims(nr_tr_radius, 0), newton_tr_delta)
                 theta_new_nr_tr_trial = variables - newton_tr_delta_step
-                train_op_nr_tr_0 = tf.group(
+
+                train_op_nr_tr_0 = tf.reduce_max(tf.abs(newton_tr_delta_step), axis=0)
+                train_op_nr_tr_1 = tf.group(
                     tf.assign(variables, theta_new_nr_tr_trial),
                     tf.assign_add(global_step, 1)
                 )
@@ -420,14 +422,13 @@ class MultiTrainer:
                 ])
                 nr_tr_radius_new = tf.minimum(tf.multiply(nr_tr_radius, nr_tr_radius_update), upper_bound)
 
-                train_op_nr_tr_1 = tf.group(
+                train_op_nr_tr_2 = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
                     tf.assign(nr_tr_radius, nr_tr_radius_new),
                     tf.assign(features_updated, update_theta)
                 )
 
                 # Record maximal proposed parameter update:
-                train_op_nr_tr_2 = tf.reduce_max(newton_tr_delta_step, axis=0)
                 train_op_nr_tr = [train_op_nr_tr_0,
                                   train_op_nr_tr_1,
                                   train_op_nr_tr_2]
@@ -441,7 +442,8 @@ class MultiTrainer:
                 irls_tr_delta_step = tf.multiply(tf.expand_dims(irls_tr_radius, axis=0), irls_tr_delta)
                 theta_new_irls_tr_trial = variables - irls_tr_delta_step
 
-                train_op_irls_tr_0 = tf.group(
+                train_op_irls_tr_0 = tf.reduce_max(tf.abs(irls_tr_delta_step), axis=0)
+                train_op_irls_tr_1 = tf.group(
                     tf.assign(variables, theta_new_irls_tr_trial),
                     tf.assign_add(global_step, 1)
                 )
@@ -476,14 +478,13 @@ class MultiTrainer:
                 ])
                 irls_tr_radius_new = tf.minimum(tf.multiply(irls_tr_radius, nr_irls_radius_update), upper_bound)
 
-                train_op_irls_tr_1 = tf.group(
+                train_op_irls_tr_2 = tf.group(
                     tf.assign(variables, theta_new_irls_tr),
                     tf.assign(irls_tr_radius, irls_tr_radius_new),
                     tf.assign(features_updated, update_theta)
                 )
 
                 # Record maximal proposed parameter update:
-                train_op_irls_tr_2 = tf.reduce_max(irls_tr_delta_step, axis=0)
                 train_op_irls_tr = [train_op_irls_tr_0,
                                     train_op_irls_tr_1,
                                     train_op_irls_tr_2]
