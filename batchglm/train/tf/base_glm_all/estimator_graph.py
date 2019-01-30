@@ -504,7 +504,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     constraints_loc=self.constraints_loc,
                     constraints_scale=self.constraints_scale
                 )
-                self.idx_nonconverged = np.where(self.model_vars.converged == False)[0]
+                self.idx_nonconverged = np.where(np.logical_not(self.model_vars.converged))[0]
 
             # ### performance related settings
             buffer_size = 4
@@ -569,6 +569,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             )
             # Link placeholders:
             if self.trainer_full is not None:
+                self.trainer_full_variables_old = self.trainer_full.variables_old
                 self.trainer_full_delta_f_actual_nr_tr = self.trainer_full.delta_f_actual_nr_tr
                 self.trainer_full_delta_f_actual_irls_tr = self.trainer_full.delta_f_actual_irls_tr
             else:

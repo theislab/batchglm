@@ -177,23 +177,33 @@ class GradientGraphGLM:
 
     def gradients_full_byfeature(self):
         gradients_full_all = tf.transpose(self.full_data_model.neg_jac_train)
-        gradients_full = tf.concat([
-            tf.expand_dims(gradients_full_all[:, i], axis=-1)
-            if not self.model_vars.converged[i]
-            else tf.zeros([gradients_full_all.shape[1], 1], dtype=self.model_vars.params.dtype)
-            for i in range(self.model_vars.n_features)
-        ], axis=1)
+        gradients_full = tf.multiply(
+            tf.expand_dims(tf.cast(tf.logical_not(tf.convert_to_tensor(
+                self.model_vars.converged)), dtype=self.model_vars.params.dtype), axis=0),
+            gradients_full_all
+        )
+        #gradients_full = tf.concat([
+        #    tf.expand_dims(gradients_full_all[:, i], axis=-1)
+        #    if not self.model_vars.converged[i]
+        #    else tf.zeros([gradients_full_all.shape[1], 1], dtype=self.model_vars.params.dtype)
+        #    for i in range(self.model_vars.n_features)
+        #], axis=1)
 
         self.gradients_full_raw = gradients_full
 
     def gradients_batched_byfeature(self):
         gradients_batch_all = tf.transpose(self.batched_data_model.neg_jac_train)
-        gradients_batch = tf.concat([
-            tf.expand_dims(gradients_batch_all[:, i], axis=-1)
-            if not self.model_vars.converged[i]
-            else tf.zeros([gradients_batch_all.shape[1], 1], dtype=self.model_vars.params.dtype)
-            for i in range(self.model_vars.n_features)
-        ], axis=1)
+        gradients_batch = tf.multiply(
+            tf.expand_dims(tf.cast(tf.logical_not(tf.convert_to_tensor(
+                self.model_vars.converged)), dtype=self.model_vars.params.dtype), axis=0),
+            gradients_batch_all
+        )
+        #gradients_batch = tf.concat([
+        #    tf.expand_dims(gradients_batch_all[:, i], axis=-1)
+        #    if not self.model_vars.converged[i]
+        #    else tf.zeros([gradients_batch_all.shape[1], 1], dtype=self.model_vars.params.dtype)
+        #    for i in range(self.model_vars.n_features)
+        #], axis=1)
 
         self.gradients_batch_raw = gradients_batch
 
@@ -771,8 +781,8 @@ class NewtonGraphGLM:
                 tf.gather(
                     rhs,
                     indices=self.idx_nonconverged,
-                    axis=0)
-                , axis=-1),
+                    axis=0),
+                axis=-1),
             fast=psd and pkg_constants.CHOLESKY_LSTSQS
         ), axis=-1)
         # Write parameter updates into matrix of size of all parameters which
@@ -782,9 +792,20 @@ class NewtonGraphGLM:
                       indices=np.where(self.idx_nonconverged == i)[0],
                       axis=0)
             if not self.model_vars.converged[i]
-            else tf.zeros([1, rhs.shape[1]])
+            else tf.zeros([1, rhs.shape[1]], dtype=self.model_vars.params.dtype)
             for i in range(self.model_vars.n_features)
         ], axis=0)
+        # TODO try this vectorisation:
+        #indices = np.concatenate([
+        #    np.where(self.model_vars.converged)[0],
+        #    np.where(np.logical_not(self.model_vars.converged))[0]
+        #], axis=0)
+        #delta_t_bygene = tf.gather(tf.matmul(
+        #    delta_t_bygene_nonconverged,
+        #    tf.eye(num_rows=np.sum(np.logical_not(self.model_vars.converged)),
+        #           num_columns=len(self.model_vars.converged),
+        #           dtype=self.model_vars.params.dtype)
+        #), indices=indices, axis=1)
         update_tensor = tf.transpose(delta_t_bygene)
 
         return update_tensor
@@ -862,6 +883,7 @@ class TrainerGraphGLM:
                     variables=self.model_vars.params,
                     gradients=self.gradients_batch,
                     features_updated=self.model_vars.updated,
+                    features_converged=self.model_vars.converged,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
                     newton_tr_delta=self.nr_tr_update_batched,
@@ -888,6 +910,7 @@ class TrainerGraphGLM:
                     variables=self.model_vars.params,
                     gradients=self.gradients_full,
                     features_updated=self.model_vars.updated,
+                    features_converged=self.model_vars.converged,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
                     newton_tr_delta=self.nr_tr_update_full,

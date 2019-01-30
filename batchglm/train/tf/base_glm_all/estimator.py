@@ -355,7 +355,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
 
         for idx, d in enumerate(training_strategy):
-            self.model.model_vars.converged = False
             logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
             logger.info("Training sequence #%d complete", idx + 1)
