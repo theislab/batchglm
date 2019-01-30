@@ -414,7 +414,7 @@ class MultiTrainer:
 
                 # Compute parameter updates.
                 update_theta = tf.logical_and(
-                    tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1),
+                    self.delta_f_actual_nr_tr > eta0,  #tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1),
                     tf.logical_not(features_converged)
                 )
                 update_theta_numeric = tf.expand_dims(tf.cast(update_theta, variables.dtype), axis=0)
