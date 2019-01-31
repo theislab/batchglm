@@ -14,7 +14,7 @@ class TrainingStrategies(Enum):
     INEXACT = [
         {
             "convergence_criteria": "all_converged_ll",
-            "stopping_criteria": 1e-4,
+            "stopping_criteria": 1e-6,
             "use_batching": False,
             "optim_algo": "nr_tr",
         },

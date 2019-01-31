@@ -123,6 +123,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
         self.num_observations = num_observations
+        self.idx_train_loc = None  #TODO
+        self.idx_train_scale = None
 
         self.batched_data = batched_data
         self.sample_indices = sample_indices
