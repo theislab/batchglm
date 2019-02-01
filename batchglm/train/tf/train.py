@@ -388,7 +388,7 @@ class MultiTrainer:
                 newton_tr_delta_step = tf.multiply(tf.expand_dims(nr_tr_radius, 0), newton_tr_delta)
                 theta_new_nr_tr_trial = variables - newton_tr_delta_step
 
-                train_op_nr_tr_0 = tf.reduce_max(tf.abs(newton_tr_delta_step), axis=0)
+                train_op_nr_tr_0 = newton_tr_delta_step
                 train_op_nr_tr_1 = tf.group(
                     tf.assign(variables, theta_new_nr_tr_trial),
                     tf.assign_add(global_step, 1)
@@ -396,6 +396,7 @@ class MultiTrainer:
 
                 # Evaluate trust-region metrics.
                 delta_f_pred_nr_tr = nr_tr_pred_cost_gain
+                train_op_nr_tr_5 = delta_f_pred_nr_tr
                 delta_f_ratio = tf.divide(self.delta_f_actual_nr_tr, delta_f_pred_nr_tr)
 
                 # Update trusted region accordingly:
@@ -433,7 +434,8 @@ class MultiTrainer:
                 # Record maximal proposed parameter update:
                 train_op_nr_tr = [train_op_nr_tr_0,
                                   train_op_nr_tr_1,
-                                  train_op_nr_tr_2]
+                                  train_op_nr_tr_2,
+                                  train_op_nr_tr_5]
             else:
                 self.delta_f_actual_nr_tr = None
                 train_op_nr_tr = None

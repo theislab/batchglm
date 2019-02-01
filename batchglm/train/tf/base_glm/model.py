@@ -123,6 +123,8 @@ class ModelVarsGLM(ProcessModelGLM):
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
         self.n_features = self.params.shape[1]
+        self.idx_train_loc = np.arange(0, init_a.shape[0])
+        self.idx_train_scale = np.arange(init_a.shape[0], init_a.shape[0]+init_b.shape[0])
 
     @abc.abstractmethod
     def param_bounds(self, dtype):

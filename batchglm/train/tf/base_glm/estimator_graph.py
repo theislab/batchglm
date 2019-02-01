@@ -343,7 +343,9 @@ class NewtonGraphGLM:
                     ) / n_obs,
                     0.5 * tf.einsum(
                         'nix,xin->n',
-                        tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_full, axis=-1), nr_B_full),
+                        tf.einsum('inx,nij->njx',
+                                  tf.expand_dims(nr_tr_proposed_vector_full, axis=-1),
+                                  self.full_data_model.neg_hessians_train),
                         tf.expand_dims(nr_tr_proposed_vector_full, axis=0)
                     ) / tf.square(n_obs)
                 )
@@ -358,7 +360,9 @@ class NewtonGraphGLM:
                         ) / n_obs,
                         0.5 * tf.einsum(
                             'nix,xin->n',
-                            tf.einsum('inx,nij->njx', tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1), nr_B_batched),
+                            tf.einsum('inx,nij->njx',
+                                      tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1),
+                                      self.batched_data_model.neg_hessians_train),
                             tf.expand_dims(nr_tr_proposed_vector_batched, axis=0)
                         ) / tf.square(n_obs)
                     )

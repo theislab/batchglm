@@ -123,8 +123,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
         self.num_observations = num_observations
-        self.idx_train_loc = None  #TODO
-        self.idx_train_scale = None
+        self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
+        self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
 
         self.batched_data = batched_data
         self.sample_indices = sample_indices

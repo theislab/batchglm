@@ -290,8 +290,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     if convergence_criteria == "all_converged_ll":
                         # Use parameter space convergence as a helper:
                         theta_update = np.abs(self.session.run(train_op[0]))  #, feed_dict=feed_dict)
-                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=1)
-                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=1)
+                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=0)
+                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=0)
 
                     # Run multiple steps of optimizing trust region:
                     #for i in range(5):
@@ -300,6 +300,10 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         feed_dict=feed_dict
                     )
                     ll_current_trial = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                    #print("flag")
+                    #print(ll_prev[np.logical_not(prev_converged)])
+                    #print(ll_current_trial[np.logical_not(prev_converged)])
+                    print(self.session.run(train_op[3])[np.logical_not(prev_converged)])
 
                     delta_f_actual = ll_prev - ll_current_trial
                     if is_nr_tr:
@@ -345,8 +349,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         metric_delta = (metric_prev - metric_current) / metric_prev
                         # Use parameter space convergence as a helper:
                         theta_update = np.abs(self.session.run(train_op[0]))  # , feed_dict=feed_dict)
-                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=1)
-                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=1)
+                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=0)
+                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=0)
                     else:
                         raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
@@ -366,11 +370,22 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         prev_converged,
                         np.logical_and(metric_converged, features_updated)
                 )
+                converged_f = np.logical_and(
+                    np.logical_not(prev_converged),
+                    np.logical_and(metric_converged, features_updated)
+                )
                 # Evaluate normalized gradient convergence:
                 jac_train = np.abs(self.session.run(self.model.full_data_model.neg_jac_train))
                 n_obs = self.model.full_data_model.num_observations
-                grad_norm_loc = np.sum(jac_train[self.model.full_data_model.idx_train_loc, :], axis=1) / n_obs
-                grad_norm_scale = np.sum(jac_train[self.model.full_data_model.idx_train_scale, :], axis=1) / n_obs
+                grad_norm_loc = np.sum(jac_train[:, self.model.full_data_model.idx_train_loc], axis=1) / n_obs
+                grad_norm_scale = np.sum(jac_train[:, self.model.full_data_model.idx_train_scale], axis=1) / n_obs
+                converged_g = np.logical_and(
+                    np.logical_not(prev_converged),
+                    np.logical_and(
+                        grad_norm_loc < pkg_constants.GTOL_LL_BY_FEATURE_LOC,
+                        grad_norm_scale < pkg_constants.GTOL_LL_BY_FEATURE_SCALE
+                    )
+                )
                 self.model.model_vars.converged = np.logical_or(
                     self.model.model_vars.converged,
                     np.logical_and(
@@ -379,6 +394,13 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     )
                 )
                 if convergence_criteria == "all_converged_ll":
+                    converged_x = np.logical_and(
+                        np.logical_not(prev_converged),
+                        np.logical_and(
+                            x_norm_loc < pkg_constants.XTOL_LL_BY_FEATURE_LOC,
+                            x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
+                        )
+                    )
                     self.model.model_vars.converged = np.logical_or(
                         self.model.model_vars.converged,
                         np.logical_and(
@@ -391,12 +413,13 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 currently_converged = self.model.model_vars.converged.copy()
                 tf.logging.info(
-                    "Step: %d loss: %f models converged %i in %s sec., models updated %i",
+                    "Step: %d loss: %f models converged %i in %s sec., models updated %i, {f: %i, g: %i, x: %i}",
                     train_step,
                     loss_global,
                     np.sum(currently_converged).astype("int32"),
                     str(np.round(t1 - t0, 3)),
-                    np.sum(np.logical_and(features_updated, prev_converged == False)).astype("int32")
+                    np.sum(np.logical_and(features_updated, prev_converged == False)).astype("int32"),
+                    np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
                 )
 
                 # Follow trust region radius:
@@ -407,6 +430,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         tr_radius = self.session.run(self.model.irls_tr_radius)
                     else:
                         raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
+
+                    print(tr_radius[np.logical_not(prev_converged)])
                     if np.any(np.logical_not(currently_converged)):
                         tr_radius = tr_radius[np.logical_not(currently_converged)]
                         tf.logging.debug(
