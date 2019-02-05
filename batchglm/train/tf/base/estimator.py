@@ -287,36 +287,54 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                     if convergence_criteria == "all_converged_ll":
                         # Use parameter space convergence as a helper:
-                        theta_update = np.abs(self.session.run(train_op[0]))  #, feed_dict=feed_dict)
                         if len(self.model.full_data_model.idx_train_loc) > 0:
                             x_norm_loc = np.sqrt(np.sum(np.square(
-                                theta_update[self.model.full_data_model.idx_train_loc, :]), axis=0))
+                                np.abs(self.session.run(train_op["x_step_a"]))
+                            ), axis=0))
                         else:
                             x_norm_loc = np.zeros([self.model.model_vars.n_features])
 
                         if len(self.model.full_data_model.idx_train_scale) > 0:
                             x_norm_scale = np.sqrt(np.sum(np.square(
-                                theta_update[self.model.full_data_model.idx_train_scale, :]), axis=0))
+                                np.abs(self.session.run(train_op["x_step_b"]))
+                            ), axis=0))
                         else:
                             x_norm_scale = np.zeros([self.model.model_vars.n_features])
 
                     train_step, _ = self.session.run(
-                        (self.model.global_step, train_op[1]),
+                        (self.model.global_step, train_op["trial_update_a"]),
                         feed_dict=feed_dict
                     )
-                    ll_current_trial = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                    ll_current_trial_loc = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
 
-                    delta_f_actual = ll_prev - ll_current_trial
+                    delta_f_actual_loc = ll_prev - ll_current_trial_loc
                     if is_nr_tr:
-                        feed_dict = {self.model.trainer_full_delta_f_actual_nr_tr: delta_f_actual,
+                        feed_dict = {self.model.trainer_full_delta_f_actual_nr_tr: delta_f_actual_loc,
                                      self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
                     elif is_irls_tr:
-                        feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual,
+                        feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual_loc,
                                      self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
                     else:
                         raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
 
-                    _ = self.session.run(train_op[2], feed_dict=feed_dict)
+                    _ = self.session.run(train_op["update_a"], feed_dict=feed_dict)
+
+                    ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+
+                    _ = self.session.run(train_op["trial_update_b"], feed_dict=feed_dict)
+                    ll_current_trial_scale = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+
+                    delta_f_actual_scale = ll_current - ll_current_trial_scale
+                    if is_nr_tr:
+                        feed_dict = {self.model.trainer_full_delta_f_actual_nr_tr: delta_f_actual_scale,
+                                     self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
+                    elif is_irls_tr:
+                        feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual_scale,
+                                     self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
+                    else:
+                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
+
+                    _ = self.session.run(train_op["update_b"], feed_dict=feed_dict)
 
                     ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
                     assert np.all(ll_current <= ll_prev), "update error"

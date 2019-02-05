@@ -174,7 +174,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     )
 
                     # train mu, if the closed-form solution is inaccurate
-                    self._train_loc = not np.all(rmsd_a == 0)
+                    self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
 
                     if input_data.size_factors is not None:
                         if np.any(input_data.size_factors != 1):
