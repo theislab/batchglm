@@ -111,7 +111,7 @@ class Test_Accuracy_GLM_ALL(
             else:
                 raise ValueError("noise_model not recognized")
 
-        return Simulator(num_observations=1000, num_features=50)
+        return Simulator(num_observations=1000, num_features=500)
 
     def basic_test(
             self,
@@ -170,8 +170,8 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_byfeature_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
 
         self.noise_model = "nb"

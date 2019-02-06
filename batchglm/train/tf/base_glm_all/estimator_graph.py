@@ -572,8 +572,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             # Link placeholders:
             if self.trainer_full is not None:
                 self.trainer_full_variables_old = self.trainer_full.variables_old
-                self.trainer_full_delta_f_actual_nr_tr = self.trainer_full.delta_f_actual_nr_tr
-                self.trainer_full_delta_f_actual_irls_tr = self.trainer_full.delta_f_actual_irls_tr
+                #self.trainer_full_delta_f_actual_nr_tr = self.trainer_full.delta_f_actual_nr_tr
+                #self.trainer_full_delta_f_actual_irls_tr = self.trainer_full.delta_f_actual_irls_tr
             else:
                 self.trainer_full_variables_old = None
                 self.trainer_full_delta_f_actual_nr_tr = None
@@ -590,6 +590,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
             # Define output metrics:
             logger.debug("building outputs")
+            self.test = tf.constant(0)
             self._set_out_var(
                 feature_isnonzero=feature_isnonzero,
                 dtype=dtype

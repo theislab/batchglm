@@ -158,6 +158,7 @@ class FIMGLM:
             )
 
         # Save as variables:
+        # With relay across tf.Variable:
         self.fim_a = tf.Variable(tf.zeros([model_vars.n_features,
                                            model_vars.a_var.shape[0],
                                            model_vars.a_var.shape[0]], dtype=dtype), dtype=dtype)
@@ -170,6 +171,10 @@ class FIMGLM:
         self.fim_b_set = tf.assign(self.fim_b, fim_b[1])
         self.fim_ab_set = tf.group(tf.assign(self.fim_a, fim_ab[0]),
                                    tf.assign(self.fim_b, fim_ab[1]))
+
+        # Without relay across tf.Variable:
+        #self.fim_a = fim_ab[0]
+        #self.fim_b = fim_ab[1]
 
     @abc.abstractmethod
     def analytic(

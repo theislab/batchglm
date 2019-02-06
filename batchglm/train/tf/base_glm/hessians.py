@@ -144,33 +144,50 @@ class HessiansGLM:
 
         # Assign jacobian blocks.
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+
+        # With relay across tf.Variable:
         if self._compute_hess_a and self._compute_hess_b:
-            H_a = H[:, :p_shape_a, :p_shape_a]
-            H_b = H[:, p_shape_a:, p_shape_a:]
-            negH = tf.negative(H)
-            negH_a = tf.negative(H_a)
-            negH_b = tf.negative(H_b)
+            self.hessian = tf.Variable(tf.zeros([model_vars.n_features,
+                                                 model_vars.params.shape[0],
+                                                 model_vars.params.shape[0]], dtype=dtype), dtype=dtype)
+            self.hessian_aa = self.hessian[:, :p_shape_a, :p_shape_a]
+            self.hessian_bb = self.hessian[:, p_shape_a:, p_shape_a:]
         elif self._compute_hess_a and not self._compute_hess_b:
-            H_a = H
-            H_b = None
-            negH = tf.negative(H)
-            negH_a = tf.negative(H_a)
-            negH_b = None
+            self.hessian = tf.Variable(tf.zeros([model_vars.n_features,
+                                                 model_vars.a_var.shape[0],
+                                                 model_vars.a_var.shape[0]], dtype=dtype), dtype=dtype)
+            self.hessian_aa = self.hessian
+            self.hessian_bb = None
         elif not self._compute_hess_a and self._compute_hess_b:
-            H_a = None
-            H_b = H
-            negH = tf.negative(H)
-            negH_a = None
-            negH_b = tf.negative(H_b)
+            self.hessian = tf.Variable(tf.zeros([model_vars.n_features,
+                                                 model_vars.b_var.shape[0],
+                                                 model_vars.b_var.shape[0]], dtype=dtype), dtype=dtype)
+            self.hessian_aa = self.hessian
+            self.hessian_bb = None
         else:
             raise ValueError("either require jac_a or jac_b")
 
-        self.hessian = H
-        self.hessian_aa = H_a
-        self.hessian_bb = H_b
-        self.neg_hessian = negH
-        self.neg_hessian_aa = negH_a
-        self.neg_hessian_bb = negH_b
+        # Save as variables:
+        self.hessian_set = tf.assign(self.hessian, H)
+
+        # Without relay across tf.Variable:
+        #self.hessian = H
+        #if self._compute_hess_a and self._compute_hess_b:
+        #    self.hessian_aa = H[:, :p_shape_a, :p_shape_a]
+        #    self.hessian_bb = H[:, p_shape_a:, p_shape_a:]
+        #elif self._compute_hess_a and not self._compute_hess_b:
+        #    self.hessian_aa = H[:, :p_shape_a, :p_shape_a]
+        #    self.hessian_bb = None
+        #elif not self._compute_hess_a and self._compute_hess_b:
+        #    self.hessian_aa = None
+        #    self.hessian_bb = H[:, p_shape_a:, p_shape_a:]
+        #else:
+        #    self.hessian_aa = None
+        #    self.hessian_bb = None
+
+        self.neg_hessian = tf.negative(self.hessian) if self.hessian is not None else None
+        self.neg_hessian_aa = tf.negative(self.hessian_aa) if self.hessian_aa is not None else None
+        self.neg_hessian_bb = tf.negative(self.hessian_bb) if self.hessian_bb is not None else None
 
     def byobs(
             self,

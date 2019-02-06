@@ -297,28 +297,16 @@ class NewtonGraphGLM:
                     dtype=dtype
                 )
 
-                #trust_region_diagonal_full = tf.stack([
-                #    tf.diag(nr_tr_radius[i] * tf.diag_part(self.full_data_model.neg_hessians_train[i,:,:]))
-                #    for i in range(nr_tr_radius.shape[0])
-                #])
-                nr_B_full = self.full_data_model.neg_hessians_train #+ trust_region_diagonal_full
-
-                if self.batched_data_model is not None:
-                    trust_region_diagonal_batched = tf.stack([
-                        tf.diag(nr_tr_radius[i] * tf.diag_part(self.batched_data_model.neg_hessians_train[i, :, :]))
-                        for i in range(nr_tr_radius.shape[0])
-                    ])
-                    nr_B_batched = self.batched_data_model.neg_hessians_train + trust_region_diagonal_batched
-                else:
-                    nr_B_batched = None
-
                 if self.batched_data_model is None:
+                    batched_lhs = None
                     batched_rhs = None
                 else:
+                    batched_lhs = self.batched_data_model.neg_hessians_train
                     batched_rhs = self.batched_data_model.neg_jac_train
+
                 nr_tr_update_full_raw, nr_tr_update_batched_raw = self.build_updates(
-                    full_lhs=nr_B_full,
-                    batched_lhs=nr_B_batched,
+                    full_lhs=self.full_data_model.neg_hessians_train,
+                    batched_lhs=batched_lhs,
                     full_rhs=self.full_data_model.neg_jac_train,
                     batched_rhs=batched_rhs,
                     termination_type=termination_type,
@@ -389,6 +377,7 @@ class NewtonGraphGLM:
                     else:
                         batched_lhs = self.batched_data_model.fim.fim_a
                         batched_rhs = self.batched_data_model.jac.neg_jac_a
+
                     irls_update_a_full, irls_update_a_batched = self.build_updates(
                         full_lhs=self.full_data_model.fim.fim_a,
                         batched_lhs=batched_lhs,
@@ -409,6 +398,7 @@ class NewtonGraphGLM:
                     else:
                         batched_lhs = self.batched_data_model.fim.fim_b
                         batched_rhs = self.batched_data_model.jac.neg_jac_b
+
                     irls_update_b_full, irls_update_b_batched = self.build_updates(
                         full_lhs=self.full_data_model.fim.fim_b,
                         batched_lhs=batched_lhs,
@@ -816,6 +806,7 @@ class TrainerGraphGLM:
     batch_size: int
 
     session: tf.Session
+    graph: tf.Graph
 
     def __init__(
             self,
@@ -842,10 +833,12 @@ class TrainerGraphGLM:
                     irls_tr_delta=self.irls_tr_update_batched,
                     irls_tr_radius=self.irls_tr_radius,
                     irls_tr_pred_cost_gain=self.irls_tr_pred_cost_gain_batched,
+                    ll=self.batched_data_model.norm_neg_log_likelihood,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     provide_optimizers=provide_optimizers,
+                    graph=self.graph,
                     name="batch_data_trainers"
                 )
                 batch_gradient = trainer_batch.plain_gradient_by_variable(self.model_vars.params)
@@ -869,10 +862,12 @@ class TrainerGraphGLM:
                     irls_tr_delta=self.irls_tr_update_full,
                     irls_tr_radius=self.irls_tr_radius,
                     irls_tr_pred_cost_gain=self.irls_tr_pred_cost_gain_full,
+                    ll=self.full_data_model.norm_neg_log_likelihood,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
                     provide_optimizers=provide_optimizers,
+                    graph=self.graph,
                     name="full_data_trainers"
                 )
                 full_gradient = trainer_full.plain_gradient_by_variable(self.model_vars.params)

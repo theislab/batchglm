@@ -135,6 +135,7 @@ class JacobiansGLM:
 
         # Assign Jacobian blocks.
         p_shape_a = model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
+
         if self._compute_jac_a and self._compute_jac_b:
             J_a = J[:, :p_shape_a]
             J_b = J[:, p_shape_a:]
@@ -145,6 +146,7 @@ class JacobiansGLM:
             J_a = None
             J_b = J
 
+        # With relay across tf.Variable:
         self.jac_a = tf.Variable(tf.zeros([model_vars.n_features,
                                            model_vars.a_var.shape[0]], dtype=dtype), dtype=dtype)
         self.jac_b = tf.Variable(tf.zeros([model_vars.n_features,
@@ -162,9 +164,14 @@ class JacobiansGLM:
         self.jac_b_set = tf.assign(self.jac_b, J_b)
         self.jac_ab_set = tf.group(tf.assign(self.jac_a, J_a), tf.assign(self.jac_b, J_b))
 
+        # Without relay across tf.Variable:
+        #self.jac_a = J_a
+        #self.jac_b = J_b
+        #self.jac = J
+
         self.neg_jac = tf.negative(self.jac)
-        self.neg_jac_a = -self.jac_a
-        self.neg_jac_b = -self.jac_b
+        self.neg_jac_a = -self.jac_a if self.jac_a is not None else None
+        self.neg_jac_b = -self.jac_b if self.jac_b is not None else None
 
     def analytic(
             self,
