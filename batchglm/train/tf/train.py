@@ -228,7 +228,7 @@ class MultiTrainer:
             features_converged: np.ndarray = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
-            newton_tr_delta: tf.Tensor = None,
+            nr_tr_delta: tf.Tensor = None,
             nr_tr_radius: tf.Variable = None,
             nr_tr_pred_cost_gain: tf.Tensor = None,
             irls_tr_delta: Union[tf.Tensor, None] = None,
@@ -389,43 +389,50 @@ class MultiTrainer:
                 t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=variables.dtype)
                 upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=variables.dtype)
 
-            if provide_optimizers["nr_tr"] and newton_tr_delta is not None:
+            if provide_optimizers["nr_tr"] and nr_tr_delta is not None:
+                logger.debug(" *** Building optimizer: NR_TR")
                 features_converged = tf.convert_to_tensor(features_converged)
                 self.variables_old = tf.placeholder(shape=variables.shape, dtype=variables.dtype)  # TODO: bypass
                 self.delta_f_actual_nr_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
-                train_op_nr_tr_5 = nr_tr_pred_cost_gain
 
                 # Propose parameter update:
-                newton_tr_delta_step = newton_tr_delta  #tf.multiply(tf.expand_dims(nr_tr_radius, 0), newton_tr_delta)
-                theta_new_nr_tr_trial = variables - newton_tr_delta_step
+                nr_tr_delta_magnitude = tf.sqrt(tf.reduce_sum(tf.square(nr_tr_delta), axis=0))
+                nr_tr_delta_norm = tf.divide(nr_tr_delta, nr_tr_delta_magnitude)
+                nr_tr_delta_scale = tf.minimum(
+                    nr_tr_radius,
+                    nr_tr_delta_magnitude
+                )
+                nr_tr_delta_step = tf.multiply(
+                    nr_tr_delta_norm,
+                    nr_tr_delta_scale
+                )
 
-                train_op_nr_tr_0 = newton_tr_delta_step
-                train_op_nr_tr_1 = tf.group(
+                theta_new_nr_tr_trial = variables - nr_tr_delta_step
+
+                train_op_nr_tr_trial = tf.group(
                     tf.assign(variables, theta_new_nr_tr_trial),
                     tf.assign_add(global_step, 1)
                 )
 
-                # Evaluate trust-region metrics.
+                # Include parameter updates only if update improves cost function:
                 delta_f_pred_nr_tr = nr_tr_pred_cost_gain
                 delta_f_ratio = tf.divide(self.delta_f_actual_nr_tr, delta_f_pred_nr_tr)
 
                 # Update trusted region accordingly:
                 decrease_radius = tf.logical_and(delta_f_ratio < eta1, tf.logical_not(features_converged))
                 increase_radius = tf.logical_and(delta_f_ratio > eta2, tf.logical_not(features_converged))
-                keep_radius = tf.logical_and(tf.logical_not(decrease_radius), tf.logical_not(increase_radius))
-                decrease_radius_numeric = tf.cast(decrease_radius, variables.dtype)
-                increase_radius_numeric = tf.cast(increase_radius, variables.dtype)
-                keep_radius_numeric = tf.cast(keep_radius, variables.dtype)
+                keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
+                                             tf.logical_not(increase_radius))
                 nr_tr_radius_update = tf.add_n([
-                    tf.multiply(t1, decrease_radius_numeric),
-                    tf.multiply(t2, increase_radius_numeric),
-                    tf.multiply(tf.ones_like(t1), keep_radius_numeric)
+                    tf.multiply(t1, tf.cast(decrease_radius, variables.dtype)),
+                    tf.multiply(t2, tf.cast(increase_radius, variables.dtype)),
+                    tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, variables.dtype))
                 ])
                 nr_tr_radius_new = tf.minimum(tf.multiply(nr_tr_radius, nr_tr_radius_update), upper_bound)
 
                 # Compute parameter updates.
                 update_theta = tf.logical_and(
-                    self.delta_f_actual_nr_tr > eta0,  #tf.logical_and(self.delta_f_actual_nr_tr > eta0, delta_f_ratio > eta1),
+                    self.delta_f_actual_nr_tr > eta0,
                     tf.logical_not(features_converged)
                 )
                 update_theta_numeric = tf.expand_dims(tf.cast(update_theta, variables.dtype), axis=0)
@@ -435,17 +442,18 @@ class MultiTrainer:
                     tf.multiply(variables, update_theta_numeric)  # new values
                 )
 
-                train_op_nr_tr_2 = tf.group(
+                train_op_nr_tr_update = tf.group(
                     tf.assign(variables, theta_new_nr_tr),
                     tf.assign(nr_tr_radius, nr_tr_radius_new),
                     tf.assign(features_updated, update_theta)
                 )
 
                 # Record maximal proposed parameter update:
-                train_op_nr_tr = [train_op_nr_tr_0,
-                                  train_op_nr_tr_1,
-                                  train_op_nr_tr_2,
-                                  train_op_nr_tr_5]
+                train_op_nr_tr = {
+                    "x_step": nr_tr_delta_step,
+                    "trial_update": train_op_nr_tr_trial,
+                    "update": train_op_nr_tr_update
+                }
             else:
                 self.delta_f_actual_nr_tr = None
                 train_op_nr_tr = None

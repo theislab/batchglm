@@ -366,18 +366,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     np.logical_and(ll_converged, features_updated)
                 )
                 # Evaluate normalized gradient convergence:
-                t_flag_0 = time.time()
                 jac_train = np.abs(self.session.run(self.model.full_data_model.neg_jac_train))
-                t_flag_1 = time.time()
-                print("flag time %f" % (t_flag_1 - t_flag_0))
-                t_flag_0 = time.time()
-                _ = np.abs(self.session.run(self.model.full_data_model.jac.jac))
-                t_flag_1 = time.time()
-                print("flag time %f" % (t_flag_1 - t_flag_0))
-                t_flag_0 = time.time()
-                _ = np.abs(self.session.run(self.model.full_data_model.jac.jac_a))
-                t_flag_1 = time.time()
-                print("flag time %f" % (t_flag_1 - t_flag_0))
                 n_obs = self.model.full_data_model.num_observations
                 grad_norm_loc = np.sum(jac_train[:, self.model.full_data_model.idx_train_loc], axis=1) / n_obs
                 grad_norm_scale = np.sum(jac_train[:, self.model.full_data_model.idx_train_scale], axis=1) / n_obs
