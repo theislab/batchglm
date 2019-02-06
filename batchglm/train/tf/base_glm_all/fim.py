@@ -16,7 +16,9 @@ class FIMGLMALL(FIMGLM):
     def analytic(
             self,
             sample_indices,
-            batched_data
+            batched_data,
+            return_a,
+            return_b
     ):
         """
         Compute the closed-form of the base_glm_all model hessian
@@ -58,10 +60,10 @@ class FIMGLMALL(FIMGLM):
             else:
                 XH = design_loc
 
-            FIM = tf.einsum('ofc,od->fcd',
+            fim = tf.einsum('ofc,od->fcd',
                             tf.einsum('of,oc->ofc', W, XH),
                             XH)
-            return FIM
+            return fim
 
         def _b_byobs(X, design_scale, mu, r):
             """
@@ -84,12 +86,12 @@ class FIMGLMALL(FIMGLM):
             else:
                 XH = design_scale
 
-            FIM = tf.einsum('ofc,od->fcd',
+            fim = tf.einsum('ofc,od->fcd',
                             tf.einsum('of,oc->ofc', W, XH),
                             XH)
-            return FIM
+            return fim
 
-        def assemble_batch(idx, data):
+        def assemble_batch(idx, data, return_a, return_b):
             """
             Assemble hessian of a single observation across all features.
 
@@ -130,22 +132,23 @@ class FIMGLMALL(FIMGLM):
             # treated independently and the full fisher information matrix is never required.
             # Here, the non-zero model-wise diagonal blocks are computed and returned
             # as a dictionary. The according score function vectors are also returned as a dictionary.
-            if self._update_a and self._update_b:
+            if return_a and return_b:
                 fim_a = _a_byobs(design_loc=design_loc, mu=mu, r=r)
                 fim_b = _b_byobs(X=X, design_scale=design_scale, mu=mu, r=r)
-            elif self._update_a and not self._update_b:
+            elif return_a and not return_b:
                 fim_a = _a_byobs(design_loc=design_loc, mu=mu, r=r)
-                fim_b = tf.zeros(shape=(), dtype=self.dtype)
-            elif not self._update_a and self._update_b:
-                fim_a = tf.zeros(shape=(), dtype=self.dtype)
+                fim_b = tf.zeros((), dtype=self.dtype)
+            elif not return_a and return_b:
+                fim_a = tf.zeros((), dtype=self.dtype)
                 fim_b = _b_byobs(X=X, design_scale=design_scale, mu=mu, r=r)
             else:
-                raise ValueError("either require hess_a or hess_b")
+                assert False
 
-            return fim_a, fim_b
+            fim = (fim_a, fim_b)
+            return fim
 
         p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
         p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
 
-        FIM = assemble_batch(idx=sample_indices, data=batched_data)
-        return FIM
+        fim = assemble_batch(idx=sample_indices, data=batched_data, return_a=return_a, return_b=return_b)
+        return fim

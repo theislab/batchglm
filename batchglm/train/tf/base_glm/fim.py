@@ -34,7 +34,7 @@ class FIMGLM:
             noise_model: str,
             dtype,
             iterator=True,
-            update_a=True,
+            update_a=True,  # TODO remove
             update_b=True,
     ):
         """ Return computational graph for hessian based on mode choice.
@@ -87,60 +87,97 @@ class FIMGLM:
         self.constraints_scale = constraints_scale
         self.model_vars = model_vars
         self.dtype = dtype
-        self._update_a = update_a
-        self._update_b = update_b
 
-        def map_fun(idx, data):
+        def map_fun(idx, data, return_a, return_b):
             return self.analytic(
                 sample_indices=idx,
-                batched_data=data
+                batched_data=data,
+                return_a=return_a,
+                return_b=return_b
             )
 
         def reduce_fun(old, new):
-            fim_a = tf.add(old[0], new[0])
-            fim_b = tf.add(old[1], new[1])
-            return fim_a, fim_b
+            fim = (tf.add(old[0], new[0]), tf.add(old[1], new[1]))
 
-        def init_fun():
-            if self._update_a and self._update_b:
+            return fim
+
+        def init_fun(return_a, return_b):
+            if return_a and return_b:
                 return (tf.zeros([model_vars.n_features,
                                   model_vars.a_var.shape[0],
                                   model_vars.a_var.shape[0]], dtype=dtype),
                         tf.zeros([model_vars.n_features,
                                   model_vars.b_var.shape[0],
                                   model_vars.b_var.shape[0]], dtype=dtype))
-            elif self._update_a and not self._update_b:
+            elif return_a and not return_b:
                 return (tf.zeros([model_vars.n_features,
                                   model_vars.a_var.shape[0],
                                   model_vars.a_var.shape[0]], dtype=dtype),
                         tf.zeros((), dtype=dtype))
-            elif not self._update_a and self._update_b:
+            elif not return_a and return_b:
                 return (tf.zeros((), dtype=dtype),
                         tf.zeros([model_vars.n_features,
                                   model_vars.b_var.shape[0],
                                   model_vars.b_var.shape[0]], dtype=dtype))
+            else:
+                assert False, "chose at least one of return_a and return_a"
 
         if iterator:
             # Perform a reduction operation across data set.
-            fim_a, fim_b = batched_data.reduce(
-                initial_state=init_fun(),
-                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]))
+            fim_a = batched_data.reduce(
+                initial_state=init_fun(return_a=True, return_b=False),
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1], return_a=True, return_b=False))
+            )
+            fim_b = batched_data.reduce(
+                initial_state=init_fun(return_a=False, return_b=True),
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1], return_a=False, return_b=True))
+            )
+            fim_ab = batched_data.reduce(
+                initial_state=init_fun(return_a=True, return_b=True),
+                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1], return_a=True, return_b=True))
             )
         else:
             # Only evaluate FIM for given data batch.
-            fim_a, fim_b = map_fun(
+            fim_a = map_fun(
                 idx=sample_indices,
-                data=batched_data
+                data=batched_data,
+                return_a=True,
+                return_b=False
+            )
+            fim_b = map_fun(
+                idx=sample_indices,
+                data=batched_data,
+                return_a=False,
+                return_b=True
+            )
+            fim_ab = map_fun(
+                idx=sample_indices,
+                data=batched_data,
+                return_a=True,
+                return_b=True
             )
 
-        self.fim_a = fim_a
-        self.fim_b = fim_b
+        # Save as variables:
+        self.fim_a = tf.Variable(tf.zeros([model_vars.n_features,
+                                           model_vars.a_var.shape[0],
+                                           model_vars.a_var.shape[0]], dtype=dtype), dtype=dtype)
+        self.fim_b = tf.Variable(tf.zeros([model_vars.n_features,
+                                           model_vars.b_var.shape[0],
+                                           model_vars.b_var.shape[0]], dtype=dtype), dtype=dtype)
+        self.fim_ab = (self.fim_a, self.fim_b)
+
+        self.fim_a_set = tf.assign(self.fim_a, fim_a[0])
+        self.fim_b_set = tf.assign(self.fim_b, fim_b[1])
+        self.fim_ab_set = tf.group(tf.assign(self.fim_a, fim_ab[0]),
+                                   tf.assign(self.fim_b, fim_ab[1]))
 
     @abc.abstractmethod
     def analytic(
             self,
             sample_indices,
-            batched_data
+            batched_data,
+            return_a,
+            return_b
     ):
         pass
 

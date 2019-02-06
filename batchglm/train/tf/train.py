@@ -224,20 +224,16 @@ class MultiTrainer:
             variables: tf.Variable = None,
             gradients: tf.Tensor = None,
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
-            features_updated_a: tf.Variable = None,
-            features_updated_b: tf.Variable = None,
+            features_updated: tf.Variable = None,
             features_converged: np.ndarray = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
             newton_tr_delta: tf.Tensor = None,
             nr_tr_radius: tf.Variable = None,
             nr_tr_pred_cost_gain: tf.Tensor = None,
-            irls_tr_delta_a: Union[tf.Tensor, None] = None,
-            irls_tr_delta_b: Union[tf.Tensor, None] = None,
-            irls_tr_radius_a: tf.Variable = None,
-            irls_tr_radius_b: tf.Variable = None,
-            irls_tr_pred_cost_gain_a: tf.Tensor = None,
-            irls_tr_pred_cost_gain_b: tf.Tensor = None,
+            irls_tr_delta: Union[tf.Tensor, None] = None,
+            irls_tr_radius: tf.Variable = None,
+            irls_tr_pred_cost_gain: tf.Tensor = None,
             global_step=None,
             apply_train_ops: callable = None,
             provide_optimizers: Union[dict, None] = None,
@@ -454,77 +450,46 @@ class MultiTrainer:
                 self.delta_f_actual_nr_tr = None
                 train_op_nr_tr = None
 
-            if provide_optimizers["irls_tr"] and irls_tr_delta_a is not None and irls_tr_delta_b is not None:
+            if provide_optimizers["irls_tr"] and irls_tr_delta is not None:
                 logger.debug(" *** Building optimizer: IRLS_TR")
                 features_converged = tf.convert_to_tensor(features_converged)
                 self.variables_old = tf.placeholder(shape=variables.shape, dtype=variables.dtype)  # TODO: bypass
                 self.delta_f_actual_irls_tr = tf.placeholder(shape=[variables.shape[1]], dtype=variables.dtype)
 
                 # Propose parameter update:
-                irls_tr_delta_a_magnitude = tf.sqrt(tf.reduce_sum(tf.square(irls_tr_delta_a), axis=0))
-                irls_tr_delta_a_norm = tf.divide(irls_tr_delta_a, irls_tr_delta_a_magnitude)
-                irls_tr_delta_a_scale = tf.minimum(
-                    irls_tr_radius_a,
-                    irls_tr_delta_a_magnitude
+                irls_tr_delta_magnitude = tf.sqrt(tf.reduce_sum(tf.square(irls_tr_delta), axis=0))
+                irls_tr_delta_norm = tf.divide(irls_tr_delta, irls_tr_delta_magnitude)
+                irls_tr_delta_scale = tf.minimum(
+                    irls_tr_radius,
+                    irls_tr_delta_magnitude
                 )
-                irls_tr_delta_step_a = tf.multiply(
-                    irls_tr_delta_a_norm,
-                    irls_tr_delta_a_scale
-                )
-
-                irls_tr_delta_b_magnitude = tf.sqrt(tf.reduce_sum(tf.square(irls_tr_delta_b), axis=0))
-                irls_tr_delta_b_norm = tf.divide(irls_tr_delta_b, irls_tr_delta_b_magnitude)
-                irls_tr_delta_b_scale = tf.minimum(
-                    irls_tr_radius_b,
-                    irls_tr_delta_b_magnitude
-                )
-                irls_tr_delta_step_b = tf.multiply(
-                    irls_tr_delta_b_norm,
-                    irls_tr_delta_b_scale
+                irls_tr_delta_step = tf.multiply(
+                    irls_tr_delta_norm,
+                    irls_tr_delta_scale
                 )
 
-                irls_tr_delta_step_a_padded = tf.concat([irls_tr_delta_step_a,
-                                                         tf.zeros_like(irls_tr_delta_step_b)], axis=0)
-                irls_tr_delta_step_b_padded = tf.concat([tf.zeros_like(irls_tr_delta_step_a),
-                                                         irls_tr_delta_step_b], axis=0)
-                theta_new_irls_tr_trial_a = variables - irls_tr_delta_step_a_padded
-                theta_new_irls_tr_trial_b = variables - irls_tr_delta_step_b_padded
+                theta_new_irls_tr_trial = variables - irls_tr_delta_step
 
-                train_op_irls_tr_trial_a = tf.group(
-                    tf.assign(variables, theta_new_irls_tr_trial_a),
+                train_op_irls_tr_trial = tf.group(
+                    tf.assign(variables, theta_new_irls_tr_trial),
                     tf.assign_add(global_step, 1)
                 )
-                train_op_irls_tr_trial_b = tf.assign(variables, theta_new_irls_tr_trial_b)
 
                 # Include parameter updates only if update improves cost function:
-                delta_f_pred_irls_tr_a = irls_tr_pred_cost_gain_a
-                delta_f_pred_irls_tr_b = irls_tr_pred_cost_gain_b
-                delta_f_ratio_a = tf.divide(self.delta_f_actual_irls_tr, delta_f_pred_irls_tr_a)
-                delta_f_ratio_b = tf.divide(self.delta_f_actual_irls_tr, delta_f_pred_irls_tr_b)
+                delta_f_pred_irls_tr = irls_tr_pred_cost_gain
+                delta_f_ratio = tf.divide(self.delta_f_actual_irls_tr, delta_f_pred_irls_tr)
 
                 # Update trusted region accordingly:
-                decrease_radius_a = tf.logical_and(delta_f_ratio_a < eta1, tf.logical_not(features_converged))
-                increase_radius_a = tf.logical_and(delta_f_ratio_a > eta2, tf.logical_not(features_converged))
-                keep_radius_a = tf.logical_and(tf.logical_not(decrease_radius_a),
-                                               tf.logical_not(increase_radius_a))
-                irls_tr_radius_update_a = tf.add_n([
-                    tf.multiply(t1, tf.cast(decrease_radius_a, variables.dtype)),
-                    tf.multiply(t2, tf.cast(increase_radius_a, variables.dtype)),
-                    tf.multiply(tf.ones_like(t1), tf.cast(keep_radius_a, variables.dtype))
+                decrease_radius = tf.logical_and(delta_f_ratio < eta1, tf.logical_not(features_converged))
+                increase_radius = tf.logical_and(delta_f_ratio > eta2, tf.logical_not(features_converged))
+                keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
+                                             tf.logical_not(increase_radius))
+                irls_tr_radius_update = tf.add_n([
+                    tf.multiply(t1, tf.cast(decrease_radius, variables.dtype)),
+                    tf.multiply(t2, tf.cast(increase_radius, variables.dtype)),
+                    tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, variables.dtype))
                 ])
-
-                decrease_radius_b = tf.logical_and(delta_f_ratio_b < eta1, tf.logical_not(features_converged))
-                increase_radius_b = tf.logical_and(delta_f_ratio_b > eta2, tf.logical_not(features_converged))
-                keep_radius_b = tf.logical_and(tf.logical_not(decrease_radius_b),
-                                               tf.logical_not(increase_radius_b))
-                irls_tr_radius_update_b = tf.add_n([
-                    tf.multiply(t1, tf.cast(decrease_radius_b, variables.dtype)),
-                    tf.multiply(t2, tf.cast(increase_radius_b, variables.dtype)),
-                    tf.multiply(tf.ones_like(t1), tf.cast(keep_radius_b, variables.dtype))
-                ])
-
-                irls_tr_radius_a_new = tf.minimum(tf.multiply(irls_tr_radius_a, irls_tr_radius_update_a), upper_bound)
-                irls_tr_radius_b_new = tf.minimum(tf.multiply(irls_tr_radius_b, irls_tr_radius_update_b), upper_bound)
+                irls_tr_radius_new = tf.minimum(tf.multiply(irls_tr_radius, irls_tr_radius_update), upper_bound)
 
                 # Compute parameter updates.
                 update_theta = tf.logical_and(
@@ -538,26 +503,17 @@ class MultiTrainer:
                     tf.multiply(variables, update_theta_numeric)  # new values
                 )
 
-                train_op_irls_tr_update_a = tf.group(
+                train_op_irls_tr_update = tf.group(
                     tf.assign(variables, theta_new_irls_tr),
-                    tf.assign(irls_tr_radius_a, irls_tr_radius_a_new),
-                    tf.assign(features_updated_a, update_theta)
-                )
-
-                train_op_irls_tr_update_b = tf.group(
-                    tf.assign(variables, theta_new_irls_tr),
-                    tf.assign(irls_tr_radius_b, irls_tr_radius_b_new),
-                    tf.assign(features_updated_b, update_theta)
+                    tf.assign(irls_tr_radius, irls_tr_radius_new),
+                    tf.assign(features_updated, update_theta)
                 )
 
                 # Record maximal proposed parameter update:
                 train_op_irls_tr = {
-                    "x_step_a": irls_tr_delta_step_a,
-                    "x_step_b": irls_tr_delta_step_b,
-                    "trial_update_a": train_op_irls_tr_trial_a,
-                    "trial_update_b": train_op_irls_tr_trial_b,
-                    "update_a": train_op_irls_tr_update_a,
-                    "update_b": train_op_irls_tr_update_b
+                    "x_step": irls_tr_delta_step,
+                    "trial_update": train_op_irls_tr_trial,
+                    "update": train_op_irls_tr_update
                 }
             else:
                 self.delta_f_actual_irls_tr = None

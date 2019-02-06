@@ -138,30 +138,33 @@ class JacobiansGLM:
         if self._compute_jac_a and self._compute_jac_b:
             J_a = J[:, :p_shape_a]
             J_b = J[:, p_shape_a:]
-            negJ = tf.negative(J)
-            negJ_a = tf.negative(J_a)
-            negJ_b = tf.negative(J_b)
         elif self._compute_jac_a and not self._compute_jac_b:
             J_a = J
             J_b = None
-            J = J
-            negJ = tf.negative(J)
-            negJ_a = tf.negative(J_a)
-            negJ_b = None
         elif not self._compute_jac_a and self._compute_jac_b:
             J_a = None
             J_b = J
-            J = J
-            negJ = tf.negative(J)
-            negJ_a = None
-            negJ_b = tf.negative(J_b)
 
-        self.jac = J
-        self.jac_a = J_a
-        self.jac_b = J_b
-        self.neg_jac = negJ
-        self.neg_jac_a = negJ_a
-        self.neg_jac_b = negJ_b
+        self.jac_a = tf.Variable(tf.zeros([model_vars.n_features,
+                                           model_vars.a_var.shape[0]], dtype=dtype), dtype=dtype)
+        self.jac_b = tf.Variable(tf.zeros([model_vars.n_features,
+                                           model_vars.b_var.shape[0]], dtype=dtype), dtype=dtype)
+        if self._compute_jac_a and self._compute_jac_b:
+            self.jac = tf.concat([self.jac_a, self.jac_b], axis=1)
+        elif self._compute_jac_a and not self._compute_jac_b:
+            self.jac = self.jac_a
+        elif self._compute_jac_a and not self._compute_jac_b:
+            self.jac = self.jac_b
+        else:
+            self.jac = None
+
+        self.jac_a_set = tf.assign(self.jac_a, J_a)
+        self.jac_b_set = tf.assign(self.jac_b, J_b)
+        self.jac_ab_set = tf.group(tf.assign(self.jac_a, J_a), tf.assign(self.jac_b, J_b))
+
+        self.neg_jac = tf.negative(self.jac)
+        self.neg_jac_a = -self.jac_a
+        self.neg_jac_b = -self.jac_b
 
     def analytic(
             self,

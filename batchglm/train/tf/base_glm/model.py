@@ -114,9 +114,7 @@ class ModelVarsGLM(ProcessModelGLM):
 
         # Properties to follow gene-wise convergence.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
-        self.updated_a = tf.Variable(np.repeat(a=True, repeats=self.params.shape[1]))  # Initialise to is updated.
-        self.updated_b = tf.Variable(np.repeat(a=True, repeats=self.params.shape[1]))  # Initialise to is updated.
-        self.updated = tf.logical_not(tf.logical_or(self.updated_a, self.updated_b))
+        self.updated = tf.Variable(np.repeat(a=True, repeats=self.params.shape[1]))  # Initialise to is updated.
         #self.params_by_gene = params_by_gene
         #self.a_by_gene = a_by_gene
         #self.b_by_gene = b_by_gene

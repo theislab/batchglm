@@ -248,8 +248,7 @@ class NewtonGraphGLM:
     nr_tr_pred_cost_gain_batched: Union[tf.Tensor, None]
 
     irls_tr_radius: Union[tf.Variable, None]
-    irls_tr_pred_cost_gain_full_a: Union[tf.Tensor, None]
-    irls_tr_pred_cost_gain_full_b: Union[tf.Tensor, None]
+    irls_tr_pred_cost_gain_full: Union[tf.Tensor, None]
     irls_tr_pred_cost_gain_batched: Union[tf.Tensor, None]
 
     idx_nonconverged: np.ndarray
@@ -459,11 +458,7 @@ class NewtonGraphGLM:
                 irls_update_batched = None
 
             if provide_optimizers["irls_tr"]:
-                irls_tr_radius_a = tf.Variable(
-                    np.zeros(shape=[self.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
-                    dtype=dtype
-                )
-                irls_tr_radius_b = tf.Variable(
+                irls_tr_radius = tf.Variable(
                     np.zeros(shape=[self.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
                     dtype=dtype
                 )
@@ -516,13 +511,19 @@ class NewtonGraphGLM:
                     irls_tr_update_b_full = tf.zeros_like(self.model_vars.b_var)
                     irls_tr_update_b_batched = tf.zeros_like(self.model_vars.b_var)
 
+                irls_tr_update_full = tf.concat([irls_tr_update_a_full, irls_tr_update_b_full], axis=0)
+                if self.batched_data_model is None:
+                    irls_tr_update_batched = None
+                else:
+                    irls_tr_update_batched = tf.concat([irls_tr_update_a_batched, irls_tr_update_b_batched], axis=0)
+
                 logger.debug(" ** building predicted cost of irls_tr updates")
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
                 if train_mu:
                     irls_tr_update_full_a_magnitude = tf.sqrt(tf.reduce_sum(tf.square(irls_tr_update_a_full), axis=0))
                     irls_tr_update_full_a_norm = tf.divide(irls_tr_update_a_full, irls_tr_update_full_a_magnitude)
                     irls_tr_update_full_a_scale = tf.minimum(
-                        irls_tr_radius_a,
+                        irls_tr_radius,
                         irls_tr_update_full_a_magnitude
                     )
                     irls_tr_proposed_vector_full_a = tf.multiply(
@@ -550,7 +551,7 @@ class NewtonGraphGLM:
                     irls_tr_update_full_b_magnitude = tf.sqrt(tf.reduce_sum(tf.square(irls_tr_update_b_full), axis=0))
                     irls_tr_update_full_b_norm = tf.divide(irls_tr_update_b_full, irls_tr_update_full_b_magnitude)
                     irls_tr_update_full_b_scale = tf.minimum(
-                        irls_tr_radius_b,
+                        irls_tr_radius,
                         irls_tr_update_full_b_magnitude
                     )
                     irls_tr_proposed_vector_full_b = tf.multiply(
@@ -578,16 +579,21 @@ class NewtonGraphGLM:
                     irls_tr_pred_cost_gain_batched = None  # TODO
                 else:
                     irls_tr_pred_cost_gain_batched = None
+
+                if train_mu and train_r:
+                    irls_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a, irls_tr_pred_cost_gain_full_b)
+                elif train_mu and not train_r:
+                    irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_a
+                elif not train_mu and train_r:
+                    irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_b
+                else:
+                    assert False
             else:
-                irls_tr_update_a_full = None
-                irls_tr_update_b_full = None
-                irls_tr_update_a_batched = None
-                irls_tr_update_b_batched = None
-                irls_tr_pred_cost_gain_full_a = None
-                irls_tr_pred_cost_gain_full_b = None
+                irls_tr_update_full = None
+                irls_tr_update_batched = None
+                irls_tr_pred_cost_gain_full = None
                 irls_tr_pred_cost_gain_batched = None
-                irls_tr_radius_a = tf.Variable(np.array([np.inf]), dtype=dtype)
-                irls_tr_radius_b = tf.Variable(np.array([np.inf]), dtype=dtype)
+                irls_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
         else:
             nr_update_full = None
             nr_update_batched = None
@@ -596,19 +602,15 @@ class NewtonGraphGLM:
 
             irls_update_full = None
             irls_update_batched = None
-            irls_tr_update_a_full = None
-            irls_tr_update_b_full = None
-            irls_tr_update_a_batched = None
-            irls_tr_update_b_batched = None
+            irls_tr_update_full = None
+            irls_tr_update_batched = None
 
             nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
             nr_tr_pred_cost_gain_full = None
             nr_tr_pred_cost_gain_batched = None
 
-            irls_tr_radius_a = tf.Variable(np.array([np.inf]), dtype=dtype)
-            irls_tr_radius_b = tf.Variable(np.array([np.inf]), dtype=dtype)
-            irls_tr_pred_cost_gain_full_a = None
-            irls_tr_pred_cost_gain_full_b = None
+            irls_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
+            irls_tr_pred_cost_gain_full = None
             irls_tr_pred_cost_gain_batched = None
 
         self.nr_update_full = nr_update_full
@@ -618,19 +620,15 @@ class NewtonGraphGLM:
 
         self.irls_update_full = irls_update_full
         self.irls_update_batched = irls_update_batched
-        self.irls_tr_update_a_full = irls_tr_update_a_full
-        self.irls_tr_update_b_full = irls_tr_update_b_full
-        self.irls_tr_update_a_batched = irls_tr_update_a_batched
-        self.irls_tr_update_b_batched = irls_tr_update_b_batched
+        self.irls_tr_update_full = irls_tr_update_full
+        self.irls_tr_update_batched = irls_tr_update_batched
 
         self.nr_tr_radius = nr_tr_radius
         self.nr_tr_pred_cost_gain_full = nr_tr_pred_cost_gain_full
         self.nr_tr_pred_cost_gain_batched = nr_tr_pred_cost_gain_batched
 
-        self.irls_tr_radius_a = irls_tr_radius_a
-        self.irls_tr_radius_b = irls_tr_radius_b
-        self.irls_tr_pred_cost_gain_full_a = irls_tr_pred_cost_gain_full_a
-        self.irls_tr_pred_cost_gain_full_b = irls_tr_pred_cost_gain_full_b
+        self.irls_tr_radius = irls_tr_radius
+        self.irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full
         self.irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched
 
     def build_updates(
@@ -798,17 +796,14 @@ class TrainerGraphGLM:
     nr_tr_update_batched: tf.Tensor
     irls_update_full: tf.Tensor
     irls_update_batched: tf.Tensor
-    irls_tr_update_a_full: tf.Tensor
-    irls_tr_update_b_full: tf.Tensor
-    irls_tr_update_a_batched: tf.Tensor
-    irls_tr_update_b_batched: tf.Tensor
+    irls_tr_update_full: tf.Tensor
+    irls_tr_update_batched: tf.Tensor
 
     nr_tr_radius: Union[tf.Variable, None]
     nr_tr_pred_cost_gain_full: Union[tf.Tensor, None]
     nr_tr_pred_cost_gain_batched: Union[tf.Tensor, None]
 
-    irls_tr_radius_a: Union[tf.Variable, None]
-    irls_tr_radius_b: Union[tf.Variable, None]
+    irls_tr_radius: Union[tf.Variable, None]
     irls_tr_pred_cost_gain_full: Union[tf.Tensor, None]
     irls_tr_pred_cost_gain_batched: Union[tf.Tensor, None]
 
@@ -837,20 +832,16 @@ class TrainerGraphGLM:
                 trainer_batch = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_batch,
-                    features_updated_a=self.model_vars.updated_a,
-                    features_updated_b=self.model_vars.updated_b,
+                    features_updated=self.model_vars.updated,
                     features_converged=self.model_vars.converged,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
                     newton_tr_delta=self.nr_tr_update_batched,
                     nr_tr_radius=self.nr_tr_radius,
                     nr_tr_pred_cost_gain=self.nr_tr_pred_cost_gain_full,
-                    irls_tr_delta_a=self.irls_tr_update_a_batched,
-                    irls_tr_delta_b=self.irls_tr_update_b_batched,
-                    irls_tr_radius_a=self.irls_tr_radius_a,
-                    irls_tr_radius_b=self.irls_tr_radius_b,
-                    irls_tr_pred_cost_gain_a=self.irls_tr_pred_cost_gain_batched,  #TODO
-                    irls_tr_pred_cost_gain_b=self.irls_tr_pred_cost_gain_batched,
+                    irls_tr_delta=self.irls_tr_update_batched,
+                    irls_tr_radius=self.irls_tr_radius,
+                    irls_tr_pred_cost_gain=self.irls_tr_pred_cost_gain_batched,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
@@ -868,20 +859,16 @@ class TrainerGraphGLM:
                 trainer_full = train_utils.MultiTrainer(
                     variables=self.model_vars.params,
                     gradients=self.gradients_full,
-                    features_updated_a=self.model_vars.updated_a,
-                    features_updated_b=self.model_vars.updated_b,
+                    features_updated=self.model_vars.updated,
                     features_converged=self.model_vars.converged,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
                     newton_tr_delta=self.nr_tr_update_full,
                     nr_tr_radius=self.nr_tr_radius,
                     nr_tr_pred_cost_gain=self.nr_tr_pred_cost_gain_full,
-                    irls_tr_delta_a=self.irls_tr_update_a_full,
-                    irls_tr_delta_b=self.irls_tr_update_b_full,
-                    irls_tr_radius_a=self.irls_tr_radius_a,
-                    irls_tr_radius_b=self.irls_tr_radius_b,
-                    irls_tr_pred_cost_gain_a=self.irls_tr_pred_cost_gain_full_a,
-                    irls_tr_pred_cost_gain_b=self.irls_tr_pred_cost_gain_full_b,
+                    irls_tr_delta=self.irls_tr_update_full,
+                    irls_tr_radius=self.irls_tr_radius,
+                    irls_tr_pred_cost_gain=self.irls_tr_pred_cost_gain_full,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
