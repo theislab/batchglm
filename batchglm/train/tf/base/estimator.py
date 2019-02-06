@@ -252,23 +252,20 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             ## Evaluate initial value of convergence metric:
             #ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
             if is_irls_tr:
-                ll_current, param_val_prev, _, _ = self.session.run((
+                ll_current, _, _ = self.session.run((
                     self.model.full_data_model.norm_neg_log_likelihood,
-                    self.model.model_vars.params,
                     self.model.full_data_model.jac.jac_ab_set,
                     self.model.full_data_model.fim.fim_ab_set
                 ))
             elif is_nr_tr:
-                ll_current, param_val_prev, _, _ = self.session.run((
+                ll_current, _, _ = self.session.run((
                     self.model.full_data_model.norm_neg_log_likelihood,
-                    self.model.model_vars.params,
                     self.model.full_data_model.jac.jac_ab_set,
                     self.model.full_data_model.hessians.hessian_set
                 ))
             else:
-                ll_current, param_val_prev, _ = self.session.run((
+                ll_current, _ = self.session.run((
                     self.model.full_data_model.norm_neg_log_likelihood,
-                    self.model.model_vars.params,
                     self.model.full_data_model.jac.jac_ab_set
                 ))
 
@@ -294,22 +291,37 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 ## Run update.
                 if trustregion_mode:
-                    if is_nr_tr or is_irls_tr:
-                        feed_dict = {self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    else:
-                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
-
                     # Use parameter space convergence as a helper:
                     t_trial_0 = time.time()
-                    train_step, _, x_step, _, _, _ = self.session.run(
-                        (self.model.global_step,
-                         train_op["ll_prev"],
-                         train_op["x_step"],
-                         train_op["trial_update"],
-                         train_op["ll_new"],
-                         train_op["update"]),
-                        feed_dict=feed_dict
-                    )
+                    if False:
+                        train_step, _, x_step, _, _, _, _ = self.session.run(
+                            (self.model.global_step,
+                             train_op["init"],
+                             train_op["trial_vec"],
+                             train_op["trial_update"],
+                             train_op["trial_ll"],
+                             train_op["update_params"],
+                             train_op["update_radius"])
+                        )
+                    else:
+                        train_step, ll0, x0, x_step, x1 = self.session.run(
+                            (self.model.global_step,
+                             train_op["init_ll"],
+                             train_op["init_x"],
+                             train_op["trial_vec"],
+                             train_op["trial_update"])
+                        )
+                        ll1, x2, features_updated, tr_radius = self.session.run(
+                            (train_op["trial_ll"],
+                             train_op["update_params"],
+                             train_op["update_status"],
+                             train_op["update_radius"])
+                        )
+
+                    print(features_updated)
+                    print(x0-x2)
+                    print(x1-x2)
+
                     if len(self.model.full_data_model.idx_train_loc) > 0:
                         x_norm_loc = np.sqrt(np.sum(np.square(
                             np.abs(x_step[self.model.model_vars.idx_train_loc, :])
@@ -326,7 +338,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                     #ll_current_trial_loc = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
                     t_trial_1 = time.time()
-                    tf.logging.debug("time for step %f" % (t_trial_1-t_trial_0))
+                    tf.logging.debug("time for trust region step %f" % (t_trial_1-t_trial_0))
 
                     #delta_f_actual_loc = ll_prev - ll_current_trial_loc
                     #if is_nr_tr:
@@ -338,9 +350,9 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     #else:
                     #    raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
 
-                    t_update_0 = time.time()
+                    #t_update_0 = time.time()
                     #_ = self.session.run(train_op["update"], feed_dict=feed_dict)
-                    t_update_1 = time.time()
+                    #t_update_1 = time.time()
                     #tf.logging.debug("time for update step %f" % (t_update_1 - t_update_0))
                 else:
                     if convergence_criteria == "all_converged_ll":
@@ -369,29 +381,23 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 # Update jacobian, hessian and fisher information matrix.
                 t_eval_0 = time.time()
                 if is_irls_tr:
-                    param_val_prev, _, _, jac_train, features_updated, ll_current = self.session.run((
-                        self.model.model_vars.params,
+                    _, _, jac_train, ll_current = self.session.run((
                         self.model.full_data_model.jac.jac_ab_set,
                         self.model.full_data_model.fim.fim_ab_set,
                         self.model.full_data_model.neg_jac_train,
-                        self.model.model_vars.updated,
                         self.model.full_data_model.norm_neg_log_likelihood
                     ))
                 elif is_nr_tr:
-                    param_val_prev, _, _, jac_train, features_updated, ll_current = self.session.run((
-                        self.model.model_vars.params,
+                     _, _, jac_train, ll_current = self.session.run((
                         self.model.full_data_model.jac.jac_ab_set,
                         self.model.full_data_model.hessians.hessian_set,
                         self.model.full_data_model.neg_jac_train,
-                        self.model.model_vars.updated,
                         self.model.full_data_model.norm_neg_log_likelihood
                     ))
                 else:
-                    param_val_prev, _, jac_train, features_updated, ll_current = self.session.run((
-                        self.model.model_vars.params,
+                    _, jac_train, ll_current = self.session.run((
                         self.model.full_data_model.jac.jac_ab_set,
                         self.model.full_data_model.neg_jac_train,
-                        self.model.model_vars.updated,
                         self.model.full_data_model.norm_neg_log_likelihood
                     ))
                 t_eval_1 = time.time()
@@ -400,6 +406,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 # Update convergence status of non-converged features:
                 t_conv_0 = time.time()
+                print(ll_prev-ll_current)
                 ll_converged = (ll_prev - ll_current) / ll_prev < stopping_criteria
                 assert np.all(ll_current <= ll_prev), "update error"
                 self.model.model_vars.converged = np.logical_or(
@@ -466,13 +473,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 # Follow trust region radius:
                 if trustregion_mode and False:
-                    if is_nr_tr:
-                        tr_radius = self.session.run(self.model.nr_tr_radius)[np.logical_not(converged_current)]
-                    elif is_irls_tr:
-                        tr_radius = self.session.run(self.model.irls_tr_radius)[np.logical_not(converged_current)]
-                    else:
-                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
-
                     if np.any(np.logical_not(converged_current)):
                         tf.logging.debug(
                             "trust region radius nr: min=%f, mean=%f, max=%f",
