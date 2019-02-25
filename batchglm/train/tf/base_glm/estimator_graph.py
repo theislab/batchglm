@@ -296,9 +296,9 @@ class NewtonGraphGLM:
                     np.zeros(shape=[self.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
                     dtype=dtype
                 )
-                self.nr_tr_ll_0 = tf.Variable(np.zeros(shape=[self.model_vars.n_features]), dtype=dtype)
-                self.nr_tr_ll_1 = tf.Variable(np.zeros(shape=[self.model_vars.n_features]), dtype=dtype)
-                self.nr_tr_x_old = tf.Variable(tf.zeros_like(self.model_vars.params))
+                nr_tr_ll_0 = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
+                nr_tr_x_old = tf.Variable(tf.zeros_like(self.model_vars.params))
+                self.nr_tr_x_step = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 if self.batched_data_model is None:
                     batched_lhs = None
@@ -367,26 +367,25 @@ class NewtonGraphGLM:
                 upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=dtype)
 
                 # Propose parameter update:
-                train_op_nr_tr_prev_ll = tf.assign(self.nr_tr_ll_0, self.full_data_model.norm_neg_log_likelihood)
-                train_op_nr_tr_prev_x = tf.assign(self.nr_tr_x_old, self.model_vars.params)
-                with self.graph.control_dependencies([train_op_nr_tr_prev_ll, train_op_nr_tr_prev_x]):
-                    train_op_nr_tr_trial_vector = nr_tr_proposed_vector_full
-
-                    with self.graph.control_dependencies([train_op_nr_tr_trial_vector]):
-                        train_op_nr_tr_trial_update = tf.assign(
-                            self.model_vars.params,
-                            self.model_vars.params - train_op_nr_tr_trial_vector
+                #nr_tr_ll_0 = self.full_data_model.norm_neg_log_likelihood
+                train_op_nr_tr_prev = tf.group(
+                    tf.assign(nr_tr_ll_0, self.full_data_model.norm_neg_log_likelihood),
+                    tf.assign(nr_tr_x_old, self.model_vars.params)
+                )
+                with self.graph.control_dependencies([train_op_nr_tr_prev,
+                                                      nr_tr_ll_0,
+                                                      nr_tr_pred_cost_gain_full,
+                                                      nr_tr_proposed_vector_full]):
+                    train_op_x_step = tf.assign(self.nr_tr_x_step, nr_tr_proposed_vector_full)
+                    with self.graph.control_dependencies([train_op_x_step]):
+                        train_op_nr_tr_trial_update = tf.group(
+                            tf.assign(self.model_vars.params, nr_tr_x_old - self.nr_tr_x_step)
                         )
-
                         with self.graph.control_dependencies([train_op_nr_tr_trial_update]):
-                            train_op_nr_tr_trial_ll = tf.assign(self.nr_tr_ll_1,
-                                                                self.full_data_model.norm_neg_log_likelihood)
-
-                            with self.graph.control_dependencies([train_op_nr_tr_trial_ll]):
-                                # Include parameter updates only if update improves cost function:
-                                delta_f_pred_nr_tr = nr_tr_pred_cost_gain_full
-                                delta_f_actual_nr_tr = self.nr_tr_ll_0 - self.nr_tr_ll_1
-                                delta_f_ratio = tf.divide(delta_f_actual_nr_tr, delta_f_pred_nr_tr)
+                            # Include parameter updates only if update improves cost function:
+                            delta_f_actual_nr_tr = nr_tr_ll_0 - self.full_data_model.norm_neg_log_likelihood
+                            with self.graph.control_dependencies([delta_f_actual_nr_tr]):
+                                delta_f_ratio = tf.divide(delta_f_actual_nr_tr, nr_tr_pred_cost_gain_full)
 
                                 # Compute parameter updates.
                                 update_theta = delta_f_actual_nr_tr > eta0
@@ -397,7 +396,7 @@ class NewtonGraphGLM:
                                 update_theta_numeric = tf.expand_dims(tf.cast(update_theta, dtype), axis=0)
                                 keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
                                 theta_new_nr_tr = tf.add(
-                                    tf.multiply(self.nr_tr_x_old, keep_theta_numeric),  # old values
+                                    tf.multiply(nr_tr_x_old, keep_theta_numeric),  # old values
                                     tf.multiply(self.model_vars.params, update_theta_numeric)  # new values
                                 )
 
@@ -415,20 +414,26 @@ class NewtonGraphGLM:
                                     tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, dtype))
                                 ])
                                 nr_tr_radius_new = tf.minimum(tf.multiply(nr_tr_radius, nr_tr_radius_update), upper_bound)
-
                                 with self.graph.control_dependencies([train_op_nr_tr_update_params]):
                                     train_op_nr_tr_update_radius = tf.assign(nr_tr_radius, nr_tr_radius_new)
 
-                train_ops_nr_tr = {
-                    "init_ll": train_op_nr_tr_prev_ll,
-                    "init_x": train_op_nr_tr_prev_x,
-                    "trial_vec": train_op_nr_tr_trial_vector,
-                    "trial_update": train_op_nr_tr_trial_update,
-                    "trial_ll": train_op_nr_tr_trial_ll,
-                    "update_params": train_op_nr_tr_update_params,
-                    "update_status": train_op_nr_tr_update_status,
-                    "update_radius": train_op_nr_tr_update_radius
-                }
+                train_ops_nr_tr = tf.group(
+                    train_op_nr_tr_prev,
+                    train_op_x_step,
+                    train_op_nr_tr_trial_update,
+                    train_op_nr_tr_update_params,
+                    train_op_nr_tr_update_status,
+                    train_op_nr_tr_update_radius
+                )
+
+                #train_ops_nr_tr = {
+                #    "init": train_op_nr_tr_prev,
+                #    "trial_update": train_op_nr_tr_trial_update,
+                #    #"trial_ll": train_op_nr_tr_trial_ll,
+                #    "update": tf.group(train_op_nr_tr_update_params,
+                #                       train_op_nr_tr_update_status,
+                #                       train_op_nr_tr_update_radius)
+                #}
 
                 if self.batched_data_model is not None:
                     nr_tr_proposed_vector_batched = tf.multiply(nr_tr_radius, nr_tr_update_batched_raw)

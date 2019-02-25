@@ -304,23 +304,15 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                              train_op["update_radius"])
                         )
                     else:
-                        train_step, ll0, x0, x_step, x1 = self.session.run(
-                            (self.model.global_step,
-                             train_op["init_ll"],
-                             train_op["init_x"],
-                             train_op["trial_vec"],
-                             train_op["trial_update"])
-                        )
-                        ll1, x2, features_updated, tr_radius = self.session.run(
-                            (train_op["trial_ll"],
-                             train_op["update_params"],
-                             train_op["update_status"],
-                             train_op["update_radius"])
-                        )
-
-                    print(features_updated)
-                    print(x0-x2)
-                    print(x1-x2)
+                        x0 = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                        #x0 = self.session.run(self.model.model_vars.params)
+                        #print(x0)
+                        #print(self.session.run(self.model.delta_f_actual_nr_tr))
+                        _ = self.session.run(train_op)
+                        x1 = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                        #x1 = self.session.run(self.model.model_vars.params)
+                        print(x0-x1)
+                        x_step = self.session.run(self.model.nr_tr_x_step)
 
                     if len(self.model.full_data_model.idx_train_loc) > 0:
                         x_norm_loc = np.sqrt(np.sum(np.square(

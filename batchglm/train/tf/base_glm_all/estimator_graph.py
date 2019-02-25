@@ -32,6 +32,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             train_a,
             train_b,
             provide_fim,
+            graph,
             dtype
     ):
         """
@@ -558,6 +559,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     train_b=train_scale,
                     noise_model=noise_model,
                     provide_fim=provide_fim,
+                    graph=self.graph,
                     dtype=dtype
                 )
 
