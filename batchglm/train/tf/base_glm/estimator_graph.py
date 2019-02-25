@@ -290,7 +290,7 @@ class NewtonGraphGLM:
                 if self.batched_data_model is None:
                     self.nr_tr_x_step_batched = None
                 else:
-                    self.nr_x_step_batched = tf.Variable(tf.zeros_like(nr_update_batched))
+                    self.nr_tr_x_step_batched = tf.Variable(tf.zeros_like(nr_update_batched))
             else:
                 nr_update_full = None
                 nr_update_batched = None

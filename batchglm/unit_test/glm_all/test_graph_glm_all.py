@@ -20,6 +20,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             quick_scale,
             termination,
             algo,
+            batched,
             noise_model,
             sparse
     ):
@@ -55,6 +56,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
+            provide_batched=batched,
             termination_type=termination
         )
         super().__init__(
@@ -123,6 +125,7 @@ class Test_Graph_GLM_ALL(
             quick_scale=False if train_scale else True,
             termination=termination,
             algo=algo,
+            batched=batched,
             noise_model=self.noise_model,
             sparse=sparse
         )

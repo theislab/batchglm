@@ -338,7 +338,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         # (note that these are the Jacobian matrix blocks
         # of the trained subset of parameters).
         if train_a or train_b:
-            batch_jac = Jacobians(
+            jacobian_batched = Jacobians(
                 batched_data=self.batched_data,
                 sample_indices=self.sample_indices,
                 constraints_loc=self.constraints_loc,
@@ -352,15 +352,26 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 dtype=dtype
             )
         else:
-            batch_jac = None
+            jacobian_batched = None
 
-        self.jac_train = batch_jac
+        # Jacobian of submodel which is to be trained.
+        if train_a and train_b:
+            neg_jac_train = jacobian_batched.neg_jac
+        elif train_a and not train_b:
+            neg_jac_train = jacobian_batched.neg_jac_a
+        elif not train_a and train_b:
+            neg_jac_train = jacobian_batched.neg_jac_b
+        else:
+            neg_jac_train = None
+
+        self.jac = jacobian_batched
+        self.neg_jac_train = neg_jac_train
 
         # Define the hessian on the batched model for newton-rhapson:
         # (note that these are the Hessian matrix blocks
         # of the trained subset of parameters).
         if train_a or train_b:
-            batch_hessians = Hessians(
+            hessians_batched = Hessians(
                 batched_data=self.batched_data,
                 sample_indices=self.sample_indices,
                 constraints_loc=self.constraints_loc,
@@ -374,13 +385,23 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 dtype=dtype
             )
         else:
-            batch_hessians = None
+            hessians_batched = None
+
+        # Hessian of submodel which is to be trained.
+        if train_a and train_b:
+            neg_hessians_train = hessians_batched.neg_hessian
+        elif train_a and not train_b:
+            neg_hessians_train = hessians_batched.neg_hessian_aa
+        elif not train_a and train_b:
+            neg_hessians_train = hessians_batched.neg_hessian_bb
+        else:
+            neg_hessians_train = None
 
         # Define the IRLS components on the batched model:
         # (note that these are the IRLS matrix blocks
         # of the trained subset of parameters).
         if (train_a or train_b) and provide_fim:
-            batch_fim = FIM(
+            fim_batched = FIM(
                 batched_data=self.batched_data,
                 sample_indices=self.sample_indices,
                 constraints_loc=self.constraints_loc,
@@ -393,11 +414,13 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 dtype=dtype
             )
         else:
-            batch_fim = None
+            fim_batched = None
 
-        self.hessians_train = batch_hessians
+        self.hessians = hessians_batched
+        self.neg_hessians_train = neg_hessians_train
+
         self.provide_fim = provide_fim
-        self.fim_train = batch_fim
+        self.fim = fim_batched
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
