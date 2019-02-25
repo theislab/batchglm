@@ -250,24 +250,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
         elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
             ## Evaluate initial value of convergence metric:
-            #ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-            if is_irls_tr:
-                ll_current, _, _ = self.session.run((
-                    self.model.full_data_model.norm_neg_log_likelihood,
-                    self.model.full_data_model.jac.jac_ab_set,
-                    self.model.full_data_model.fim.fim_ab_set
-                ))
-            elif is_nr_tr:
-                ll_current, _, _ = self.session.run((
-                    self.model.full_data_model.norm_neg_log_likelihood,
-                    self.model.full_data_model.jac.jac_ab_set,
-                    self.model.full_data_model.hessians.hessian_set
-                ))
-            else:
-                ll_current, _ = self.session.run((
-                    self.model.full_data_model.norm_neg_log_likelihood,
-                    self.model.full_data_model.jac.jac_ab_set
-                ))
+            ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
 
             tf.logging.info(
                 "Step: 0 loss: %f models converged 0",
@@ -283,36 +266,15 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 converged_prev = converged_current.copy()
                 ll_prev = ll_current.copy()
 
-                # Use this to check whether session.run is slow
-                #t_x_eval_0 = time.time()
-                #self.session.run(fetches=self.model.test, feed_dict=None)
-                #t_x_eval_1 = time.time()
-                #tf.logging.debug("time for trivial evaluation %f" % (t_x_eval_1 - t_x_eval_0))
-
                 ## Run update.
                 if trustregion_mode:
                     # Use parameter space convergence as a helper:
                     t_trial_0 = time.time()
                     if False:
-                        train_step, _, x_step, _, _, _, _ = self.session.run(
+                        train_step, _, x_step = self.session.run(
                             (self.model.global_step,
-                             train_op["init"],
-                             train_op["trial_vec"],
-                             train_op["trial_update"],
-                             train_op["trial_ll"],
-                             train_op["update_params"],
-                             train_op["update_radius"])
+                             train_op["trial_update"])
                         )
-                    else:
-                        x0 = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                        #x0 = self.session.run(self.model.model_vars.params)
-                        #print(x0)
-                        #print(self.session.run(self.model.delta_f_actual_nr_tr))
-                        _ = self.session.run(train_op)
-                        x1 = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                        #x1 = self.session.run(self.model.model_vars.params)
-                        print(x0-x1)
-                        x_step = self.session.run(self.model.nr_tr_x_step)
 
                     if len(self.model.full_data_model.idx_train_loc) > 0:
                         x_norm_loc = np.sqrt(np.sum(np.square(
@@ -331,74 +293,19 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     #ll_current_trial_loc = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
                     t_trial_1 = time.time()
                     tf.logging.debug("time for trust region step %f" % (t_trial_1-t_trial_0))
-
-                    #delta_f_actual_loc = ll_prev - ll_current_trial_loc
-                    #if is_nr_tr:
-                    #    feed_dict = {self.model.trainer_full_delta_f_actual_nr_tr: delta_f_actual_loc,
-                    #                 self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    #elif is_irls_tr:
-                    #    feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual_loc,
-                    #                 self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    #else:
-                    #    raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
-
-                    #t_update_0 = time.time()
-                    #_ = self.session.run(train_op["update"], feed_dict=feed_dict)
-                    #t_update_1 = time.time()
-                    #tf.logging.debug("time for update step %f" % (t_update_1 - t_update_0))
                 else:
-                    if convergence_criteria == "all_converged_ll":
-                        # Use parameter space convergence as a helper:
-                        theta_update = np.abs(self.session.run(train_op[0]))
-                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=0)
-                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=0)
-
-                    train_step, _ = self.session.run(
-                        (self.model.global_step, train_op[1]),
+                    train_step, _, ll_current, x_step = self.session.run(
+                        (self.model.global_step,
+                         train_op,
+                         self.model.full_data_model.norm_neg_log_likelihood),
                         feed_dict=feed_dict
                     )
-                    loss_global = self.session.run(self.model.loss)
-                    # Evaluate convergence metric:
-                    if convergence_criteria == "all_converged_theta":
-                        metric_current = self.session.run(self.model.model_vars.params)
-                        metric_delta = np.abs(np.exp(metric_prev) - np.exp(metric_current))
-                        # Evaluate convergence based on maximally varying parameter per gene:
-                        metric_delta = np.max(metric_delta, axis=0)
-                    elif convergence_criteria == "all_converged_ll":
-                        metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                        metric_delta = (metric_prev - metric_current) / metric_prev
-                    else:
-                        raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
 
-                # Update jacobian, hessian and fisher information matrix.
-                t_eval_0 = time.time()
-                if is_irls_tr:
-                    _, _, jac_train, ll_current = self.session.run((
-                        self.model.full_data_model.jac.jac_ab_set,
-                        self.model.full_data_model.fim.fim_ab_set,
-                        self.model.full_data_model.neg_jac_train,
-                        self.model.full_data_model.norm_neg_log_likelihood
-                    ))
-                elif is_nr_tr:
-                     _, _, jac_train, ll_current = self.session.run((
-                        self.model.full_data_model.jac.jac_ab_set,
-                        self.model.full_data_model.hessians.hessian_set,
-                        self.model.full_data_model.neg_jac_train,
-                        self.model.full_data_model.norm_neg_log_likelihood
-                    ))
-                else:
-                    _, jac_train, ll_current = self.session.run((
-                        self.model.full_data_model.jac.jac_ab_set,
-                        self.model.full_data_model.neg_jac_train,
-                        self.model.full_data_model.norm_neg_log_likelihood
-                    ))
-                t_eval_1 = time.time()
-                tf.logging.debug("time for x, jac, hess, fim evaluation %f" % (t_eval_1 - t_eval_0))
-                #jac_train = np.abs(self.session.run(self.model.full_data_model.neg_jac_train))
+                    x_norm_loc = np.sum(x_step[self.model.full_data_model.idx_train_loc, :], axis=0)
+                    x_norm_scale = np.sum(x_step[self.model.full_data_model.idx_train_scale, :], axis=0)
 
                 # Update convergence status of non-converged features:
                 t_conv_0 = time.time()
-                print(ll_prev-ll_current)
                 ll_converged = (ll_prev - ll_current) / ll_prev < stopping_criteria
                 assert np.all(ll_current <= ll_prev), "update error"
                 self.model.model_vars.converged = np.logical_or(

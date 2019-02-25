@@ -228,9 +228,6 @@ class MultiTrainer:
             features_converged: np.ndarray = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
-            nr_tr_delta: tf.Tensor = None,
-            nr_tr_radius: tf.Variable = None,
-            nr_tr_pred_cost_gain: tf.Tensor = None,
             train_ops_nr_tr=None,
             irls_tr_delta: Union[tf.Tensor, None] = None,
             irls_tr_radius: tf.Variable = None,
@@ -344,17 +341,15 @@ class MultiTrainer:
             if provide_optimizers["nr"] and newton_delta is not None:
                 logger.debug(" *** Building optimizer: NR")
                 nr_delta_step = newton_delta
-                train_op_nr_0 = nr_delta_step
 
                 theta_new_nr = variables - nr_delta_step
-                train_op_nr_1 = tf.group(
+                train_op_nr = tf.group(
                     tf.assign(variables, theta_new_nr),
                     tf.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
-                    train_op_nr_1 = apply_train_ops(train_op_nr_1)
+                    train_op_nr = apply_train_ops(train_op_nr)
 
-                train_op_nr = [train_op_nr_0, train_op_nr_1]
             else:
                 train_op_nr = None
 
@@ -375,30 +370,10 @@ class MultiTrainer:
             else:
                 train_op_irls = None
 
-            if provide_optimizers["nr_tr"] or provide_optimizers["irls_tr"]:
-                # Check hyper-parameters:
-                assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
-                    "eta0 must be smaller than eta1"
-                assert pkg_constants.TRUST_REGION_ETA1 < pkg_constants.TRUST_REGION_ETA2, \
-                    "eta1 must be smaller than eta2"
-                assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
-                assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
-                assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
-                # Set trust region hyper-parameters
-                eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=variables.dtype)
-                eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=variables.dtype)
-                eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=variables.dtype)
-                t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=variables.dtype)
-                t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=variables.dtype)
-                upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=variables.dtype)
-
-                self.variables_old = tf.placeholder(shape=variables.shape, dtype=variables.dtype)  # TODO: bypass
-
-            if provide_optimizers["nr_tr"] and nr_tr_delta is not None:
+            if provide_optimizers["nr_tr"]:
                 logger.debug(" *** Building optimizer: NR_TR")
                 train_op_nr_tr = train_ops_nr_tr
             else:
-                self.delta_f_actual_nr_tr = None
                 train_op_nr_tr = None
 
             if provide_optimizers["irls_tr"] and irls_tr_delta is not None:

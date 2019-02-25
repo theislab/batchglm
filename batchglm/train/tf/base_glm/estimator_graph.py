@@ -262,7 +262,7 @@ class NewtonGraphGLM:
             dtype
     ):
         if train_mu or train_r:
-            if provide_optimizers["nr"]:
+            if provide_optimizers["nr"] or provide_optimizers["nr_tr"]:
                 if self.batched_data_model is None:
                     batched_lhs = None
                     batched_rhs = None
@@ -280,6 +280,14 @@ class NewtonGraphGLM:
                     psd=False
                 )
                 logger.debug(" ** padding nr updates")
+
+            if provide_optimizers["nr"] or provide_optimizers["nr_tr"]:
+                self.nr_tr_x_step_full = tf.Variable(tf.zeros_like(self.model_vars.params))
+                if self.batched_data_model is None:
+                    self.nr_tr_x_step_batched = None
+                else:
+                    self.nr_x_step_batched = tf.Variable(tf.zeros_like(self.model_vars.params))
+
                 nr_update_full, nr_update_batched = self.pad_updates(
                     train_mu=train_mu,
                     train_r=train_r,
@@ -292,43 +300,29 @@ class NewtonGraphGLM:
 
             if provide_optimizers["nr_tr"]:
                 logger.debug(" ** building nr_tr updates")
-                nr_tr_radius = tf.Variable(
+                self.nr_tr_radius = tf.Variable(
                     np.zeros(shape=[self.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
                     dtype=dtype
                 )
-                nr_tr_ll_0 = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
-                nr_tr_x_old = tf.Variable(tf.zeros_like(self.model_vars.params))
-                self.nr_tr_x_step = tf.Variable(tf.zeros_like(self.model_vars.params))
+                self.nr_tr_ll_prev_full = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
+                self.nr_tr_pred_gain_full = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
+                self.nr_tr_x_step_full = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 if self.batched_data_model is None:
-                    batched_lhs = None
-                    batched_rhs = None
+                    self.nr_tr_ll_prev_batched = None
+                    self.nr_tr_pred_gain_batched = None
+                    self.nr_tr_x_step_batched = None
                 else:
-                    batched_lhs = self.batched_data_model.neg_hessians_train
-                    batched_rhs = self.batched_data_model.neg_jac_train
-
-                nr_tr_update_full_raw, nr_tr_update_batched_raw = self.build_updates(
-                    full_lhs=self.full_data_model.neg_hessians_train,
-                    batched_lhs=batched_lhs,
-                    full_rhs=self.full_data_model.neg_jac_train,
-                    batched_rhs=batched_rhs,
-                    termination_type=termination_type,
-                    psd=False
-                )
-                logger.debug(" ** padding nr_tr updates")
-                nr_tr_update_full, nr_tr_update_batched = self.pad_updates(
-                    train_mu=train_mu,
-                    train_r=train_r,
-                    update_full_raw=nr_tr_update_full_raw,
-                    update_batched_raw=nr_tr_update_batched_raw
-                )
+                    self.nr_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
+                    self.nr_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
+                    self.nr_tr_x_step_batched = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 logger.debug(" ** building predicted loss of nr_tr updates")
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
-                nr_tr_update_full_magnitude = tf.sqrt(tf.reduce_sum(tf.square(nr_tr_update_full_raw), axis=0))
-                nr_tr_update_full_norm = tf.divide(nr_tr_update_full_raw, nr_tr_update_full_magnitude)
+                nr_tr_update_full_magnitude = tf.sqrt(tf.reduce_sum(tf.square(nr_update_full_raw), axis=0))
+                nr_tr_update_full_norm = tf.divide(nr_update_full_raw, nr_tr_update_full_magnitude)
                 nr_tr_update_full_scale = tf.minimum(
-                    nr_tr_radius,
+                    self.nr_tr_radius,
                     nr_tr_update_full_magnitude
                 )
                 nr_tr_proposed_vector_full = tf.multiply(
@@ -350,93 +344,17 @@ class NewtonGraphGLM:
                     ) / tf.square(n_obs)
                 )
 
-                # Check hyper-parameters:
-                assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
-                    "eta0 must be smaller than eta1"
-                assert pkg_constants.TRUST_REGION_ETA1 < pkg_constants.TRUST_REGION_ETA2, \
-                    "eta1 must be smaller than eta2"
-                assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
-                assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
-                assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
-                # Set trust region hyper-parameters
-                eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=dtype)
-                eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=dtype)
-                eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=dtype)
-                t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=dtype)
-                t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=dtype)
-                upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=dtype)
-
-                # Propose parameter update:
-                #nr_tr_ll_0 = self.full_data_model.norm_neg_log_likelihood
-                train_op_nr_tr_prev = tf.group(
-                    tf.assign(nr_tr_ll_0, self.full_data_model.norm_neg_log_likelihood),
-                    tf.assign(nr_tr_x_old, self.model_vars.params)
-                )
-                with self.graph.control_dependencies([train_op_nr_tr_prev,
-                                                      nr_tr_ll_0,
-                                                      nr_tr_pred_cost_gain_full,
-                                                      nr_tr_proposed_vector_full]):
-                    train_op_x_step = tf.assign(self.nr_tr_x_step, nr_tr_proposed_vector_full)
-                    with self.graph.control_dependencies([train_op_x_step]):
-                        train_op_nr_tr_trial_update = tf.group(
-                            tf.assign(self.model_vars.params, nr_tr_x_old - self.nr_tr_x_step)
-                        )
-                        with self.graph.control_dependencies([train_op_nr_tr_trial_update]):
-                            # Include parameter updates only if update improves cost function:
-                            delta_f_actual_nr_tr = nr_tr_ll_0 - self.full_data_model.norm_neg_log_likelihood
-                            with self.graph.control_dependencies([delta_f_actual_nr_tr]):
-                                delta_f_ratio = tf.divide(delta_f_actual_nr_tr, nr_tr_pred_cost_gain_full)
-
-                                # Compute parameter updates.
-                                update_theta = delta_f_actual_nr_tr > eta0
-                                #update_theta = tf.logical_and(
-                                #    delta_f_actual_nr_tr > eta0,
-                                #    tf.logical_not(self.model_vars.converged)
-                                #)
-                                update_theta_numeric = tf.expand_dims(tf.cast(update_theta, dtype), axis=0)
-                                keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
-                                theta_new_nr_tr = tf.add(
-                                    tf.multiply(nr_tr_x_old, keep_theta_numeric),  # old values
-                                    tf.multiply(self.model_vars.params, update_theta_numeric)  # new values
-                                )
-
-                                train_op_nr_tr_update_params = tf.assign(self.model_vars.params, theta_new_nr_tr)
-                                train_op_nr_tr_update_status = tf.assign(self.model_vars.updated, update_theta)
-
-                                # Update trusted region accordingly:
-                                decrease_radius = delta_f_ratio < eta1  #tf.logical_and(delta_f_ratio < eta1, tf.logical_not(self.model_vars.converged))
-                                increase_radius = delta_f_ratio > eta2  #tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model_vars.converged))
-                                keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
-                                                             tf.logical_not(increase_radius))
-                                nr_tr_radius_update = tf.add_n([
-                                    tf.multiply(t1, tf.cast(decrease_radius, dtype)),
-                                    tf.multiply(t2, tf.cast(increase_radius, dtype)),
-                                    tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, dtype))
-                                ])
-                                nr_tr_radius_new = tf.minimum(tf.multiply(nr_tr_radius, nr_tr_radius_update), upper_bound)
-                                with self.graph.control_dependencies([train_op_nr_tr_update_params]):
-                                    train_op_nr_tr_update_radius = tf.assign(nr_tr_radius, nr_tr_radius_new)
-
-                train_ops_nr_tr = tf.group(
-                    train_op_nr_tr_prev,
-                    train_op_x_step,
-                    train_op_nr_tr_trial_update,
-                    train_op_nr_tr_update_params,
-                    train_op_nr_tr_update_status,
-                    train_op_nr_tr_update_radius
-                )
-
-                #train_ops_nr_tr = {
-                #    "init": train_op_nr_tr_prev,
-                #    "trial_update": train_op_nr_tr_trial_update,
-                #    #"trial_ll": train_op_nr_tr_trial_ll,
-                #    "update": tf.group(train_op_nr_tr_update_params,
-                #                       train_op_nr_tr_update_status,
-                #                       train_op_nr_tr_update_radius)
-                #}
-
                 if self.batched_data_model is not None:
-                    nr_tr_proposed_vector_batched = tf.multiply(nr_tr_radius, nr_tr_update_batched_raw)
+                    nr_tr_update_batched_magnitude = tf.sqrt(tf.reduce_sum(tf.square(nr_tr_update_full_raw), axis=0))
+                    nr_tr_update_batched_norm = tf.divide(nr_tr_update_batched_raw, nr_tr_update_batched_magnitude)
+                    nr_tr_update_batched_scale = tf.minimum(
+                        self.nr_tr_radius,
+                        nr_tr_update_batched_magnitude
+                    )
+                    nr_tr_proposed_vector_batched = tf.multiply(
+                        nr_tr_update_batched_norm,
+                        nr_tr_update_batched_scale
+                    )
                     nr_tr_pred_cost_gain_batched = tf.add(
                         tf.einsum(
                             'ni,in->n',
@@ -453,11 +371,31 @@ class NewtonGraphGLM:
                     )
                 else:
                     nr_tr_pred_cost_gain_batched = None
+
+                train_ops_nr_tr_full = self.trust_region_ops(
+                    likelihood_container=self.nr_tr_ll_prev_full,
+                    proposed_vector=nr_tr_proposed_vector_full,
+                    proposed_vector_container=self.nr_tr_x_step_full,
+                    proposed_gain=nr_tr_pred_cost_gain_full,
+                    proposed_gain_container=self.nr_tr_pred_gain_full,
+                    radius_container=self.nr_tr_radius,
+                    dtype=dtype
+                )
+                if self.batched_data_model is not None:
+                    train_ops_nr_tr_batched = self.trust_region_ops(
+                        likelihood_container=self.nr_tr_ll_prev_batched,
+                        proposed_vector=nr_tr_proposed_vector_batched,
+                        proposed_vector_container=self.nr_tr_x_step_batched,
+                        proposed_gain=nr_tr_pred_cost_gain_batched,
+                        proposed_gain_container=self.nr_tr_pred_gain_batched,
+                        radius_container=self.nr_tr_radius,
+                        dtype=dtype
+                    )
+                else:
+                    train_ops_nr_tr_batched = None
             else:
-                nr_tr_update_full = None
-                nr_tr_update_batched = None
-                nr_tr_pred_cost_gain_full = None
-                nr_tr_pred_cost_gain_batched = None
+                train_ops_nr_tr_full = None
+                train_ops_nr_tr_batched = None
                 nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
 
             if provide_optimizers["irls"]:
@@ -684,17 +622,13 @@ class NewtonGraphGLM:
         else:
             nr_update_full = None
             nr_update_batched = None
-            nr_tr_update_full = None
-            nr_tr_update_batched = None
+            train_ops_nr_tr_full = None
+            train_ops_nr_tr_batched = None
 
             irls_update_full = None
             irls_update_batched = None
             irls_tr_update_full = None
             irls_tr_update_batched = None
-
-            nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
-            nr_tr_pred_cost_gain_full = None
-            nr_tr_pred_cost_gain_batched = None
 
             irls_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
             irls_tr_pred_cost_gain_full = None
@@ -702,18 +636,13 @@ class NewtonGraphGLM:
 
         self.nr_update_full = nr_update_full
         self.nr_update_batched = nr_update_batched
-        self.nr_tr_update_full = nr_tr_update_full
-        self.nr_tr_update_batched = nr_tr_update_batched
+        self.train_ops_nr_tr_full = train_ops_nr_tr_full
+        self.train_ops_nr_tr_batched = train_ops_nr_tr_batched
 
         self.irls_update_full = irls_update_full
         self.irls_update_batched = irls_update_batched
         self.irls_tr_update_full = irls_tr_update_full
         self.irls_tr_update_batched = irls_tr_update_batched
-
-        self.nr_tr_radius = nr_tr_radius
-        self.nr_tr_pred_cost_gain_full = nr_tr_pred_cost_gain_full
-        self.nr_tr_pred_cost_gain_batched = nr_tr_pred_cost_gain_batched
-        self.train_ops_nr_tr = train_ops_nr_tr
 
         self.irls_tr_radius = irls_tr_radius
         self.irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full
@@ -863,6 +792,91 @@ class NewtonGraphGLM:
 
         return update_tensor
 
+    def trust_region_ops(
+            self,
+            likelihood_container,
+            proposed_vector,
+            proposed_vector_container,
+            proposed_gain,
+            proposed_gain_container,
+            radius_container,
+            dtype
+    ):
+        # Load hyper-parameters:
+        assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
+            "eta0 must be smaller than eta1"
+        assert pkg_constants.TRUST_REGION_ETA1 < pkg_constants.TRUST_REGION_ETA2, \
+            "eta1 must be smaller than eta2"
+        assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
+        assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
+        assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
+        # Set trust region hyper-parameters
+        eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=dtype)
+        eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=dtype)
+        eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=dtype)
+        t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=dtype)
+        t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=dtype)
+        upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=dtype)
+
+        # Phase I: Perform a trial update.
+        # Propose parameter update:
+        train_op_nr_tr_prev = tf.group(
+            tf.assign(likelihood_container, self.full_data_model.norm_neg_log_likelihood)
+        )
+        with self.graph.control_dependencies([train_op_nr_tr_prev]):
+            train_op_x_step = tf.group(
+                tf.assign(proposed_vector_container, proposed_vector),
+                tf.assign(proposed_gain_container, proposed_gain)
+            )
+            with self.graph.control_dependencies([train_op_x_step]):
+                train_op_trial_update = tf.group(
+                    tf.assign(self.model_vars.params, self.model_vars.params - proposed_vector_container)
+                )
+
+        # Phase II: Evaluate success of trial update and complete update cycle.
+        # Include parameter updates only if update improves cost function:
+        delta_f_actual = likelihood_container - self.full_data_model.norm_neg_log_likelihood
+        with self.graph.control_dependencies([delta_f_actual]):
+            delta_f_ratio = tf.divide(delta_f_actual, proposed_gain_container)
+
+            # Compute parameter updates.
+            update_theta = tf.logical_and(
+                delta_f_actual > eta0,
+                tf.logical_not(self.model_vars.converged)
+            )
+            update_theta_numeric = tf.expand_dims(tf.cast(update_theta, dtype), axis=0)
+            keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
+            theta_new_nr_tr = tf.add(
+                tf.multiply(self.model_vars.params + proposed_vector_container, keep_theta_numeric),  # old values
+                tf.multiply(self.model_vars.params, update_theta_numeric)  # new values
+            )
+
+            train_op_update_params = tf.assign(self.model_vars.params, theta_new_nr_tr)
+            train_op_update_status = tf.assign(self.model_vars.updated, update_theta)
+
+            # Update trusted region accordingly:
+            decrease_radius = tf.logical_and(delta_f_ratio < eta1, tf.logical_not(self.model_vars.converged))
+            increase_radius = tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model_vars.converged))
+            keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
+                                         tf.logical_not(increase_radius))
+            radius_update = tf.add_n([
+                tf.multiply(t1, tf.cast(decrease_radius, dtype)),
+                tf.multiply(t2, tf.cast(increase_radius, dtype)),
+                tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, dtype))
+            ])
+            radius_new = tf.minimum(tf.multiply(radius_container, radius_update), upper_bound)
+            with self.graph.control_dependencies([train_op_update_params]):
+                train_op_update_radius = tf.assign(radius_container, radius_new)
+
+        train_ops = {
+            "trial_update": train_op_trial_update,
+            "update": tf.group(train_op_update_params,
+                               train_op_update_status,
+                               train_op_update_radius)
+        }
+
+        return train_ops
+
 
 class TrainerGraphGLM:
     """
@@ -925,9 +939,7 @@ class TrainerGraphGLM:
                     features_converged=self.model_vars.converged,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
-                    nr_tr_delta=self.nr_tr_update_batched,
-                    nr_tr_radius=self.nr_tr_radius,
-                    nr_tr_pred_cost_gain=self.nr_tr_pred_cost_gain_full,
+                    train_ops_nr_tr=self.train_ops_nr_tr_batched,
                     irls_tr_delta=self.irls_tr_update_batched,
                     irls_tr_radius=self.irls_tr_radius,
                     irls_tr_pred_cost_gain=self.irls_tr_pred_cost_gain_batched,
@@ -954,10 +966,7 @@ class TrainerGraphGLM:
                     features_converged=self.model_vars.converged,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
-                    nr_tr_delta=self.nr_tr_update_full,
-                    nr_tr_radius=self.nr_tr_radius,
-                    nr_tr_pred_cost_gain=self.nr_tr_pred_cost_gain_full,
-                    train_ops_nr_tr=self.train_ops_nr_tr,
+                    train_ops_nr_tr=self.train_ops_nr_tr_full,
                     irls_tr_delta=self.irls_tr_update_full,
                     irls_tr_radius=self.irls_tr_radius,
                     irls_tr_pred_cost_gain=self.irls_tr_pred_cost_gain_full,
