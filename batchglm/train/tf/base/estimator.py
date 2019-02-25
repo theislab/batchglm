@@ -268,13 +268,17 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 ## Run update.
                 if trustregion_mode:
-                    # Use parameter space convergence as a helper:
-                    t_trial_0 = time.time()
-                    if False:
-                        train_step, _, x_step = self.session.run(
-                            (self.model.global_step,
-                             train_op["trial_update"])
-                        )
+                    train_step, _, x_step = self.session.run(
+                        (self.model.global_step,
+                         train_op["train"]["trial_op"],
+                         train_op["update"])
+                    )
+                    _, ll_current, jac_train, features_updated = self.session.run(
+                        (train_op["train"]["update_op"],
+                         self.model.full_data_model.norm_neg_log_likelihood,
+                         self.model.full_data_model.neg_jac_train,
+                         train_op["updated"])
+                    )
 
                     if len(self.model.full_data_model.idx_train_loc) > 0:
                         x_norm_loc = np.sqrt(np.sum(np.square(
@@ -289,15 +293,14 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         ), axis=0))
                     else:
                         x_norm_scale = np.zeros([self.model.model_vars.n_features])
-
-                    #ll_current_trial_loc = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                    t_trial_1 = time.time()
-                    tf.logging.debug("time for trust region step %f" % (t_trial_1-t_trial_0))
                 else:
-                    train_step, _, ll_current, x_step = self.session.run(
+                    train_step, _, ll_current, jac_train, x_step, features_updated = self.session.run(
                         (self.model.global_step,
-                         train_op,
-                         self.model.full_data_model.norm_neg_log_likelihood),
+                         train_op["train"],
+                         self.model.full_data_model.norm_neg_log_likelihood,
+                         self.model.full_data_model.neg_jac_train,
+                         train_op["update"],
+                         train_op["updated"]),
                         feed_dict=feed_dict
                     )
 
