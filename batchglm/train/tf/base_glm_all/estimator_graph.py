@@ -126,6 +126,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         self.num_observations = num_observations
         self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
         self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
+        self.idx_train = np.sort(np.concatenate([self.idx_train_loc, self.idx_train_scale]))
 
         self.batched_data = batched_data
         self.sample_indices = sample_indices
@@ -313,6 +314,9 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         self.design_scale = batched_model.design_scale
         self.constraints_loc = batched_model.constraints_loc
         self.constraints_scale = batched_model.constraints_scale
+        self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
+        self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
+        self.idx_train = np.sort(np.concatenate([self.idx_train_loc, self.idx_train_scale]))
 
         self.batched_model = batched_model
         self.batched_data = batch_data

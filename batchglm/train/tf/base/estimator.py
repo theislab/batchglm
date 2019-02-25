@@ -279,20 +279,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          self.model.full_data_model.neg_jac_train,
                          train_op["updated"])
                     )
-
-                    if len(self.model.full_data_model.idx_train_loc) > 0:
-                        x_norm_loc = np.sqrt(np.sum(np.square(
-                            np.abs(x_step[self.model.model_vars.idx_train_loc, :])
-                        ), axis=0))
-                    else:
-                        x_norm_loc = np.zeros([self.model.model_vars.n_features])
-
-                    if len(self.model.full_data_model.idx_train_scale) > 0:
-                        x_norm_scale = np.sqrt(np.sum(np.square(
-                            np.abs(x_step[self.model.model_vars.idx_train_scale, :])
-                        ), axis=0))
-                    else:
-                        x_norm_scale = np.zeros([self.model.model_vars.n_features])
                 else:
                     train_step, _, ll_current, jac_train, x_step, features_updated = self.session.run(
                         (self.model.global_step,
@@ -304,8 +290,19 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         feed_dict=feed_dict
                     )
 
-                    x_norm_loc = np.sum(x_step[self.model.full_data_model.idx_train_loc, :], axis=0)
-                    x_norm_scale = np.sum(x_step[self.model.full_data_model.idx_train_scale, :], axis=0)
+                if len(self.model.full_data_model.idx_train_loc) > 0:
+                    x_norm_loc = np.sqrt(np.sum(np.square(
+                        np.abs(x_step[self.model.model_vars.idx_train_loc, :])
+                    ), axis=0))
+                else:
+                    x_norm_loc = np.zeros([self.model.model_vars.n_features])
+
+                if len(self.model.full_data_model.idx_train_scale) > 0:
+                    x_norm_scale = np.sqrt(np.sum(np.square(
+                        np.abs(x_step[self.model.model_vars.idx_train_scale, :])
+                    ), axis=0))
+                else:
+                    x_norm_scale = np.zeros([self.model.model_vars.n_features])
 
                 # Update convergence status of non-converged features:
                 t_conv_0 = time.time()
@@ -321,11 +318,15 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
                 n_obs = self.model.full_data_model.num_observations
                 if len(self.model.full_data_model.idx_train_loc) > 0:
-                    grad_norm_loc = np.sum(jac_train[:, self.model.full_data_model.idx_train_loc], axis=1) / n_obs
+                    idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
+                                            for x in self.model.full_data_model.idx_train_loc])
+                    grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / n_obs
                 else:
                     grad_norm_loc = np.zeros([self.model.model_vars.n_features])
                 if len(self.model.full_data_model.idx_train_scale) > 0:
-                    grad_norm_scale = np.sum(jac_train[:, self.model.full_data_model.idx_train_scale], axis=1) / n_obs
+                    idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
+                                              for x in self.model.full_data_model.idx_train_scale])
+                    grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / n_obs
                 else:
                     grad_norm_scale = np.zeros([self.model.model_vars.n_features])
                 converged_g = np.logical_and(

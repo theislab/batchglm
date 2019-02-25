@@ -279,21 +279,18 @@ class NewtonGraphGLM:
                     termination_type=termination_type,
                     psd=False
                 )
-                logger.debug(" ** padding nr updates")
-
-            if provide_optimizers["nr"] or provide_optimizers["nr_tr"]:
-                self.nr_tr_x_step_full = tf.Variable(tf.zeros_like(self.model_vars.params))
-                if self.batched_data_model is None:
-                    self.nr_tr_x_step_batched = None
-                else:
-                    self.nr_x_step_batched = tf.Variable(tf.zeros_like(self.model_vars.params))
-
                 nr_update_full, nr_update_batched = self.pad_updates(
                     train_mu=train_mu,
                     train_r=train_r,
                     update_full_raw=nr_update_full_raw,
                     update_batched_raw=nr_update_batched_raw
                 )
+
+                self.nr_tr_x_step_full = tf.Variable(tf.zeros_like(nr_update_full))
+                if self.batched_data_model is None:
+                    self.nr_tr_x_step_batched = None
+                else:
+                    self.nr_x_step_batched = tf.Variable(tf.zeros_like(nr_update_batched))
             else:
                 nr_update_full = None
                 nr_update_batched = None
@@ -306,16 +303,13 @@ class NewtonGraphGLM:
                 )
                 self.nr_tr_ll_prev_full = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                 self.nr_tr_pred_gain_full = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
-                self.nr_tr_x_step_full = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 if self.batched_data_model is None:
                     self.nr_tr_ll_prev_batched = None
                     self.nr_tr_pred_gain_batched = None
-                    self.nr_tr_x_step_batched = None
                 else:
                     self.nr_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.nr_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
-                    self.nr_tr_x_step_batched = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 logger.debug(" ** building predicted loss of nr_tr updates")
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
@@ -371,10 +365,18 @@ class NewtonGraphGLM:
                     )
                 else:
                     nr_tr_pred_cost_gain_batched = None
+                    nr_tr_proposed_vector_batched = None
+
+                nr_tr_proposed_vector_full_pad, nr_tr_proposed_vector_batched_pad = self.pad_updates(
+                    train_mu=train_mu,
+                    train_r=train_r,
+                    update_full_raw=nr_tr_proposed_vector_full,
+                    update_batched_raw=nr_tr_proposed_vector_batched
+                )
 
                 train_ops_nr_tr_full = self.trust_region_ops(
                     likelihood_container=self.nr_tr_ll_prev_full,
-                    proposed_vector=nr_tr_proposed_vector_full,
+                    proposed_vector=nr_tr_proposed_vector_full_pad,
                     proposed_vector_container=self.nr_tr_x_step_full,
                     proposed_gain=nr_tr_pred_cost_gain_full,
                     proposed_gain_container=self.nr_tr_pred_gain_full,
@@ -384,7 +386,7 @@ class NewtonGraphGLM:
                 if self.batched_data_model is not None:
                     train_ops_nr_tr_batched = self.trust_region_ops(
                         likelihood_container=self.nr_tr_ll_prev_batched,
-                        proposed_vector=nr_tr_proposed_vector_batched,
+                        proposed_vector=nr_tr_proposed_vector_batched_pad,
                         proposed_vector_container=self.nr_tr_x_step_batched,
                         proposed_gain=nr_tr_pred_cost_gain_batched,
                         proposed_gain_container=self.nr_tr_pred_gain_batched,
@@ -478,6 +480,12 @@ class NewtonGraphGLM:
                     update_full_raw=irls_update_full_raw,
                     update_batched_raw=irls_update_batched_raw
                 )
+
+                self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(irls_update_full))
+                if self.batched_data_model is None:
+                    self.irls_tr_x_step_batched = None
+                else:
+                    self.irls_tr_x_step_batched = tf.Variable(tf.zeros_like(irls_update_full))
             else:
                 irls_update_full = None
                 irls_update_batched = None
@@ -489,16 +497,13 @@ class NewtonGraphGLM:
                 )
                 self.irls_tr_ll_prev_full = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                 self.irls_tr_pred_gain_full = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
-                self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 if self.batched_data_model is None:
                     self.irls_tr_ll_prev_batched = None
                     self.irls_tr_pred_gain_batched = None
-                    self.irls_tr_x_step_batched = None
                 else:
                     self.irls_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.irls_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
-                    self.irls_tr_x_step_batched = tf.Variable(tf.zeros_like(self.model_vars.params))
 
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
                 if train_mu:
