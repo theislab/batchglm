@@ -175,11 +175,11 @@ class HessiansGLM:
             self.hessian_aa = H[:, :p_shape_a, :p_shape_a]
             self.hessian_bb = H[:, p_shape_a:, p_shape_a:]
         elif self._compute_hess_a and not self._compute_hess_b:
-            self.hessian_aa = H[:, :p_shape_a, :p_shape_a]
+            self.hessian_aa = H
             self.hessian_bb = None
         elif not self._compute_hess_a and self._compute_hess_b:
             self.hessian_aa = None
-            self.hessian_bb = H[:, p_shape_a:, p_shape_a:]
+            self.hessian_bb = H
         else:
             self.hessian_aa = None
             self.hessian_bb = None

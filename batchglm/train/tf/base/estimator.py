@@ -307,7 +307,9 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 # Update convergence status of non-converged features:
                 t_conv_0 = time.time()
                 ll_converged = (ll_prev - ll_current) / ll_prev < stopping_criteria
-                assert np.all(ll_current <= ll_prev), "update error"
+                if np.any(ll_current > ll_prev):
+                    tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev))
+
                 self.model.model_vars.converged = np.logical_or(
                     converged_prev,
                     np.logical_and(ll_converged, features_updated)
