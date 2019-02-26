@@ -268,16 +268,22 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 ## Run update.
                 if trustregion_mode:
-                    train_step, _, x_step = self.session.run(
-                        (self.model.global_step,
-                         train_op["train"]["trial_op"],
-                         train_op["update"])
+                    _, x_step = self.session.run(
+                        (train_op["train"]["trial_op"],
+                         train_op["update"]),
+                        feed_dict=feed_dict
                     )
-                    _, ll_current, jac_train, features_updated = self.session.run(
-                        (train_op["train"]["update_op"],
+                    train_step, _, ll_current, jac_train, features_updated = self.session.run(
+                        (self.model.global_step,
+                         train_op["train"]["update_op"],
                          self.model.full_data_model.norm_neg_log_likelihood,
                          self.model.full_data_model.neg_jac_train,
-                         train_op["updated"])
+                         train_op["updated"]),
+                        feed_dict=feed_dict
+                    )
+                    ll_current = self.session.run(
+                        (self.model.full_data_model.norm_neg_log_likelihood),
+                        feed_dict=feed_dict
                     )
                 else:
                     train_step, _, ll_current, jac_train, x_step, features_updated = self.session.run(
@@ -287,6 +293,10 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          self.model.full_data_model.neg_jac_train,
                          train_op["update"],
                          train_op["updated"]),
+                        feed_dict=feed_dict
+                    )
+                    ll_current = self.session.run(
+                        (self.model.full_data_model.norm_neg_log_likelihood),
                         feed_dict=feed_dict
                     )
 
@@ -311,7 +321,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev))
 
                 self.model.model_vars.converged = np.logical_or(
-                    converged_prev,
+                    self.model.model_vars.converged,
                     np.logical_and(ll_converged, features_updated)
                 )
                 converged_f = np.logical_and(
@@ -372,7 +382,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     np.sum(ll_current),
                     np.sum(converged_current).astype("int32"),
                     str(np.round(t1 - t0, 3)),
-                    np.sum(np.logical_and(features_updated, converged_prev == False)).astype("int32"),
+                    np.sum(features_updated).astype("int32"),
                     np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
                 )
 

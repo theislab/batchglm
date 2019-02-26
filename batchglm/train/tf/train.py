@@ -385,7 +385,8 @@ class MultiTrainer:
             if provide_optimizers["nr_tr"] and train_ops_nr_tr is not None:
                 logger.debug(" *** Building optimizer: NR_TR")
                 train_op_nr_tr = {"trial_op": train_ops_nr_tr["trial_op"],
-                                  "update_op": train_ops_nr_tr["update_op"]}
+                                  "update_op": tf.group(train_ops_nr_tr["update_op"],
+                                                        tf.assign_add(global_step, 1))}
                 update_op_nr_tr = train_ops_nr_tr["update"]
                 updated_op_nr_tr = train_ops_nr_tr["updated"]
             else:
@@ -396,7 +397,8 @@ class MultiTrainer:
             if provide_optimizers["irls_tr"] and train_ops_irls_tr is not None:
                 logger.debug(" *** Building optimizer: IRLS_TR")
                 train_op_irls_tr = {"trial_op": train_ops_irls_tr["trial_op"],
-                                    "update_op": train_ops_irls_tr["update_op"]}
+                                    "update_op": tf.group(train_ops_irls_tr["update_op"],
+                                                          tf.assign_add(global_step, 1))}
                 update_op_irls_tr = train_ops_irls_tr["update"]
                 updated_op_irls_tr = train_ops_irls_tr["updated"]
             else:
