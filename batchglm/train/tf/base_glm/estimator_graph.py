@@ -754,11 +754,11 @@ class NewtonGraphGLM:
                     update_batched_raw=irls_update_batched_raw
                 )
 
-                self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(irls_update_full))
+                self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(irls_tr_update_full))
                 if self.batched_data_model is None:
                     self.irls_tr_x_step_batched = None
                 else:
-                    self.irls_tr_x_step_batched = tf.Variable(tf.zeros_like(irls_update_full))
+                    self.irls_tr_x_step_batched = tf.Variable(tf.zeros_like(irls_tr_update_full))
 
                 train_ops_irls_tr_full = self.trust_region_ops(
                     likelihood_container=self.irls_tr_ll_prev_full,
