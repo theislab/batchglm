@@ -427,13 +427,13 @@ class NewtonGraphGLM:
                         batched_lhs = None
                         batched_rhs = None
                     else:
-                        batched_lhs = self.batched_data_model.fim.fim_a
-                        batched_rhs = self.batched_data_model.jac.neg_jac_a
+                        batched_lhs = self.batched_data_model.fim_a
+                        batched_rhs = self.batched_data_model.neg_jac_a
 
                     irls_update_a_full, irls_update_a_batched = self.build_updates_nr(
-                        full_lhs=self.full_data_model.fim.fim_a,
+                        full_lhs=self.full_data_model.fim_a,
                         batched_lhs=batched_lhs,
-                        full_rhs=self.full_data_model.jac.neg_jac_a,
+                        full_rhs=self.full_data_model.neg_jac_a,
                         batched_rhs=batched_rhs,
                         termination_type=termination_type,
                         psd=False
@@ -448,13 +448,13 @@ class NewtonGraphGLM:
                         batched_lhs = None
                         batched_rhs = None
                     else:
-                        batched_lhs = self.batched_data_model.fim.fim_b
-                        batched_rhs = self.batched_data_model.jac.neg_jac_b
+                        batched_lhs = self.batched_data_model.fim_b
+                        batched_rhs = self.batched_data_model.neg_jac_b
                     if not bool_use_gd:
                         irls_update_b_full, irls_update_b_batched = self.build_updates_nr(
-                            full_lhs=self.full_data_model.fim.fim_b,
+                            full_lhs=self.full_data_model.fim_b,
                             batched_lhs=batched_lhs,
-                            full_rhs=self.full_data_model.jac.neg_jac_b,
+                            full_rhs=self.full_data_model.neg_jac_b,
                             batched_rhs=batched_rhs,
                             termination_type=termination_type,
                             psd=False
@@ -462,11 +462,11 @@ class NewtonGraphGLM:
                     else:
                         # Use GD for b model:
                         if self.batched_data_model is not None:
-                            batched_jac = self.batched_data_model.jac.neg_jac_b
+                            batched_jac = self.batched_data_model.neg_jac_b
                         else:
                             batched_jac = None
                         irls_update_b_full, irls_update_b_batched = self.build_updates_gd(
-                            full_jac=self.full_data_model.jac.neg_jac_b,
+                            full_jac=self.full_data_model.neg_jac_b,
                             batched_jac=batched_jac,
                             termination_type=termination_type
                         )
@@ -560,14 +560,14 @@ class NewtonGraphGLM:
                     irls_tr_pred_cost_gain_full_a = tf.add(
                         tf.einsum(
                             'ni,in->n',
-                            self.full_data_model.jac.neg_jac_a,
+                            self.full_data_model.neg_jac_a,
                             irls_tr_proposed_vector_full_a
                         ) / n_obs,
                         0.5 * tf.einsum(
                             'nix,xin->n',
                             tf.einsum('inx,nij->njx',
                                       tf.expand_dims(irls_tr_proposed_vector_full_a, axis=-1),
-                                      self.full_data_model.fim.fim_a),
+                                      self.full_data_model.fim_a),
                             tf.expand_dims(irls_tr_proposed_vector_full_a, axis=0)
                         ) / tf.square(n_obs)
                     )
@@ -603,14 +603,14 @@ class NewtonGraphGLM:
                         irls_tr_pred_cost_gain_full_b = tf.add(
                             tf.einsum(
                                 'ni,in->n',
-                                self.full_data_model.jac.neg_jac_b,
+                                self.full_data_model.neg_jac_b,
                                 irls_tr_proposed_vector_full_b
                             ) / n_obs,
                             0.5 * tf.einsum(
                                 'nix,xin->n',
                                 tf.einsum('inx,nij->njx',
                                           tf.expand_dims(irls_tr_proposed_vector_full_b, axis=-1),
-                                          self.full_data_model.fim.fim_b),
+                                          self.full_data_model.fim_b),
                                tf.expand_dims(irls_tr_proposed_vector_full_b, axis=0)
                             ) / tf.square(n_obs)
                         )
@@ -626,7 +626,7 @@ class NewtonGraphGLM:
                         )
                         irls_tr_pred_cost_gain_full_b = tf.reduce_sum(tf.multiply(
                             irls_tr_proposed_vector_full_b,
-                            tf.transpose(self.full_data_model.jac.neg_jac_b)
+                            tf.transpose(self.full_data_model.neg_jac_b)
                         ), axis=0)
                 else:
                     irls_tr_pred_cost_gain_full_b = None
@@ -654,14 +654,14 @@ class NewtonGraphGLM:
                         irls_tr_pred_cost_gain_batched_a = tf.add(
                             tf.einsum(
                                 'ni,in->n',
-                                self.batched_data_model.jac.neg_jac_a,
+                                self.batched_data_model.neg_jac_a,
                                 irls_tr_proposed_vector_batched_a
                             ) / n_obs,
                             0.5 * tf.einsum(
                                 'nix,xin->n',
                                 tf.einsum('inx,nij->njx',
                                           tf.expand_dims(irls_tr_proposed_vector_batched_a, axis=-1),
-                                          self.batched_data_model.fim.fim_a),
+                                          self.batched_data_model.fim_a),
                                 tf.expand_dims(irls_tr_proposed_vector_batched_a, axis=0)
                             ) / tf.square(n_obs)
                         )
@@ -690,14 +690,14 @@ class NewtonGraphGLM:
                             irls_tr_pred_cost_gain_batched_b = tf.add(
                                 tf.einsum(
                                     'ni,in->n',
-                                    self.batched_data_model.jac.neg_jac_b,
+                                    self.batched_data_model.neg_jac_b,
                                    irls_tr_proposed_vector_batched_b
                                 ) / n_obs,
                                 0.5 * tf.einsum(
                                    'nix,xin->n',
                                    tf.einsum('inx,nij->njx',
                                               tf.expand_dims(irls_tr_proposed_vector_batched_b, axis=-1),
-                                              self.batched_data_model.fim.fim_b),
+                                              self.batched_data_model.fim_b),
                                     tf.expand_dims(irls_tr_proposed_vector_batched_b, axis=0)
                                 ) / tf.square(n_obs)
                             )
@@ -712,7 +712,7 @@ class NewtonGraphGLM:
                             )
                             irls_tr_pred_cost_gain_batched_b = tf.reduce_sum(tf.multiply(
                                 irls_tr_proposed_vector_batched_b,
-                                tf.transpose(self.batched_data_model.jac.neg_jac_b)
+                                tf.transpose(self.batched_data_model.neg_jac_b)
                             ), axis=0)
 
                 if train_mu and train_r:

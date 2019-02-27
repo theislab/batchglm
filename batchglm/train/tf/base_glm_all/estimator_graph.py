@@ -31,8 +31,6 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             noise_model,
             train_a,
             train_b,
-            provide_fim,
-            graph,
             dtype
     ):
         """
@@ -61,16 +59,16 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
+            from .external_nb import ReducibleTensors
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
         logger.debug("building input pipeline")
         with tf.name_scope("input_pipeline"):
-            dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
-            batched_data = dataset.batch(batch_size)
-            batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            data_set = tf.data.Dataset.from_tensor_slices(sample_indices)
+            data_set = data_set.batch(batch_size)
+            data_set = data_set.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
 
             def map_sparse(idx, data):
                 X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
@@ -81,139 +79,70 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                     X_tensor = X_tensor_ls[0]
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-            batched_data = batched_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            batched_data = batched_data.prefetch(1)
+            data_set = data_set.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            data_set = data_set.prefetch(1)
 
-        logger.debug("building likelihood")
-        with tf.name_scope("log_likelihood"):
-            def init_fun():
-                return tf.zeros([model_vars.n_features], dtype=dtype)
-
-            def map_fun(idx, data) -> BasicModelGraph:
-                X, design_loc, design_scale, size_factors = data
-                basic_model = BasicModelGraph(
-                    X=X,
-                    design_loc=design_loc,
-                    design_scale=design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    a_var=model_vars.a_var,
-                    b_var=model_vars.b_var,
-                    dtype=dtype,
-                    size_factors=size_factors)
-                return basic_model
-
-            def reduce_fun(old, new):
-                return tf.add(old, new)
-
-            log_likelihood = batched_data.reduce(
-                initial_state=init_fun(),
-                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]).log_likelihood)
+        with tf.name_scope("reducible_tensors"):
+            reducibles = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True
             )
+            # Jacobians of submodel which is to be trained.
+            if train_a and train_b:
+                neg_jac_train = reducibles.neg_jac
+            elif train_a and not train_b:
+                neg_jac_train = reducibles.neg_jac_a
+            elif not train_a and train_b:
+                neg_jac_train = reducibles.neg_jac_b
+            else:
+                neg_jac_train = None
 
-            norm_log_likelihood = log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
-            norm_neg_log_likelihood = - norm_log_likelihood
-            loss = tf.reduce_sum(norm_neg_log_likelihood)
+            self.neg_jac_train = neg_jac_train
+            self.jac = reducibles.jac
+            self.neg_jac_a = reducibles.neg_jac_a
+            self.neg_jac_b = reducibles.neg_jac_b
 
-        # Save attributes necessary for reinitialization:
-        self.fetch_fn = fetch_fn
-        self.batch_size = batch_size
-        self.train_a = train_a
-        self.train_b = train_b
-        self.dtype = dtype
-        self.constraints_loc = constraints_loc
-        self.constraints_scale = constraints_scale
+            # Hessian of submodel which is to be trained.
+            if train_a and train_b:
+                neg_hessians_train = reducibles.neg_hessian
+            elif train_a and not train_b:
+                neg_hessians_train = reducibles.neg_hessian_aa
+            elif not train_a and train_b:
+                neg_hessians_train = reducibles.neg_hessian_bb
+            else:
+                neg_hessians_train = None
+
+            self.hessians = reducibles.hessian
+            self.neg_hessians_train = neg_hessians_train
+
+            self.fim_a = reducibles.fim_a
+            self.fim_b = reducibles.fim_b
+
+            self.log_likelihood = reducibles.ll
+            self.norm_log_likelihood = self.log_likelihood / num_observations
+            self.norm_neg_log_likelihood = -self.norm_log_likelihood
+            self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
+
+            self.jac_set = reducibles.jac_set
+            self.hessian_set = reducibles.hessian_set
+            self.fim_a_set = reducibles.fim_a_set
+            self.fim_b_set = reducibles.fim_b_set
+            self.ll_set = reducibles.ll_set
+
         self.num_observations = num_observations
         self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
         self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
         self.idx_train = np.sort(np.concatenate([self.idx_train_loc, self.idx_train_scale]))
-
-        self.batched_data = batched_data
-        self.sample_indices = sample_indices
-
-        self.log_likelihood = log_likelihood
-        self.norm_log_likelihood = norm_log_likelihood
-        self.norm_neg_log_likelihood = norm_neg_log_likelihood
-        self.loss = loss
-
-        logger.debug("building jacobians")
-        with tf.name_scope("jacobians"):
-            # Jacobian of full model for reporting.
-            jacobian_full = Jacobians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.JACOBIAN_MODE,
-                noise_model=noise_model,
-                iterator=True,
-                jac_a=True,
-                jac_b=True,
-                dtype=dtype
-            )
-            # Jacobian of submodel which is to be trained.
-            if train_a and train_b:
-                neg_jac_train = jacobian_full.neg_jac
-            elif train_a and not train_b:
-                neg_jac_train = jacobian_full.neg_jac_a
-            elif not train_a and train_b:
-                neg_jac_train = jacobian_full.neg_jac_b
-            else:
-                neg_jac_train = None
-
-        self.jac = jacobian_full
-        self.neg_jac_train = neg_jac_train
-
-        logger.debug("building hessians")
-        with tf.name_scope("hessians"):
-            # Hessian of full model for reporting.
-            hessians_full = Hessians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.HESSIAN_MODE,
-                noise_model=noise_model,
-                iterator=True,
-                hess_a=True,
-                hess_b=True,
-                dtype=dtype
-            )
-            # Hessian of submodel which is to be trained.
-            if train_a and train_b:
-                neg_hessians_train = hessians_full.neg_hessian
-            elif train_a and not train_b:
-                neg_hessians_train = hessians_full.neg_hessian_aa
-            elif not train_a and train_b:
-                neg_hessians_train = hessians_full.neg_hessian_bb
-            else:
-                neg_hessians_train = None
-
-        logger.debug("building fim")
-        with tf.name_scope("fim"):
-            if provide_fim:
-                fim_full = FIM(
-                    batched_data=self.batched_data,
-                    sample_indices=self.sample_indices,
-                    constraints_loc=self.constraints_loc,
-                    constraints_scale=self.constraints_scale,
-                    model_vars=model_vars,
-                    noise_model=noise_model,
-                    iterator=True,
-                    update_a=True,
-                    update_b=True,
-                    dtype=dtype
-                )
-            else:
-                fim_full = None
-
-        self.hessians = hessians_full
-        self.neg_hessians_train = neg_hessians_train
-
-        self.provide_fim = provide_fim
-        self.fim = fim_full
 
 
 class BatchedDataModelGraph(BatchedDataModelGraphGLM):
@@ -258,20 +187,20 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
+            from .external_nb import ReducibleTensors
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
         with tf.name_scope("input_pipeline"):
-            data_indices = tf.data.Dataset.from_tensor_slices((
+            data_set = tf.data.Dataset.from_tensor_slices((
                 tf.range(num_observations, name="sample_index")
             ))
-            training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-            training_data = training_data.batch(batch_size, drop_remainder=True)
-            training_data = training_data.map(tf.contrib.framework.sort)  # sort indices - TODO why?
-            training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            training_data = training_data.prefetch(buffer_size)
+            data_set = data_set.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
+            data_set = data_set.batch(batch_size, drop_remainder=True)
+            data_set = data_set.map(tf.contrib.framework.sort)  # sort indices - TODO why?
+            data_set = data_set.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            data_set = data_set.prefetch(buffer_size)
 
             def map_sparse(idx, data_batch):
                 X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data_batch
@@ -282,145 +211,72 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                     X_tensor = X_tensor_ls[0]
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-            training_data = training_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            iterator = training_data.make_one_shot_iterator()  # tf.compat.v1.data.make_one_shot_iterator(training_data) TODO: replace with tf>=v1.13
+            data_set = data_set.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            iterator = data_set.make_one_shot_iterator()  # tf.compat.v1.data.make_one_shot_iterator(data_set) TODO: replace with tf>=v1.13
 
             batch_sample_index, batch_data = iterator.get_next()
-            (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
-            batched_model = BasicModelGraph(
-                X=batch_X,
-                design_loc=batch_design_loc,
-                design_scale=batch_design_scale,
+        with tf.name_scope("reducible_tensors"):
+            reducibles = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a_var=model_vars.a_var,
-                b_var=model_vars.b_var,
-                dtype=dtype,
-                size_factors=batch_size_factors
+                sample_indices=batch_sample_index,
+                data_set=None,
+                data_batch=batch_data,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True
             )
+            # Jacobians of submodel which is to be trained.
+            if train_a and train_b:
+                neg_jac_train = reducibles.neg_jac
+            elif train_a and not train_b:
+                neg_jac_train = reducibles.neg_jac_a
+            elif not train_a and train_b:
+                neg_jac_train = reducibles.neg_jac_b
+            else:
+                neg_jac_train = None
 
-        # Save hyper parameters to be reused for reinitialization:
+            self.neg_jac_train = neg_jac_train
+            self.jac = reducibles.jac
+            self.neg_jac_a = reducibles.neg_jac_a
+            self.neg_jac_b = reducibles.neg_jac_b
+
+            # Hessian of submodel which is to be trained.
+            if train_a and train_b:
+                neg_hessians_train = reducibles.neg_hessian
+            elif train_a and not train_b:
+                neg_hessians_train = reducibles.neg_hessian_aa
+            elif not train_a and train_b:
+                neg_hessians_train = reducibles.neg_hessian_bb
+            else:
+                neg_hessians_train = None
+
+            self.hessians = reducibles.hessian
+            self.neg_hessians_train = neg_hessians_train
+
+            self.fim_a = reducibles.fim_a
+            self.fim_b = reducibles.fim_b
+
+            self.log_likelihood = reducibles.ll
+            self.norm_log_likelihood = self.log_likelihood / batch_size
+            self.norm_neg_log_likelihood = -self.norm_log_likelihood
+            self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
+
+            self.jac_set = reducibles.jac_set
+            self.hessian_set = reducibles.hessian_set
+            self.fim_a_set = reducibles.fim_a_set
+            self.fim_b_set = reducibles.fim_b_set
+            self.ll_set = reducibles.ll_set
+
         self.num_observations = num_observations
-        self.fetch_fn = fetch_fn
-        self.batch_size = batch_size
-        self.buffer_size = buffer_size
-        self.train_a = train_a
-        self.train_b = train_b
-        self.dtype = dtype
-
-        self.X = batched_model.X
-        self.design_loc = batched_model.design_loc
-        self.design_scale = batched_model.design_scale
-        self.constraints_loc = batched_model.constraints_loc
-        self.constraints_scale = batched_model.constraints_scale
         self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
         self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
         self.idx_train = np.sort(np.concatenate([self.idx_train_loc, self.idx_train_scale]))
-
-        self.batched_model = batched_model
-        self.batched_data = batch_data
-        self.sample_indices = batch_sample_index
-
-        self.mu = batched_model.mu
-        self.r = batched_model.r
-        self.sigma2 = batched_model.sigma2
-
-        self.probs = batched_model.probs
-        self.log_probs = batched_model.log_probs
-
-        self.log_likelihood = batched_model.log_likelihood
-        self.norm_log_likelihood = batched_model.norm_log_likelihood
-        self.norm_neg_log_likelihood = batched_model.norm_neg_log_likelihood
-        self.loss = batched_model.loss
-
-        # Define the jacobian on the batched model for newton-rhapson:
-        # (note that these are the Jacobian matrix blocks
-        # of the trained subset of parameters).
-        if train_a or train_b:
-            jacobian_batched = Jacobians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.JACOBIAN_MODE,
-                noise_model=noise_model,
-                iterator=False,
-                jac_a=train_a,
-                jac_b=train_b,
-                dtype=dtype
-            )
-        else:
-            jacobian_batched = None
-
-        # Jacobian of submodel which is to be trained.
-        if train_a and train_b:
-            neg_jac_train = jacobian_batched.neg_jac
-        elif train_a and not train_b:
-            neg_jac_train = jacobian_batched.neg_jac_a
-        elif not train_a and train_b:
-            neg_jac_train = jacobian_batched.neg_jac_b
-        else:
-            neg_jac_train = None
-
-        self.jac = jacobian_batched
-        self.neg_jac_train = neg_jac_train
-
-        # Define the hessian on the batched model for newton-rhapson:
-        # (note that these are the Hessian matrix blocks
-        # of the trained subset of parameters).
-        if train_a or train_b:
-            hessians_batched = Hessians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.HESSIAN_MODE,
-                noise_model=noise_model,
-                iterator=False,
-                hess_a=train_a,
-                hess_b=train_b,
-                dtype=dtype
-            )
-        else:
-            hessians_batched = None
-
-        # Hessian of submodel which is to be trained.
-        if train_a and train_b:
-            neg_hessians_train = hessians_batched.neg_hessian
-        elif train_a and not train_b:
-            neg_hessians_train = hessians_batched.neg_hessian_aa
-        elif not train_a and train_b:
-            neg_hessians_train = hessians_batched.neg_hessian_bb
-        else:
-            neg_hessians_train = None
-
-        # Define the IRLS components on the batched model:
-        # (note that these are the IRLS matrix blocks
-        # of the trained subset of parameters).
-        if (train_a or train_b) and provide_fim:
-            fim_batched = FIM(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                noise_model=noise_model,
-                iterator=False,
-                update_a=train_a,
-                update_b=train_b,
-                dtype=dtype
-            )
-        else:
-            fim_batched = None
-
-        self.hessians = hessians_batched
-        self.neg_hessians_train = neg_hessians_train
-
-        self.provide_fim = provide_fim
-        self.fim = fim_batched
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -585,8 +441,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     train_a=train_loc,
                     train_b=train_scale,
                     noise_model=noise_model,
-                    provide_fim=provide_fim,
-                    graph=self.graph,
                     dtype=dtype
                 )
 
@@ -601,15 +455,14 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
             # Define output metrics:
             logger.debug("building outputs")
-            self.test = tf.constant(0)
             self._set_out_var(
                 feature_isnonzero=feature_isnonzero,
                 dtype=dtype
             )
             self.loss = self.full_data_model.loss
             self.log_likelihood = self.full_data_model.log_likelihood
-            self.hessians = self.full_data_model.hessians.hessian
-            self.fisher_inv = op_utils.pinv(self.full_data_model.hessians.neg_hessian)  # TODO switch for fim?
+            self.hessians = self.full_data_model.hessians
+            self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
             self.gradients = tf.reduce_sum(tf.transpose(self.gradients_full), axis=1)
 

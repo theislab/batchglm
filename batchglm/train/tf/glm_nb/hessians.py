@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Hessians(HessianGLMALL):
 
-    def _W_ab(
+    def _weight_hessian_ab(
             self,
             X,
             mu,
@@ -30,7 +30,7 @@ class Hessians(HessianGLMALL):
 
         return const
 
-    def _W_aa(
+    def _weight_hessian_aa(
             self,
             X,
             mu,
@@ -51,7 +51,7 @@ class Hessians(HessianGLMALL):
 
         return const
 
-    def _W_bb(
+    def _weight_hessian_bb(
             self,
             X,
             mu,
