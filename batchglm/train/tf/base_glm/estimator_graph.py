@@ -418,7 +418,6 @@ class NewtonGraphGLM:
             if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
                 # Compute a and b model updates separately.
                 if train_mu:
-                    logger.debug(" ** building irls a updates")
                     # The FIM of the mean model is guaranteed to be
                     # positive semi-definite and can therefore be inverted
                     # with the Cholesky decomposition. This information is
@@ -443,7 +442,6 @@ class NewtonGraphGLM:
                     irls_update_a_batched = None
 
                 if train_r:
-                    logger.debug(" ** building irls b updates")
                     if self.batched_data_model is None:
                         batched_lhs = None
                         batched_rhs = None
@@ -475,7 +473,6 @@ class NewtonGraphGLM:
                     irls_update_b_batched = None
 
             if provide_optimizers["irls"]:
-                logger.debug(" ** assembling and padding irls updates")
                 if train_mu and train_r:
                     irls_update_full_raw = tf.concat([irls_update_a_full, irls_update_b_full], axis=0)
                     if self.batched_data_model is not None:
@@ -636,13 +633,18 @@ class NewtonGraphGLM:
                         irls_tr_update_batched_a_magnitude_sq = tf.reduce_sum(tf.square(irls_update_a_batched), axis=0)
                         irls_tr_update_batched_a_magnitude = tf.where(
                             condition=irls_tr_update_batched_a_magnitude_sq > 0,
+                            x=tf.sqrt(irls_tr_update_batched_a_magnitude_sq),
+                            y=tf.zeros_like(irls_tr_update_batched_a_magnitude_sq)
+                        )
+                        irls_tr_update_batched_a_magnitude_inv = tf.where(
+                            condition=irls_tr_update_batched_a_magnitude_sq > 0,
                             x=tf.divide(
                                 tf.ones_like(irls_tr_update_batched_a_magnitude_sq),
                                 tf.sqrt(irls_tr_update_batched_a_magnitude_sq)
                             ),
                             y=tf.zeros_like(irls_tr_update_full_a_magnitude_sq)
                         )
-                        irls_tr_update_batched_a_norm = tf.multiply(irls_update_a_batched, irls_tr_update_batched_a_magnitude)
+                        irls_tr_update_batched_a_norm = tf.multiply(irls_update_a_batched, irls_tr_update_batched_a_magnitude_inv)
                         irls_tr_update_batched_a_scale = tf.minimum(
                             self.irls_tr_radius,
                             irls_tr_update_batched_a_magnitude
@@ -670,6 +672,11 @@ class NewtonGraphGLM:
                         irls_tr_update_batched_b_magnitude_sq = tf.reduce_sum(tf.square(irls_update_b_batched), axis=0)
                         irls_tr_update_batched_b_magnitude = tf.where(
                             condition=irls_tr_update_batched_b_magnitude_sq > 0,
+                            x=tf.sqrt(irls_tr_update_batched_b_magnitude_sq),
+                            y=tf.zeros_like(irls_tr_update_batched_b_magnitude_sq)
+                        )
+                        irls_tr_update_batched_b_magnitude_inv = tf.where(
+                            condition=irls_tr_update_batched_b_magnitude_sq > 0,
                             x=tf.divide(
                                 tf.ones_like(irls_tr_update_batched_b_magnitude_sq),
                                 tf.sqrt(irls_tr_update_batched_b_magnitude_sq)
@@ -678,7 +685,7 @@ class NewtonGraphGLM:
                             y=tf.zeros_like(irls_tr_update_batched_b_magnitude_sq)
                         )
                         if not bool_use_gd:
-                            irls_tr_update_batched_b_norm = tf.divide(irls_update_b_batched, irls_tr_update_batched_b_magnitude)
+                            irls_tr_update_batched_b_norm = tf.divide(irls_update_b_batched, irls_tr_update_batched_b_magnitude_inv)
                             irls_tr_update_batched_b_scale = tf.minimum(
                                 self.irls_tr_radius,
                                 irls_tr_update_batched_b_magnitude
@@ -703,12 +710,13 @@ class NewtonGraphGLM:
                             )
                         else:
                             # Use GD:
-                            irls_tr_proposed_vector_batched_b = tf.multiply(
+                            irls_tr_update_batched_b_scale = tf.minimum(
                                 self.irls_tr_radius,
-                                tf.multiply(
-                                    irls_update_b_batched,
-                                    irls_tr_update_batched_b_magnitude
-                                )
+                                tf.ones_like(irls_tr_update_batched_b_norm)  # maximum is learning rate 1!
+                            )
+                            irls_tr_proposed_vector_batched_b = tf.multiply(
+                                irls_tr_update_batched_b_norm,
+                                irls_tr_update_batched_b_scale
                             )
                             irls_tr_pred_cost_gain_batched_b = tf.reduce_sum(tf.multiply(
                                 irls_tr_proposed_vector_batched_b,

@@ -250,6 +250,9 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
         elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
             ## Evaluate initial value of convergence metric:
+            _ = self.session.run(
+                (self.model.full_data_model.ll_set)
+            )
             ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
 
             tf.logging.info(
@@ -270,13 +273,18 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_prev = ll_current.copy()
 
                 ## Run update.
-                _, _, _, _, _ = self.session.run(
+                _, _, _, _ = self.session.run(
                     (self.model.full_data_model.jac_set,
                      self.model.full_data_model.hessian_set,
                      self.model.full_data_model.fim_a_set,
-                     self.model.full_data_model.fim_b_set,
-                     self.model.full_data_model.ll_set)
+                     self.model.full_data_model.fim_b_set)
                 )
+                #_, _, _, _ = self.session.run(
+                #    (self.model.batched_data_model.jac_set,
+                #     self.model.batched_data_model.hessian_set,
+                #     self.model.batched_data_model.fim_a_set,
+                #     self.model.batched_data_model.fim_b_set)
+                #)
                 if trustregion_mode:
                     _, x_step = self.session.run(
                         (train_op["train"]["trial_op"],
@@ -305,6 +313,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     (self.model.full_data_model.norm_neg_log_likelihood,
                      self.model.full_data_model.neg_jac_train)
                 )
+                print(x_step)
                 #print(x_step[:, converged_prev==False])
 
                 if len(self.model.full_data_model.idx_train_loc) > 0:
