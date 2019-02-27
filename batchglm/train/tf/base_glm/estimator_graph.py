@@ -1029,8 +1029,8 @@ class NewtonGraphGLM:
         # Load hyper-parameters:
         assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
             "eta0 must be smaller than eta1"
-        assert pkg_constants.TRUST_REGION_ETA1 < pkg_constants.TRUST_REGION_ETA2, \
-            "eta1 must be smaller than eta2"
+        assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
+            "eta1 must be smaller than or equal to eta2"
         assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
         assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
         assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
@@ -1073,7 +1073,7 @@ class NewtonGraphGLM:
         train_op_update_status = tf.assign(self.model_vars.updated, update_theta)
 
         # Update trusted region accordingly:
-        decrease_radius = tf.logical_and(delta_f_ratio < eta1, tf.logical_not(self.model_vars.converged))
+        decrease_radius = tf.logical_and(delta_f_ratio <= eta1, tf.logical_not(self.model_vars.converged))
         increase_radius = tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model_vars.converged))
         keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
                                      tf.logical_not(increase_radius))
