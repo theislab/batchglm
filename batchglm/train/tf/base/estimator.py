@@ -270,42 +270,33 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_prev = ll_current.copy()
 
                 ## Run update.
-                x0 = self.session.run(self.model.model_vars.params)
                 if trustregion_mode:
                     _, x_step = self.session.run(
                         (train_op["train"]["trial_op"],
                          train_op["update"]),
                         feed_dict=feed_dict
                     )
-                    train_step, _, ll_current, jac_train, features_updated = self.session.run(
+                    train_step, _, features_updated = self.session.run(
                         (self.model.global_step,
                          train_op["train"]["update_op"],
-                         self.model.full_data_model.norm_neg_log_likelihood,
-                         self.model.full_data_model.neg_jac_train,
                          self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
-                    ll_current = self.session.run(
-                        (self.model.full_data_model.norm_neg_log_likelihood),
-                        feed_dict=feed_dict
-                    )
                 else:
-                    train_step, _, ll_current, jac_train, x_step, features_updated = self.session.run(
+                    train_step, _, x_step, features_updated = self.session.run(
                         (self.model.global_step,
                          train_op["train"],
-                         self.model.full_data_model.norm_neg_log_likelihood,
-                         self.model.full_data_model.neg_jac_train,
                          train_op["update"],
                          self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
-                    ll_current = self.session.run(
-                        (self.model.full_data_model.norm_neg_log_likelihood),
-                        feed_dict=feed_dict
-                    )
-                x1 = self.session.run(self.model.model_vars.params)
-                #print(np.sum(x1[:, converged_prev] - x0[:, converged_prev], axis=0))
-                #print(np.sum(x1[:, converged_prev==False] - x0[:, converged_prev==False], axis=0))
+                ll_current, jac_train = self.session.run(
+                    (self.model.full_data_model.norm_neg_log_likelihood,
+                     self.model.full_data_model.neg_jac_train
+                     ),
+                    feed_dict=feed_dict
+                )
+                #print(x_step[:, converged_prev==False])
 
                 if len(self.model.full_data_model.idx_train_loc) > 0:
                     x_norm_loc = np.sqrt(np.sum(np.square(
@@ -363,10 +354,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     )
                 )
                 if convergence_criteria == "all_converged_ll":
-                    #print(x_norm_loc[np.where(np.logical_not(converged_prev))[0]])
-                    #print(x_norm_scale[np.where(np.logical_not(converged_prev))[0]])
-                    #print(x_norm_loc[np.where(converged_prev)[0]])
-                    #print(x_norm_scale[np.where(converged_prev)[0]])
                     converged_x = np.logical_and(
                         np.logical_not(converged_prev),
                         np.logical_and(
