@@ -258,8 +258,11 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             )
 
             # Set all to convergence status to False, this is need if multiple training strategies are run:
-            self.model.model_vars.converged = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-            converged_current = self.model.model_vars.converged.copy()
+            #self.model.model_vars.converged = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+            self.session.run((self.model.model_vars.convergence_update), feed_dict={
+                self.model.model_vars.convergence_status: np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+            })
+            converged_current = self.session.run(self.model.model_vars.converged)
             while np.any(converged_current == False):
                 ## Update convergence metrics.
                 t0 = time.time()
@@ -267,6 +270,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_prev = ll_current.copy()
 
                 ## Run update.
+                x0 = self.session.run(self.model.model_vars.params)
                 if trustregion_mode:
                     _, x_step = self.session.run(
                         (train_op["train"]["trial_op"],
@@ -278,7 +282,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          train_op["train"]["update_op"],
                          self.model.full_data_model.norm_neg_log_likelihood,
                          self.model.full_data_model.neg_jac_train,
-                         train_op["updated"]),
+                         self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
                     ll_current = self.session.run(
@@ -292,13 +296,16 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          self.model.full_data_model.norm_neg_log_likelihood,
                          self.model.full_data_model.neg_jac_train,
                          train_op["update"],
-                         train_op["updated"]),
+                         self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
                     ll_current = self.session.run(
                         (self.model.full_data_model.norm_neg_log_likelihood),
                         feed_dict=feed_dict
                     )
+                x1 = self.session.run(self.model.model_vars.params)
+                #print(np.sum(x1[:, converged_prev] - x0[:, converged_prev], axis=0))
+                #print(np.sum(x1[:, converged_prev==False] - x0[:, converged_prev==False], axis=0))
 
                 if len(self.model.full_data_model.idx_train_loc) > 0:
                     x_norm_loc = np.sqrt(np.sum(np.square(
@@ -317,11 +324,11 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 # Update convergence status of non-converged features:
                 t_conv_0 = time.time()
                 ll_converged = (ll_prev - ll_current) / ll_prev < stopping_criteria
-                if np.any(ll_current > ll_prev):
-                    tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev))
+                if np.any(ll_current > ll_prev + 1e-12):
+                    tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
 
-                self.model.model_vars.converged = np.logical_or(
-                    self.model.model_vars.converged,
+                converged_current = np.logical_or(
+                    converged_prev,
                     np.logical_and(ll_converged, features_updated)
                 )
                 converged_f = np.logical_and(
@@ -348,14 +355,18 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         grad_norm_scale < pkg_constants.GTOL_LL_BY_FEATURE_SCALE
                     )
                 )
-                self.model.model_vars.converged = np.logical_or(
-                    self.model.model_vars.converged,
+                converged_current = np.logical_or(
+                    converged_current,
                     np.logical_and(
                         grad_norm_loc < pkg_constants.GTOL_LL_BY_FEATURE_LOC,
                         grad_norm_scale < pkg_constants.GTOL_LL_BY_FEATURE_SCALE
                     )
                 )
                 if convergence_criteria == "all_converged_ll":
+                    #print(x_norm_loc[np.where(np.logical_not(converged_prev))[0]])
+                    #print(x_norm_scale[np.where(np.logical_not(converged_prev))[0]])
+                    #print(x_norm_loc[np.where(converged_prev)[0]])
+                    #print(x_norm_scale[np.where(converged_prev)[0]])
                     converged_x = np.logical_and(
                         np.logical_not(converged_prev),
                         np.logical_and(
@@ -363,8 +374,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                             x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
                         )
                     )
-                    self.model.model_vars.converged = np.logical_or(
-                        self.model.model_vars.converged,
+                    converged_current = np.logical_or(
+                        converged_current,
                         np.logical_and(
                             x_norm_loc < pkg_constants.XTOL_LL_BY_FEATURE_LOC,
                             x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
@@ -375,14 +386,16 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 t1 = time.time()
 
-                converged_current = self.model.model_vars.converged.copy()
+                self.session.run((self.model.model_vars.convergence_update), feed_dict={
+                    self.model.model_vars.convergence_status: converged_current
+                })
                 tf.logging.info(
                     "Step: %d loss: %f models converged %i in %s sec., models updated %i, {f: %i, g: %i, x: %i}",
                     train_step,
                     np.sum(ll_current),
                     np.sum(converged_current).astype("int32"),
                     str(np.round(t1 - t0, 3)),
-                    np.sum(features_updated).astype("int32"),
+                    np.sum(np.logical_and(np.logical_not(converged_prev), features_updated)).astype("int32"),
                     np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
                 )
 

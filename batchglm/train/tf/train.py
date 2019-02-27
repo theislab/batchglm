@@ -279,13 +279,11 @@ class MultiTrainer:
                 train_op_GD = optim_GD.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_GD = apply_train_ops(train_op_GD)
-                update_op_GD = tf.zeros_like(variables)
-                updated_op_GD = tf.ones(shape=[variables.shape[1]], dtype=tf.bool)
+                update_op_GD = tf.multiply(gradients, learning_rate)
             else:
                 optim_GD = None
                 train_op_GD = None
                 update_op_GD = None
-                updated_op_GD = None
 
             if provide_optimizers["adam"]:
                 logger.debug(" *** Building optimizer: ADAM")
@@ -293,13 +291,11 @@ class MultiTrainer:
                 train_op_Adam = optim_Adam.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adam = apply_train_ops(train_op_Adam)
-                update_op_Adam = tf.zeros_like(variables)
-                updated_op_Adam = tf.ones(shape=[variables.shape[1]], dtype=tf.bool)
+                update_op_Adam = tf.multiply(gradients, learning_rate)  # TODO replace by actual step
             else:
                 optim_Adam = None
                 train_op_Adam = None
                 update_op_Adam = None
-                updated_op_Adam = None
 
             if provide_optimizers["adagrad"]:
                 logger.debug(" *** Building optimizer: ADAGRAD")
@@ -307,13 +303,11 @@ class MultiTrainer:
                 train_op_Adagrad = optim_Adagrad.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adagrad = apply_train_ops(train_op_Adagrad)
-                update_op_Adagrad = tf.zeros_like(variables)
-                updated_op_Adagrad = tf.ones(shape=[variables.shape[1]], dtype=tf.bool)
+                update_op_Adagrad = tf.multiply(gradients, learning_rate)  # TODO replace by actual step
             else:
                 optim_Adagrad = None
                 train_op_Adagrad = None
                 update_op_Adagrad = None
-                updated_op_Adagrad = None
 
             if provide_optimizers["rmsprop"]:
                 logger.debug(" *** Building optimizer: RMSPROP")
@@ -321,13 +315,11 @@ class MultiTrainer:
                 train_op_RMSProp = optim_RMSProp.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_RMSProp = apply_train_ops(train_op_RMSProp)
-                update_op_RMSProp = tf.zeros_like(variables)
-                updated_op_RMSProp = tf.ones(shape=[variables.shape[1]], dtype=tf.bool)
+                update_op_RMSProp = tf.multiply(gradients, learning_rate)  # TODO replace by actual step
             else:
                 optim_RMSProp = None
                 train_op_RMSProp = None
                 update_op_RMSProp = None
-                updated_op_RMSProp = None
 
             # TFP optimizers:
             #optim_bfgs = None
@@ -351,7 +343,6 @@ class MultiTrainer:
             if provide_optimizers["nr"] and newton_delta is not None:
                 logger.debug(" *** Building optimizer: NR")
                 update_op_nr = newton_delta
-                updated_op_nr = tf.ones(shape=[variables.shape[1]], dtype=tf.bool)
 
                 theta_new_nr = variables - newton_delta
                 train_op_nr = tf.group(
@@ -363,12 +354,10 @@ class MultiTrainer:
             else:
                 train_op_nr = None
                 update_op_nr = None
-                updated_op_nr = None
 
             if provide_optimizers["irls"] and irls_delta is not None:
                 logger.debug(" *** Building optimizer: IRLS")
                 update_op_irls = irls_delta
-                updated_op_irls = tf.ones(shape=[variables.shape[1]], dtype=tf.bool)
 
                 theta_new_irls = variables - irls_delta
                 train_op_irls = tf.group(
@@ -380,7 +369,6 @@ class MultiTrainer:
             else:
                 train_op_irls = None
                 update_op_irls = None
-                updated_op_irls = None
 
             if provide_optimizers["nr_tr"] and train_ops_nr_tr is not None:
                 logger.debug(" *** Building optimizer: NR_TR")
@@ -388,11 +376,9 @@ class MultiTrainer:
                                   "update_op": tf.group(train_ops_nr_tr["update_op"],
                                                         tf.assign_add(global_step, 1))}
                 update_op_nr_tr = train_ops_nr_tr["update"]
-                updated_op_nr_tr = train_ops_nr_tr["updated"]
             else:
                 train_op_nr_tr = None
                 update_op_nr_tr = None
-                updated_op_nr_tr = None
 
             if provide_optimizers["irls_tr"] and train_ops_irls_tr is not None:
                 logger.debug(" *** Building optimizer: IRLS_TR")
@@ -400,11 +386,9 @@ class MultiTrainer:
                                     "update_op": tf.group(train_ops_irls_tr["update_op"],
                                                           tf.assign_add(global_step, 1))}
                 update_op_irls_tr = train_ops_irls_tr["update"]
-                updated_op_irls_tr = train_ops_irls_tr["updated"]
             else:
                 train_op_irls_tr = None
                 update_op_irls_tr = None
-                updated_op_irls_tr = None
 
             self.global_step = global_step
             self.plain_gradients = plain_gradients_vars
@@ -433,14 +417,6 @@ class MultiTrainer:
             self.update_op_irls = update_op_irls
             self.update_op_irls_tr = update_op_irls_tr
 
-            self.updated_op_GD = updated_op_GD
-            self.updated_op_Adam = updated_op_Adam
-            self.updated_op_Adagrad = updated_op_Adagrad
-            self.updated_op_RMSProp = updated_op_RMSProp
-            self.updated_op_nr = updated_op_nr
-            self.updated_op_nr_tr = updated_op_nr_tr
-            self.updated_op_irls = updated_op_irls
-            self.updated_op_irls_tr = updated_op_irls_tr
             #self.train_op_bfgs = train_op_bfgs
 
 
@@ -460,30 +436,30 @@ class MultiTrainer:
         if name_lower == "gradient_descent" or name_lower == "gd":
             if self.train_op_GD is None:
                 raise ValueError("Gradient decent not provided in initialization.")
-            return {"train": self.train_op_GD, "update": self.update_op_GD, "updated": self.updated_op_GD}
+            return {"train": self.train_op_GD, "update": self.update_op_GD}
         elif name_lower == "adam":
             if self.train_op_Adam is None:
                 raise ValueError("Adam not provided in initialization.")
-            return {"train": self.train_op_Adam, "update": self.update_op_Adam, "updated": self.updated_op_Adam}
+            return {"train": self.train_op_Adam, "update": self.update_op_Adam}
         elif name_lower == "adagrad":
             if self.train_op_Adagrad is None:
                 raise ValueError("Adagrad decent not provided in initialization.")
-            return {"train": self.train_op_Adagrad, "update": self.update_op_Adagrad, "updated": self.updated_op_Adagrad}
+            return {"train": self.train_op_Adagrad, "update": self.update_op_Adagrad}
         elif name_lower == "rmsprop":
             if self.train_op_RMSProp is None:
                 raise ValueError("RMSProp decent not provided in initialization.")
-            return {"train": self.train_op_RMSProp, "update": self.update_op_RMSProp, "updated": self.updated_op_RMSProp}
+            return {"train": self.train_op_RMSProp, "update": self.update_op_RMSProp}
         elif name_lower == "bfgs":
             if self.train_op_bfgs is None:
                 raise ValueError("BFGS not provided in initialization.")
-            return {"train": self.train_op_bfgs, "update": self.update_op_bfgs, "updated": self.updated_op_bfgs}
+            return {"train": self.train_op_bfgs, "update": self.update_op_bfgs}
         elif name_lower.lower() == "newton" or \
                 name_lower.lower() == "newton-raphson" or \
                 name_lower.lower() == "newton_raphson" or \
                 name_lower.lower() == "nr":
             if self.train_op_nr is None:
                 raise ValueError("Newton-rhapson not provided in initialization.")
-            return {"train": self.train_op_nr, "update": self.update_op_nr, "updated": self.updated_op_nr}
+            return {"train": self.train_op_nr, "update": self.update_op_nr}
         elif name_lower.lower() == "newton-trust-region" or \
                 name_lower.lower() == "newton_trust_region" or \
                 name_lower.lower() == "newton-raphson-trust-region" or \
@@ -492,12 +468,12 @@ class MultiTrainer:
                 name_lower.lower() == "nr_tr":
             if self.train_op_nr_tr is None:
                 raise ValueError("Newton-rhapson trust-region not provided in initialization.")
-            return {"train": self.train_op_nr_tr, "update": self.update_op_nr_tr, "updated": self.updated_op_nr_tr}
+            return {"train": self.train_op_nr_tr, "update": self.update_op_nr_tr}
         elif name_lower.lower() == "irls" or \
                 name_lower.lower() == "iwls":
             if self.train_op_irls is None:
                 raise ValueError("IRLS not provided in initialization.")
-            return {"train": self.train_op_irls, "update": self.update_op_irls, "updated": self.updated_op_irls}
+            return {"train": self.train_op_irls, "update": self.update_op_irls}
         elif name_lower.lower() == "irls_tr" or \
                 name_lower.lower() == "iwls_tr" or \
                 name_lower.lower() == "irls_trust_region" or \
@@ -506,7 +482,7 @@ class MultiTrainer:
                 name_lower.lower() == "iwls-trust-region":
             if self.train_op_irls_tr is None:
                 raise ValueError("IRLS trust-region not provided in initialization.")
-            return {"train": self.train_op_irls_tr, "update": self.update_op_irls_tr, "updated": self.updated_op_irls_tr}
+            return {"train": self.train_op_irls_tr, "update": self.update_op_irls_tr}
         else:
             raise ValueError("Unknown optimizer %s" % name)
 

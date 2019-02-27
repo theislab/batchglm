@@ -25,13 +25,13 @@ if TF_NUM_THREADS == 0:
     TF_NUM_THREADS = multiprocessing.cpu_count()
 
 # Trust region hyper parameters:
-TRUST_REGION_RADIUS_INIT = 1e-2
+TRUST_REGION_RADIUS_INIT = 1e1
 TRUST_REGION_ETA0 = 0.
 TRUST_REGION_ETA1 = 0.25
 TRUST_REGION_ETA2 = 0.5  # Strict expansion criteria.
 TRUST_REGION_T1 = 0.1  # Fast collapse to avoid trailing.
 TRUST_REGION_T2 = 10.  # Very conservative expansion to run updates once valid region is reached.
-TRUST_REGION_UPPER_BOUND = 1  # Low upper limit so that collapse to valid region does not cause feature to trail.
+TRUST_REGION_UPPER_BOUND = 1e4  # Low upper limit so that collapse to valid region does not cause feature to trail.
 
 # Convergence hyper-parameters:
 XTOL_LL_BY_FEATURE_LOC = 1e-6

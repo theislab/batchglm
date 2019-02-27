@@ -164,7 +164,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_a = "closed_form"
 
                 if init_a.lower() == "closed_form":
-                    #try:
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
                         X=input_data.X,
                         design_loc=input_data.design_loc,
@@ -182,8 +181,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                     logger.debug("Using closed-form MLE initialization for mean")
                     logger.debug("Should train mu: %s", self._train_loc)
-                    #except np.linalg.LinAlgError:
-                    #    logger.warning("Closed form initialization failed!")
                 elif init_a.lower() == "standard":
                     if isinstance(input_data.X, SparseXArrayDataArray):
                         overall_means = input_data.X.mean(dim="observations")
@@ -225,6 +222,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                     if inits_unequal or dmats_unequal:
                         groupwise_means = None
+                        init_b = "standard"  # remove once have code to deal with this.
 
                     # Watch out: init_mu is full obs x features matrix and is very large in many cases.
                     if inits_unequal or dmats_unequal:

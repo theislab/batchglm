@@ -33,10 +33,8 @@ class _Test_Accuracy_GLM_Estim():
         # Choose learning rate based on optimizer
         if algo.lower() in ["nr", "nr_tr", "irls", "irls_tr"]:
             lr = 1
-        elif algo.lower() == "gd":
-            lr = 0.05
         else:
-            lr = 0.5
+            lr = 0.05
 
         self.estimator.train_sequence(training_strategy=[
             {
