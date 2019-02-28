@@ -250,8 +250,12 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
         elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
             ## Evaluate initial value of convergence metric:
-            _ = self.session.run(
-                (self.model.full_data_model.eval_set)
+            _, _ = self.session.run(
+                (self.model.full_data_model.eval_set,
+                 self.model.model_vars.convergence_update),
+                feed_dict={self.model.model_vars.convergence_status:
+                               np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                }
             )
             ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
 
@@ -261,13 +265,8 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             )
 
             # Set all to convergence status to False, this is need if multiple training strategies are run:
-            #self.model.model_vars.converged = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-            self.session.run((self.model.model_vars.convergence_update), feed_dict={
-                self.model.model_vars.convergence_status: np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-            })
-            converged_current = self.session.run(self.model.model_vars.converged)
+            converged_current = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
             while np.any(converged_current == False):
-                ## Update convergence metrics.
                 t0 = time.time()
                 converged_prev = converged_current.copy()
                 ll_prev = ll_current.copy()
