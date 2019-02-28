@@ -87,7 +87,7 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
 
         del self.data["intercept"]
 
-    def generate_params(
+    def _generate_params(
             self,
             *args,
             rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
@@ -161,7 +161,7 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
 
         self.params["a_var"] = xr.DataArray(
             dims=self.param_shapes()["a_var"],
-            data=np.log(
+            data=self.link_loc(
                 np.concatenate([
                     np.expand_dims(rand_fn_ave([self.num_features]), axis=0),  # intercept
                     np.maximum(rand_fn_loc((self.data.design_loc.shape[1] - 1, self.num_features)),
@@ -172,7 +172,7 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
         )
         self.params["b_var"] = xr.DataArray(
             dims=self.param_shapes()["b_var"],
-            data=np.log(
+            data=self.link_scale(
                 np.concatenate([
                     np.maximum(rand_fn_scale((self.data.design_scale.shape[1], self.num_features)),
                                np.zeros([self.data.design_scale.shape[1], self.num_features]) + 1e-08)
