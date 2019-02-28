@@ -684,8 +684,9 @@ class NewtonGraphGLM:
                             ),
                             y=tf.zeros_like(irls_tr_update_batched_b_magnitude_sq)
                         )
+                        irls_tr_update_batched_b_norm = tf.divide(irls_update_b_batched,
+                                                                  irls_tr_update_batched_b_magnitude_inv)
                         if not bool_use_gd:
-                            irls_tr_update_batched_b_norm = tf.divide(irls_update_b_batched, irls_tr_update_batched_b_magnitude_inv)
                             irls_tr_update_batched_b_scale = tf.minimum(
                                 self.irls_tr_radius,
                                 irls_tr_update_batched_b_magnitude

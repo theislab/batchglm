@@ -82,8 +82,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             data_set = data_set.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
             data_set = data_set.prefetch(1)
 
-        with tf.name_scope("reducible_tensors"):
-            reducibles = ReducibleTensors(
+        with tf.name_scope("reducible_tensors_train"):
+            reducibles_train = ReducibleTensors(
                 model_vars=model_vars,
                 noise_model=noise_model,
                 constraints_loc=constraints_loc,
@@ -95,49 +95,71 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 mode_hessian=pkg_constants.HESSIAN_MODE,
                 mode_fim=pkg_constants.FIM_MODE,
                 compute_a=True,
-                compute_b=True
+                compute_b=True,
+                compute_jac=True,
+                compute_hessian=True,
+                compute_fim=True,
+                compute_ll=False
             )
             # Jacobians of submodel which is to be trained.
             if train_a and train_b:
-                neg_jac_train = reducibles.neg_jac
+                neg_jac_train = reducibles_train.neg_jac
             elif train_a and not train_b:
-                neg_jac_train = reducibles.neg_jac_a
+                neg_jac_train = reducibles_train.neg_jac_a
             elif not train_a and train_b:
-                neg_jac_train = reducibles.neg_jac_b
+                neg_jac_train = reducibles_train.neg_jac_b
             else:
                 neg_jac_train = None
 
             self.neg_jac_train = neg_jac_train
-            self.jac = reducibles.jac
-            self.neg_jac_a = reducibles.neg_jac_a
-            self.neg_jac_b = reducibles.neg_jac_b
+            self.jac = reducibles_train.jac
+            self.neg_jac_a = reducibles_train.neg_jac_a
+            self.neg_jac_b = reducibles_train.neg_jac_b
 
             # Hessian of submodel which is to be trained.
             if train_a and train_b:
-                neg_hessians_train = reducibles.neg_hessian
+                neg_hessians_train = reducibles_train.neg_hessian
             elif train_a and not train_b:
-                neg_hessians_train = reducibles.neg_hessian_aa
+                neg_hessians_train = reducibles_train.neg_hessian_aa
             elif not train_a and train_b:
-                neg_hessians_train = reducibles.neg_hessian_bb
+                neg_hessians_train = reducibles_train.neg_hessian_bb
             else:
                 neg_hessians_train = None
 
-            self.hessians = reducibles.hessian
+            self.hessians = reducibles_train.hessian
             self.neg_hessians_train = neg_hessians_train
 
-            self.fim_a = reducibles.fim_a
-            self.fim_b = reducibles.fim_b
+            self.fim_a = reducibles_train.fim_a
+            self.fim_b = reducibles_train.fim_b
 
-            self.log_likelihood = reducibles.ll
+            self.train_set = reducibles_train.set
+
+        with tf.name_scope("reducible_tensors_eval"):
+            reducibles_eval = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True,
+                compute_jac=False,
+                compute_hessian=False,
+                compute_fim=False,
+                compute_ll=True
+            )
+
+            self.log_likelihood = reducibles_eval.ll
             self.norm_log_likelihood = self.log_likelihood / num_observations
             self.norm_neg_log_likelihood = -self.norm_log_likelihood
             self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
 
-            self.jac_set = reducibles.jac_set
-            self.hessian_set = reducibles.hessian_set
-            self.fim_a_set = reducibles.fim_a_set
-            self.fim_b_set = reducibles.fim_b_set
-            self.ll_set = reducibles.ll_set
+            self.eval_set = reducibles_eval.set
 
         self.num_observations = num_observations
         self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
@@ -217,7 +239,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             batch_sample_index, batch_data = iterator.get_next()
 
         with tf.name_scope("reducible_tensors"):
-            reducibles = ReducibleTensors(
+            reducibles_train = ReducibleTensors(
                 model_vars=model_vars,
                 noise_model=noise_model,
                 constraints_loc=constraints_loc,
@@ -229,49 +251,71 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 mode_hessian=pkg_constants.HESSIAN_MODE,
                 mode_fim=pkg_constants.FIM_MODE,
                 compute_a=True,
-                compute_b=True
+                compute_b=True,
+                compute_jac=True,
+                compute_hessian=True,
+                compute_fim=True,
+                compute_ll=False
             )
             # Jacobians of submodel which is to be trained.
             if train_a and train_b:
-                neg_jac_train = reducibles.neg_jac
+                neg_jac_train = reducibles_train.neg_jac
             elif train_a and not train_b:
-                neg_jac_train = reducibles.neg_jac_a
+                neg_jac_train = reducibles_train.neg_jac_a
             elif not train_a and train_b:
-                neg_jac_train = reducibles.neg_jac_b
+                neg_jac_train = reducibles_train.neg_jac_b
             else:
                 neg_jac_train = None
 
             self.neg_jac_train = neg_jac_train
-            self.jac = reducibles.jac
-            self.neg_jac_a = reducibles.neg_jac_a
-            self.neg_jac_b = reducibles.neg_jac_b
+            self.jac = reducibles_train.jac
+            self.neg_jac_a = reducibles_train.neg_jac_a
+            self.neg_jac_b = reducibles_train.neg_jac_b
 
             # Hessian of submodel which is to be trained.
             if train_a and train_b:
-                neg_hessians_train = reducibles.neg_hessian
+                neg_hessians_train = reducibles_train.neg_hessian
             elif train_a and not train_b:
-                neg_hessians_train = reducibles.neg_hessian_aa
+                neg_hessians_train = reducibles_train.neg_hessian_aa
             elif not train_a and train_b:
-                neg_hessians_train = reducibles.neg_hessian_bb
+                neg_hessians_train = reducibles_train.neg_hessian_bb
             else:
                 neg_hessians_train = None
 
-            self.hessians = reducibles.hessian
+            self.hessians = reducibles_train.hessian
             self.neg_hessians_train = neg_hessians_train
 
-            self.fim_a = reducibles.fim_a
-            self.fim_b = reducibles.fim_b
+            self.fim_a = reducibles_train.fim_a
+            self.fim_b = reducibles_train.fim_b
 
-            self.log_likelihood = reducibles.ll
-            self.norm_log_likelihood = self.log_likelihood / batch_size
+            self.train_set = reducibles_train.set
+
+        with tf.name_scope("reducible_tensors_eval"):
+            reducibles_eval = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=batch_sample_index,
+                data_set=None,
+                data_batch=batch_data,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True,
+                compute_jac=False,
+                compute_hessian=False,
+                compute_fim=False,
+                compute_ll=True
+            )
+
+            self.log_likelihood = reducibles_eval.ll
+            self.norm_log_likelihood = self.log_likelihood / num_observations
             self.norm_neg_log_likelihood = -self.norm_log_likelihood
             self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
 
-            self.jac_set = reducibles.jac_set
-            self.hessian_set = reducibles.hessian_set
-            self.fim_a_set = reducibles.fim_a_set
-            self.fim_b_set = reducibles.fim_b_set
-            self.ll_set = reducibles.ll_set
+            self.eval_set = reducibles_eval.set
 
         self.num_observations = num_observations
         self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])

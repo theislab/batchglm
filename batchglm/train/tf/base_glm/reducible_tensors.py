@@ -52,7 +52,11 @@ class ReducableTensorsGLM:
             mode_hessian="analytic",
             mode_fim="analytic",
             compute_a=True,
-            compute_b=True
+            compute_b=True,
+            compute_jac=True,
+            compute_hessian=True,
+            compute_fim=True,
+            compute_ll=True
     ):
         """ Return computational graph for jacobian based on mode choice.
 
@@ -108,10 +112,10 @@ class ReducableTensorsGLM:
         self.mode_hessian = mode_hessian
         self.mode_fim = mode_fim
 
-        self.compute_jac = True
-        self.compute_hessian = True
-        self.compute_fim = True
-        self.compute_ll = True
+        self.compute_jac = compute_jac
+        self.compute_hessian = compute_hessian
+        self.compute_fim = compute_fim
+        self.compute_ll = compute_ll
 
         n_var_all = self.model_vars.params.shape[0]
         n_var_a = self.model_vars.a_var.shape[0]
@@ -188,38 +192,74 @@ class ReducableTensorsGLM:
         # With relay across tf.Variable:
         # Containers and specific slices and transforms:
         if self.compute_a and self.compute_b:
-            self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_all], dtype=dtype), dtype=dtype)
-            self.jac_a = self.jac[:, :p_shape_a]
-            self.jac_b = self.jac[:, p_shape_a:]
+            if self.compute_jac:
+                self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_all], dtype=dtype), dtype=dtype)
+                self.jac_a = self.jac[:, :p_shape_a]
+                self.jac_b = self.jac[:, p_shape_a:]
+            else:
+                self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.jac_a = self.jac
+                self.jac_b = self.jac
 
-            self.hessian = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_all, n_var_all], dtype=dtype), dtype=dtype)
-            self.hessian_aa = self.hessian[:, :p_shape_a, :p_shape_a]
-            self.hessian_bb = self.hessian[:, p_shape_a:, p_shape_a:]
+            if self.compute_hessian:
+                self.hessian = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_all, n_var_all], dtype=dtype), dtype=dtype)
+                self.hessian_aa = self.hessian[:, :p_shape_a, :p_shape_a]
+                self.hessian_bb = self.hessian[:, p_shape_a:, p_shape_a:]
+            else:
+                self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.hessian_aa = self.hessian
+                self.hessian_bb = self.hessian
 
-            self.fim_a = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
-            self.fim_b = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
+            if self.compute_fim:
+                self.fim_a = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
+                self.fim_b = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
+            else:
+                self.fim_a = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.fim_b = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
         elif self.compute_a and not self.compute_b:
-            self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_a], dtype=dtype), dtype=dtype)
-            self.jac_a = self.jac
+            if self.compute_jac:
+                self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_a], dtype=dtype), dtype=dtype)
+                self.jac_a = self.jac
+            else:
+                self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.jac_a = self.jac
             self.jac_b = None
 
-            self.hessian = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
-            self.hessian_aa = self.hessian
+            if self.compute_hessian:
+                self.hessian = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
+                self.hessian_aa = self.hessian
+            else:
+                self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.hessian_aa = self.hessian
             self.hessian_bb = None
 
-            self.fim_a = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
+            if self.compute_fim:
+                self.fim_a = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
+            else:
+                self.fim_a = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
             self.fim_b = None
-        elif self.compute_a and not self.compute_b:
-            self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_bl], dtype=dtype), dtype=dtype)
+        elif not self.compute_a and self.compute_b:
+            if self.compute_jac:
+                self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_bl], dtype=dtype), dtype=dtype)
+                self.jac_b = self.jac
+            else:
+                self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.jac_b = self.jac
             self.jac_a = None
-            self.jac_b = self.jac
 
-            self.hessian = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
-            self.hessian_aa = self.hessian
-            self.hessian_bb = None
+            if self.compute_hessian:
+                self.hessian = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
+                self.hessian_bb = self.hessian
+            else:
+                self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+                self.hessian_bb = self.hessian
+            self.hessian_aa = None
 
             self.fim_a = None
-            self.fim_b = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
+            if self.compute_fim:
+                self.fim_b = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
+            else:
+                self.fim_b = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
         else:
             self.jac = None
             self.jac_a = None
@@ -232,7 +272,10 @@ class ReducableTensorsGLM:
             self.fim_a = None
             self.fim_b = None
 
-        self.ll = tf.Variable(tf.zeros([model_vars.n_features], dtype=dtype), dtype=dtype)
+        if self.compute_ll:
+            self.ll = tf.Variable(tf.zeros([model_vars.n_features], dtype=dtype), dtype=dtype)
+        else:
+            self.ll = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
 
         self.neg_jac = tf.negative(self.jac) if self.jac is not None else None
         self.neg_jac_a = tf.negative(self.jac_a) if self.jac_a is not None else None
@@ -244,12 +287,20 @@ class ReducableTensorsGLM:
 
         self.neg_ll = tf.negative(self.ll) if self.ll is not None else None
 
-        # Setting operations:
-        self.jac_set = tf.assign(self.jac, jac)
-        self.hessian_set = tf.assign(self.hessian, hessian)
-        self.fim_a_set = tf.assign(self.fim_a, fim_a)
-        self.fim_b_set = tf.assign(self.fim_b, fim_b)
-        self.ll_set = tf.assign(self.ll, ll)
+        # Setting operation:
+        jac_set = tf.assign(self.jac, jac)
+        hessian_set = tf.assign(self.hessian, hessian)
+        fim_a_set = tf.assign(self.fim_a, fim_a)
+        fim_b_set = tf.assign(self.fim_b, fim_b)
+        ll_set = tf.assign(self.ll, ll)
+
+        self.set = tf.group(
+            jac_set,
+            hessian_set,
+            fim_a_set,
+            fim_b_set,
+            ll_set
+        )
 
     def assemble_tensors(
         self,

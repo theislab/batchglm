@@ -33,7 +33,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             model: EstimatorGraph = None,
             provide_optimizers: dict = None,
             provide_batched: bool = False,
-            termination_type: str = "by_feature",
+            termination_type: str = "global",
             extended_summary=False,
             dtype="float64"
     ):
