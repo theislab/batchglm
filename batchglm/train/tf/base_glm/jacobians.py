@@ -27,7 +27,7 @@ class JacobiansGLM:
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def _W_a(
+    def _weights_jac_a(
             self,
             X,
             mu,
@@ -51,7 +51,7 @@ class JacobiansGLM:
         pass
 
     @abc.abstractmethod
-    def _W_b(
+    def _weights_jac_b(
             self,
             X,
             mu,
