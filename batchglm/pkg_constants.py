@@ -26,7 +26,7 @@ if TF_NUM_THREADS == 0:
     TF_NUM_THREADS = multiprocessing.cpu_count()
 
 # Trust region hyper parameters:
-TRUST_REGION_RADIUS_INIT = 4e0
+TRUST_REGION_RADIUS_INIT = 1.
 TRUST_REGION_ETA0 = 0.
 TRUST_REGION_ETA1 = 0.25
 TRUST_REGION_ETA2 = 0.25  # Allow expansion if not shrinking.

@@ -414,7 +414,7 @@ class NewtonGraphGLM:
                 train_ops_nr_tr_batched = None
                 self.nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
 
-            bool_use_gd = True
+            bool_use_gd = False
             if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
                 # Compute a and b model updates separately.
                 if train_mu:
@@ -460,11 +460,11 @@ class NewtonGraphGLM:
                     else:
                         # Use GD for b model:
                         if self.batched_data_model is not None:
-                            batched_jac = self.batched_data_model.jac_b
+                            batched_jac = self.batched_data_model.neg_jac_b
                         else:
                             batched_jac = None
                         irls_update_b_full, irls_update_b_batched = self.build_updates_gd(
-                            full_jac=self.full_data_model.jac_b,
+                            full_jac=self.full_data_model.neg_jac_b,
                             batched_jac=batched_jac,
                             termination_type=termination_type
                         )
@@ -541,7 +541,7 @@ class NewtonGraphGLM:
                         condition=irls_tr_update_full_a_magnitude_sq > 0,
                         x=tf.divide(
                             tf.ones_like(irls_tr_update_full_a_magnitude_sq),
-                            tf.sqrt(irls_tr_update_full_a_magnitude_sq)
+                            irls_tr_update_full_a_magnitude
                         ),
                         y=tf.zeros_like(irls_tr_update_full_a_magnitude_sq)
                     )
@@ -582,8 +582,7 @@ class NewtonGraphGLM:
                         condition=irls_tr_update_full_b_magnitude_sq > 0,
                         x=tf.divide(
                             tf.ones_like(irls_tr_update_full_b_magnitude_sq),
-                            tf.sqrt(irls_tr_update_full_b_magnitude_sq)
-
+                            irls_tr_update_full_b_magnitude
                         ),
                         y=tf.zeros_like(irls_tr_update_full_b_magnitude_sq)
                     )
@@ -615,7 +614,7 @@ class NewtonGraphGLM:
                         # Use GD
                         irls_tr_update_full_b_scale = tf.minimum(
                             self.irls_tr_radius,
-                            tf.ones_like(irls_tr_update_full_b_norm)  # maximum is learning rate 1!
+                            irls_tr_update_full_b_magnitude
                         )
                         irls_tr_proposed_vector_full_b = tf.multiply(
                             irls_tr_update_full_b_norm,

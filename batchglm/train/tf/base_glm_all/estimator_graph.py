@@ -105,6 +105,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             self.jac = reducibles_train.jac
             self.neg_jac_a = reducibles_train.neg_jac_a
             self.neg_jac_b = reducibles_train.neg_jac_b
+            self.jac_b = reducibles_train.jac_b
 
             self.hessians = reducibles_train.hessian
             self.neg_hessians_train = reducibles_train.neg_hessian_train
@@ -242,6 +243,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             self.jac = reducibles_train.jac
             self.neg_jac_a = reducibles_train.neg_jac_a
             self.neg_jac_b = reducibles_train.neg_jac_b
+            self.jac_b = reducibles_train.jac_b
 
             self.hessians = reducibles_train.hessian
             self.neg_hessians_train = reducibles_train.neg_hessian_train
