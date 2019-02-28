@@ -243,7 +243,7 @@ class ReducableTensorsGLM:
             self.fim_b = None
         elif not self.compute_a and self.compute_b:
             if self.compute_jac:
-                self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_bl], dtype=dtype), dtype=dtype)
+                self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_b], dtype=dtype), dtype=dtype)
                 self.jac_b = self.jac
             else:
                 self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)

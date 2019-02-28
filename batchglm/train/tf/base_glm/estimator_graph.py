@@ -414,7 +414,7 @@ class NewtonGraphGLM:
                 train_ops_nr_tr_batched = None
                 self.nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
 
-            bool_use_gd = False
+            bool_use_gd = True
             if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
                 # Compute a and b model updates separately.
                 if train_mu:
@@ -529,7 +529,7 @@ class NewtonGraphGLM:
                     self.irls_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.irls_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
 
-                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
+                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
                 if train_mu:
                     irls_tr_update_full_a_magnitude_sq = tf.reduce_sum(tf.square(irls_update_a_full), axis=0)
                     irls_tr_update_full_a_magnitude = tf.where(
@@ -612,9 +612,10 @@ class NewtonGraphGLM:
                         )
                     else:
                         # Use GD
+                        n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
                         irls_tr_update_full_b_scale = tf.minimum(
                             self.irls_tr_radius,
-                            irls_tr_update_full_b_magnitude
+                            irls_tr_update_full_b_magnitude / n_obs
                         )
                         irls_tr_proposed_vector_full_b = tf.multiply(
                             irls_tr_update_full_b_norm,
