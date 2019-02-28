@@ -70,7 +70,7 @@ class ReducableTensorsGLMALL(ReducableTensorsGLM):
         else:
             hessian = tf.zeros((), dtype=dtype)
 
-        if self.compute_fim:
+        if self.compute_fim_a or self.compute_fim_b:
             if self.mode_fim == "analytic":
                 fim_a, fim_b = self.fim_analytic(model=model)
             else:

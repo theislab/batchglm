@@ -101,33 +101,13 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 compute_fim=True,
                 compute_ll=False
             )
-            # Jacobians of submodel which is to be trained.
-            if train_a and train_b:
-                neg_jac_train = reducibles_train.neg_jac
-            elif train_a and not train_b:
-                neg_jac_train = reducibles_train.neg_jac_a
-            elif not train_a and train_b:
-                neg_jac_train = reducibles_train.neg_jac_b
-            else:
-                neg_jac_train = None
-
-            self.neg_jac_train = neg_jac_train
+            self.neg_jac_train = reducibles_train.neg_jac_train
             self.jac = reducibles_train.jac
             self.neg_jac_a = reducibles_train.neg_jac_a
             self.neg_jac_b = reducibles_train.neg_jac_b
 
-            # Hessian of submodel which is to be trained.
-            if train_a and train_b:
-                neg_hessians_train = reducibles_train.neg_hessian
-            elif train_a and not train_b:
-                neg_hessians_train = reducibles_train.neg_hessian_aa
-            elif not train_a and train_b:
-                neg_hessians_train = reducibles_train.neg_hessian_bb
-            else:
-                neg_hessians_train = None
-
             self.hessians = reducibles_train.hessian
-            self.neg_hessians_train = neg_hessians_train
+            self.neg_hessians_train = reducibles_train.neg_hessian_train
 
             self.fim_a = reducibles_train.fim_a
             self.fim_b = reducibles_train.fim_b
@@ -257,33 +237,14 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 compute_fim=True,
                 compute_ll=False
             )
-            # Jacobians of submodel which is to be trained.
-            if train_a and train_b:
-                neg_jac_train = reducibles_train.neg_jac
-            elif train_a and not train_b:
-                neg_jac_train = reducibles_train.neg_jac_a
-            elif not train_a and train_b:
-                neg_jac_train = reducibles_train.neg_jac_b
-            else:
-                neg_jac_train = None
 
-            self.neg_jac_train = neg_jac_train
+            self.neg_jac_train = reducibles_train.neg_jac_train
             self.jac = reducibles_train.jac
             self.neg_jac_a = reducibles_train.neg_jac_a
             self.neg_jac_b = reducibles_train.neg_jac_b
 
-            # Hessian of submodel which is to be trained.
-            if train_a and train_b:
-                neg_hessians_train = reducibles_train.neg_hessian
-            elif train_a and not train_b:
-                neg_hessians_train = reducibles_train.neg_hessian_aa
-            elif not train_a and train_b:
-                neg_hessians_train = reducibles_train.neg_hessian_bb
-            else:
-                neg_hessians_train = None
-
             self.hessians = reducibles_train.hessian
-            self.neg_hessians_train = neg_hessians_train
+            self.neg_hessians_train = reducibles_train.neg_hessian_train
 
             self.fim_a = reducibles_train.fim_a
             self.fim_b = reducibles_train.fim_b

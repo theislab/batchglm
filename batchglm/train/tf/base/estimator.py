@@ -275,12 +275,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ## Run update.
                 _ = self.session.run(self.model.full_data_model.train_set)
                 if False:
-                    _, _, _, _ = self.session.run(
-                        (self.model.batched_data_model.jac_set,
-                         self.model.batched_data_model.hessian_set,
-                         self.model.batched_data_model.fim_a_set,
-                         self.model.batched_data_model.fim_b_set)
-                    )
+                    _ = self.session.run(self.model.batched_data_model.train_set)
                 if trustregion_mode:
                     _, x_step = self.session.run(
                         (train_op["train"]["trial_op"],

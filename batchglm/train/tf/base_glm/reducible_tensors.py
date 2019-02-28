@@ -114,7 +114,8 @@ class ReducableTensorsGLM:
 
         self.compute_jac = compute_jac
         self.compute_hessian = compute_hessian
-        self.compute_fim = compute_fim
+        self.compute_fim_a = compute_fim
+        self.compute_fim_b = compute_fim
         self.compute_ll = compute_ll
 
         n_var_all = self.model_vars.params.shape[0]
@@ -147,17 +148,13 @@ class ReducableTensorsGLM:
             else:
                 hessian_init = tf.zeros((), dtype=dtype)
 
-            if self.compute_fim:
-                if self.compute_a:
-                    fim_a_init = tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype)
-                else:
-                    fim_a_init = tf.zeros((), dtype=dtype)
-                if self.compute_b:
-                    fim_b_init = tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype)
-                else:
-                    fim_b_init = tf.zeros((), dtype=dtype)
+            if self.compute_fim_a:
+                fim_a_init = tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype)
             else:
                 fim_a_init = tf.zeros((), dtype=dtype)
+            if self.compute_fim_b:
+                fim_b_init = tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype)
+            else:
                 fim_b_init = tf.zeros((), dtype=dtype)
 
             if self.compute_ll:
@@ -175,15 +172,17 @@ class ReducableTensorsGLM:
                     tf.add(old[4], new[4]))
 
         if data_set is not None:
-            jac, hessian, fim_a, fim_b, ll = data_set.reduce(
+            set_op = data_set.reduce(
                 initial_state=init_fun(),
                 reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]))
             )
+            jac, hessian, fim_a, fim_b, ll = set_op
         elif data_batch is not None:
-            jac, hessian, fim_a, fim_b, ll = map_fun(
+            set_op = map_fun(
                 idx=sample_indices,
                 data=data_batch
             )
+            jac, hessian, fim_a, fim_b, ll = set_op
         else:
             raise ValueError("supply either data_set or data_batch")
 
@@ -200,6 +199,7 @@ class ReducableTensorsGLM:
                 self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
                 self.jac_a = self.jac
                 self.jac_b = self.jac
+            self.jac_train = self.jac
 
             if self.compute_hessian:
                 self.hessian = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_all, n_var_all], dtype=dtype), dtype=dtype)
@@ -209,8 +209,9 @@ class ReducableTensorsGLM:
                 self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
                 self.hessian_aa = self.hessian
                 self.hessian_bb = self.hessian
+            self.hessian_train = self.hessian
 
-            if self.compute_fim:
+            if self.compute_fim_a or self.compute_fim_b:
                 self.fim_a = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
                 self.fim_b = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
             else:
@@ -224,6 +225,7 @@ class ReducableTensorsGLM:
                 self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
                 self.jac_a = self.jac
             self.jac_b = None
+            self.jac_train = self.jac_a
 
             if self.compute_hessian:
                 self.hessian = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
@@ -232,8 +234,9 @@ class ReducableTensorsGLM:
                 self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
                 self.hessian_aa = self.hessian
             self.hessian_bb = None
+            self.hessian_train = self.hessian_aa
 
-            if self.compute_fim:
+            if self.compute_fim_a:
                 self.fim_a = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
             else:
                 self.fim_a = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
@@ -246,6 +249,7 @@ class ReducableTensorsGLM:
                 self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
                 self.jac_b = self.jac
             self.jac_a = None
+            self.jac_train = self.jac_b
 
             if self.compute_hessian:
                 self.hessian = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
@@ -254,9 +258,10 @@ class ReducableTensorsGLM:
                 self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
                 self.hessian_bb = self.hessian
             self.hessian_aa = None
+            self.hessian_train = self.hessian_bb
 
             self.fim_a = None
-            if self.compute_fim:
+            if self.compute_fim_b:
                 self.fim_b = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
             else:
                 self.fim_b = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
@@ -264,10 +269,12 @@ class ReducableTensorsGLM:
             self.jac = None
             self.jac_a = None
             self.jac_b = None
+            self.jac_train = None
 
             self.hessian = None
             self.hessian_aa = None
             self.hessian_bb = None
+            self.hessian_train = None
 
             self.fim_a = None
             self.fim_b = None
@@ -280,10 +287,12 @@ class ReducableTensorsGLM:
         self.neg_jac = tf.negative(self.jac) if self.jac is not None else None
         self.neg_jac_a = tf.negative(self.jac_a) if self.jac_a is not None else None
         self.neg_jac_b = tf.negative(self.jac_b) if self.jac_b is not None else None
+        self.neg_jac_train = tf.negative(self.jac_train) if self.jac_train is not None else None
 
         self.neg_hessian = tf.negative(self.hessian) if self.hessian is not None else None
         self.neg_hessian_aa = tf.negative(self.hessian_aa) if self.hessian_aa is not None else None
         self.neg_hessian_bb = tf.negative(self.hessian_bb) if self.hessian_bb is not None else None
+        self.neg_hessian_train = tf.negative(self.hessian_train) if self.hessian_train is not None else None
 
         self.neg_ll = tf.negative(self.ll) if self.ll is not None else None
 
@@ -295,6 +304,7 @@ class ReducableTensorsGLM:
         ll_set = tf.assign(self.ll, ll)
 
         self.set = tf.group(
+            set_op,
             jac_set,
             hessian_set,
             fim_a_set,

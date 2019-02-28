@@ -762,6 +762,7 @@ class NewtonGraphGLM:
                     update_full_raw=irls_update_full_raw,
                     update_batched_raw=irls_update_batched_raw
                 )
+                irls_tr_update_full = irls_update_full
 
                 self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(irls_tr_update_full))
                 if self.batched_data_model is None:
