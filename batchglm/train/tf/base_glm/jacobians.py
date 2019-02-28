@@ -1,10 +1,7 @@
 import abc
 import logging
-from typing import Union
 
 import tensorflow as tf
-
-from .model import ModelVarsGLM
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +11,13 @@ class JacobiansGLM:
     Compute the Jacobian matrix for a GLM.
     """
 
-    def analytic(
+    def jac_analytic(
             self,
             model
     ) -> tf.Tensor:
         raise NotImplementedError()
 
-    def tf(
+    def jac_tf(
             self,
             model
     ) -> tf.Tensor:

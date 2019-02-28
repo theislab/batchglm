@@ -35,7 +35,6 @@ class Jacobians(JacobiansGLMALL):
             const = tf.subtract(X, const)
         return const
 
-
     def _weights_jac_b(
             self,
             X,

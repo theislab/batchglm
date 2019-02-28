@@ -25,7 +25,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             sample_indices: tf.Tensor,
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
-            model_vars,
+            model_vars: ModelVarsGLM,
             constraints_loc,
             constraints_scale,
             noise_model,
@@ -160,7 +160,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
             buffer_size: int,
-            model_vars,
+            model_vars: ModelVarsGLM,
             constraints_loc,
             constraints_scale,
             noise_model: str,
@@ -363,7 +363,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, FIM
+            from .external_nb import ModelVars
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -395,7 +395,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     constraints_loc=self.constraints_loc,
                     constraints_scale=self.constraints_scale
                 )
-                self.idx_nonconverged = np.where(np.logical_not(self.model_vars.converged))[0]
 
             # ### performance related settings
             buffer_size = 4

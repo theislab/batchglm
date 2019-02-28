@@ -2,7 +2,7 @@ import logging
 
 import tensorflow as tf
 
-from .external import ModelVarsGLM, JacobiansGLM
+from .external import JacobiansGLM
 
 logger = logging.getLogger(__name__)
 

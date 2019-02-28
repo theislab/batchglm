@@ -304,7 +304,7 @@ class NewtonGraphGLM:
                     self.nr_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.nr_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
 
-                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
+                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  #!
 
                 nr_tr_update_full_magnitude_sq = tf.reduce_sum(tf.square(nr_update_full_raw), axis=0)
                 nr_tr_update_full_magnitude = tf.where(
@@ -435,7 +435,7 @@ class NewtonGraphGLM:
                         full_rhs=self.full_data_model.neg_jac_a,
                         batched_rhs=batched_rhs,
                         termination_type=termination_type,
-                        psd=False
+                        psd=True
                     )
                 else:
                     irls_update_a_full = None
@@ -460,11 +460,11 @@ class NewtonGraphGLM:
                     else:
                         # Use GD for b model:
                         if self.batched_data_model is not None:
-                            batched_jac = self.batched_data_model.neg_jac_b
+                            batched_jac = self.batched_data_model.jac_b
                         else:
                             batched_jac = None
                         irls_update_b_full, irls_update_b_batched = self.build_updates_gd(
-                            full_jac=self.full_data_model.neg_jac_b,
+                            full_jac=self.full_data_model.jac_b,
                             batched_jac=batched_jac,
                             termination_type=termination_type
                         )
