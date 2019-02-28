@@ -304,7 +304,7 @@ class NewtonGraphGLM:
                     self.nr_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.nr_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
 
-                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  #!
+                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
 
                 nr_tr_update_full_magnitude_sq = tf.reduce_sum(tf.square(nr_update_full_raw), axis=0)
                 nr_tr_update_full_magnitude = tf.where(
@@ -1040,9 +1040,8 @@ class NewtonGraphGLM:
             "eta0 must be smaller than eta1"
         assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
             "eta1 must be smaller than or equal to eta2"
-        assert pkg_constants.TRUST_REGION_T1 < 1, "t1 must be smaller than 1"
-        assert pkg_constants.TRUST_REGION_T2 > 1, "t1 must be larger than 1"
-        assert pkg_constants.TRUST_REGION_UPPER_BOUND >= 1, "upper_bound must be larger than or equal to 1"
+        assert pkg_constants.TRUST_REGION_T1 <= 1, "t1 must be smaller than 1"
+        assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
         # Set trust region hyper-parameters
         eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=dtype)
         eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=dtype)

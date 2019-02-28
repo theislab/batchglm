@@ -281,6 +281,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          train_op["update"]),
                         feed_dict=feed_dict
                     )
+                    _ = self.session.run(self.model.full_data_model.eval_set)
                     train_step, _, features_updated = self.session.run(
                         (self.model.global_step,
                          train_op["train"]["update_op"],
