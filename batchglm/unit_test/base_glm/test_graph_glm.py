@@ -132,7 +132,7 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale,
             sparse
     ):
-        algos = ["IRLS_GD_TR"] #["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR", "IRLS", "IRLS_GD", "IRLS_TR", "IRLS_GD_TR"]
+        algos = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR", "IRLS", "IRLS_GD", "IRLS_TR", "IRLS_GD_TR"]
         for algo in algos:
             logger.info("algorithm: %s" % algo)
             self.basic_test_one_algo(

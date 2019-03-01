@@ -571,10 +571,8 @@ class NewtonGraphGLM:
                             radius_container=self.irls_tr_radius,
                             n_obs=n_obs
                         )
-                        print(irls_gd_update_b_full)
-                        print(irls_gd_tr_proposed_vector_full_b)
                         irls_gd_tr_pred_cost_gain_full_b = self.trust_region_linear_cost_gain(
-                            proposed_vector=irls_tr_proposed_vector_full_b,
+                            proposed_vector=irls_gd_tr_proposed_vector_full_b,
                             neg_jac=self.full_data_model.neg_jac_b,
                             n_obs=n_obs
                         )
@@ -642,23 +640,42 @@ class NewtonGraphGLM:
                         irls_gd_tr_pred_cost_gain_batched_b = None
 
                 if train_mu and train_r:
-                    irls_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a,
-                                                         irls_tr_proposed_vector_full_b], axis=0)
-                    irls_gd_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a,
-                                                            irls_gd_tr_proposed_vector_full_b], axis=0)
-                    irls_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a,
-                                                         irls_tr_pred_cost_gain_full_b)
-                    irls_gd_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a,
-                                                            irls_gd_tr_pred_cost_gain_full_b)
+                    if provide_optimizers["irls_tr"]:
+                        irls_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a,
+                                                             irls_tr_proposed_vector_full_b], axis=0)
+                        irls_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a,
+                                                             irls_tr_pred_cost_gain_full_b)
+                    else:
+                        irls_tr_update_full_raw = None
+                        irls_tr_pred_cost_gain_full = None
+
+                    if provide_optimizers["irls_gd_tr"]:
+                        irls_gd_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a,
+                                                                irls_gd_tr_proposed_vector_full_b], axis=0)
+                        irls_gd_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a,
+                                                                irls_gd_tr_pred_cost_gain_full_b)
+                    else:
+                        irls_gd_tr_update_full_raw = None
+                        irls_gd_tr_pred_cost_gain_full = None
+
                     if self.batched_data_model is not None:
-                        irls_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
-                                                                irls_tr_proposed_vector_batched_b], axis=0)
-                        irls_gd_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
-                                                                   irls_gd_tr_proposed_vector_batched_b], axis=0)
-                        irls_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
-                                                                irls_tr_pred_cost_gain_batched_b)
-                        irls_gd_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
-                                                                   irls_gd_tr_pred_cost_gain_batched_b)
+                        if provide_optimizers["irls_tr"]:
+                            irls_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
+                                                                    irls_tr_proposed_vector_batched_b], axis=0)
+                            irls_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
+                                                                    irls_tr_pred_cost_gain_batched_b)
+                        else:
+                            irls_tr_update_batched_raw = None
+                            irls_tr_pred_cost_gain_batched = None
+
+                        if provide_optimizers["irls_gd_tr"]:
+                            irls_gd_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
+                                                                       irls_gd_tr_proposed_vector_batched_b], axis=0)
+                            irls_gd_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
+                                                                       irls_gd_tr_pred_cost_gain_batched_b)
+                        else:
+                            irls_gd_tr_update_batched_raw = None
+                            irls_gd_tr_pred_cost_gain_batched = None
                     else:
                         irls_tr_update_batched_raw = None
                         irls_gd_tr_update_batched_raw = None
@@ -680,86 +697,127 @@ class NewtonGraphGLM:
                         irls_tr_pred_cost_gain_batched = None
                         irls_gd_tr_pred_cost_gain_batched = None
                 elif not train_mu and train_r:
-                    irls_tr_update_full_raw = irls_tr_proposed_vector_full_b
-                    irls_gd_tr_update_full_raw = irls_gd_tr_proposed_vector_full_b
-                    irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_b
-                    irls_gd_tr_pred_cost_gain_full = irls_gd_tr_pred_cost_gain_full_b
+                    if provide_optimizers["irls_tr"]:
+                        irls_tr_update_full_raw = irls_tr_proposed_vector_full_b
+                        irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_b
+                    else:
+                        irls_tr_update_full_raw = None
+                        irls_tr_pred_cost_gain_full = None
+
+                    if provide_optimizers["irls_gd_tr"]:
+                        irls_gd_tr_update_full_raw = irls_gd_tr_proposed_vector_full_b
+                        irls_gd_tr_pred_cost_gain_full = irls_gd_tr_pred_cost_gain_full_b
+                    else:
+                        irls_gd_tr_update_full_raw = None
+                        irls_gd_tr_pred_cost_gain_full = None
+
                     if self.batched_data_model is not None:
-                        irls_tr_update_batched_raw = irls_tr_proposed_vector_batched_b
-                        irls_tr_gd_update_batched_raw = irls_gd_tr_proposed_vector_batched_b
-                        irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_b
-                        irls_tr_gd_pred_cost_gain_batched = irls_gd_tr_pred_cost_gain_batched_b
+                        if provide_optimizers["irls_tr"]:
+                            irls_tr_update_batched_raw = irls_tr_proposed_vector_batched_b
+                            irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_b
+                        else:
+                            irls_tr_update_batched_raw = None
+                            irls_tr_pred_cost_gain_batched = None
+
+                        if provide_optimizers["irls_gd_tr"]:
+                            irls_gd_tr_update_batched_raw = irls_gd_tr_proposed_vector_batched_b
+                            irls_gd_tr_pred_cost_gain_batched = irls_gd_tr_pred_cost_gain_batched_b
+                        else:
+                            irls_gd_tr_update_batched_raw = None
+                            irls_gd_tr_pred_cost_gain_batched = None
                     else:
                         irls_tr_update_batched_raw = None
-                        irls_tr_gd_update_batched_raw = None
+                        irls_gd_tr_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
-                        irls_tr_gd_pred_cost_gain_batched = None
+                        irls_gd_tr_pred_cost_gain_batched = None
                 else:
                     assert False
 
-                irls_tr_update_full, irls_tr_update_batched = self.pad_updates(
-                    train_mu=train_mu,
-                    train_r=train_r,
-                    update_full_raw=irls_tr_update_full_raw,
-                    update_batched_raw=irls_tr_update_batched_raw
-                )
+                if provide_optimizers["irls_tr"]:
+                    irls_tr_update_full, irls_tr_update_batched = self.pad_updates(
+                        train_mu=train_mu,
+                        train_r=train_r,
+                        update_full_raw=irls_tr_update_full_raw,
+                        update_batched_raw=irls_tr_update_batched_raw
+                    )
+                else:
+                    irls_tr_update_full = None
+                    irls_tr_update_batched = None
 
-                irls_gd_tr_update_full, irls_gd_tr_update_batched = self.pad_updates(
-                    train_mu=train_mu,
-                    train_r=train_r,
-                    update_full_raw=irls_gd_tr_update_full_raw,
-                    update_batched_raw=irls_gd_tr_update_batched_raw
-                )
+                if provide_optimizers["irls_gd_tr"]:
+                    irls_gd_tr_update_full, irls_gd_tr_update_batched = self.pad_updates(
+                        train_mu=train_mu,
+                        train_r=train_r,
+                        update_full_raw=irls_gd_tr_update_full_raw,
+                        update_batched_raw=irls_gd_tr_update_batched_raw
+                    )
+                else:
+                    irls_gd_tr_update_full = None
+                    irls_gd_tr_update_batched = None
 
-                self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(irls_tr_update_full))
-                if self.batched_data_model is None:
+                if provide_optimizers["irls_tr"] or provide_optimizers["irls_gd_tr"]:
+                    self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(self.model_vars.params))
+                    if self.batched_data_model is None:
+                        self.irls_tr_x_step_batched = None
+                    else:
+                        self.irls_tr_x_step_batched = tf.Variable(tf.zeros_like(self.model_vars.params))
+                else:
+                    self.irls_tr_x_step_full = None
                     self.irls_tr_x_step_batched = None
-                else:
-                    self.irls_tr_x_step_batched = tf.Variable(tf.zeros_like(irls_tr_update_full))
 
-                train_ops_irls_tr_full = self.trust_region_ops(
-                    likelihood_container=self.irls_tr_ll_prev_full,
-                    proposed_vector=irls_tr_update_full,
-                    proposed_vector_container=self.irls_tr_x_step_full,
-                    proposed_gain=irls_tr_pred_cost_gain_full,
-                    proposed_gain_container=self.irls_tr_pred_gain_full,
-                    radius_container=self.irls_tr_radius,
-                    dtype=dtype
-                )
-                if self.batched_data_model is not None:
-                    train_ops_irls_tr_batched = self.trust_region_ops(
-                        likelihood_container=self.irls_tr_ll_prev_batched,
-                        proposed_vector=irls_tr_update_batched,
-                        proposed_vector_container=self.irls_tr_x_step_batched,
-                        proposed_gain=irls_tr_pred_cost_gain_batched,
-                        proposed_gain_container=self.irls_tr_pred_gain_batched,
+                if provide_optimizers["irls_tr"]:
+                    train_ops_irls_tr_full = self.trust_region_ops(
+                        likelihood_container=self.irls_tr_ll_prev_full,
+                        proposed_vector=irls_tr_update_full,
+                        proposed_vector_container=self.irls_tr_x_step_full,
+                        proposed_gain=irls_tr_pred_cost_gain_full,
+                        proposed_gain_container=self.irls_tr_pred_gain_full,
                         radius_container=self.irls_tr_radius,
                         dtype=dtype
                     )
+                    if self.batched_data_model is not None:
+                        train_ops_irls_tr_batched = self.trust_region_ops(
+                            likelihood_container=self.irls_tr_ll_prev_batched,
+                            proposed_vector=irls_tr_update_batched,
+                            proposed_vector_container=self.irls_tr_x_step_batched,
+                            proposed_gain=irls_tr_pred_cost_gain_batched,
+                            proposed_gain_container=self.irls_tr_pred_gain_batched,
+                            radius_container=self.irls_tr_radius,
+                            dtype=dtype
+                        )
+                    else:
+                        train_ops_irls_tr_batched = None
                 else:
+                    train_ops_irls_tr_full = None
                     train_ops_irls_tr_batched = None
 
-                train_ops_irls_gd_tr_full = self.trust_region_ops(
-                    likelihood_container=self.irls_tr_ll_prev_full,
-                    proposed_vector=irls_gd_tr_update_full,
-                    proposed_vector_container=self.irls_gd_tr_x_step_full,
-                    proposed_gain=irls_gd_tr_pred_cost_gain_full,
-                    proposed_gain_container=self.irls_tr_pred_gain_full,
-                    radius_container=self.irls_tr_radius,
-                    dtype=dtype
-                )
-                if self.batched_data_model is not None:
-                    train_ops_irls_gd_tr_batched = self.trust_region_ops(
-                        likelihood_container=self.irls_tr_ll_prev_batched,
-                        proposed_vector=irls_gd_tr_update_batched,
-                        proposed_vector_container=self.irls_gd_tr_x_step_batched,
-                        proposed_gain=irls_gd_tr_pred_cost_gain_batched,
-                        proposed_gain_container=self.irls_tr_pred_gain_batched,
+                if provide_optimizers["irls_gd_tr"]:
+                    train_ops_irls_gd_tr_full = self.trust_region_ops(
+                        likelihood_container=self.irls_tr_ll_prev_full,
+                        proposed_vector=irls_gd_tr_update_full,
+                        proposed_vector_container=self.irls_tr_x_step_full,
+                        proposed_gain=irls_gd_tr_pred_cost_gain_full,
+                        proposed_gain_container=self.irls_tr_pred_gain_full,
                         radius_container=self.irls_tr_radius,
                         dtype=dtype
                     )
+                    if self.batched_data_model is not None:
+                        train_ops_irls_gd_tr_batched = self.trust_region_ops(
+                            likelihood_container=self.irls_tr_ll_prev_batched,
+                            proposed_vector=irls_gd_tr_update_batched,
+                            proposed_vector_container=self.irls_tr_x_step_batched,
+                            proposed_gain=irls_gd_tr_pred_cost_gain_batched,
+                            proposed_gain_container=self.irls_tr_pred_gain_batched,
+                            radius_container=self.irls_tr_radius,
+                            dtype=dtype
+                        )
+                    else:
+                        train_ops_irls_gd_tr_batched = None
                 else:
-                    train_ops_irls_tr_batched = None
+                    self.irls_gd_tr_x_step_full = None
+                    self.irls_gd_tr_x_step_batched = None
+                    train_ops_irls_gd_tr_full = None
+                    train_ops_irls_gd_tr_batched = None
             else:
                 train_ops_irls_tr_full = None
                 train_ops_irls_tr_batched = None
