@@ -13,7 +13,7 @@ class FIMGLMALL(FIMGLM):
     parameter updates for a negative binomial GLM.
     """
 
-    def fim_analytic(
+    def fim_a_analytic(
             self,
             model
     ):
@@ -58,6 +58,25 @@ class FIMGLMALL(FIMGLM):
                             XH)
             return fim
 
+        if self.compute_fim_a:
+            fim_a = _a_byobs(model=model)
+        else:
+            fim_a = tf.zeros((), dtype=self.dtype)
+
+        return fim_a
+
+    def fim_b_analytic(
+            self,
+            model
+    ):
+        """
+        Compute the closed-form of the base_glm_all model hessian
+        by evaluating its terms grouped by observations.
+
+        Has three sub-functions which built the specific blocks of the hessian
+        and one sub-function which concatenates the blocks into a full hessian.
+        """
+
         def _b_byobs(model):
             """
             Compute the dispersion model diagonal block of the
@@ -89,17 +108,9 @@ class FIMGLMALL(FIMGLM):
         # treated independently and the full fisher information matrix is never required.
         # Here, the non-zero model-wise diagonal blocks are computed and returned
         # as a dictionary. The according score function vectors are also returned as a dictionary.
-        if self.compute_fim_a and self.compute_fim_b:
-            fim_a = _a_byobs(model=model)
-            fim_b = _b_byobs(model=model)
-        elif self.compute_fim_a and not self.compute_fim_b:
-            fim_a = _a_byobs(model=model)
-            fim_b = tf.zeros((), dtype=self.dtype)
-        elif not self.compute_fim_a and self.compute_fim_b:
-            fim_a = tf.zeros((), dtype=self.dtype)
+        if self.compute_fim_b:
             fim_b = _b_byobs(model=model)
         else:
-            fim_a = tf.zeros((), dtype=self.dtype)
             fim_b = tf.zeros((), dtype=self.dtype)
 
-        return fim_a, fim_b
+        return fim_b

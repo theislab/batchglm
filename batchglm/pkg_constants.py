@@ -11,6 +11,7 @@ FIM_MODE = str(os.environ.get('FIM_MODE', "analytic"))
 HESSIAN_MODE = str(os.environ.get('HESSIAN_MODE', "analytic"))
 JACOBIAN_MODE = str(os.environ.get('JACOBIAN_MODE', "analytic"))
 CHOLESKY_LSTSQS = True
+CHOLESKY_LSTSQS_BATCHED = False
 
 XARRAY_NETCDF_ENGINE = "h5netcdf"
 

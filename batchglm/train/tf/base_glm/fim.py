@@ -15,7 +15,14 @@ class FIMGLM:
     """
 
     @abc.abstractmethod
-    def fim_analytic(
+    def fim_a_analytic(
+            self,
+            model
+    ):
+        pass
+
+    @abc.abstractmethod
+    def fim_b_analytic(
             self,
             model
     ):

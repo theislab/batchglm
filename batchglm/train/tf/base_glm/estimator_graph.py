@@ -875,7 +875,7 @@ class NewtonGraphGLM:
                 update_batched = self.newton_type_update_byfeature(
                     lhs=batched_lhs,
                     rhs=batched_rhs,
-                    psd=psd
+                    psd=psd and pkg_constants.CHOLESKY_LSTSQS_BATCHED  # This can be unstable even for fim_a.
                 )
             else:
                 update_batched = None
@@ -889,7 +889,7 @@ class NewtonGraphGLM:
                 update_batched = self.newton_type_update_global(
                     lhs=batched_lhs,
                     rhs=batched_rhs,
-                    psd=psd
+                    psd=psd and pkg_constants.CHOLESKY_LSTSQS_BATCHED  # This can be unstable even for fim_a.
                 )
             else:
                 update_batched = None

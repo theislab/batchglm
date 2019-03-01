@@ -272,43 +272,29 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_prev = ll_current.copy()
 
                 ## Run update.
-                ta0 = time.time()
+                t_a = time.time()
                 _ = self.session.run(self.model.full_data_model.train_set)
                 if False:
                     _ = self.session.run(self.model.batched_data_model.train_set)
-                ta1 = time.time()
                 if trustregion_mode:
-                    tb0 = time.time()
+                    t_b = time.time()
                     _, x_step = self.session.run(
                         (train_op["train"]["trial_op"],
                          train_op["update"]),
                         feed_dict=feed_dict
                     )
-                    x_step = self.session.run(
-                        (train_op["update"]),
-                        feed_dict=feed_dict
-                    )
-                    tb1 = time.time()
-                    tc0 = time.time()
+                    t_c = time.time()
                     _ = self.session.run(self.model.full_data_model.eval_set)
-                    tc1 = time.time()
-                    td0 = time.time()
+                    t_d = time.time()
                     train_step, _, features_updated = self.session.run(
                         (self.model.global_step,
                          train_op["train"]["update_op"],
                          self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
-                    td1 = time.time()
-                    #tf.logging.info(self.session.run((self.model.irls_tr_radius))[converged_prev==False])
-                    tf.logging.info(
-                        "reduce %s, trial %s, ll %s, update %s",
-                        str(np.round(ta1 - ta0, 3)),
-                        str(np.round(tb1 - tb0, 3)),
-                        str(np.round(tc1 - tc0, 3)),
-                        str(np.round(td1 - td0, 3))
-                    )
+                    t_e = time.time()
                 else:
+                    t_b = time.time()
                     train_step, _, x_step, features_updated = self.session.run(
                         (self.model.global_step,
                          train_op["train"],
@@ -316,14 +302,31 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
+                    t_c = time.time()
                 _ = self.session.run(self.model.full_data_model.eval_set)
                 ll_current, jac_train = self.session.run(
                     (self.model.full_data_model.norm_neg_log_likelihood,
                      self.model.full_data_model.neg_jac_train)
                 )
+                t_f = time.time()
 
-                #print(x_step)
-                #print(x_step[:, converged_prev==False])
+                if trustregion_mode:
+                    tf.logging.debug(
+                        "### run time break-down: reduce op. %s, trial %s, ll %s, update %s, eval %s",
+                        str(np.round(t_b - t_a, 3)),
+                        str(np.round(t_c - t_b, 3)),
+                        str(np.round(t_d - t_c, 3)),
+                        str(np.round(t_e - t_d, 3)),
+                        str(np.round(t_f - t_e, 3))
+                    )
+                else:
+                    tf.logging.debug(
+                        "### run time break-down: reduce op. %s, update %s, eval %s",
+                        str(np.round(t_b - t_a, 3)),
+                        str(np.round(t_c - t_b, 3)),
+                        str(np.round(t_f - t_c, 3))
+                    )
+
 
                 if len(self.model.full_data_model.idx_train_loc) > 0:
                     x_norm_loc = np.sqrt(np.sum(np.square(
