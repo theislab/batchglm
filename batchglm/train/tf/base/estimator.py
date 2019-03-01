@@ -251,14 +251,24 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
         elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
             ## Evaluate initial value of convergence metric:
-            _, _ = self.session.run(
-                (self.model.full_data_model.eval_set,
-                 self.model.model_vars.convergence_update),
-                feed_dict={self.model.model_vars.convergence_status:
-                               np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-                }
-            )
-            ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+            if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                _, _ = self.session.run(
+                    (self.model.batched_data_model.eval_set,
+                     self.model.model_vars.convergence_update),
+                    feed_dict={self.model.model_vars.convergence_status:
+                                   np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                               }
+                )
+                ll_current = self.session.run(self.model.batched_data_model.norm_neg_log_likelihood)
+            else:
+                _, _ = self.session.run(
+                    (self.model.full_data_model.eval_set,
+                     self.model.model_vars.convergence_update),
+                    feed_dict={self.model.model_vars.convergence_status:
+                                   np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                    }
+                )
+                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
 
             tf.logging.info(
                 "Step: 0 loss: %f models converged 0",
@@ -307,11 +317,18 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     )
                     t_c = time.time()
 
-                _ = self.session.run(self.model.full_data_model.eval_set)
-                ll_current, jac_train = self.session.run(
-                    (self.model.full_data_model.norm_neg_log_likelihood,
-                     self.model.full_data_model.neg_jac_train_eval)
-                )
+                if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                    _ = self.session.run(self.model.batched_data_model.eval_set)
+                    ll_current, jac_train = self.session.run(
+                        (self.model.batched_data_model.norm_neg_log_likelihood,
+                         self.model.batched_data_model.neg_jac_train_eval)
+                    )
+                else:
+                    _ = self.session.run(self.model.full_data_model.eval_set)
+                    ll_current, jac_train = self.session.run(
+                        (self.model.full_data_model.norm_neg_log_likelihood,
+                         self.model.full_data_model.neg_jac_train_eval)
+                    )
                 t_f = time.time()
 
                 if trustregion_mode:
@@ -347,8 +364,9 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 # Update convergence status of non-converged features:
                 ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
-                if np.any(ll_current > ll_prev + 1e-12):
-                    tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
+                if not pkg_constants.EVAL_ON_BATCHED or not is_batched:
+                    if np.any(ll_current > ll_prev + 1e-12):
+                        tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
 
                 converged_current = np.logical_or(
                     converged_prev,
@@ -358,7 +376,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     np.logical_not(converged_prev),
                     np.logical_and(ll_converged, features_updated)
                 )
-                if is_batched:
+                if pkg_constants.EVAL_ON_BATCHED and is_batched:
                     jac_normalization = self.model.batch_size
                 else:
                     jac_normalization = self.model.num_observations
@@ -410,7 +428,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     self.model.model_vars.convergence_status: converged_current
                 })
                 tf.logging.info(
-                    "Step: %d loss: %f models converged %i in %s sec., models updated %i, {f: %i, g: %i, x: %i}",
+                    "Step: %d loss: %f, converged %i in %s sec., updated %i, {f: %i, g: %i, x: %i}",
                     train_step,
                     np.sum(ll_current),
                     np.sum(converged_current).astype("int32"),
@@ -418,16 +436,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     np.sum(np.logical_and(np.logical_not(converged_prev), features_updated)).astype("int32"),
                     np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
                 )
-
-                # Follow trust region radius:
-                if trustregion_mode and False:
-                    if np.any(np.logical_not(converged_current)):
-                        tf.logging.debug(
-                            "trust region radius nr: min=%f, mean=%f, max=%f",
-                            np.round(np.min(tr_radius), 5),
-                            np.round(np.mean(tr_radius), 5),
-                            np.round(np.max(tr_radius), 5)
-                        )
         else:
             self._train_to_convergence(
                 loss=loss,

@@ -12,6 +12,7 @@ HESSIAN_MODE = str(os.environ.get('HESSIAN_MODE', "analytic"))
 JACOBIAN_MODE = str(os.environ.get('JACOBIAN_MODE', "analytic"))
 CHOLESKY_LSTSQS = True
 CHOLESKY_LSTSQS_BATCHED = False
+EVAL_ON_BATCHED = False
 
 XARRAY_NETCDF_ENGINE = "h5netcdf"
 
@@ -37,7 +38,7 @@ TRUST_REGION_UPPER_BOUND = 1e4  # Low upper limit so that collapse to valid regi
 
 # Convergence hyper-parameters:
 LLTOL_BY_FEATURE = 1e-8
-XTOL_BY_FEATURE_LOC = 1e-8
-XTOL_BY_FEATURE_SCALE = 1e-8
+XTOL_BY_FEATURE_LOC = 1e-6
+XTOL_BY_FEATURE_SCALE = 1e-4
 GTOL_BY_FEATURE_LOC = 1e-8
 GTOL_BY_FEATURE_SCALE = 1e-8
