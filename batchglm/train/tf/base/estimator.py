@@ -262,7 +262,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_current = self.session.run(self.model.batched_data_model.norm_neg_log_likelihood)
             else:
                 _, _ = self.session.run(
-                    (self.model.full_data_model.eval0_set,
+                    (self.model.full_data_model.eval1_set,  # have to use eval1 here so that correct object is pulled in trust region
                      self.model.model_vars.convergence_update),
                     feed_dict={self.model.model_vars.convergence_status:
                                    np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
