@@ -31,6 +31,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             noise_model,
             train_a,
             train_b,
+            compute_fim,
+            compute_hessian,
             dtype
     ):
         """
@@ -97,8 +99,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 compute_a=True,
                 compute_b=True,
                 compute_jac=True,
-                compute_hessian=True,
-                compute_fim=True,
+                compute_hessian=compute_hessian,
+                compute_fim=compute_fim,
                 compute_ll=False
             )
             self.neg_jac_train = reducibles_train.neg_jac_train
@@ -114,6 +116,32 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             self.fim_b = reducibles_train.fim_b
 
             self.train_set = reducibles_train.set
+
+        with tf.name_scope("reducible_tensors_finalize"):
+            reducibles_finalize = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True,
+                compute_jac=True,
+                compute_hessian=True,
+                compute_fim=False,
+                compute_ll=True
+            )
+            self.hessians_final = reducibles_finalize.hessian
+            self.neg_jac_train_final = reducibles_finalize.neg_jac_train
+            self.log_likelihood_final = reducibles_finalize.ll
+            self.loss_final = tf.reduce_sum(-self.log_likelihood_final / num_observations)
+
+            self.final_set = reducibles_finalize.set
 
         with tf.name_scope("reducible_tensors_eval"):
             reducibles_eval = ReducibleTensors(
@@ -167,7 +195,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             noise_model: str,
             train_a,
             train_b,
-            provide_fim,
+            compute_fim,
+            compute_hessian,
             dtype
     ):
         """
@@ -234,8 +263,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 compute_a=True,
                 compute_b=True,
                 compute_jac=True,
-                compute_hessian=True,
-                compute_fim=True,
+                compute_hessian=compute_hessian,
+                compute_fim=compute_fim,
                 compute_ll=False
             )
 
@@ -401,12 +430,18 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             # ### performance related settings
             buffer_size = 4
 
-            # Check whether it is necessary to compute FIM:
+            # Check whether it is necessary to compute FIM or hessian:
             # The according sub-graphs are only compiled if this is needed during training.
-            if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
-                provide_fim = True
+            # Secondly, the tensors are evaluated during reduction operations if these options are set.
+            if provide_optimizers["irls"] or provide_optimizers["irls_gd"] or \
+                    provide_optimizers["irls_tr"] or provide_optimizers["irls_gd_tr"]:
+                compute_fim = True
             else:
-                provide_fim = False
+                compute_fim = False
+            if provide_optimizers["nr"] or provide_optimizers["nr_tr"]:
+                compute_hessian = True
+            else:
+                compute_hessian = False
 
             with tf.name_scope("batched_data"):
                 logger.debug("building batched data model")
@@ -419,10 +454,11 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                         model_vars=self.model_vars,
                         constraints_loc=self.constraints_loc,
                         constraints_scale=self.constraints_scale,
+                        noise_model=noise_model,
                         train_a=train_loc,
                         train_b=train_scale,
-                        noise_model=noise_model,
-                        provide_fim=provide_fim,
+                        compute_fim=compute_fim,
+                        compute_hessian=compute_hessian,
                         dtype=dtype
                     )
                 else:
@@ -444,9 +480,11 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     model_vars=self.model_vars,
                     constraints_loc=self.constraints_loc,
                     constraints_scale=self.constraints_scale,
+                    noise_model=noise_model,
                     train_a=train_loc,
                     train_b=train_scale,
-                    noise_model=noise_model,
+                    compute_fim=compute_fim,
+                    compute_hessian=compute_hessian,
                     dtype=dtype
                 )
 
@@ -465,10 +503,10 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 feature_isnonzero=feature_isnonzero,
                 dtype=dtype
             )
-            self.loss = self.full_data_model.loss
-            self.log_likelihood = self.full_data_model.log_likelihood
-            self.hessians = self.full_data_model.hessians
-            self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians)  # TODO switch for fim?
+            self.loss = self.full_data_model.loss_final
+            self.log_likelihood = self.full_data_model.log_likelihood_final
+            self.hessians = self.full_data_model.hessians_final
+            self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians_final)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
             self.gradients = tf.reduce_sum(tf.transpose(self.gradients_full), axis=1)
 

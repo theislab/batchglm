@@ -34,7 +34,8 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
 
         batch_size = 100
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                              "nr": False, "nr_tr": False, "irls": False, "irls_tr": False}
+                              "nr": False, "nr_tr": False,
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         provide_optimizers[algo.lower()] = True
 
         if sparse:

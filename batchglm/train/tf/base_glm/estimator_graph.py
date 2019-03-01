@@ -306,76 +306,29 @@ class NewtonGraphGLM:
 
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
 
-                nr_tr_update_full_magnitude_sq = tf.reduce_sum(tf.square(nr_update_full_raw), axis=0)
-                nr_tr_update_full_magnitude = tf.where(
-                    condition=nr_tr_update_full_magnitude_sq > 0,
-                    x=tf.sqrt(nr_tr_update_full_magnitude_sq),
-                    y=tf.zeros_like(nr_tr_update_full_magnitude_sq)
+                nr_tr_proposed_vector_full = self.trust_region_newton_update(
+                    update_raw=nr_update_full,
+                    radius_container=self.nr_tr_radius,
+                    n_obs=n_obs
                 )
-                nr_tr_update_full_magnitude_inv = tf.where(
-                    condition=nr_tr_update_full_magnitude_sq > 0,
-                    x=tf.divide(
-                        tf.ones_like(nr_tr_update_full_magnitude),
-                        nr_tr_update_full_magnitude
-                    ),
-                    y=tf.zeros_like(nr_tr_update_full_magnitude)
-                )
-                nr_tr_update_full_norm = tf.multiply(nr_update_full_raw, nr_tr_update_full_magnitude_inv)
-                nr_tr_update_full_scale = tf.minimum(
-                    self.nr_tr_radius,
-                    nr_tr_update_full_magnitude
-                )
-                nr_tr_proposed_vector_full = tf.multiply(
-                    nr_tr_update_full_norm,
-                    nr_tr_update_full_scale
-                )
-                nr_tr_pred_cost_gain_full = tf.add(
-                    tf.einsum(
-                        'ni,in->n',
-                        self.full_data_model.neg_jac_train,
-                        nr_tr_proposed_vector_full
-                    ) / n_obs,
-                    0.5 * tf.einsum(
-                        'nix,xin->n',
-                        tf.einsum('inx,nij->njx',
-                                  tf.expand_dims(nr_tr_proposed_vector_full, axis=-1),
-                                  self.full_data_model.neg_hessians_train),
-                        tf.expand_dims(nr_tr_proposed_vector_full, axis=0)
-                    ) / tf.square(n_obs)
+                nr_tr_pred_cost_gain_full = self.trust_region_newton_cost_gain(
+                    proposed_vector=nr_tr_proposed_vector_full,
+                    neg_jac=self.full_data_model.neg_jac_train,
+                    hessian_fim=self.full_data_model.neg_hessians_train,
+                    n_obs=n_obs
                 )
 
                 if self.batched_data_model is not None:
-                    nr_tr_update_batched_magnitude_sq = tf.reduce_sum(tf.square(nr_update_batched_raw), axis=0)
-                    nr_tr_update_batched_magnitude = tf.where(
-                        condition=nr_tr_update_batched_magnitude_sq > 0,
-                        x=tf.divide(
-                            tf.ones_like(nr_tr_update_batched_magnitude_sq),
-                            tf.sqrt(nr_tr_update_batched_magnitude_sq)
-                        ),
-                        y=tf.zeros_like(nr_tr_update_batched_magnitude_sq)
+                    nr_tr_proposed_vector_batched = self.trust_region_newton_update(
+                        update_raw=nr_update_batched,
+                        radius_container=self.nr_tr_radius,
+                        n_obs=n_obs
                     )
-                    nr_tr_update_batched_norm = tf.divide(nr_update_batched_raw, nr_tr_update_batched_magnitude)
-                    nr_tr_update_batched_scale = tf.minimum(
-                        self.nr_tr_radius,
-                        nr_tr_update_batched_magnitude
-                    )
-                    nr_tr_proposed_vector_batched = tf.multiply(
-                        nr_tr_update_batched_norm,
-                        nr_tr_update_batched_scale
-                    )
-                    nr_tr_pred_cost_gain_batched = tf.add(
-                        tf.einsum(
-                            'ni,in->n',
-                            self.batched_data_model.neg_jac_train / n_obs,
-                            nr_tr_proposed_vector_batched
-                        ) / n_obs,
-                        0.5 * tf.einsum(
-                            'nix,xin->n',
-                            tf.einsum('inx,nij->njx',
-                                      tf.expand_dims(nr_tr_proposed_vector_batched, axis=-1),
-                                      self.batched_data_model.neg_hessians_train),
-                            tf.expand_dims(nr_tr_proposed_vector_batched, axis=0)
-                        ) / tf.square(n_obs)
+                    nr_tr_pred_cost_gain_batched = self.trust_region_newton_cost_gain(
+                        proposed_vector=nr_tr_proposed_vector_full,
+                        neg_jac=self.batched_data_model.neg_jac_train,
+                        hessian_fim=self.batched_data_model.neg_hessians_train,
+                        n_obs=n_obs
                     )
                 else:
                     nr_tr_pred_cost_gain_batched = None
@@ -414,8 +367,8 @@ class NewtonGraphGLM:
                 train_ops_nr_tr_batched = None
                 self.nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
 
-            bool_use_gd = True
-            if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
+            if provide_optimizers["irls"] or provide_optimizers["irls_tr"] or \
+                    provide_optimizers["irls_gd"] or provide_optimizers["irls_gd_tr"]:
                 # Compute a and b model updates separately.
                 if train_mu:
                     # The FIM of the mean model is guaranteed to be
@@ -448,7 +401,7 @@ class NewtonGraphGLM:
                     else:
                         batched_lhs = self.batched_data_model.fim_b
                         batched_rhs = self.batched_data_model.neg_jac_b
-                    if not bool_use_gd:
+                    if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
                         irls_update_b_full, irls_update_b_batched = self.build_updates_nr(
                             full_lhs=self.full_data_model.fim_b,
                             batched_lhs=batched_lhs,
@@ -458,19 +411,26 @@ class NewtonGraphGLM:
                             psd=False
                         )
                     else:
-                        # Use GD for b model:
+                        irls_update_b_full = None
+                        irls_update_b_batched = None
+                    if provide_optimizers["irls_gd"] or provide_optimizers["irls_gd_tr"]:
                         if self.batched_data_model is not None:
                             batched_jac = self.batched_data_model.neg_jac_b
                         else:
                             batched_jac = None
-                        irls_update_b_full, irls_update_b_batched = self.build_updates_gd(
+                        irls_gd_update_b_full, irls_gd_update_b_batched = self.build_updates_gd(
                             full_jac=self.full_data_model.neg_jac_b,
                             batched_jac=batched_jac,
                             termination_type=termination_type
                         )
+                    else:
+                        irls_gd_update_b_full = None
+                        irls_gd_update_b_batched = None
                 else:
                     irls_update_b_full = None
                     irls_update_b_batched = None
+                    irls_gd_update_b_full = None
+                    irls_gd_update_b_batched = None
 
             if provide_optimizers["irls"]:
                 if train_mu and train_r:
@@ -514,7 +474,49 @@ class NewtonGraphGLM:
                 irls_update_full = None
                 irls_update_batched = None
 
-            if provide_optimizers["irls_tr"]:
+            if provide_optimizers["irls_gd"]:
+                if train_mu and train_r:
+                    irls_gd_update_full_raw = tf.concat([irls_update_a_full, irls_gd_update_b_full], axis=0)
+                    if self.batched_data_model is not None:
+                        irls_gd_update_batched_raw = tf.concat([irls_update_a_batched, irls_gd_update_b_batched], axis=0)
+                    else:
+                        irls_gd_update_batched_raw = None
+                elif train_mu:
+                    irls_gd_update_full_raw = irls_update_a_full
+                    if self.batched_data_model is not None:
+                        irls_gd_update_batched_raw = irls_update_a_batched
+                    else:
+                        irls_gd_update_batched_raw = None
+                elif train_r:
+                    irls_gd_update_full_raw = irls_update_b_full
+                    if self.batched_data_model is not None:
+                        irls_gd_update_batched_raw = irls_update_b_batched
+                    else:
+                        irls_gd_update_batched_raw = None
+                else:
+                    irls_gd_update_full_raw = None
+                    if self.batched_data_model is not None:
+                        irls_gd_update_batched_raw = None
+                    else:
+                        irls_gd_update_batched_raw = None
+
+                irls_gd_update_full, irls_gd_update_batched = self.pad_updates(
+                    train_mu=train_mu,
+                    train_r=train_r,
+                    update_full_raw=irls_gd_update_full_raw,
+                    update_batched_raw=irls_gd_update_batched_raw
+                )
+
+                self.irls_gd_tr_x_step_full = tf.Variable(tf.zeros_like(irls_gd_update_full))
+                if self.batched_data_model is None:
+                    self.irls_gd_tr_x_step_batched = None
+                else:
+                    self.irls_gd_tr_x_step_batched = tf.Variable(tf.zeros_like(irls_gd_update_batched))
+            else:
+                irls_gd_update_full = None
+                irls_gd_update_batched = None
+
+            if provide_optimizers["irls_tr"] or provide_optimizers["irls_gd_tr"]:
                 self.irls_tr_radius = tf.Variable(
                     np.zeros(shape=[self.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
                     dtype=dtype
@@ -531,228 +533,167 @@ class NewtonGraphGLM:
 
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
                 if train_mu:
-                    irls_tr_update_full_a_magnitude_sq = tf.reduce_sum(tf.square(irls_update_a_full), axis=0)
-                    irls_tr_update_full_a_magnitude = tf.where(
-                        condition=irls_tr_update_full_a_magnitude_sq > 0,
-                        x=tf.sqrt(irls_tr_update_full_a_magnitude_sq),
-                        y=tf.zeros_like(irls_tr_update_full_a_magnitude_sq)
+                    irls_tr_proposed_vector_full_a = self.trust_region_newton_update(
+                        update_raw=irls_update_a_full,
+                        radius_container=self.irls_tr_radius,
+                        n_obs=n_obs
                     )
-                    irls_tr_update_full_a_magnitude_inv = tf.where(
-                        condition=irls_tr_update_full_a_magnitude_sq > 0,
-                        x=tf.divide(
-                            tf.ones_like(irls_tr_update_full_a_magnitude),
-                            irls_tr_update_full_a_magnitude
-                        ),
-                        y=tf.zeros_like(irls_tr_update_full_a_magnitude)
-                    )
-                    irls_tr_update_full_a_norm = tf.multiply(irls_update_a_full, irls_tr_update_full_a_magnitude_inv)
-                    irls_tr_update_full_a_scale = tf.minimum(
-                        self.irls_tr_radius,
-                        irls_tr_update_full_a_magnitude
-                    )
-                    irls_tr_proposed_vector_full_a = tf.multiply(
-                        irls_tr_update_full_a_norm,
-                        irls_tr_update_full_a_scale
-                    )
-                    irls_tr_pred_cost_gain_full_a = tf.add(
-                        tf.einsum(
-                            'ni,in->n',
-                            self.full_data_model.neg_jac_a,
-                            irls_tr_proposed_vector_full_a
-                        ) / n_obs,
-                        0.5 * tf.einsum(
-                            'nix,xin->n',
-                            tf.einsum('inx,nij->njx',
-                                      tf.expand_dims(irls_tr_proposed_vector_full_a, axis=-1),
-                                      self.full_data_model.fim_a),
-                            tf.expand_dims(irls_tr_proposed_vector_full_a, axis=0)
-                        ) / tf.square(n_obs)
+                    irls_tr_pred_cost_gain_full_a = self.trust_region_newton_cost_gain(
+                        proposed_vector=irls_tr_proposed_vector_full_a,
+                        neg_jac=self.full_data_model.neg_jac_a,
+                        hessian_fim=self.full_data_model.fim_a,
+                        n_obs=n_obs
                     )
                 else:
+                    irls_tr_proposed_vector_full_a = None
                     irls_tr_pred_cost_gain_full_a = None
 
                 if train_r:
-                    irls_tr_update_full_b_magnitude_sq = tf.reduce_sum(tf.square(irls_update_b_full), axis=0)
-                    irls_tr_update_full_b_magnitude = tf.where(
-                        condition=irls_tr_update_full_b_magnitude_sq > 0,
-                        x=tf.sqrt(irls_tr_update_full_b_magnitude_sq),
-                        y=tf.zeros_like(irls_tr_update_full_b_magnitude_sq)
-                    )
-                    irls_tr_update_full_b_magnitude_inv = tf.where(
-                        condition=irls_tr_update_full_b_magnitude_sq > 0,
-                        x=tf.divide(
-                            tf.ones_like(irls_tr_update_full_b_magnitude_sq),
-                            irls_tr_update_full_b_magnitude
-                        ),
-                        y=tf.zeros_like(irls_tr_update_full_b_magnitude_sq)
-                    )
-                    irls_tr_update_full_b_norm = tf.multiply(irls_update_b_full, irls_tr_update_full_b_magnitude_inv)
-                    if not bool_use_gd:
-                        irls_tr_update_full_b_scale = tf.minimum(
-                            self.irls_tr_radius,
-                            irls_tr_update_full_b_magnitude
+                    if provide_optimizers["irls_tr"]:
+                        irls_tr_proposed_vector_full_b = self.trust_region_newton_update(
+                            update_raw=irls_update_b_full,
+                            radius_container=self.irls_tr_radius,
+                            n_obs=n_obs
                         )
-                        irls_tr_proposed_vector_full_b = tf.multiply(
-                            irls_tr_update_full_b_norm,
-                            irls_tr_update_full_b_scale
-                        )
-                        irls_tr_pred_cost_gain_full_b = tf.add(
-                            tf.einsum(
-                                'ni,in->n',
-                                self.full_data_model.neg_jac_b,
-                                irls_tr_proposed_vector_full_b
-                            ) / n_obs,
-                            0.5 * tf.einsum(
-                                'nix,xin->n',
-                                tf.einsum('inx,nij->njx',
-                                          tf.expand_dims(irls_tr_proposed_vector_full_b, axis=-1),
-                                          self.full_data_model.fim_b),
-                               tf.expand_dims(irls_tr_proposed_vector_full_b, axis=0)
-                            ) / tf.square(n_obs)
+                        irls_tr_pred_cost_gain_full_b = self.trust_region_newton_cost_gain(
+                            proposed_vector=irls_tr_proposed_vector_full_b,
+                            neg_jac=self.full_data_model.neg_jac_b,
+                            hessian_fim=self.full_data_model.fim_b,
+                            n_obs=n_obs
                         )
                     else:
-                        # Use GD
-                        n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
-                        irls_tr_update_full_b_scale = tf.minimum(
-                            self.irls_tr_radius,
-                            irls_tr_update_full_b_magnitude / n_obs  # learning rate = 1
+                        irls_tr_proposed_vector_full_b = None
+                        irls_tr_pred_cost_gain_full_b = None
+
+                    if provide_optimizers["irls_gd_tr"]:
+                        irls_gd_tr_proposed_vector_full_b = self.trust_region_linear_update(
+                            update_raw=irls_gd_update_b_full,
+                            radius_container=self.irls_tr_radius,
+                            n_obs=n_obs
                         )
-                        irls_tr_proposed_vector_full_b = tf.multiply(
-                            irls_tr_update_full_b_norm,
-                            irls_tr_update_full_b_scale
+                        print(irls_gd_update_b_full)
+                        print(irls_gd_tr_proposed_vector_full_b)
+                        irls_gd_tr_pred_cost_gain_full_b = self.trust_region_linear_cost_gain(
+                            proposed_vector=irls_tr_proposed_vector_full_b,
+                            neg_jac=self.full_data_model.neg_jac_b,
+                            n_obs=n_obs
                         )
-                        irls_tr_pred_cost_gain_full_b = tf.reduce_sum(tf.multiply(
-                            irls_tr_proposed_vector_full_b,
-                            tf.transpose(self.full_data_model.neg_jac_b)
-                        ), axis=0)
+                    else:
+                        irls_gd_tr_proposed_vector_full_b = None
+                        irls_gd_tr_pred_cost_gain_full_b = None
                 else:
+                    irls_tr_proposed_vector_full_b = None
                     irls_tr_pred_cost_gain_full_b = None
+                    irls_gd_tr_proposed_vector_full_b = None
+                    irls_gd_tr_pred_cost_gain_full_b = None
 
                 if self.batched_data_model is not None:
                     if train_mu:
-                        irls_tr_update_batched_a_magnitude_sq = tf.reduce_sum(tf.square(irls_update_a_batched), axis=0)
-                        irls_tr_update_batched_a_magnitude = tf.where(
-                            condition=irls_tr_update_batched_a_magnitude_sq > 0,
-                            x=tf.sqrt(irls_tr_update_batched_a_magnitude_sq),
-                            y=tf.zeros_like(irls_tr_update_batched_a_magnitude_sq)
+                        irls_tr_proposed_vector_batched_a = self.trust_region_newton_update(
+                            update_raw=irls_update_a_batched,
+                            radius_container=self.irls_tr_radius,
+                            n_obs=n_obs
                         )
-                        irls_tr_update_batched_a_magnitude_inv = tf.where(
-                            condition=irls_tr_update_batched_a_magnitude_sq > 0,
-                            x=tf.divide(
-                                tf.ones_like(irls_tr_update_batched_a_magnitude_sq),
-                                tf.sqrt(irls_tr_update_batched_a_magnitude_sq)
-                            ),
-                            y=tf.zeros_like(irls_tr_update_full_a_magnitude_sq)
+                        irls_tr_pred_cost_gain_batched_a = self.trust_region_newton_cost_gain(
+                            proposed_vector=irls_tr_proposed_vector_batched_a,
+                            neg_jac=self.batched_data_model.neg_jac_a,
+                            hessian_fim=self.batched_data_model.fim_a,
+                            n_obs=n_obs
                         )
-                        irls_tr_update_batched_a_norm = tf.multiply(irls_update_a_batched, irls_tr_update_batched_a_magnitude_inv)
-                        irls_tr_update_batched_a_scale = tf.minimum(
-                            self.irls_tr_radius,
-                            irls_tr_update_batched_a_magnitude
-                        )
-                        irls_tr_proposed_vector_batched_a = tf.multiply(
-                            irls_tr_update_batched_a_norm,
-                            irls_tr_update_batched_a_scale
-                        )
-                        irls_tr_pred_cost_gain_batched_a = tf.add(
-                            tf.einsum(
-                                'ni,in->n',
-                                self.batched_data_model.neg_jac_a,
-                                irls_tr_proposed_vector_batched_a
-                            ) / n_obs,
-                            0.5 * tf.einsum(
-                                'nix,xin->n',
-                                tf.einsum('inx,nij->njx',
-                                          tf.expand_dims(irls_tr_proposed_vector_batched_a, axis=-1),
-                                          self.batched_data_model.fim_a),
-                                tf.expand_dims(irls_tr_proposed_vector_batched_a, axis=0)
-                            ) / tf.square(n_obs)
-                        )
+                    else:
+                        irls_tr_proposed_vector_batched_a = None
+                        irls_tr_pred_cost_gain_batched_a = None
 
                     if train_r:
-                        irls_tr_update_batched_b_magnitude_sq = tf.reduce_sum(tf.square(irls_update_b_batched), axis=0)
-                        irls_tr_update_batched_b_magnitude = tf.where(
-                            condition=irls_tr_update_batched_b_magnitude_sq > 0,
-                            x=tf.sqrt(irls_tr_update_batched_b_magnitude_sq),
-                            y=tf.zeros_like(irls_tr_update_batched_b_magnitude_sq)
-                        )
-                        irls_tr_update_batched_b_magnitude_inv = tf.where(
-                            condition=irls_tr_update_batched_b_magnitude_sq > 0,
-                            x=tf.divide(
-                                tf.ones_like(irls_tr_update_batched_b_magnitude_sq),
-                                tf.sqrt(irls_tr_update_batched_b_magnitude_sq)
-
-                            ),
-                            y=tf.zeros_like(irls_tr_update_batched_b_magnitude_sq)
-                        )
-                        irls_tr_update_batched_b_norm = tf.divide(irls_update_b_batched,
-                                                                  irls_tr_update_batched_b_magnitude_inv)
-                        if not bool_use_gd:
-                            irls_tr_update_batched_b_scale = tf.minimum(
-                                self.irls_tr_radius,
-                                irls_tr_update_batched_b_magnitude
+                        if provide_optimizers["irls_tr"]:
+                            irls_tr_proposed_vector_batched_b = self.trust_region_newton_update(
+                                update_raw=irls_update_b_batched,
+                                radius_container=self.irls_tr_radius,
+                                n_obs=n_obs
                             )
-                            irls_tr_proposed_vector_batched_b = tf.multiply(
-                                irls_tr_update_batched_b_norm,
-                                irls_tr_update_batched_b_scale
-                            )
-                            irls_tr_pred_cost_gain_batched_b = tf.add(
-                                tf.einsum(
-                                    'ni,in->n',
-                                    self.batched_data_model.neg_jac_b,
-                                   irls_tr_proposed_vector_batched_b
-                                ) / n_obs,
-                                0.5 * tf.einsum(
-                                   'nix,xin->n',
-                                   tf.einsum('inx,nij->njx',
-                                              tf.expand_dims(irls_tr_proposed_vector_batched_b, axis=-1),
-                                              self.batched_data_model.fim_b),
-                                    tf.expand_dims(irls_tr_proposed_vector_batched_b, axis=0)
-                                ) / tf.square(n_obs)
+                            irls_tr_pred_cost_gain_batched_b = self.trust_region_newton_cost_gain(
+                                proposed_vector=irls_tr_proposed_vector_batched_b,
+                                neg_jac=self.batched_data_model.neg_jac_b,
+                                hessian_fim=self.batched_data_model.fim_b,
+                                n_obs=n_obs
                             )
                         else:
-                            # Use GD:
-                            irls_tr_update_batched_b_scale = tf.minimum(
-                                self.irls_tr_radius,
-                                tf.ones_like(irls_tr_update_batched_b_norm)  # maximum is learning rate 1!
+                            irls_tr_proposed_vector_batched_b = None
+                            irls_tr_pred_cost_gain_batched_b = None
+
+                        if provide_optimizers["irls_gd_tr"]:
+                            irls_gd_tr_proposed_vector_batched_b = self.trust_region_linear_update(
+                                update_raw=irls_gd_update_b_batched,
+                                radius_container=self.irls_tr_radius,
+                                n_obs=n_obs
                             )
-                            irls_tr_proposed_vector_batched_b = tf.multiply(
-                                irls_tr_update_batched_b_norm,
-                                irls_tr_update_batched_b_scale
+                            irls_gd_tr_pred_cost_gain_batched_b = self.trust_region_linear_cost_gain(
+                                proposed_vector=irls_gd_tr_proposed_vector_batched_b,
+                                neg_jac=self.batched_data_model.neg_jac_b,
+                                n_obs=n_obs
                             )
-                            irls_tr_pred_cost_gain_batched_b = tf.reduce_sum(tf.multiply(
-                                irls_tr_proposed_vector_batched_b,
-                                tf.transpose(self.batched_data_model.neg_jac_b)
-                            ), axis=0)
+                        else:
+                            irls_gd_tr_proposed_vector_batched_b = None
+                            irls_gd_tr_pred_cost_gain_batched_b = None
+                    else:
+                        irls_tr_proposed_vector_batched_b = None
+                        irls_tr_pred_cost_gain_batched_b = None
+                        irls_gd_tr_proposed_vector_batched_b = None
+                        irls_gd_tr_pred_cost_gain_batched_b = None
 
                 if train_mu and train_r:
-                    irls_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a, irls_tr_proposed_vector_full_b], axis=0)
-                    irls_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a, irls_tr_pred_cost_gain_full_b)
+                    irls_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a,
+                                                         irls_tr_proposed_vector_full_b], axis=0)
+                    irls_gd_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a,
+                                                            irls_gd_tr_proposed_vector_full_b], axis=0)
+                    irls_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a,
+                                                         irls_tr_pred_cost_gain_full_b)
+                    irls_gd_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a,
+                                                            irls_gd_tr_pred_cost_gain_full_b)
                     if self.batched_data_model is not None:
                         irls_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
-                                                             irls_tr_proposed_vector_batched_b], axis=0)
+                                                                irls_tr_proposed_vector_batched_b], axis=0)
+                        irls_gd_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
+                                                                   irls_gd_tr_proposed_vector_batched_b], axis=0)
                         irls_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
-                                                             irls_tr_pred_cost_gain_batched_b)
+                                                                irls_tr_pred_cost_gain_batched_b)
+                        irls_gd_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
+                                                                   irls_gd_tr_pred_cost_gain_batched_b)
                     else:
                         irls_tr_update_batched_raw = None
+                        irls_gd_tr_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
+                        irls_gd_tr_pred_cost_gain_batched = None
                 elif train_mu and not train_r:
                     irls_tr_update_full_raw = irls_tr_proposed_vector_full_a
+                    irls_gd_tr_update_full_raw = irls_tr_proposed_vector_full_a
                     irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_a
+                    irls_gd_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_a
                     if self.batched_data_model is not None:
                         irls_tr_update_batched_raw = irls_tr_proposed_vector_batched_a
+                        irls_gd_tr_update_batched_raw = irls_tr_proposed_vector_batched_a
                         irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_a
+                        irls_gd_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_a
                     else:
                         irls_tr_update_batched_raw = None
+                        irls_gd_tr_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
+                        irls_gd_tr_pred_cost_gain_batched = None
                 elif not train_mu and train_r:
                     irls_tr_update_full_raw = irls_tr_proposed_vector_full_b
+                    irls_gd_tr_update_full_raw = irls_gd_tr_proposed_vector_full_b
                     irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_b
+                    irls_gd_tr_pred_cost_gain_full = irls_gd_tr_pred_cost_gain_full_b
                     if self.batched_data_model is not None:
                         irls_tr_update_batched_raw = irls_tr_proposed_vector_batched_b
+                        irls_tr_gd_update_batched_raw = irls_gd_tr_proposed_vector_batched_b
                         irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_b
+                        irls_tr_gd_pred_cost_gain_batched = irls_gd_tr_pred_cost_gain_batched_b
                     else:
                         irls_tr_update_batched_raw = None
+                        irls_tr_gd_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
+                        irls_tr_gd_pred_cost_gain_batched = None
                 else:
                     assert False
 
@@ -761,6 +702,13 @@ class NewtonGraphGLM:
                     train_r=train_r,
                     update_full_raw=irls_tr_update_full_raw,
                     update_batched_raw=irls_tr_update_batched_raw
+                )
+
+                irls_gd_tr_update_full, irls_gd_tr_update_batched = self.pad_updates(
+                    train_mu=train_mu,
+                    train_r=train_r,
+                    update_full_raw=irls_gd_tr_update_full_raw,
+                    update_batched_raw=irls_gd_tr_update_batched_raw
                 )
 
                 self.irls_tr_x_step_full = tf.Variable(tf.zeros_like(irls_tr_update_full))
@@ -790,9 +738,33 @@ class NewtonGraphGLM:
                     )
                 else:
                     train_ops_irls_tr_batched = None
+
+                train_ops_irls_gd_tr_full = self.trust_region_ops(
+                    likelihood_container=self.irls_tr_ll_prev_full,
+                    proposed_vector=irls_gd_tr_update_full,
+                    proposed_vector_container=self.irls_gd_tr_x_step_full,
+                    proposed_gain=irls_gd_tr_pred_cost_gain_full,
+                    proposed_gain_container=self.irls_tr_pred_gain_full,
+                    radius_container=self.irls_tr_radius,
+                    dtype=dtype
+                )
+                if self.batched_data_model is not None:
+                    train_ops_irls_gd_tr_batched = self.trust_region_ops(
+                        likelihood_container=self.irls_tr_ll_prev_batched,
+                        proposed_vector=irls_gd_tr_update_batched,
+                        proposed_vector_container=self.irls_gd_tr_x_step_batched,
+                        proposed_gain=irls_gd_tr_pred_cost_gain_batched,
+                        proposed_gain_container=self.irls_tr_pred_gain_batched,
+                        radius_container=self.irls_tr_radius,
+                        dtype=dtype
+                    )
+                else:
+                    train_ops_irls_tr_batched = None
             else:
                 train_ops_irls_tr_full = None
                 train_ops_irls_tr_batched = None
+                train_ops_irls_gd_tr_full = None
+                train_ops_irls_gd_tr_batched = None
                 self.irls_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
         else:
             nr_update_full = None
@@ -802,8 +774,12 @@ class NewtonGraphGLM:
 
             irls_update_full = None
             irls_update_batched = None
+            irls_gd_update_full = None
+            irls_gd_update_batched = None
             train_ops_irls_tr_full = None
             train_ops_irls_tr_batched = None
+            train_ops_irls_gd_tr_full = None
+            train_ops_irls_gd_tr_batched = None
 
             self.nr_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
             self.irls_tr_radius = tf.Variable(np.array([np.inf]), dtype=dtype)
@@ -815,8 +791,12 @@ class NewtonGraphGLM:
 
         self.irls_update_full = irls_update_full
         self.irls_update_batched = irls_update_batched
+        self.irls_gd_update_full = irls_gd_update_full
+        self.irls_gd_update_batched = irls_gd_update_batched
         self.train_ops_irls_tr_full = train_ops_irls_tr_full
         self.train_ops_irls_tr_batched = train_ops_irls_tr_batched
+        self.train_ops_irls_gd_tr_full = train_ops_irls_gd_tr_full
+        self.train_ops_irls_gd_tr_batched = train_ops_irls_gd_tr_batched
 
     def build_updates_nr(
             self,
@@ -1025,6 +1005,105 @@ class NewtonGraphGLM:
 
         return update_tensor
 
+    def trust_region_newton_update(
+            self,
+            update_raw,
+            radius_container,
+            n_obs
+    ):
+        update_magnitude_sq = tf.reduce_sum(tf.square(update_raw), axis=0)
+        update_magnitude = tf.where(
+            condition=update_magnitude_sq > 0,
+            x=tf.sqrt(update_magnitude_sq),
+            y=tf.zeros_like(update_magnitude_sq)
+        )
+        update_magnitude_inv = tf.where(
+            condition=update_magnitude > 0,
+            x=tf.divide(
+                tf.ones_like(update_magnitude),
+                update_magnitude
+            ),
+            y=tf.zeros_like(update_magnitude)
+        )
+        update_norm = tf.multiply(update_raw,update_magnitude_inv)
+        update_scale = tf.minimum(
+            radius_container,
+            update_magnitude
+        )
+        proposed_vector = tf.multiply(
+            update_norm,
+            update_scale
+        )
+
+        return proposed_vector
+
+    def trust_region_linear_update(
+            self,
+            update_raw,
+            radius_container,
+            n_obs
+    ):
+        update_magnitude_sq = tf.reduce_sum(tf.square(update_raw), axis=0)
+        update_magnitude = tf.where(
+            condition=update_magnitude_sq > 0,
+            x=tf.sqrt(update_magnitude_sq),
+            y=tf.zeros_like(update_magnitude_sq)
+        )
+        update_magnitude_inv = tf.where(
+            condition=update_magnitude > 0,
+            x=tf.divide(
+                tf.ones_like(update_magnitude),
+                update_magnitude
+            ),
+            y=tf.zeros_like(update_magnitude)
+        )
+        update_norm = tf.multiply(update_raw,update_magnitude_inv)
+        update_scale = tf.minimum(
+            radius_container,
+            update_magnitude / n_obs  # learning rate = 1
+        )
+        proposed_vector = tf.multiply(
+            update_norm,
+            update_scale
+        )
+
+        return proposed_vector
+
+    def trust_region_newton_cost_gain(
+            self,
+            proposed_vector,
+            neg_jac,
+            hessian_fim,
+            n_obs
+    ):
+        pred_cost_gain = tf.add(
+            tf.einsum(
+                'ni,in->n',
+                neg_jac,
+                proposed_vector
+            ) / n_obs,
+            0.5 * tf.einsum(
+                'nix,xin->n',
+                tf.einsum('inx,nij->njx',
+                          tf.expand_dims(proposed_vector, axis=-1),
+                          hessian_fim),
+                tf.expand_dims(proposed_vector, axis=0)
+            ) / tf.square(n_obs)
+        )
+        return pred_cost_gain
+
+    def trust_region_linear_cost_gain(
+            self,
+            proposed_vector,
+            neg_jac,
+            n_obs
+    ):
+        pred_cost_gain = tf.reduce_sum(tf.multiply(
+            proposed_vector,
+            tf.transpose(neg_jac)
+        ), axis=0)
+        return pred_cost_gain
+
     def trust_region_ops(
             self,
             likelihood_container,
@@ -1175,8 +1254,10 @@ class TrainerGraphGLM:
                     gradients=self.gradients_batch,
                     newton_delta=self.nr_update_batched,
                     irls_delta=self.irls_update_batched,
+                    irls_gd_delta=self.irls_gd_update_batched,
                     train_ops_nr_tr=self.train_ops_nr_tr_batched,
                     train_ops_irls_tr=self.train_ops_irls_tr_batched,
+                    train_ops_irls_gd_tr=self.train_ops_irls_gd_tr_batched,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
@@ -1196,8 +1277,10 @@ class TrainerGraphGLM:
                     gradients=self.gradients_full,
                     newton_delta=self.nr_update_full,
                     irls_delta=self.irls_update_full,
+                    irls_gd_delta=self.irls_gd_update_full,
                     train_ops_nr_tr=self.train_ops_nr_tr_full,
                     train_ops_irls_tr=self.train_ops_irls_tr_full,
+                    train_ops_irls_gd_tr=self.train_ops_irls_gd_tr_full,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
                     apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),

@@ -75,7 +75,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         :param provide_optimizers:
 
             E.g.    {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                    "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
+                    "nr": False, "nr_tr": True,
+                    "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
         :param termination_type: str, {"by_feature", "global"}

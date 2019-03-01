@@ -226,8 +226,10 @@ class MultiTrainer:
             apply_gradients: Union[callable, Dict[tf.Variable, callable]] = None,
             newton_delta: tf.Tensor = None,
             irls_delta: tf.Tensor = None,
+            irls_gd_delta: tf.Tensor = None,
             train_ops_nr_tr=None,
             train_ops_irls_tr=None,
+            train_ops_irls_gd_tr=None,
             global_step=None,
             apply_train_ops: callable = None,
             provide_optimizers: Union[dict, None] = None,
@@ -370,6 +372,21 @@ class MultiTrainer:
                 train_op_irls = None
                 update_op_irls = None
 
+            if provide_optimizers["irls_gd"] and irls_gd_delta is not None:
+                logger.debug(" *** Building optimizer: IRLS_GD")
+                update_op_irls_gd = irls_gd_delta
+
+                theta_new_irls_gd = variables - irls_gd_delta
+                train_op_irls_gd = tf.group(
+                    tf.assign(variables, theta_new_irls_gd),
+                    tf.assign_add(global_step, 1)
+                )
+                if apply_train_ops is not None:
+                    train_op_irls_gd = apply_train_ops(train_op_irls_gd)
+            else:
+                train_op_irls_gd = None
+                update_op_irls_gd = None
+
             if provide_optimizers["nr_tr"] and train_ops_nr_tr is not None:
                 logger.debug(" *** Building optimizer: NR_TR")
                 train_op_nr_tr = {"trial_op": train_ops_nr_tr["trial_op"],
@@ -390,6 +407,16 @@ class MultiTrainer:
                 train_op_irls_tr = None
                 update_op_irls_tr = None
 
+            if provide_optimizers["irls_gd_tr"] and train_ops_irls_gd_tr is not None:
+                logger.debug(" *** Building optimizer: IRLS_GD_TR")
+                train_op_irls_gd_tr = {"trial_op": train_ops_irls_gd_tr["trial_op"],
+                                    "update_op": tf.group(train_ops_irls_gd_tr["update_op"],
+                                                          tf.assign_add(global_step, 1))}
+                update_op_irls_gd_tr = train_ops_irls_gd_tr["update"]
+            else:
+                train_op_irls_gd_tr = None
+                update_op_irls_gd_tr = None
+
             self.global_step = global_step
             self.plain_gradients = plain_gradients_vars
             self.gradients = gradients_vars
@@ -406,7 +433,9 @@ class MultiTrainer:
             self.train_op_nr = train_op_nr
             self.train_op_nr_tr = train_op_nr_tr
             self.train_op_irls = train_op_irls
+            self.train_op_irls_gd = train_op_irls_gd
             self.train_op_irls_tr = train_op_irls_tr
+            self.train_op_irls_gd_tr = train_op_irls_gd_tr
 
             self.update_op_GD = update_op_GD
             self.update_op_Adam = update_op_Adam
@@ -415,7 +444,9 @@ class MultiTrainer:
             self.update_op_nr = update_op_nr
             self.update_op_nr_tr = update_op_nr_tr
             self.update_op_irls = update_op_irls
+            self.update_op_irls_gd = update_op_irls_gd
             self.update_op_irls_tr = update_op_irls_tr
+            self.update_op_irls_gd_tr = update_op_irls_gd_tr
 
             #self.train_op_bfgs = train_op_bfgs
 
@@ -454,17 +485,13 @@ class MultiTrainer:
                 raise ValueError("BFGS not provided in initialization.")
             return {"train": self.train_op_bfgs, "update": self.update_op_bfgs}
         elif name_lower.lower() == "newton" or \
-                name_lower.lower() == "newton-raphson" or \
                 name_lower.lower() == "newton_raphson" or \
                 name_lower.lower() == "nr":
             if self.train_op_nr is None:
                 raise ValueError("Newton-rhapson not provided in initialization.")
             return {"train": self.train_op_nr, "update": self.update_op_nr}
-        elif name_lower.lower() == "newton-trust-region" or \
-                name_lower.lower() == "newton_trust_region" or \
-                name_lower.lower() == "newton-raphson-trust-region" or \
-                name_lower.lower() == "newton_raphson_trust_region" or \
-                name_lower.lower() == "newton_tr" or \
+        elif name_lower.lower() == "newton_tr" or \
+                name_lower.lower() == "newton_raphson_tr" or \
                 name_lower.lower() == "nr_tr":
             if self.train_op_nr_tr is None:
                 raise ValueError("Newton-rhapson trust-region not provided in initialization.")
@@ -474,17 +501,23 @@ class MultiTrainer:
             if self.train_op_irls is None:
                 raise ValueError("IRLS not provided in initialization.")
             return {"train": self.train_op_irls, "update": self.update_op_irls}
+        elif name_lower.lower() == "irls_gd" or \
+                name_lower.lower() == "iwls_gd":
+            if self.train_op_irls_gd is None:
+                raise ValueError("IRLS_GD not provided in initialization.")
+            return {"train": self.train_op_irls_gd, "update": self.update_op_irls_gd}
         elif name_lower.lower() == "irls_tr" or \
-                name_lower.lower() == "iwls_tr" or \
-                name_lower.lower() == "irls_trust_region" or \
-                name_lower.lower() == "iwls_trust_region" or \
-                name_lower.lower() == "irls-trust-region" or \
-                name_lower.lower() == "iwls-trust-region":
+                name_lower.lower() == "iwls_tr":
             if self.train_op_irls_tr is None:
                 raise ValueError("IRLS trust-region not provided in initialization.")
             return {"train": self.train_op_irls_tr, "update": self.update_op_irls_tr}
+        elif name_lower.lower() == "irls_gd_tr" or \
+             name_lower.lower() == "iwls_gd_tr":
+            if self.train_op_irls_gd_tr is None:
+                raise ValueError("IRLS_GD trust-region not provided in initialization.")
+            return {"train": self.train_op_irls_gd_tr, "update": self.update_op_irls_gd_tr}
         else:
-            raise ValueError("Unknown optimizer %s" % name)
+                raise ValueError("Unknown optimizer %s" % name)
 
     def gradient_by_variable(self, variable: tf.Variable):
         """
