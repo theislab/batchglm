@@ -172,6 +172,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
               trustregion_mode=False,
               is_nr_tr=False,
               is_irls_tr=False,
+              is_batched=False,
               **kwargs):
         """
         Starts training of the model
@@ -273,9 +274,11 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
                 ## Run update.
                 t_a = time.time()
-                _ = self.session.run(self.model.full_data_model.train_set)
-                if False:
+                if is_batched:
                     _ = self.session.run(self.model.batched_data_model.train_set)
+                else:
+                    _ = self.session.run(self.model.full_data_model.train_set)
+
                 if trustregion_mode:
                     t_b = time.time()
                     _, x_step = self.session.run(

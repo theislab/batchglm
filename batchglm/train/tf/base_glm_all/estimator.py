@@ -209,7 +209,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
               stopping_criteria=0.05,
               train_mu: bool = None,
               train_r: bool = None,
-              use_batching=True,
+              use_batching=False,
               optim_algo="gradient_descent",
               **kwargs):
         r"""
@@ -336,6 +336,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           trustregion_mode=trustregion_mode,
                           is_nr_tr=is_nr_tr,
                           is_irls_tr=is_irls_tr,
+                          is_batched=use_batching,
                           **kwargs)
 
     def train_sequence(self, training_strategy):
