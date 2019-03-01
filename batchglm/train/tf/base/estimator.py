@@ -268,7 +268,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                                    np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
                     }
                 )
-                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval0)
+                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
 
             tf.logging.info(
                 "Step: 0 loss: %f models converged 0",
