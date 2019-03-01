@@ -143,8 +143,33 @@ class FullDataModelGraph(FullDataModelGraphGLM):
 
             self.final_set = reducibles_finalize.set
 
-        with tf.name_scope("reducible_tensors_eval"):
-            reducibles_eval = ReducibleTensors(
+        with tf.name_scope("reducible_tensors_eval_ll"):
+            reducibles_eval0 = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=train_a,
+                compute_b=train_b,
+                compute_jac=False,
+                compute_hessian=False,
+                compute_fim=False,
+                compute_ll=True
+            )
+            self.log_likelihood_eval0 = reducibles_eval0.ll
+            self.norm_neg_log_likelihood_eval0 = -self.log_likelihood_eval0 / num_observations
+            self.loss_eval0 = tf.reduce_sum(self.norm_neg_log_likelihood_eval0)
+
+            self.eval0_set = reducibles_eval0.set
+
+        with tf.name_scope("reducible_tensors_eval_ll_jac"):
+            reducibles_eval1 = ReducibleTensors(
                 model_vars=model_vars,
                 noise_model=noise_model,
                 constraints_loc=constraints_loc,
@@ -162,15 +187,12 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 compute_fim=False,
                 compute_ll=True
             )
+            self.log_likelihood_eval1 = reducibles_eval1.ll
+            self.norm_neg_log_likelihood_eval1 = -self.log_likelihood_eval1 / num_observations
+            self.loss_eval1 = tf.reduce_sum(self.norm_neg_log_likelihood_eval1)
+            self.neg_jac_train_eval = reducibles_eval1.neg_jac_train
 
-            self.log_likelihood = reducibles_eval.ll
-            self.norm_log_likelihood = self.log_likelihood / num_observations
-            self.norm_neg_log_likelihood = -self.norm_log_likelihood
-            self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
-
-            self.neg_jac_train_eval = reducibles_eval.neg_jac_train
-
-            self.eval_set = reducibles_eval.set
+            self.eval1_set = reducibles_eval1.set
 
         self.num_observations = num_observations
         self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])

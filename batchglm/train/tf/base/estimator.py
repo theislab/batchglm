@@ -262,13 +262,13 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_current = self.session.run(self.model.batched_data_model.norm_neg_log_likelihood)
             else:
                 _, _ = self.session.run(
-                    (self.model.full_data_model.eval_set,
+                    (self.model.full_data_model.eval0_set,
                      self.model.model_vars.convergence_update),
                     feed_dict={self.model.model_vars.convergence_status:
                                    np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
                     }
                 )
-                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
+                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval0)
 
             tf.logging.info(
                 "Step: 0 loss: %f models converged 0",
@@ -297,7 +297,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         feed_dict=feed_dict
                     )
                     t_c = time.time()
-                    _ = self.session.run(self.model.full_data_model.eval_set)
+                    _ = self.session.run(self.model.full_data_model.eval0_set)
                     t_d = time.time()
                     train_step, _, features_updated = self.session.run(
                         (self.model.global_step,
@@ -324,9 +324,9 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                          self.model.batched_data_model.neg_jac_train_eval)
                     )
                 else:
-                    _ = self.session.run(self.model.full_data_model.eval_set)
+                    _ = self.session.run(self.model.full_data_model.eval1_set)
                     ll_current, jac_train = self.session.run(
-                        (self.model.full_data_model.norm_neg_log_likelihood,
+                        (self.model.full_data_model.norm_neg_log_likelihood_eval1,
                          self.model.full_data_model.neg_jac_train_eval)
                     )
                 t_f = time.time()

@@ -1189,7 +1189,7 @@ class NewtonGraphGLM:
         # Phase I: Perform a trial update.
         # Propose parameter update:
         train_op_nr_tr_prev = tf.group(
-            tf.assign(likelihood_container, self.full_data_model.norm_neg_log_likelihood)
+            tf.assign(likelihood_container, self.full_data_model.norm_neg_log_likelihood_eval1)
         )
         train_op_x_step = tf.group(
             tf.assign(proposed_vector_container, proposed_vector),
@@ -1201,7 +1201,7 @@ class NewtonGraphGLM:
 
         # Phase II: Evaluate success of trial update and complete update cycle.
         # Include parameter updates only if update improves cost function:
-        delta_f_actual = likelihood_container - self.full_data_model.norm_neg_log_likelihood
+        delta_f_actual = likelihood_container - self.full_data_model.norm_neg_log_likelihood_eval0
         delta_f_ratio = tf.divide(delta_f_actual, proposed_gain_container)
 
         # Compute parameter updates.
