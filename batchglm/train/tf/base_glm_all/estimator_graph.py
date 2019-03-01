@@ -96,8 +96,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 mode_jac=pkg_constants.JACOBIAN_MODE,
                 mode_hessian=pkg_constants.HESSIAN_MODE,
                 mode_fim=pkg_constants.FIM_MODE,
-                compute_a=True,
-                compute_b=True,
+                compute_a=train_a,
+                compute_b=train_b,
                 compute_jac=True,
                 compute_hessian=compute_hessian,
                 compute_fim=compute_fim,
@@ -248,7 +248,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
 
             batch_sample_index, batch_data = iterator.get_next()
 
-        with tf.name_scope("reducible_tensors"):
+        with tf.name_scope("reducible_tensors_train"):
             reducibles_train = ReducibleTensors(
                 model_vars=model_vars,
                 noise_model=noise_model,
@@ -260,8 +260,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 mode_jac=pkg_constants.JACOBIAN_MODE,
                 mode_hessian=pkg_constants.HESSIAN_MODE,
                 mode_fim=pkg_constants.FIM_MODE,
-                compute_a=True,
-                compute_b=True,
+                compute_a=train_a,
+                compute_b=train_b,
                 compute_jac=True,
                 compute_hessian=compute_hessian,
                 compute_fim=compute_fim,

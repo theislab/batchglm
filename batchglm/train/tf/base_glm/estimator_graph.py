@@ -307,7 +307,7 @@ class NewtonGraphGLM:
                 n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
 
                 nr_tr_proposed_vector_full = self.trust_region_newton_update(
-                    update_raw=nr_update_full,
+                    update_raw=nr_update_full_raw,
                     radius_container=self.nr_tr_radius,
                     n_obs=n_obs
                 )
@@ -320,7 +320,7 @@ class NewtonGraphGLM:
 
                 if self.batched_data_model is not None:
                     nr_tr_proposed_vector_batched = self.trust_region_newton_update(
-                        update_raw=nr_update_batched,
+                        update_raw=nr_update_batched_raw,
                         radius_container=self.nr_tr_radius,
                         n_obs=n_obs
                     )

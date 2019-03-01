@@ -114,8 +114,8 @@ class ReducableTensorsGLM:
 
         self.compute_jac = compute_jac
         self.compute_hessian = compute_hessian
-        self.compute_fim_a = compute_fim
-        self.compute_fim_b = compute_fim
+        self.compute_fim_a = compute_fim and compute_a
+        self.compute_fim_b = compute_fim and compute_b
         self.compute_ll = compute_ll
 
         n_var_all = self.model_vars.params.shape[0]
@@ -240,7 +240,7 @@ class ReducableTensorsGLM:
                 self.fim_a = tf.Variable(tf.zeros([model_vars.n_features, n_var_a, n_var_a], dtype=dtype), dtype=dtype)
             else:
                 self.fim_a = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
-            self.fim_b = None
+            self.fim_b = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
         elif not self.compute_a and self.compute_b:
             if self.compute_jac:
                 self.jac = tf.Variable(tf.zeros([self.model_vars.n_features, n_var_b], dtype=dtype), dtype=dtype)
@@ -260,24 +260,24 @@ class ReducableTensorsGLM:
             self.hessian_aa = None
             self.hessian_train = self.hessian_bb
 
-            self.fim_a = None
+            self.fim_a = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
             if self.compute_fim_b:
                 self.fim_b = tf.Variable(tf.zeros([model_vars.n_features, n_var_b, n_var_b], dtype=dtype), dtype=dtype)
             else:
                 self.fim_b = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
         else:
-            self.jac = None
+            self.jac = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
             self.jac_a = None
             self.jac_b = None
             self.jac_train = None
 
-            self.hessian = None
+            self.hessian = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
             self.hessian_aa = None
             self.hessian_bb = None
             self.hessian_train = None
 
-            self.fim_a = None
-            self.fim_b = None
+            self.fim_a = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
+            self.fim_b = tf.Variable(tf.zeros((), dtype=dtype), dtype=dtype)
 
         if self.compute_ll:
             self.ll = tf.Variable(tf.zeros([model_vars.n_features], dtype=dtype), dtype=dtype)
