@@ -315,10 +315,10 @@ class NewtonGraphGLM:
                 nr_tr_update_full_magnitude_inv = tf.where(
                     condition=nr_tr_update_full_magnitude_sq > 0,
                     x=tf.divide(
-                        tf.ones_like(nr_tr_update_full_magnitude_sq),
-                        tf.sqrt(nr_tr_update_full_magnitude_sq)
+                        tf.ones_like(nr_tr_update_full_magnitude),
+                        nr_tr_update_full_magnitude
                     ),
-                    y=tf.zeros_like(nr_tr_update_full_magnitude_sq)
+                    y=tf.zeros_like(nr_tr_update_full_magnitude)
                 )
                 nr_tr_update_full_norm = tf.multiply(nr_update_full_raw, nr_tr_update_full_magnitude_inv)
                 nr_tr_update_full_scale = tf.minimum(
@@ -540,10 +540,10 @@ class NewtonGraphGLM:
                     irls_tr_update_full_a_magnitude_inv = tf.where(
                         condition=irls_tr_update_full_a_magnitude_sq > 0,
                         x=tf.divide(
-                            tf.ones_like(irls_tr_update_full_a_magnitude_sq),
+                            tf.ones_like(irls_tr_update_full_a_magnitude),
                             irls_tr_update_full_a_magnitude
                         ),
-                        y=tf.zeros_like(irls_tr_update_full_a_magnitude_sq)
+                        y=tf.zeros_like(irls_tr_update_full_a_magnitude)
                     )
                     irls_tr_update_full_a_norm = tf.multiply(irls_update_a_full, irls_tr_update_full_a_magnitude_inv)
                     irls_tr_update_full_a_scale = tf.minimum(
@@ -615,7 +615,7 @@ class NewtonGraphGLM:
                         n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
                         irls_tr_update_full_b_scale = tf.minimum(
                             self.irls_tr_radius,
-                            irls_tr_update_full_b_magnitude / n_obs
+                            irls_tr_update_full_b_magnitude / n_obs  # learning rate = 1
                         )
                         irls_tr_proposed_vector_full_b = tf.multiply(
                             irls_tr_update_full_b_norm,
@@ -725,33 +725,33 @@ class NewtonGraphGLM:
                             ), axis=0)
 
                 if train_mu and train_r:
-                    irls_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a, irls_tr_proposed_vector_full_b], axis=0)
+                    irls_tr_update_full_raw = tf.concat([irls_tr_proposed_vector_full_a, irls_tr_proposed_vector_full_b], axis=0)
                     irls_tr_pred_cost_gain_full = tf.add(irls_tr_pred_cost_gain_full_a, irls_tr_pred_cost_gain_full_b)
                     if self.batched_data_model is not None:
-                        irls_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
+                        irls_tr_update_batched_raw = tf.concat([irls_tr_proposed_vector_batched_a,
                                                              irls_tr_proposed_vector_batched_b], axis=0)
                         irls_tr_pred_cost_gain_batched = tf.add(irls_tr_pred_cost_gain_batched_a,
                                                              irls_tr_pred_cost_gain_batched_b)
                     else:
-                        irls_update_batched_raw = None
+                        irls_tr_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
                 elif train_mu and not train_r:
-                    irls_update_full_raw = irls_tr_proposed_vector_full_a
+                    irls_tr_update_full_raw = irls_tr_proposed_vector_full_a
                     irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_a
                     if self.batched_data_model is not None:
-                        irls_update_batched_raw = irls_tr_proposed_vector_batched_a
+                        irls_tr_update_batched_raw = irls_tr_proposed_vector_batched_a
                         irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_a
                     else:
-                        irls_update_batched_raw = None
+                        irls_tr_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
                 elif not train_mu and train_r:
-                    irls_update_full_raw = irls_tr_proposed_vector_full_b
+                    irls_tr_update_full_raw = irls_tr_proposed_vector_full_b
                     irls_tr_pred_cost_gain_full = irls_tr_pred_cost_gain_full_b
                     if self.batched_data_model is not None:
-                        irls_update_batched_raw = irls_tr_proposed_vector_batched_b
+                        irls_tr_update_batched_raw = irls_tr_proposed_vector_batched_b
                         irls_tr_pred_cost_gain_batched = irls_tr_pred_cost_gain_batched_b
                     else:
-                        irls_update_batched_raw = None
+                        irls_tr_update_batched_raw = None
                         irls_tr_pred_cost_gain_batched = None
                 else:
                     assert False
@@ -759,8 +759,8 @@ class NewtonGraphGLM:
                 irls_tr_update_full, irls_tr_update_batched = self.pad_updates(
                     train_mu=train_mu,
                     train_r=train_r,
-                    update_full_raw=irls_update_full_raw,
-                    update_batched_raw=irls_update_batched_raw
+                    update_full_raw=irls_tr_update_full_raw,
+                    update_batched_raw=irls_tr_update_batched_raw
                 )
                 irls_tr_update_full = irls_update_full
 
@@ -1082,8 +1082,14 @@ class NewtonGraphGLM:
         train_op_update_status = tf.assign(self.model_vars.updated, update_theta)
 
         # Update trusted region accordingly:
-        decrease_radius = tf.logical_and(delta_f_ratio <= eta1, tf.logical_not(self.model_vars.converged))
-        increase_radius = tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model_vars.converged))
+        decrease_radius = tf.logical_or(
+            delta_f_actual <= eta0,
+            tf.logical_and(delta_f_ratio <= eta1, tf.logical_not(self.model_vars.converged))
+        )
+        increase_radius = tf.logical_and(
+            delta_f_actual > eta0,
+            tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model_vars.converged))
+        )
         keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
                                      tf.logical_not(increase_radius))
         radius_update = tf.add_n([

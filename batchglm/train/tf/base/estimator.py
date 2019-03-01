@@ -272,22 +272,39 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 ll_prev = ll_current.copy()
 
                 ## Run update.
+                ta0 = time.time()
                 _ = self.session.run(self.model.full_data_model.train_set)
                 if False:
                     _ = self.session.run(self.model.batched_data_model.train_set)
+                ta1 = time.time()
+                tf.logging.info("reduce %s" % str(np.round(ta1 - ta0, 3)))
                 if trustregion_mode:
+                    tb0 = time.time()
                     _, x_step = self.session.run(
                         (train_op["train"]["trial_op"],
                          train_op["update"]),
                         feed_dict=feed_dict
                     )
+                    x_step = self.session.run(
+                        (train_op["update"]),
+                        feed_dict=feed_dict
+                    )
+                    tb1 = time.time()
+                    tf.logging.info("trial %s" % str(np.round(tb1 - tb0, 3)))
+                    tc0 = time.time()
                     _ = self.session.run(self.model.full_data_model.eval_set)
+                    tc1 = time.time()
+                    tf.logging.info("ll %s" % str(np.round(tc1 - tc0, 3)))
+                    td0 = time.time()
                     train_step, _, features_updated = self.session.run(
                         (self.model.global_step,
                          train_op["train"]["update_op"],
                          self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
+                    td1 = time.time()
+                    tf.logging.info("update %s" % str(np.round(td1 - td0, 3)))
+                    tf.logging.info(self.session.run((self.model.irls_tr_radius))[converged_prev==False])
                 else:
                     train_step, _, x_step, features_updated = self.session.run(
                         (self.model.global_step,
