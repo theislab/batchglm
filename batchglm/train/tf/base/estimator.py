@@ -346,7 +346,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     x_norm_scale = np.zeros([self.model.model_vars.n_features])
 
                 # Update convergence status of non-converged features:
-                ll_converged = (ll_prev - ll_current) / ll_prev < stopping_criteria
+                ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
                 if np.any(ll_current > ll_prev + 1e-12):
                     tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
 
@@ -378,30 +378,30 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 converged_g = np.logical_and(
                     np.logical_not(converged_prev),
                     np.logical_and(
-                        grad_norm_loc < pkg_constants.GTOL_LL_BY_FEATURE_LOC,
-                        grad_norm_scale < pkg_constants.GTOL_LL_BY_FEATURE_SCALE
+                        grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
+                        grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
                     )
                 )
                 converged_current = np.logical_or(
                     converged_current,
                     np.logical_and(
-                        grad_norm_loc < pkg_constants.GTOL_LL_BY_FEATURE_LOC,
-                        grad_norm_scale < pkg_constants.GTOL_LL_BY_FEATURE_SCALE
+                        grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
+                        grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
                     )
                 )
                 if convergence_criteria == "all_converged_ll":
                     converged_x = np.logical_and(
                         np.logical_not(converged_prev),
                         np.logical_and(
-                            x_norm_loc < pkg_constants.XTOL_LL_BY_FEATURE_LOC,
-                            x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
+                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
+                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
                         )
                     )
                     converged_current = np.logical_or(
                         converged_current,
                         np.logical_and(
-                            x_norm_loc < pkg_constants.XTOL_LL_BY_FEATURE_LOC,
-                            x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
+                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
+                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
                         )
                     )
                 t1 = time.time()
