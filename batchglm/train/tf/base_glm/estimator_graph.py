@@ -488,9 +488,9 @@ class NewtonGraphGLM:
                     else:
                         irls_gd_update_batched_raw = None
                 elif train_r:
-                    irls_gd_update_full_raw = irls_update_b_full
+                    irls_gd_update_full_raw = irls_gd_update_b_full
                     if self.batched_data_model is not None:
-                        irls_gd_update_batched_raw = irls_update_b_batched
+                        irls_gd_update_batched_raw = irls_gd_update_b_batched
                     else:
                         irls_gd_update_batched_raw = None
                 else:
