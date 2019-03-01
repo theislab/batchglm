@@ -319,7 +319,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                      self.model.full_data_model.neg_jac_train)
                 )
                 #print(x_step)
-                #print(x_step[:, converged_prev==False])
+                print(x_step[:, converged_prev==False])
 
                 if len(self.model.full_data_model.idx_train_loc) > 0:
                     x_norm_loc = np.sqrt(np.sum(np.square(
