@@ -306,10 +306,11 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         feed_dict=feed_dict
                     )
                     t_c = time.time()
+
                 _ = self.session.run(self.model.full_data_model.eval_set)
                 ll_current, jac_train = self.session.run(
                     (self.model.full_data_model.norm_neg_log_likelihood,
-                     self.model.full_data_model.neg_jac_train)
+                     self.model.full_data_model.neg_jac_train_eval)
                 )
                 t_f = time.time()
 
@@ -330,7 +331,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                         str(np.round(t_f - t_c, 3))
                     )
 
-
                 if len(self.model.full_data_model.idx_train_loc) > 0:
                     x_norm_loc = np.sqrt(np.sum(np.square(
                         np.abs(x_step[self.model.model_vars.idx_train_loc, :])
@@ -346,7 +346,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     x_norm_scale = np.zeros([self.model.model_vars.n_features])
 
                 # Update convergence status of non-converged features:
-                t_conv_0 = time.time()
                 ll_converged = (ll_prev - ll_current) / ll_prev < stopping_criteria
                 if np.any(ll_current > ll_prev + 1e-12):
                     tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
@@ -359,17 +358,21 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     np.logical_not(converged_prev),
                     np.logical_and(ll_converged, features_updated)
                 )
-                n_obs = self.model.full_data_model.num_observations
+                if is_batched:
+                    jac_normalization = self.model.batch_size
+                else:
+                    jac_normalization = self.model.num_observations
+
                 if len(self.model.full_data_model.idx_train_loc) > 0:
                     idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
                                             for x in self.model.full_data_model.idx_train_loc])
-                    grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / n_obs
+                    grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / jac_normalization
                 else:
                     grad_norm_loc = np.zeros([self.model.model_vars.n_features])
                 if len(self.model.full_data_model.idx_train_scale) > 0:
                     idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
                                               for x in self.model.full_data_model.idx_train_scale])
-                    grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / n_obs
+                    grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / jac_normalization
                 else:
                     grad_norm_scale = np.zeros([self.model.model_vars.n_features])
                 converged_g = np.logical_and(
@@ -401,9 +404,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                             x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
                         )
                     )
-                t_conv_1 = time.time()
-                tf.logging.debug("time for convergence and fun aprroximation eval %f" % (t_conv_1 - t_conv_0))
-
                 t1 = time.time()
 
                 self.session.run((self.model.model_vars.convergence_update), feed_dict={

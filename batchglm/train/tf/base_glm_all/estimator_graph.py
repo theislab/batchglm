@@ -155,9 +155,9 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 mode_jac=pkg_constants.JACOBIAN_MODE,
                 mode_hessian=pkg_constants.HESSIAN_MODE,
                 mode_fim=pkg_constants.FIM_MODE,
-                compute_a=True,
-                compute_b=True,
-                compute_jac=False,
+                compute_a=train_a,
+                compute_b=train_b,
+                compute_jac=True,
                 compute_hessian=False,
                 compute_fim=False,
                 compute_ll=True
@@ -167,6 +167,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             self.norm_log_likelihood = self.log_likelihood / num_observations
             self.norm_neg_log_likelihood = -self.norm_log_likelihood
             self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
+
+            self.neg_jac_train_eval = reducibles_eval.neg_jac_train
 
             self.eval_set = reducibles_eval.set
 
@@ -296,7 +298,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 mode_fim=pkg_constants.FIM_MODE,
                 compute_a=True,
                 compute_b=True,
-                compute_jac=False,
+                compute_jac=True,
                 compute_hessian=False,
                 compute_fim=False,
                 compute_ll=True
@@ -306,6 +308,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             self.norm_log_likelihood = self.log_likelihood / num_observations
             self.norm_neg_log_likelihood = -self.norm_log_likelihood
             self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
+
+            self.neg_jac_train_eval = reducibles_train.neg_jac_train
 
             self.eval_set = reducibles_eval.set
 

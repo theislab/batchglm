@@ -36,7 +36,7 @@ TRUST_REGION_T2 = 2.  # Very conservative expansion to run updates once valid re
 TRUST_REGION_UPPER_BOUND = 1e2  # Low upper limit so that collapse to valid region does not cause feature to trail.
 
 # Convergence hyper-parameters:
-XTOL_LL_BY_FEATURE_LOC = 1e-6
+XTOL_LL_BY_FEATURE_LOC = 1e-8
 XTOL_LL_BY_FEATURE_SCALE = 1e-4
-GTOL_LL_BY_FEATURE_LOC = 1e-6
-GTOL_LL_BY_FEATURE_SCALE = 1e-6
+GTOL_LL_BY_FEATURE_LOC = 1e-8
+GTOL_LL_BY_FEATURE_SCALE = 1e-8

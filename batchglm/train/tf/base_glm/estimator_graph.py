@@ -304,31 +304,31 @@ class NewtonGraphGLM:
                     self.nr_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.nr_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
 
-                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
+                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)
 
                 nr_tr_proposed_vector_full = self.trust_region_newton_update(
                     update_raw=nr_update_full_raw,
                     radius_container=self.nr_tr_radius,
-                    n_obs=n_obs
+                    n_obs=self.num_observations_tf
                 )
                 nr_tr_pred_cost_gain_full = self.trust_region_newton_cost_gain(
                     proposed_vector=nr_tr_proposed_vector_full,
                     neg_jac=self.full_data_model.neg_jac_train,
                     hessian_fim=self.full_data_model.neg_hessians_train,
-                    n_obs=n_obs
+                    n_obs=self.num_observations_tf
                 )
 
                 if self.batched_data_model is not None:
                     nr_tr_proposed_vector_batched = self.trust_region_newton_update(
                         update_raw=nr_update_batched_raw,
                         radius_container=self.nr_tr_radius,
-                        n_obs=n_obs
+                        n_obs=self.batch_size_tf
                     )
                     nr_tr_pred_cost_gain_batched = self.trust_region_newton_cost_gain(
                         proposed_vector=nr_tr_proposed_vector_full,
                         neg_jac=self.batched_data_model.neg_jac_train,
                         hessian_fim=self.batched_data_model.neg_hessians_train,
-                        n_obs=n_obs
+                        n_obs=self.batch_size_tf
                     )
                 else:
                     nr_tr_pred_cost_gain_batched = None
@@ -531,18 +531,17 @@ class NewtonGraphGLM:
                     self.irls_tr_ll_prev_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
                     self.irls_tr_pred_gain_batched = tf.Variable(np.zeros(shape=[self.model_vars.n_features]))
 
-                n_obs = tf.cast(self.full_data_model.num_observations, dtype=dtype)  # !
                 if train_mu:
                     irls_tr_proposed_vector_full_a = self.trust_region_newton_update(
                         update_raw=irls_update_a_full,
                         radius_container=self.irls_tr_radius,
-                        n_obs=n_obs
+                        n_obs=self.num_observations_tf
                     )
                     irls_tr_pred_cost_gain_full_a = self.trust_region_newton_cost_gain(
                         proposed_vector=irls_tr_proposed_vector_full_a,
                         neg_jac=self.full_data_model.neg_jac_a,
                         hessian_fim=self.full_data_model.fim_a,
-                        n_obs=n_obs
+                        n_obs=self.num_observations_tf
                     )
                 else:
                     irls_tr_proposed_vector_full_a = None
@@ -553,13 +552,13 @@ class NewtonGraphGLM:
                         irls_tr_proposed_vector_full_b = self.trust_region_newton_update(
                             update_raw=irls_update_b_full,
                             radius_container=self.irls_tr_radius,
-                            n_obs=n_obs
+                            n_obs=self.num_observations_tf
                         )
                         irls_tr_pred_cost_gain_full_b = self.trust_region_newton_cost_gain(
                             proposed_vector=irls_tr_proposed_vector_full_b,
                             neg_jac=self.full_data_model.neg_jac_b,
                             hessian_fim=self.full_data_model.fim_b,
-                            n_obs=n_obs
+                            n_obs=self.num_observations_tf
                         )
                     else:
                         irls_tr_proposed_vector_full_b = None
@@ -569,12 +568,12 @@ class NewtonGraphGLM:
                         irls_gd_tr_proposed_vector_full_b = self.trust_region_linear_update(
                             update_raw=irls_gd_update_b_full,
                             radius_container=self.irls_tr_radius,
-                            n_obs=n_obs
+                            n_obs=self.num_observations_tf
                         )
                         irls_gd_tr_pred_cost_gain_full_b = self.trust_region_linear_cost_gain(
                             proposed_vector=irls_gd_tr_proposed_vector_full_b,
                             neg_jac=self.full_data_model.neg_jac_b,
-                            n_obs=n_obs
+                            n_obs=self.num_observations_tf
                         )
                     else:
                         irls_gd_tr_proposed_vector_full_b = None
@@ -590,13 +589,13 @@ class NewtonGraphGLM:
                         irls_tr_proposed_vector_batched_a = self.trust_region_newton_update(
                             update_raw=irls_update_a_batched,
                             radius_container=self.irls_tr_radius,
-                            n_obs=n_obs
+                            n_obs=self.batch_size_tf
                         )
                         irls_tr_pred_cost_gain_batched_a = self.trust_region_newton_cost_gain(
                             proposed_vector=irls_tr_proposed_vector_batched_a,
                             neg_jac=self.batched_data_model.neg_jac_a,
                             hessian_fim=self.batched_data_model.fim_a,
-                            n_obs=n_obs
+                            n_obs=self.batch_size_tf
                         )
                     else:
                         irls_tr_proposed_vector_batched_a = None
@@ -607,13 +606,13 @@ class NewtonGraphGLM:
                             irls_tr_proposed_vector_batched_b = self.trust_region_newton_update(
                                 update_raw=irls_update_b_batched,
                                 radius_container=self.irls_tr_radius,
-                                n_obs=n_obs
+                                n_obs=self.batch_size_tf
                             )
                             irls_tr_pred_cost_gain_batched_b = self.trust_region_newton_cost_gain(
                                 proposed_vector=irls_tr_proposed_vector_batched_b,
                                 neg_jac=self.batched_data_model.neg_jac_b,
                                 hessian_fim=self.batched_data_model.fim_b,
-                                n_obs=n_obs
+                                n_obs=self.batch_size_tf
                             )
                         else:
                             irls_tr_proposed_vector_batched_b = None
@@ -623,12 +622,12 @@ class NewtonGraphGLM:
                             irls_gd_tr_proposed_vector_batched_b = self.trust_region_linear_update(
                                 update_raw=irls_gd_update_b_batched,
                                 radius_container=self.irls_tr_radius,
-                                n_obs=n_obs
+                                n_obs=self.batch_size_tf
                             )
                             irls_gd_tr_pred_cost_gain_batched_b = self.trust_region_linear_cost_gain(
                                 proposed_vector=irls_gd_tr_proposed_vector_batched_b,
                                 neg_jac=self.batched_data_model.neg_jac_b,
-                                n_obs=n_obs
+                                n_obs=self.batch_size_tf
                             )
                         else:
                             irls_gd_tr_proposed_vector_batched_b = None
@@ -1445,12 +1444,14 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
         )
 
         self.num_observations = num_observations
+        self.num_observations_tf = tf.cast(num_observations, dtype=dtype)
         self.num_features = num_features
         self.num_design_loc_params = num_design_loc_params
         self.num_design_scale_params = num_design_scale_params
         self.num_loc_params = num_loc_params
         self.num_scale_params = num_scale_params
         self.batch_size = batch_size
+        self.batch_size_tf = tf.cast(batch_size, dtype=dtype)
 
         self.constraints_loc = self._set_constraints(
             constraints=constraints_loc,
