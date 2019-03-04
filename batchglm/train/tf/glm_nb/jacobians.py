@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Jacobians(JacobiansGLMALL):
 
-    def _W_a(
+    def _weights_jac_a(
             self,
             X,
             mu,
@@ -35,8 +35,7 @@ class Jacobians(JacobiansGLMALL):
             const = tf.subtract(X, const)
         return const
 
-
-    def _W_b(
+    def _weights_jac_b(
             self,
             X,
             mu,

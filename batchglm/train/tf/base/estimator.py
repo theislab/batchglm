@@ -172,6 +172,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
               trustregion_mode=False,
               is_nr_tr=False,
               is_irls_tr=False,
+              is_batched=False,
               **kwargs):
         """
         Starts training of the model
@@ -248,173 +249,193 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     global_loss,
                     str(np.round(t1 - t0, 3))
                 )
-        elif convergence_criteria in ["all_converged_ll", "all_converged_theta"]:
-            # Evaluate initial value of convergence metric:
-            if convergence_criteria == "all_converged_theta":
-                metric_current = self.session.run(self.model.model_vars.params)
-            elif convergence_criteria == "all_converged_ll":
-                metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                metric_theta_current = self.session.run(self.model.model_vars.params)
+        elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
+            ## Evaluate initial value of convergence metric:
+            if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                _, _ = self.session.run(
+                    (self.model.batched_data_model.eval_set,
+                     self.model.model_vars.convergence_update),
+                    feed_dict={self.model.model_vars.convergence_status:
+                                   np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                               }
+                )
+                ll_current = self.session.run(self.model.batched_data_model.norm_neg_log_likelihood)
             else:
-                raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
+                _, _ = self.session.run(
+                    (self.model.full_data_model.eval1_set,  # have to use eval1 here so that correct object is pulled in trust region
+                     self.model.model_vars.convergence_update),
+                    feed_dict={self.model.model_vars.convergence_status:
+                                   np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                    }
+                )
+                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
 
-            # Report initialization:
-            if trustregion_mode:
-                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                loss_global = np.sum(ll_current)
-            else:
-                loss_global = self.session.run(self.model.loss)
             tf.logging.info(
                 "Step: 0 loss: %f models converged 0",
-                loss_global
+                np.sum(ll_current)
             )
 
             # Set all to convergence status to False, this is need if multiple training strategies are run:
-            self.model.model_vars.converged = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-            currently_converged = self.model.model_vars.converged.copy()
-            while np.any(currently_converged == False):
-                prev_converged = currently_converged.copy()
-                # Update convergence metric reference:
+            converged_current = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+            while np.any(converged_current == False):
                 t0 = time.time()
-                metric_prev = metric_current
+                converged_prev = converged_current.copy()
+                ll_prev = ll_current.copy()
+
+                ## Run update.
+                t_a = time.time()
+                if is_batched:
+                    _ = self.session.run(self.model.batched_data_model.train_set)
+                else:
+                    _ = self.session.run(self.model.full_data_model.train_set)
+
                 if trustregion_mode:
-                    ll_prev = ll_current
-                    param_val_prev = self.session.run(self.model.model_vars.params)
-                    if is_nr_tr:
-                        feed_dict = {self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    elif is_irls_tr:
-                        feed_dict = {self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    else:
-                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
-
-                    if convergence_criteria == "all_converged_ll":
-                        # Use parameter space convergence as a helper:
-                        theta_update = np.abs(self.session.run(train_op[0]))  #, feed_dict=feed_dict)
-                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=1)
-                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=1)
-
-                    # Run multiple steps of optimizing trust region:
-                    #for i in range(5):
-                    train_step, _ = self.session.run(
-                        (self.model.global_step, train_op[1]),
+                    t_b = time.time()
+                    _, x_step = self.session.run(
+                        (train_op["train"]["trial_op"],
+                         train_op["update"]),
                         feed_dict=feed_dict
                     )
-                    ll_current_trial = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-
-                    delta_f_actual = ll_prev - ll_current_trial
-                    if is_nr_tr:
-                        feed_dict = {self.model.trainer_full_delta_f_actual_nr_tr: delta_f_actual,
-                                     self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    elif is_irls_tr:
-                        feed_dict = {self.model.trainer_full_delta_f_actual_irls_tr: delta_f_actual,
-                                     self.model.trainer_full_variables_old: param_val_prev}  # TODO: bypass, see also train.py
-                    else:
-                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
-
-                    _ = self.session.run(train_op[2], feed_dict=feed_dict)
-
-                    ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                    assert np.all(ll_current <= ll_prev), "update error"
-                    loss_global = np.sum(ll_current)
-
-                    # Evaluate convergence metric:
-                    if convergence_criteria == "all_converged_theta":
-                        metric_current = self.session.run(self.model.model_vars.params)
-                        metric_delta = np.abs(np.exp(metric_prev) - np.exp(metric_current))
-                        # Evaluate convergence based on maximally varying parameter per gene:
-                        metric_delta = np.max(metric_delta, axis=0)
-                    elif convergence_criteria == "all_converged_ll":
-                        metric_current = ll_current
-                        metric_delta = (metric_prev - metric_current) / metric_prev
-                    else:
-                        raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
-                else:
-                    train_step, _ = self.session.run(
-                        (self.model.global_step, train_op),
+                    t_c = time.time()
+                    _ = self.session.run(self.model.full_data_model.eval0_set)
+                    t_d = time.time()
+                    train_step, _, features_updated = self.session.run(
+                        (self.model.global_step,
+                         train_op["train"]["update_op"],
+                         self.model.model_vars.updated),
                         feed_dict=feed_dict
                     )
-                    loss_global = self.session.run(self.model.loss)
-                    # Evaluate convergence metric:
-                    if convergence_criteria == "all_converged_theta":
-                        metric_current = self.session.run(self.model.model_vars.params)
-                        metric_delta = np.abs(np.exp(metric_prev) - np.exp(metric_current))
-                        # Evaluate convergence based on maximally varying parameter per gene:
-                        metric_delta = np.max(metric_delta, axis=0)
-                    elif convergence_criteria == "all_converged_ll":
-                        metric_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood)
-                        metric_delta = (metric_prev - metric_current) / metric_prev
-                        # Use parameter space convergence as a helper:
-                        theta_update = np.abs(self.session.run(train_op[0]))  # , feed_dict=feed_dict)
-                        x_norm_loc = np.sum(theta_update[self.model.full_data_model.idx_train_loc, :], axis=1)
-                        x_norm_scale = np.sum(theta_update[self.model.full_data_model.idx_train_scale, :], axis=1)
-                    else:
-                        raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
-
-                if convergence_criteria == "all_converged_theta":
-                    metric_converged = np.logical_and(
-                        metric_delta < stopping_criteria,
-                        metric_delta > 0
-                    )
-                elif convergence_criteria == "all_converged_ll":
-                    metric_converged = metric_delta < stopping_criteria
+                    t_e = time.time()
                 else:
-                    raise ValueError("convergence_criteria %s not recognized" % convergence_criteria)
+                    t_b = time.time()
+                    train_step, _, x_step, features_updated = self.session.run(
+                        (self.model.global_step,
+                         train_op["train"],
+                         train_op["update"],
+                         self.model.model_vars.updated),
+                        feed_dict=feed_dict
+                    )
+                    t_c = time.time()
+
+                if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                    _ = self.session.run(self.model.batched_data_model.eval_set)
+                    ll_current, jac_train = self.session.run(
+                        (self.model.batched_data_model.norm_neg_log_likelihood,
+                         self.model.batched_data_model.neg_jac_train_eval)
+                    )
+                else:
+                    _ = self.session.run(self.model.full_data_model.eval1_set)
+                    ll_current, jac_train = self.session.run(
+                        (self.model.full_data_model.norm_neg_log_likelihood_eval1,
+                         self.model.full_data_model.neg_jac_train_eval)
+                    )
+                t_f = time.time()
+
+                if trustregion_mode:
+                    tf.logging.debug(
+                        "### run time break-down: reduce op. %s, trial %s, ll %s, update %s, eval %s",
+                        str(np.round(t_b - t_a, 3)),
+                        str(np.round(t_c - t_b, 3)),
+                        str(np.round(t_d - t_c, 3)),
+                        str(np.round(t_e - t_d, 3)),
+                        str(np.round(t_f - t_e, 3))
+                    )
+                else:
+                    tf.logging.debug(
+                        "### run time break-down: reduce op. %s, update %s, eval %s",
+                        str(np.round(t_b - t_a, 3)),
+                        str(np.round(t_c - t_b, 3)),
+                        str(np.round(t_f - t_c, 3))
+                    )
+
+                if len(self.model.full_data_model.idx_train_loc) > 0:
+                    x_norm_loc = np.sqrt(np.sum(np.square(
+                        np.abs(x_step[self.model.model_vars.idx_train_loc, :])
+                    ), axis=0))
+                else:
+                    x_norm_loc = np.zeros([self.model.model_vars.n_features])
+
+                if len(self.model.full_data_model.idx_train_scale) > 0:
+                    x_norm_scale = np.sqrt(np.sum(np.square(
+                        np.abs(x_step[self.model.model_vars.idx_train_scale, :])
+                    ), axis=0))
+                else:
+                    x_norm_scale = np.zeros([self.model.model_vars.n_features])
 
                 # Update convergence status of non-converged features:
-                features_updated = self.session.run(self.model.model_vars.updated)
-                self.model.model_vars.converged = np.logical_or(
-                        prev_converged,
-                        np.logical_and(metric_converged, features_updated)
+                ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
+                if not pkg_constants.EVAL_ON_BATCHED or not is_batched:
+                    if np.any(ll_current > ll_prev + 1e-12):
+                        tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
+
+                converged_current = np.logical_or(
+                    converged_prev,
+                    np.logical_and(ll_converged, features_updated)
                 )
-                # Evaluate normalized gradient convergence:
-                jac_train = np.abs(self.session.run(self.model.full_data_model.neg_jac_train))
-                n_obs = self.model.full_data_model.num_observations
-                grad_norm_loc = np.sum(jac_train[self.model.full_data_model.idx_train_loc, :], axis=1) / n_obs
-                grad_norm_scale = np.sum(jac_train[self.model.full_data_model.idx_train_scale, :], axis=1) / n_obs
-                self.model.model_vars.converged = np.logical_or(
-                    self.model.model_vars.converged,
+                converged_f = np.logical_and(
+                    np.logical_not(converged_prev),
+                    np.logical_and(ll_converged, features_updated)
+                )
+                if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                    jac_normalization = self.model.batch_size
+                else:
+                    jac_normalization = self.model.num_observations
+
+                if len(self.model.full_data_model.idx_train_loc) > 0:
+                    idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
+                                            for x in self.model.full_data_model.idx_train_loc])
+                    grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / jac_normalization
+                else:
+                    grad_norm_loc = np.zeros([self.model.model_vars.n_features])
+                if len(self.model.full_data_model.idx_train_scale) > 0:
+                    idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
+                                              for x in self.model.full_data_model.idx_train_scale])
+                    grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / jac_normalization
+                else:
+                    grad_norm_scale = np.zeros([self.model.model_vars.n_features])
+                converged_g = np.logical_and(
+                    np.logical_not(converged_prev),
                     np.logical_and(
-                        grad_norm_loc < pkg_constants.GTOL_LL_BY_FEATURE_LOC,
-                        grad_norm_scale < pkg_constants.GTOL_LL_BY_FEATURE_SCALE
+                        grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
+                        grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
+                    )
+                )
+                converged_current = np.logical_or(
+                    converged_current,
+                    np.logical_and(
+                        grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
+                        grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
                     )
                 )
                 if convergence_criteria == "all_converged_ll":
-                    self.model.model_vars.converged = np.logical_or(
-                        self.model.model_vars.converged,
+                    converged_x = np.logical_and(
+                        np.logical_not(converged_prev),
                         np.logical_and(
-                            x_norm_loc < pkg_constants.XTOL_LL_BY_FEATURE_LOC,
-                            x_norm_scale < pkg_constants.XTOL_LL_BY_FEATURE_SCALE
+                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
+                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
                         )
-
+                    )
+                    converged_current = np.logical_or(
+                        converged_current,
+                        np.logical_and(
+                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
+                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
+                        )
                     )
                 t1 = time.time()
 
-                currently_converged = self.model.model_vars.converged.copy()
+                self.session.run((self.model.model_vars.convergence_update), feed_dict={
+                    self.model.model_vars.convergence_status: converged_current
+                })
                 tf.logging.info(
-                    "Step: %d loss: %f models converged %i in %s sec., models updated %i",
+                    "Step: %d loss: %f, converged %i in %s sec., updated %i, {f: %i, g: %i, x: %i}",
                     train_step,
-                    loss_global,
-                    np.sum(currently_converged).astype("int32"),
+                    np.sum(ll_current),
+                    np.sum(converged_current).astype("int32"),
                     str(np.round(t1 - t0, 3)),
-                    np.sum(np.logical_and(features_updated, prev_converged == False)).astype("int32")
+                    np.sum(np.logical_and(np.logical_not(converged_prev), features_updated)).astype("int32"),
+                    np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
                 )
-
-                # Follow trust region radius:
-                if trustregion_mode:
-                    if is_nr_tr:
-                        tr_radius = self.session.run(self.model.nr_tr_radius)
-                    elif is_irls_tr:
-                        tr_radius = self.session.run(self.model.irls_tr_radius)
-                    else:
-                        raise ValueError("trust region algorithm must either be nr_tr or irls_tr")
-                    if np.any(np.logical_not(currently_converged)):
-                        tr_radius = tr_radius[np.logical_not(currently_converged)]
-                        tf.logging.debug(
-                            "trust region radius nr: min=%f, mean=%f, max=%f",
-                            np.round(np.min(tr_radius), 5),
-                            np.round(np.mean(tr_radius), 5),
-                            np.round(np.max(tr_radius), 5)
-                        )
         else:
             self._train_to_convergence(
                 loss=loss,

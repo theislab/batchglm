@@ -100,8 +100,6 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         estimator_analytic = self.estimate(input_data, quick_scale)
         t0_analytic = time.time()
         J_analytic = estimator_analytic['gradients']
-        a_analytic = estimator_analytic.a.values
-        b_analytic = estimator_analytic.b.values
         t1_analytic = time.time()
         estimator_analytic.close_session()
         t_analytic = t1_analytic - t0_analytic
@@ -111,20 +109,16 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         estimator_tf = self.estimate(input_data, quick_scale)
         t0_tf = time.time()
         J_tf = estimator_tf['gradients']
-        a_tf = estimator_tf.a.values
-        b_tf = estimator_tf.b.values
         t1_tf = time.time()
         estimator_tf.close_session()
         t_tf = t1_tf - t0_tf
 
         logger.info("run time tensorflow solution: %f" % t_tf)
         logger.info("run time observation batch-wise analytic solution: %f" % t_analytic)
-        logger.info("relative difference of mean estimates for analytic jacobian to observation-wise jacobian:")
-        logger.info((a_analytic - a_tf) / a_tf)
-        logger.info("relative difference of dispersion estimates for analytic jacobian to observation-wise jacobian:")
-        logger.info((b_analytic - b_tf) / b_tf)
         logger.info("relative difference of analytic jacobian to analytic observation-wise jacobian:")
-        logger.info((J_tf - J_analytic) / J_tf)
+        print(J_tf)
+        print(J_analytic)
+        print((J_tf - J_analytic) / J_tf)
 
         max_rel_dev = np.max(np.abs((J_tf - J_analytic) / J_tf))
         assert max_rel_dev < 1e-8
@@ -164,7 +158,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
 class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 

@@ -25,13 +25,14 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             sample_indices: tf.Tensor,
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
-            model_vars,
+            model_vars: ModelVarsGLM,
             constraints_loc,
             constraints_scale,
             noise_model,
             train_a,
             train_b,
-            provide_fim,
+            compute_fim,
+            compute_hessian,
             dtype
     ):
         """
@@ -60,16 +61,16 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
+            from .external_nb import ReducibleTensors
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
         logger.debug("building input pipeline")
         with tf.name_scope("input_pipeline"):
-            dataset = tf.data.Dataset.from_tensor_slices(sample_indices)
-            batched_data = dataset.batch(batch_size)
-            batched_data = batched_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            data_set = tf.data.Dataset.from_tensor_slices(sample_indices)
+            data_set = data_set.batch(batch_size)
+            data_set = data_set.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
 
             def map_sparse(idx, data):
                 X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data
@@ -80,138 +81,123 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                     X_tensor = X_tensor_ls[0]
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-            batched_data = batched_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            batched_data = batched_data.prefetch(1)
+            data_set = data_set.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            data_set = data_set.prefetch(1)
 
-        logger.debug("building likelihood")
-        with tf.name_scope("log_likelihood"):
-            def init_fun():
-                return tf.zeros([model_vars.n_features], dtype=dtype)
-
-            def map_fun(idx, data) -> BasicModelGraph:
-                X, design_loc, design_scale, size_factors = data
-                basic_model = BasicModelGraph(
-                    X=X,
-                    design_loc=design_loc,
-                    design_scale=design_scale,
-                    constraints_loc=constraints_loc,
-                    constraints_scale=constraints_scale,
-                    a_var=model_vars.a_var,
-                    b_var=model_vars.b_var,
-                    dtype=dtype,
-                    size_factors=size_factors)
-                return basic_model
-
-            def reduce_fun(old, new):
-                return tf.add(old, new)
-
-            log_likelihood = batched_data.reduce(
-                initial_state=init_fun(),
-                reduce_func=lambda old, new: reduce_fun(old, map_fun(new[0], new[1]).log_likelihood)
+        with tf.name_scope("reducible_tensors_train"):
+            reducibles_train = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=train_a,
+                compute_b=train_b,
+                compute_jac=True,
+                compute_hessian=compute_hessian,
+                compute_fim=compute_fim,
+                compute_ll=False
             )
+            self.neg_jac_train = reducibles_train.neg_jac_train
+            self.jac = reducibles_train.jac
+            self.neg_jac_a = reducibles_train.neg_jac_a
+            self.neg_jac_b = reducibles_train.neg_jac_b
+            self.jac_b = reducibles_train.jac_b
 
-            norm_log_likelihood = log_likelihood / tf.cast(tf.size(sample_indices), dtype=log_likelihood.dtype)
-            norm_neg_log_likelihood = - norm_log_likelihood
-            loss = tf.reduce_sum(norm_neg_log_likelihood)
+            self.hessians = reducibles_train.hessian
+            self.neg_hessians_train = reducibles_train.neg_hessian_train
 
-        # Save attributes necessary for reinitialization:
-        self.fetch_fn = fetch_fn
-        self.batch_size = batch_size
-        self.train_a = train_a
-        self.train_b = train_b
-        self.dtype = dtype
-        self.constraints_loc = constraints_loc
-        self.constraints_scale = constraints_scale
+            self.fim_a = reducibles_train.fim_a
+            self.fim_b = reducibles_train.fim_b
+
+            self.train_set = reducibles_train.set
+
+        with tf.name_scope("reducible_tensors_finalize"):
+            reducibles_finalize = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True,
+                compute_jac=True,
+                compute_hessian=True,
+                compute_fim=False,
+                compute_ll=True
+            )
+            self.hessians_final = reducibles_finalize.hessian
+            self.neg_jac_train_final = reducibles_finalize.neg_jac_train
+            self.log_likelihood_final = reducibles_finalize.ll
+            self.loss_final = tf.reduce_sum(-self.log_likelihood_final / num_observations)
+
+            self.final_set = reducibles_finalize.set
+
+        with tf.name_scope("reducible_tensors_eval_ll"):
+            reducibles_eval0 = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=train_a,
+                compute_b=train_b,
+                compute_jac=False,
+                compute_hessian=False,
+                compute_fim=False,
+                compute_ll=True
+            )
+            self.log_likelihood_eval0 = reducibles_eval0.ll
+            self.norm_neg_log_likelihood_eval0 = -self.log_likelihood_eval0 / num_observations
+            self.loss_eval0 = tf.reduce_sum(self.norm_neg_log_likelihood_eval0)
+
+            self.eval0_set = reducibles_eval0.set
+
+        with tf.name_scope("reducible_tensors_eval_ll_jac"):
+            reducibles_eval1 = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=sample_indices,
+                data_set=data_set,
+                data_batch=None,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=train_a,
+                compute_b=train_b,
+                compute_jac=True,
+                compute_hessian=False,
+                compute_fim=False,
+                compute_ll=True
+            )
+            self.log_likelihood_eval1 = reducibles_eval1.ll
+            self.norm_neg_log_likelihood_eval1 = -self.log_likelihood_eval1 / num_observations
+            self.loss_eval1 = tf.reduce_sum(self.norm_neg_log_likelihood_eval1)
+            self.neg_jac_train_eval = reducibles_eval1.neg_jac_train
+
+            self.eval1_set = reducibles_eval1.set
+
         self.num_observations = num_observations
-        self.idx_train_loc = None  #TODO
-        self.idx_train_scale = None
-
-        self.batched_data = batched_data
-        self.sample_indices = sample_indices
-
-        self.log_likelihood = log_likelihood
-        self.norm_log_likelihood = norm_log_likelihood
-        self.norm_neg_log_likelihood = norm_neg_log_likelihood
-        self.loss = loss
-
-        logger.debug("building jacobians")
-        with tf.name_scope("jacobians"):
-            # Jacobian of full model for reporting.
-            jacobian_full = Jacobians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.JACOBIAN_MODE,
-                noise_model=noise_model,
-                iterator=True,
-                jac_a=True,
-                jac_b=True,
-                dtype=dtype
-            )
-            # Jacobian of submodel which is to be trained.
-            if train_a and train_b:
-                neg_jac_train = jacobian_full.neg_jac
-            elif train_a and not train_b:
-                neg_jac_train = jacobian_full.neg_jac_a
-            elif not train_a and train_b:
-                neg_jac_train = jacobian_full.neg_jac_b
-            else:
-                neg_jac_train = None
-
-        self.jac = jacobian_full
-        self.neg_jac_train = neg_jac_train
-
-        logger.debug("building hessians")
-        with tf.name_scope("hessians"):
-            # Hessian of full model for reporting.
-            hessians_full = Hessians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.HESSIAN_MODE,
-                noise_model=noise_model,
-                iterator=True,
-                hess_a=True,
-                hess_b=True,
-                dtype=dtype
-            )
-            # Hessian of submodel which is to be trained.
-            if train_a and train_b:
-                neg_hessians_train = hessians_full.neg_hessian
-            elif train_a and not train_b:
-                neg_hessians_train = hessians_full.neg_hessian_aa
-            elif not train_a and train_b:
-                neg_hessians_train = hessians_full.neg_hessian_bb
-            else:
-                neg_hessians_train = None
-
-        logger.debug("building fim")
-        with tf.name_scope("fim"):
-            if provide_fim:
-                fim_full = FIM(
-                    batched_data=self.batched_data,
-                    sample_indices=self.sample_indices,
-                    constraints_loc=self.constraints_loc,
-                    constraints_scale=self.constraints_scale,
-                    model_vars=model_vars,
-                    noise_model=noise_model,
-                    iterator=True,
-                    update_a=True,
-                    update_b=True,
-                    dtype=dtype
-                )
-            else:
-                fim_full = None
-
-        self.hessians = hessians_full
-        self.neg_hessians_train = neg_hessians_train
-
-        self.provide_fim = provide_fim
-        self.fim = fim_full
+        self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
+        self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
+        self.idx_train = np.sort(np.concatenate([self.idx_train_loc, self.idx_train_scale]))
 
 
 class BatchedDataModelGraph(BatchedDataModelGraphGLM):
@@ -227,13 +213,14 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             fetch_fn,
             batch_size: Union[int, tf.Tensor],
             buffer_size: int,
-            model_vars,
+            model_vars: ModelVarsGLM,
             constraints_loc,
             constraints_scale,
             noise_model: str,
             train_a,
             train_b,
-            provide_fim,
+            compute_fim,
+            compute_hessian,
             dtype
     ):
         """
@@ -256,20 +243,20 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, Jacobians, Hessians, FIM
+            from .external_nb import ReducibleTensors
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
 
         with tf.name_scope("input_pipeline"):
-            data_indices = tf.data.Dataset.from_tensor_slices((
+            data_set = tf.data.Dataset.from_tensor_slices((
                 tf.range(num_observations, name="sample_index")
             ))
-            training_data = data_indices.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
-            training_data = training_data.batch(batch_size, drop_remainder=True)
-            training_data = training_data.map(tf.contrib.framework.sort)  # sort indices - TODO why?
-            training_data = training_data.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            training_data = training_data.prefetch(buffer_size)
+            data_set = data_set.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
+            data_set = data_set.batch(batch_size, drop_remainder=True)
+            data_set = data_set.map(tf.contrib.framework.sort)  # sort indices - TODO why?
+            data_set = data_set.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            data_set = data_set.prefetch(buffer_size)
 
             def map_sparse(idx, data_batch):
                 X_tensor_ls, design_loc_tensor, design_scale_tensor, size_factors_tensor = data_batch
@@ -280,119 +267,78 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                     X_tensor = X_tensor_ls[0]
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
-            training_data = training_data.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            iterator = training_data.make_one_shot_iterator()  # tf.compat.v1.data.make_one_shot_iterator(training_data) TODO: replace with tf>=v1.13
+            data_set = data_set.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+            iterator = data_set.make_one_shot_iterator()  # tf.compat.v1.data.make_one_shot_iterator(data_set) TODO: replace with tf>=v1.13
 
             batch_sample_index, batch_data = iterator.get_next()
-            (batch_X, batch_design_loc, batch_design_scale, batch_size_factors) = batch_data
 
-            batched_model = BasicModelGraph(
-                X=batch_X,
-                design_loc=batch_design_loc,
-                design_scale=batch_design_scale,
+        with tf.name_scope("reducible_tensors_train"):
+            reducibles_train = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
                 constraints_loc=constraints_loc,
                 constraints_scale=constraints_scale,
-                a_var=model_vars.a_var,
-                b_var=model_vars.b_var,
-                dtype=dtype,
-                size_factors=batch_size_factors
+                sample_indices=batch_sample_index,
+                data_set=None,
+                data_batch=batch_data,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=train_a,
+                compute_b=train_b,
+                compute_jac=True,
+                compute_hessian=compute_hessian,
+                compute_fim=compute_fim,
+                compute_ll=False
             )
 
-        # Save hyper parameters to be reused for reinitialization:
+            self.neg_jac_train = reducibles_train.neg_jac_train
+            self.jac = reducibles_train.jac
+            self.neg_jac_a = reducibles_train.neg_jac_a
+            self.neg_jac_b = reducibles_train.neg_jac_b
+            self.jac_b = reducibles_train.jac_b
+
+            self.hessians = reducibles_train.hessian
+            self.neg_hessians_train = reducibles_train.neg_hessian_train
+
+            self.fim_a = reducibles_train.fim_a
+            self.fim_b = reducibles_train.fim_b
+
+            self.train_set = reducibles_train.set
+
+        with tf.name_scope("reducible_tensors_eval"):
+            reducibles_eval = ReducibleTensors(
+                model_vars=model_vars,
+                noise_model=noise_model,
+                constraints_loc=constraints_loc,
+                constraints_scale=constraints_scale,
+                sample_indices=batch_sample_index,
+                data_set=None,
+                data_batch=batch_data,
+                mode_jac=pkg_constants.JACOBIAN_MODE,
+                mode_hessian=pkg_constants.HESSIAN_MODE,
+                mode_fim=pkg_constants.FIM_MODE,
+                compute_a=True,
+                compute_b=True,
+                compute_jac=True,
+                compute_hessian=False,
+                compute_fim=False,
+                compute_ll=True
+            )
+
+            self.log_likelihood = reducibles_eval.ll
+            self.norm_log_likelihood = self.log_likelihood / num_observations
+            self.norm_neg_log_likelihood = -self.norm_log_likelihood
+            self.loss = tf.reduce_sum(self.norm_neg_log_likelihood)
+
+            self.neg_jac_train_eval = reducibles_train.neg_jac_train
+
+            self.eval_set = reducibles_eval.set
+
         self.num_observations = num_observations
-        self.fetch_fn = fetch_fn
-        self.batch_size = batch_size
-        self.buffer_size = buffer_size
-        self.train_a = train_a
-        self.train_b = train_b
-        self.dtype = dtype
-
-        self.X = batched_model.X
-        self.design_loc = batched_model.design_loc
-        self.design_scale = batched_model.design_scale
-        self.constraints_loc = batched_model.constraints_loc
-        self.constraints_scale = batched_model.constraints_scale
-
-        self.batched_model = batched_model
-        self.batched_data = batch_data
-        self.sample_indices = batch_sample_index
-
-        self.mu = batched_model.mu
-        self.r = batched_model.r
-        self.sigma2 = batched_model.sigma2
-
-        self.probs = batched_model.probs
-        self.log_probs = batched_model.log_probs
-
-        self.log_likelihood = batched_model.log_likelihood
-        self.norm_log_likelihood = batched_model.norm_log_likelihood
-        self.norm_neg_log_likelihood = batched_model.norm_neg_log_likelihood
-        self.loss = batched_model.loss
-
-        # Define the jacobian on the batched model for newton-rhapson:
-        # (note that these are the Jacobian matrix blocks
-        # of the trained subset of parameters).
-        if train_a or train_b:
-            batch_jac = Jacobians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.JACOBIAN_MODE,
-                noise_model=noise_model,
-                iterator=False,
-                jac_a=train_a,
-                jac_b=train_b,
-                dtype=dtype
-            )
-        else:
-            batch_jac = None
-
-        self.jac_train = batch_jac
-
-        # Define the hessian on the batched model for newton-rhapson:
-        # (note that these are the Hessian matrix blocks
-        # of the trained subset of parameters).
-        if train_a or train_b:
-            batch_hessians = Hessians(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                mode=pkg_constants.HESSIAN_MODE,
-                noise_model=noise_model,
-                iterator=False,
-                hess_a=train_a,
-                hess_b=train_b,
-                dtype=dtype
-            )
-        else:
-            batch_hessians = None
-
-        # Define the IRLS components on the batched model:
-        # (note that these are the IRLS matrix blocks
-        # of the trained subset of parameters).
-        if (train_a or train_b) and provide_fim:
-            batch_fim = FIM(
-                batched_data=self.batched_data,
-                sample_indices=self.sample_indices,
-                constraints_loc=self.constraints_loc,
-                constraints_scale=self.constraints_scale,
-                model_vars=model_vars,
-                noise_model=noise_model,
-                iterator=False,
-                update_a=train_a,
-                update_b=train_b,
-                dtype=dtype
-            )
-        else:
-            batch_fim = None
-
-        self.hessians_train = batch_hessians
-        self.provide_fim = provide_fim
-        self.fim_train = batch_fim
+        self.idx_train_loc = model_vars.idx_train_loc if train_a else np.array([])
+        self.idx_train_scale = model_vars.idx_train_scale if train_b else np.array([])
+        self.idx_train = np.sort(np.concatenate([self.idx_train_loc, self.idx_train_scale]))
 
 
 class EstimatorGraphAll(EstimatorGraphGLM):
@@ -474,7 +420,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
-            from .external_nb import BasicModelGraph, ModelVars, Jacobians, Hessians, FIM
+            from .external_nb import ModelVars
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -506,17 +452,22 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     constraints_loc=self.constraints_loc,
                     constraints_scale=self.constraints_scale
                 )
-                self.idx_nonconverged = np.where(np.logical_not(self.model_vars.converged))[0]
 
             # ### performance related settings
             buffer_size = 4
 
-            # Check whether it is necessary to compute FIM:
+            # Check whether it is necessary to compute FIM or hessian:
             # The according sub-graphs are only compiled if this is needed during training.
-            if provide_optimizers["irls"] or provide_optimizers["irls_tr"]:
-                provide_fim = True
+            # Secondly, the tensors are evaluated during reduction operations if these options are set.
+            if provide_optimizers["irls"] or provide_optimizers["irls_gd"] or \
+                    provide_optimizers["irls_tr"] or provide_optimizers["irls_gd_tr"]:
+                compute_fim = True
             else:
-                provide_fim = False
+                compute_fim = False
+            if provide_optimizers["nr"] or provide_optimizers["nr_tr"]:
+                compute_hessian = True
+            else:
+                compute_hessian = False
 
             with tf.name_scope("batched_data"):
                 logger.debug("building batched data model")
@@ -529,10 +480,11 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                         model_vars=self.model_vars,
                         constraints_loc=self.constraints_loc,
                         constraints_scale=self.constraints_scale,
+                        noise_model=noise_model,
                         train_a=train_loc,
                         train_b=train_scale,
-                        noise_model=noise_model,
-                        provide_fim=provide_fim,
+                        compute_fim=compute_fim,
+                        compute_hessian=compute_hessian,
                         dtype=dtype
                     )
                 else:
@@ -554,10 +506,11 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     model_vars=self.model_vars,
                     constraints_loc=self.constraints_loc,
                     constraints_scale=self.constraints_scale,
+                    noise_model=noise_model,
                     train_a=train_loc,
                     train_b=train_scale,
-                    noise_model=noise_model,
-                    provide_fim=provide_fim,
+                    compute_fim=compute_fim,
+                    compute_hessian=compute_hessian,
                     dtype=dtype
                 )
 
@@ -569,24 +522,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 train_scale=train_scale,
                 dtype=dtype
             )
-            # Link placeholders:
-            if self.trainer_full is not None:
-                self.trainer_full_variables_old = self.trainer_full.variables_old
-                self.trainer_full_delta_f_actual_nr_tr = self.trainer_full.delta_f_actual_nr_tr
-                self.trainer_full_delta_f_actual_irls_tr = self.trainer_full.delta_f_actual_irls_tr
-            else:
-                self.trainer_full_variables_old = None
-                self.trainer_full_delta_f_actual_nr_tr = None
-                self.trainer_full_delta_f_actual_irls_tr = None
-
-            if self.trainer_batch is not None:
-                self.trainer_batch_variables_old = self.trainer_batch.variables_old
-                self.trainer_batch_delta_f_actual_nr_tr = self.trainer_batch.delta_f_actual_nr_tr
-                self.trainer_batch_delta_f_actual_irls_tr = self.trainer_batch.delta_f_actual_irls_tr
-            else:
-                self.trainer_batch_variables_old = None
-                self.trainer_batch_delta_f_actual_nr_tr = None
-                self.trainer_batch_delta_f_actual_irls_tr = None
 
             # Define output metrics:
             logger.debug("building outputs")
@@ -594,10 +529,10 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 feature_isnonzero=feature_isnonzero,
                 dtype=dtype
             )
-            self.loss = self.full_data_model.loss
-            self.log_likelihood = self.full_data_model.log_likelihood
-            self.hessians = self.full_data_model.hessians.hessian
-            self.fisher_inv = op_utils.pinv(self.full_data_model.hessians.neg_hessian)  # TODO switch for fim?
+            self.loss = self.full_data_model.loss_final
+            self.log_likelihood = self.full_data_model.log_likelihood_final
+            self.hessians = self.full_data_model.hessians_final
+            self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians_final)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
             self.gradients = tf.reduce_sum(tf.transpose(self.gradients_full), axis=1)
 

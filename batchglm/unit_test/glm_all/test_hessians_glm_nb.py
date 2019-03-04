@@ -95,22 +95,13 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             )
 
         logger.debug("* Running analytic Hessian by observation tests")
-        pkg_constants.HESSIAN_MODE = "obs_batched"
+        pkg_constants.HESSIAN_MODE = "analytic"
         self.estimator_ob = self.estimate(input_data)
         t0_ob = time.time()
         self.H_ob = self.estimator_ob.hessians
         t1_ob = time.time()
         self.estimator_ob.close_session()
         self.t_ob = t1_ob - t0_ob
-
-        logger.debug("* Running analytic Hessian by feature tests")
-        pkg_constants.HESSIAN_MODE = "feature"
-        self.estimator_fw = self.estimate(input_data)
-        t0_fw = time.time()
-        self.H_fw = self.estimator_fw.hessians
-        t1_fw = time.time()
-        self.estimator_fw.close_session()
-        self.t_fw = t1_fw - t0_fw
 
         logger.debug("* Running tensorflow Hessian by feature tests")
         pkg_constants.HESSIAN_MODE = "tf"
@@ -125,17 +116,12 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
 
         i = 1
         logger.info("run time observation batch-wise analytic solution: %f" % self.t_ob)
-        logger.info("run time feature-wise analytic solution: %f" % self.t_fw)
         logger.info("run time feature-wise tensorflow solution: %f" % self.t_tf)
         logger.info("ratio of tensorflow feature-wise hessian to analytic observation batch-wise hessian:")
         logger.info(self.H_tf.values[i, :, :] / self.H_ob.values[i, :, :])
-        logger.info("ratio of tensorflow feature-wise hessian to analytic feature-wise hessian:")
-        logger.info(self.H_tf.values[i, :, :] / self.H_fw.values[i, :, :])
 
         max_rel_dev1 = np.max(np.abs((self.H_tf.values - self.H_ob.values) / self.H_tf.values))
-        max_rel_dev2 = np.max(np.abs((self.H_tf.values - self.H_fw.values) / self.H_tf.values))
         assert max_rel_dev1 < 1e-10
-        assert max_rel_dev2 < 1e-10
         return True
 
 

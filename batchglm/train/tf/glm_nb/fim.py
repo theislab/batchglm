@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class FIM(FIMGLMALL):
 
-    def _W_aa(
+    def _weight_fim_aa(
             self,
             mu,
             r
@@ -19,7 +19,7 @@ class FIM(FIMGLMALL):
 
         return W
 
-    def _W_bb(
+    def _weight_fim_bb(
             self,
             X,
             mu,

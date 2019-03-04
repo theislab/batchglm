@@ -53,6 +53,7 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
+            provide_batched=True,
             termination_type=termination,
             init_a="standard",
             init_b="standard"
@@ -111,7 +112,7 @@ class Test_Accuracy_GLM_ALL(
             else:
                 raise ValueError("noise_model not recognized")
 
-        return Simulator(num_observations=1000, num_features=50)
+        return Simulator(num_observations=1000, num_features=500)
 
     def basic_test(
             self,
@@ -121,7 +122,7 @@ class Test_Accuracy_GLM_ALL(
             train_scale,
             sparse
     ):
-        algos = ["NR_TR"]  # ["ADAM", "NR", "NR_TR", "IRLS", "IRLS_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_TR"]
         estimator = _Test_Accuracy_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,

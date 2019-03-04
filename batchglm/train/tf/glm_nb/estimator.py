@@ -33,7 +33,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             model: EstimatorGraph = None,
             provide_optimizers: dict = None,
             provide_batched: bool = False,
-            termination_type: str = "by_feature",
+            termination_type: str = "global",
             extended_summary=False,
             dtype="float64"
     ):
@@ -75,7 +75,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         :param provide_optimizers:
 
             E.g.    {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                    "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
+                    "nr": False, "nr_tr": True,
+                    "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
         :param termination_type: str, {"by_feature", "global"}
@@ -164,7 +165,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_a = "closed_form"
 
                 if init_a.lower() == "closed_form":
-                    #try:
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
                         X=input_data.X,
                         design_loc=input_data.design_loc,
@@ -174,7 +174,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     )
 
                     # train mu, if the closed-form solution is inaccurate
-                    self._train_loc = not np.all(rmsd_a == 0)
+                    self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
 
                     if input_data.size_factors is not None:
                         if np.any(input_data.size_factors != 1):
@@ -182,8 +182,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                     logger.debug("Using closed-form MLE initialization for mean")
                     logger.debug("Should train mu: %s", self._train_loc)
-                    #except np.linalg.LinAlgError:
-                    #    logger.warning("Closed form initialization failed!")
                 elif init_a.lower() == "standard":
                     if isinstance(input_data.X, SparseXArrayDataArray):
                         overall_means = input_data.X.mean(dim="observations")
@@ -225,6 +223,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                     if inits_unequal or dmats_unequal:
                         groupwise_means = None
+                        init_b = "standard"  # remove once have code to deal with this.
 
                     # Watch out: init_mu is full obs x features matrix and is very large in many cases.
                     if inits_unequal or dmats_unequal:

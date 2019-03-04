@@ -27,7 +27,7 @@ class Test_ManyFeatures_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        sim = Simulator(num_observations=500, num_features=1000)
+        sim = Simulator(num_observations=500, num_features=10)
         sim.generate_sample_description(num_batches=2, num_conditions=2)
         sim.generate()
 

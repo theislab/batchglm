@@ -209,7 +209,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
               stopping_criteria=0.05,
               train_mu: bool = None,
               train_r: bool = None,
-              use_batching=True,
+              use_batching=False,
               optim_algo="gradient_descent",
               **kwargs):
         r"""
@@ -264,20 +264,17 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         is_irls_tr = False
 
         if optim_algo.lower() == "newton" or \
-                optim_algo.lower() == "newton-raphson" or \
                 optim_algo.lower() == "newton_raphson" or \
                 optim_algo.lower() == "nr":
             newton_type_mode = True
 
         if optim_algo.lower() == "irls" or \
-                optim_algo.lower() == "iwls":
+                optim_algo.lower() == "iwls" or \
+                optim_algo.lower() == "irls_gd" or \
+                optim_algo.lower() == "iwls_gd":
             newton_type_mode = True
 
-        if optim_algo.lower() == "newton-trust-region" or \
-                optim_algo.lower() == "newton_trust_region" or \
-                optim_algo.lower() == "newton-raphson-trust-region" or \
-                optim_algo.lower() == "newton_raphson_trust_region" or \
-                optim_algo.lower() == "newton_tr" or \
+        if optim_algo.lower() == "newton_tr" or \
                 optim_algo.lower() == "nr_tr":
             newton_type_mode = True
             trustregion_mode = True
@@ -285,10 +282,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         if optim_algo.lower() == "irls_tr" or \
                 optim_algo.lower() == "iwls_tr" or \
-                optim_algo.lower() == "irls_trust_region" or \
-                optim_algo.lower() == "iwls_trust_region" or \
-                optim_algo.lower() == "irls-trust-region" or \
-                optim_algo.lower() == "iwls-trust-region":
+                optim_algo.lower() == "irls_gd_tr" or \
+                optim_algo.lower() == "iwls_gd_tr":
             newton_type_mode = True
             trustregion_mode = True
             is_irls_tr = True
@@ -341,6 +336,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           trustregion_mode=trustregion_mode,
                           is_nr_tr=is_nr_tr,
                           is_irls_tr=is_irls_tr,
+                          is_batched=use_batching,
                           **kwargs)
 
     def train_sequence(self, training_strategy):
@@ -397,6 +393,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         else:
             raise ValueError("noise model not recognized")
 
+        self.session.run(self.model.full_data_model.final_set)
         store = EstimatorStoreXArray(self)
         logger.debug("Closing session")
         self.close_session()

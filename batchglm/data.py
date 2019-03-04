@@ -97,6 +97,8 @@ def xarray_from_data(
         X: xr.DataArray = data["X"]
     elif isinstance(data, xr.DataArray):
         X = data
+    elif isinstance(data, SparseXArrayDataArray):
+        X = data
     elif isinstance(data, SparseXArrayDataSet):
         X = data
     elif scipy.sparse.issparse(data):

@@ -42,11 +42,11 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         threshold_std = 1e-1
 
         if init == "standard":
-            mean_dev = np.mean(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
-            std_dev = np.std(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
+            mean_dev = np.mean(estimator_store.a[0, :] - self.sim.a[0, :])
+            std_dev = np.std(estimator_store.a[0, :] - self.sim.a[0, :])
         elif init == "closed_form":
-            mean_dev = np.mean(estimator_store.a.values - self.sim.a.values)
-            std_dev = np.std(estimator_store.a.values - self.sim.a.values)
+            mean_dev = np.mean(estimator_store.a - self.sim.a)
+            std_dev = np.std(estimator_store.a - self.sim.a)
         else:
             assert False
 
@@ -68,11 +68,11 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         threshold_std = 12-1
 
         if init == "standard":
-            mean_dev = np.mean(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
-            std_dev = np.std(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
+            mean_dev = np.mean(estimator_store.b[0, :] - self.sim.b[0, :])
+            std_dev = np.std(estimator_store.b[0, :] - self.sim.b[0, :])
         elif init == "closed_form":
-            mean_dev = np.mean(estimator_store.b.values - self.sim.b.values)
-            std_dev = np.std(estimator_store.b.values - self.sim.b.values)
+            mean_dev = np.mean(estimator_store.b - self.sim.b)
+            std_dev = np.std(estimator_store.b - self.sim.b)
         else:
             assert False
 
