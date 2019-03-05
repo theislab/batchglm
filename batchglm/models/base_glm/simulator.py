@@ -90,8 +90,8 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
     def _generate_params(
             self,
             *args,
-            rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
-            rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
+            rand_fn_ave=None,
+            rand_fn=None,
             rand_fn_loc=None,
             rand_fn_scale=None,
             **kwargs
@@ -99,14 +99,9 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
         """
         Generate all necessary parameters
 
-        :param min_mean: minimum mean value
-        :param max_mean: maximum mean value
-        :param min_r: minimum r value
-        :param max_r: maximum r value
         :param rand_fn_ave: function which generates random numbers for intercept.
             Takes one location parameter of intercept distribution across features.
         :param rand_fn: random function taking one argument `shape`.
-            default: rand_fn = lambda shape: np.random.uniform(0.5, 2, shape)
         :param rand_fn_loc: random function taking one argument `shape`.
             If not provided, will use `rand_fn` instead.
             This function generates location model parameters in inverse linker space,
@@ -118,6 +113,13 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             ie. these parameter will be log transformed if a log linker function is used!
             Values below 1e-08 will be set to 1e-08 to map them into the positive support.
         """
+        if rand_fn_ave is None:
+            raise ValueError("rand_fn_ave must not be None!")
+        if rand_fn is None and rand_fn_loc is None:
+            raise ValueError("rand_fn and rand_fn_loc must not be both None!")
+        if rand_fn is None and rand_fn_scale is None:
+            raise ValueError("rand_fn and rand_fn_scale must not be both None!")
+
         if rand_fn_loc is None:
             rand_fn_loc = rand_fn
         if rand_fn_scale is None:

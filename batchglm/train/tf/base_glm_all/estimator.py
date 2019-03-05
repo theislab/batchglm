@@ -288,7 +288,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             trustregion_mode = True
             is_irls_tr = True
 
-        # Set learning rae defaults if not set by user.
+        # Set learning rate defaults if not set by user.
         if learning_rate is None:
             if newton_type_mode:
                 learning_rate = 1
