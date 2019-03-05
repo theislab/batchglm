@@ -323,7 +323,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 loss = self.model.batched_data_model.loss
                 train_op = self.model.trainer_batch.train_op_by_name(optim_algo)
             else:
-                loss = self.model.full_data_model.loss
+                loss = self.model.full_data_model.loss_eval0
                 train_op = self.model.trainer_full.train_op_by_name(optim_algo)
 
             super().train(*args,
