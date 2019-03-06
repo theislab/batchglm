@@ -32,10 +32,10 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
         return data
 
     def link_scale(self, data):
-        return data
+        return np.log(data)
 
     def inverse_link_scale(self, data):
-        return data
+        return np.exp(data)
 
     @property
     def mean(self) -> xr.DataArray:

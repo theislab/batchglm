@@ -7,7 +7,7 @@ from .external import rand_utils, _Simulator_GLM
 class Simulator(_Simulator_GLM, Model):
     """
     Simulator for Generalized Linear Models (GLMs) with normal noise.
-    Uses the identity as linker function.
+    Uses the identity as linker function for loc and a log-linker function for scale.
     """
 
     def __init__(

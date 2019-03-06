@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class FullDataModelGraph(FullDataModelGraphGLM):
     """
-    Computational graph to evaluate negative binomial GLM metrics on full data set.
+    Computational graph to evaluate GLM metrics on full data set.
 
     Evaluate model and cost function, Jacobians, Hessians and Fisher information matrix.
     """
@@ -204,7 +204,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
 
 class BatchedDataModelGraph(BatchedDataModelGraphGLM):
     """
-    Basic computational graph to evaluate negative binomial GLM metrics on batched data set.
+    Basic computational graph to evaluate GLM metrics on batched data set.
 
     Evaluate model and cost function and Jacobians, Hessians and Fisher information matrix.
     """

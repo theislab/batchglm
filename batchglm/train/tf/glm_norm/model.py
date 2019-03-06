@@ -32,8 +32,8 @@ class ProcessModel(ProcessModelGLM):
             "b_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "mu": np.nextafter(0, np.inf, dtype=dtype),
-            "r": np.nextafter(0, np.inf, dtype=dtype),
+            "mean": np.nextafter(0, np.inf, dtype=dtype),
+            "sd": np.nextafter(0, np.inf, dtype=dtype),
             "probs": dtype(0),
             "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         }
@@ -42,8 +42,8 @@ class ProcessModel(ProcessModelGLM):
             "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-            "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "mean": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "sd": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "probs": dtype(1),
             "log_probs": dtype(0),
         }
@@ -91,30 +91,30 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         eta_scale = self.tf_clip_param(eta_scale, "eta_scale")
         
         # Inverse linker functions:
-        model_loc = tf.exp(eta_loc)
+        model_loc = eta_loc
         model_scale = tf.exp(eta_scale)
 
         # Log-likelihood:
-        log_r_plus_mu = tf.log(model_scale + model_loc)
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            log_probs_sparse = X.__mul__(eta_loc - log_r_plus_mu)
-            log_probs_dense = tf.math.lgamma(tf.sparse.add(X, model_scale)) - \
-                              tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=dtype))) - \
-                              tf.math.lgamma(model_scale) + \
-                              tf.multiply(model_scale, eta_scale - log_r_plus_mu)
-            log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)
+            log_probs = -0.5 * tf.log(2 * np.pi) - \
+                        eta_scale - \
+                        tf.divide(
+                            tf.square(tf.sparse.add(X, tf.negative(eta_loc))),
+                            2 * tf.square(model_scale)
+                        )
             log_probs.set_shape([None, a_var.shape[1]])  # Need this so as shape is completely lost.
         else:
-            log_probs = tf.math.lgamma(model_scale + X) - \
-                        tf.math.lgamma(X + tf.ones_like(X)) - \
-                        tf.math.lgamma(model_scale) + \
-                        tf.multiply(X, eta_loc - log_r_plus_mu) + \
-                        tf.multiply(model_scale, eta_scale - log_r_plus_mu)
+            log_probs = -0.5 * tf.log(2*np.pi) - \
+                        eta_scale - \
+                        tf.divide(
+                            tf.square(X - eta_loc),
+                            2 * tf.square(model_scale)
+                        )
 
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:
-        sigma2 = model_loc + tf.multiply(tf.square(model_loc), model_scale)
+        sigma2 = tf.square(model_scale)
 
         self.X = X
         self.design_loc = design_loc
@@ -130,8 +130,8 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         self.eta_scale = eta_scale
         self.model_loc = model_loc
         self.model_scale = model_scale
-        self.mu = model_loc
-        self.r = model_scale
+        self.mean = model_loc
+        self.sd = model_scale
 
         self.log_probs = log_probs
 
