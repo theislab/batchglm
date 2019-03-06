@@ -53,7 +53,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
             batch_size=batch_size,
             quick_scale=not train_scale,
             provide_optimizers=provide_optimizers,
-            termination_type="by_feature",
             init_a=init_a,
             init_b=init_b
         )
@@ -66,39 +65,6 @@ class Test_AccuracyAnalytic_GLM_ALL(
     Test_AccuracyAnalytic_GLM,
     unittest.TestCase
 ):
-    """
-    Test whether optimizers yield exact results.
-
-    Accuracy is evaluted via deviation of simulated ground truth.
-    The unit tests test individual training graphs and multiple optimizers
-    (incl. one tensorflow internal optimizer and newton-rhapson)
-    for each training graph. The training graphs tested are as follows:
-
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
-
-    The unit tests throw an assertion error if the required accurcy is
-    not met. Accuracy thresholds are fairly lenient so that unit_tests
-    pass even with noise inherent in fast optimisation and random
-    initialisation in simulation. Still, large biases (i.e. graph errors)
-    should be discovered here.
-    """
     noise_model: str
     _estims: List[_Estimator_GLM]
 
@@ -156,28 +122,6 @@ class Test_AccuracyAnalytic_GLM_NB(
         self.simulate_complex()
         self._test_a_closed_b_closed(sparse=False)
         self._test_a_closed_b_closed(sparse=True)
-
-    def _test_a_closed_b_standard(self):
-        # TODO this is still inexact! I think this needs to be depreceated, an exact form for b is not possible here.
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_standard()")
-
-        self.noise_model = "nb"
-        self.simulate_b_easy()
-        self._test_a_closed_b_standard(sparse=False)
-        self._test_a_closed_b_standard(sparse=True)
-
-    def _test_a_standard_b_closed(self):
-        # TODO this is still inexact! The necessary code is not yet in the init.
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_standard_b_closed()")
-
-        self.noise_model = "nb"
-        self.simulate_a_easy()
-        self._test_a_standard_b_closed(sparse=False)
-        self._test_a_standard_b_closed(sparse=True)
 
     def test_a_standard_b_standard(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)

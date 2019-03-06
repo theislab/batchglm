@@ -124,14 +124,14 @@ class Test_Accuracy_GLM_ALL(
         )
 
     def _test_full(self, sparse):
-        super()._test_full_global_a_and_b(sparse=sparse)
-        super()._test_full_global_a_only(sparse=sparse)
-        super()._test_full_global_b_only(sparse=sparse)
+        super()._test_full_a_and_b(sparse=sparse)
+        super()._test_full_a_only(sparse=sparse)
+        super()._test_full_b_only(sparse=sparse)
 
     def _test_batched(self, sparse):
-        super()._test_batched_global_a_and_b(sparse=sparse)
-        super()._test_batched_global_a_only(sparse=sparse)
-        super()._test_batched_global_b_only(sparse=sparse)
+        super()._test_batched_a_and_b(sparse=sparse)
+        super()._test_batched_a_only(sparse=sparse)
+        super()._test_batched_b_only(sparse=sparse)
 
 
 class Test_Accuracy_GLM_NB(

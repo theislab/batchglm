@@ -97,7 +97,6 @@ class ReducableTensorsGLM:
             Wether to compute Jacobian for b parameters. If both jac_a and jac_b are true,
             the entire jacobian is computed in self.jac.
         """
-        assert compute_a or compute_b
         assert data_set is None or data_batch is None
 
         self.noise_model = noise_model

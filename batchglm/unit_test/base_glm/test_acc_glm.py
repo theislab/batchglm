@@ -147,7 +147,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     ):
         pass
 
-    def _test_full_global_a_and_b(self, sparse):
+    def _test_full_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -155,7 +155,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             sparse=sparse
         )
 
-    def _test_full_global_a_only(self, sparse):
+    def _test_full_a_only(self, sparse):
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -163,7 +163,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             sparse=sparse
         )
 
-    def _test_full_global_b_only(self, sparse):
+    def _test_full_b_only(self, sparse):
         return self.basic_test(
             batched=False,
             train_loc=False,
@@ -171,7 +171,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             sparse=sparse
         )
 
-    def _test_batched_global_a_and_b(self, sparse):
+    def _test_batched_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
             train_loc=True,
@@ -179,7 +179,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             sparse=sparse
         )
 
-    def _test_batched_global_a_only(self, sparse):
+    def _test_batched_a_only(self, sparse):
         return self.basic_test(
             batched=True,
             train_loc=True,
@@ -187,7 +187,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             sparse=sparse
         )
 
-    def _test_batched_global_b_only(self, sparse):
+    def _test_batched_b_only(self, sparse):
         return self.basic_test(
             batched=True,
             train_loc=False,

@@ -91,13 +91,12 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     Test whether analytic solutions yield exact results.
 
     Accuracy is evaluted via deviation of simulated ground truth.
-    The analytic solution is independent of the optimizer, batching and
-    termination mode and therefore only tested for one example each.
+    The analytic solution is independent of the optimizer and batching
+    and therefore only tested for one example each.
 
-    - termination by feature
-        - full data model
-            - train a model only: test_a_analytic()
-            - train b model only: test_b_analytic()
+    - full data model
+        - train a model only: test_a_analytic()
+        - train b model only: test_b_analytic()
 
     The unit tests throw an assertion error if the required accurcy is
     not met.
