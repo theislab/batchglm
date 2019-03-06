@@ -18,7 +18,6 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             self,
             simulator,
             quick_scale,
-            termination,
             algo,
             batched,
             noise_model,
@@ -57,8 +56,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            provide_batched=batched,
-            termination_type=termination
+            provide_batched=batched
         )
         super().__init__(
             estimator=estimator,
@@ -79,24 +77,14 @@ class Test_Graph_GLM_ALL(
     set of unit_tests runs much faster and does not abort due
     to accuracy outliers. The training graphs covered are:
 
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
+     - full data model
+        - train a and b model: test_full_global_a_and_b()
+        - train a model only: test_full_global_a_only()
+        - train b model only: test_full_global_b_only()
+    - batched data model
+        - train a and b model: test_batched_global_a_and_b()
+        - train a model only: test_batched_global_a_only()
+        - train b model only: test_batched_global_b_only()
     """
     noise_model: str
     _estims: List[_Estimator_GLM]
@@ -115,7 +103,6 @@ class Test_Graph_GLM_ALL(
     def basic_test_one_algo(
             self,
             batched,
-            termination,
             train_loc,
             train_scale,
             algo,
@@ -124,7 +111,6 @@ class Test_Graph_GLM_ALL(
         estimator = _Test_Graph_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
-            termination=termination,
             algo=algo,
             batched=batched,
             noise_model=self.noise_model,

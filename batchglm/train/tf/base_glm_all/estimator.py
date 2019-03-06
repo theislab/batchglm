@@ -37,7 +37,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             model: EstimatorGraphAll,
             provide_optimizers: dict,
             provide_batched: bool,
-            termination_type: str,
             extended_summary,
             noise_model: str,
             dtype: str
@@ -66,11 +65,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                     "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
-        :param termination_type: str, {"by_feature", "global"}
-            Estimation termination type:
-
-                - "by_feature": Estimation is terminated for each feature individually.
-                - "global" Estimatino is terminated globally for all features.
         :param extended_summary: Include detailed information in the summaries.
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
@@ -184,7 +178,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 provide_batched=provide_batched,
                 train_loc=self._train_loc,
                 train_scale=self._train_scale,
-                termination_type=termination_type,
                 extended_summary=extended_summary,
                 noise_model=self.noise_model,
                 dtype=dtype
