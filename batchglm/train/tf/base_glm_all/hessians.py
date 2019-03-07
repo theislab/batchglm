@@ -33,8 +33,8 @@ class HessianGLMALL(HessiansGLM):
             """
             W = self._weight_hessian_aa(  # [observations x features]
                 X=model.X,
-                mu=model.mu,
-                r=model.r,
+                loc=model.mu,
+                scale=model.r,
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.
@@ -59,8 +59,8 @@ class HessianGLMALL(HessiansGLM):
             """
             W = self._weight_hessian_bb(  # [observations=1 x features]
                 X=model.X,
-                mu=model.mu,
-                r=model.r,
+                loc=model.mu,
+                scale=model.r,
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.
@@ -89,8 +89,8 @@ class HessianGLMALL(HessiansGLM):
             """
             W = self._weight_hessian_ab(  # [observations=1 x features]
                 X=model.X,
-                mu=model.mu,
-                r=model.r,
+                loc=model.mu,
+                scale=model.r,
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.

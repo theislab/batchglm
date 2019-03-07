@@ -39,8 +39,8 @@ class FIMGLMALL(FIMGLM):
                 Value of dispersion model by observation and feature.
             """
             W = self._weight_fim_aa(  # [observations x features]
-                mu=model.mu,
-                r=model.r
+                loc=model.mu,
+                scale=model.r
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.
@@ -84,8 +84,8 @@ class FIMGLMALL(FIMGLM):
             """
             W = self._weight_fim_bb(  # [observations=1 x features]
                 X=model.X,
-                mu=model.mu,
-                r=model.r
+                loc=model.mu,
+                scale=model.r
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.

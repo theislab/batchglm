@@ -1,13 +1,9 @@
 import abc
 import logging
-from typing import Tuple, Union
 
 import tensorflow as tf
 
-from .model import ModelVarsGLM
-
 logger = logging.getLogger(__name__)
-
 
 class HessiansGLM:
     """
@@ -30,8 +26,8 @@ class HessiansGLM:
     def _weight_hessian_aa(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale
     ):
         """
         Compute the coefficient index invariant part of the
@@ -39,9 +35,9 @@ class HessiansGLM:
 
         :param X: tf.tensor observations x features
             Observation by observation and feature.
-        :param mu: tf.tensor observations x features
+        :param loc: tf.tensor observations x features
             Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
+        :param scale: tf.tensor observations x features
             Value of dispersion model by observation and feature.
 
         :return const: tf.tensor observations x features
@@ -54,8 +50,8 @@ class HessiansGLM:
     def _weight_hessian_bb(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale
     ):
         """
         Compute the coefficient index invariant part of the
@@ -63,9 +59,9 @@ class HessiansGLM:
 
         :param X: tf.tensor observations x features
             Observation by observation and feature.
-        :param mu: tf.tensor observations x features
+        :param loc: tf.tensor observations x features
             Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
+        :param scale: tf.tensor observations x features
             Value of dispersion model by observation and feature.
 
         :return const: tf.tensor observations x features
@@ -78,8 +74,8 @@ class HessiansGLM:
     def _weight_hessian_ab(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale
     ):
         """
         Compute the coefficient index invariant part of the
@@ -91,9 +87,9 @@ class HessiansGLM:
 
         :param X: tf.tensor observations x features
             Observation by observation and feature.
-        :param mu: tf.tensor observations x features
+        :param loc: tf.tensor observations x features
             Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
+        :param scale: tf.tensor observations x features
             Value of dispersion model by observation and feature.
 
         :return const: tf.tensor observations x features
