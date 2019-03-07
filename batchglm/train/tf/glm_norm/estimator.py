@@ -44,7 +44,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 "irls_gd_tr": True,
             },
             provide_batched: bool = False,
-            termination_type: str = "global",
             extended_summary=False,
             dtype="float64"
     ):
@@ -91,11 +90,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
-        :param termination_type: str, {"by_feature", "global"}
-            Estimation termination type:
-
-                - "by_feature": Estimation is terminated for each feature individually.
-                - "global" Estimatino is terminated globally for all features.
         :param extended_summary: Include detailed information in the summaries.
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
@@ -125,7 +119,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             model=model,
             provide_optimizers=provide_optimizers,
             provide_batched=provide_batched,
-            termination_type=termination_type,
             extended_summary=extended_summary,
             noise_model="norm",
             dtype=dtype
