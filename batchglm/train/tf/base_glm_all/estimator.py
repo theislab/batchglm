@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     """
-    Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
-    Uses the natural logarithm as linker function.
+    Estimator for Generalized Linear Models (GLMs).
     """
 
     class TrainingStrategy(Enum):
@@ -77,6 +76,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         """
         if noise_model == "nb":
             from .external_nb import EstimatorGraph
+        elif noise_model == "norm":
+            from .external_norm import EstimatorGraph
         else:
             raise ValueError("noise model %s was not recognized" % noise_model)
         self.noise_model = noise_model
@@ -390,6 +391,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def finalize(self):
         if self.noise_model == "nb":
             from .external_nb import EstimatorStoreXArray
+        elif self.noise_model == "norm":
+            from .external_norm import EstimatorStoreXArray
         else:
             raise ValueError("noise model not recognized")
 
