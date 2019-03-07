@@ -89,8 +89,8 @@ class HessianGLMALL(HessiansGLM):
             """
             W = self._weight_hessian_ab(  # [observations=1 x features]
                 X=model.X,
-                loc=model.mu,
-                scale=model.r,
+                loc=model.model_loc,
+                scale=model.model_scale,
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.

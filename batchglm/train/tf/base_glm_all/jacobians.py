@@ -21,20 +21,20 @@ class JacobiansGLMALL(JacobiansGLM):
         by evalutating its terms grouped by observations.
         """
 
-        def _a_byobs(X, design_loc, mu, r):
+        def _a_byobs(X, design_loc, loc, scale):
             """
             Compute the mean model block of the jacobian.
 
             :param X: tf.tensor observations x features
                 Observation by observation and feature.
-            :param mu: tf.tensor observations x features
+            :param model_loc: tf.tensor observations x features
                 Value of mean model by observation and feature.
-            :param r: tf.tensor observations x features
+            :param model_scale: tf.tensor observations x features
                 Value of dispersion model by observation and feature.
             :return Jblock: tf.tensor features x coefficients
                 Block of jacobian.
             """
-            W = self._weights_jac_a(X=X, loc=mu, scale=r)  # [observations, features]
+            W = self._weights_jac_a(X=X, loc=loc, scale=scale)  # [observations, features]
             if self.constraints_loc is not None:
                 XH = tf.matmul(design_loc, self.constraints_loc)
             else:
@@ -43,11 +43,11 @@ class JacobiansGLMALL(JacobiansGLM):
             Jblock = tf.matmul(tf.transpose(W), XH)  # [features, coefficients]
             return Jblock
 
-        def _b_byobs(X, design_scale, mu, r):
+        def _b_byobs(X, design_scale, loc, scale):
             """
             Compute the dispersion model block of the jacobian.
             """
-            W = self._weights_jac_b(X=X, loc=mu, scale=r)  # [observations, features]
+            W = self._weights_jac_b(X=X, loc=loc, scale=scale)  # [observations, features]
             if self.constraints_scale is not None:
                 XH = tf.matmul(design_scale, self.constraints_scale)
             else:
@@ -57,13 +57,13 @@ class JacobiansGLMALL(JacobiansGLM):
             return Jblock
 
         if self.compute_a and self.compute_b:
-            J_a = _a_byobs(X=model.X, design_loc=model.design_loc, mu=model.mu, r=model.r)
-            J_b = _b_byobs(X=model.X, design_scale=model.design_scale, mu=model.mu, r=model.r)
+            J_a = _a_byobs(X=model.X, design_loc=model.design_loc, loc=model.model_loc, scale=model.model_scale)
+            J_b = _b_byobs(X=model.X, design_scale=model.design_scale, loc=model.model_loc, scale=model.model_scale)
             J = tf.concat([J_a, J_b], axis=1)
         elif self.compute_a and not self.compute_b:
-            J = _a_byobs(X=model.X, design_loc=model.design_loc, mu=model.mu, r=model.r)
+            J = _a_byobs(X=model.X, design_loc=model.design_loc, loc=model.model_loc, scale=model.model_scale)
         elif not self.compute_a and self.compute_b:
-            J = _b_byobs(X=model.X, design_scale=model.design_scale, mu=model.mu, r=model.r)
+            J = _b_byobs(X=model.X, design_scale=model.design_scale, loc=model.model_loc, scale=model.model_scale)
         else:
             raise ValueError("either require train_a or train_b")
 
