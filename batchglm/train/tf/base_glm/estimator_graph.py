@@ -86,12 +86,8 @@ class BatchedDataModelGraphGLM:
 class GradientGraphGLM:
     """
 
-    Define newton-rhapson updates and gradients depending on termination type
-    and depending on whether data is batched.
-    The formed have to be distinguished because gradients and parameter updates
-    are set to zero (or not computed in the case of newton-raphson) for
-    converged features if feature-wise termination is chosen.
-    The latter have to be distinguished as there are different jacobians
+    Define newton-rhapson updates and gradients depending on whether data is batched.
+    The has to be distinguished as there are different jacobians
     and hessians for the full and the batched data.
     """
     model_vars: ModelVarsGLM
@@ -103,7 +99,6 @@ class GradientGraphGLM:
             model_vars: ModelVarsGLM,
             full_data_model: FullDataModelGraphGLM,
             batched_data_model: BatchedDataModelGraphGLM,
-            termination_type,
             train_loc,
             train_scale
     ):
@@ -114,16 +109,9 @@ class GradientGraphGLM:
         self.batched_data_model = batched_data_model
 
         if train_loc or train_scale:
-            if termination_type == "by_feature":
-                self.gradients_full_byfeature()
-                if self.batched_data_model is not None:
-                    self.gradients_batched_byfeature()
-            elif termination_type == "global":
-                self.gradients_full_global()
-                if self.batched_data_model is not None:
-                    self.gradients_batched_global()
-            else:
-                raise ValueError("convergence_type %s not recognized." % termination_type)
+            self.gradients_full()
+            if self.batched_data_model is not None:
+                self.gradients_batched()
 
             # Pad gradients to receive update tensors that match
             # the shape of model_vars.params.
@@ -164,7 +152,6 @@ class GradientGraphGLM:
         # Save attributes necessary for reinitialization:
         self.train_loc = train_loc
         self.train_scale = train_scale
-        self.termination_type = termination_type
 
         self.gradients_full = gradients_full
         if self.batched_data_model is not None:
@@ -172,43 +159,11 @@ class GradientGraphGLM:
         else:
             self.gradients_batch = None
 
-    def gradients_full_byfeature(self):
-        gradients_full_all = tf.transpose(self.full_data_model.neg_jac_train)
-        gradients_full = tf.multiply(
-            tf.expand_dims(tf.cast(tf.logical_not(self.model_vars.converged),
-                                   dtype=self.model_vars.params.dtype), axis=0),
-            gradients_full_all
-        )
-        #gradients_full = tf.concat([
-        #    tf.expand_dims(gradients_full_all[:, i], axis=-1)
-        #    if not self.model_vars.converged[i]
-        #    else tf.zeros([gradients_full_all.shape[1], 1], dtype=self.model_vars.params.dtype)
-        #    for i in range(self.model_vars.n_features)
-        #], axis=1)
-
-        self.gradients_full_raw = gradients_full
-
-    def gradients_batched_byfeature(self):
-        gradients_batch_all = tf.transpose(self.batched_data_model.neg_jac_train)
-        gradients_batch = tf.multiply(
-            tf.expand_dims(tf.cast(tf.logical_not(self.model_vars.converged),
-                                   dtype=self.model_vars.params.dtype), axis=0),
-            gradients_batch_all
-        )
-        #gradients_batch = tf.concat([
-        #    tf.expand_dims(gradients_batch_all[:, i], axis=-1)
-        #    if not self.model_vars.converged[i]
-        #    else tf.zeros([gradients_batch_all.shape[1], 1], dtype=self.model_vars.params.dtype)
-        #    for i in range(self.model_vars.n_features)
-        #], axis=1)
-
-        self.gradients_batch_raw = gradients_batch
-
-    def gradients_full_global(self):
+    def gradients_full(self):
         gradients_full = tf.transpose(self.full_data_model.neg_jac_train)
         self.gradients_full_raw = gradients_full
 
-    def gradients_batched_global(self):
+    def gradients_batched(self):
         gradients_batch = tf.transpose(self.batched_data_model.neg_jac_train)
         self.gradients_batch_raw = gradients_batch
 
@@ -218,12 +173,8 @@ class NewtonGraphGLM:
     Define update vectors which require a matrix inversion: Newton-Raphson and
     IRLS updates.
 
-    Define newton-type updates and gradients depending on termination type
-    and depending on whether data is batched.
-    The former have to be distinguished because gradients and parameter updates
-    are set to zero (or not computed in the case of newton-raphson) for
-    converged features if feature-wise termination is chosen.
-    The latter have to be distinguished as there are different jacobians
+    Define newton-type updates and gradients depending on whether data is batched.
+    This has to be distinguished as there are different jacobians
     and hessians for the full and the batched data.
     """
     model_vars: tf.Tensor
@@ -250,7 +201,6 @@ class NewtonGraphGLM:
 
     def __init__(
             self,
-            termination_type,
             provide_optimizers,
             train_mu,
             train_r,
@@ -270,7 +220,6 @@ class NewtonGraphGLM:
                     batched_lhs=batched_lhs,
                     full_rhs=self.full_data_model.neg_jac_train,
                     batched_rhs=batched_rhs,
-                    termination_type=termination_type,
                     psd=False
                 )
                 nr_update_full, nr_update_batched = self.pad_updates(
@@ -387,7 +336,6 @@ class NewtonGraphGLM:
                         batched_lhs=batched_lhs,
                         full_rhs=self.full_data_model.neg_jac_a,
                         batched_rhs=batched_rhs,
-                        termination_type=termination_type,
                         psd=True
                     )
                 else:
@@ -407,7 +355,6 @@ class NewtonGraphGLM:
                             batched_lhs=batched_lhs,
                             full_rhs=self.full_data_model.neg_jac_b,
                             batched_rhs=batched_rhs,
-                            termination_type=termination_type,
                             psd=False
                         )
                     else:
@@ -421,7 +368,6 @@ class NewtonGraphGLM:
                         irls_gd_update_b_full, irls_gd_update_b_batched = self.build_updates_gd(
                             full_jac=self.full_data_model.neg_jac_b,
                             batched_jac=batched_jac,
-                            termination_type=termination_type
                         )
                     else:
                         irls_gd_update_b_full = None
@@ -861,76 +807,34 @@ class NewtonGraphGLM:
             batched_rhs,
             full_rhs,
             batched_lhs,
-            termination_type: str,
             psd
     ):
-        if termination_type == "by_feature":
-            update_full = self.newton_type_update_byfeature(
-                lhs=full_lhs,
-                rhs=full_rhs,
-                psd=psd
+        update_full = self.newton_type_update(
+            lhs=full_lhs,
+            rhs=full_rhs,
+            psd=psd
+        )
+        if batched_lhs is not None:
+            update_batched = self.newton_type_update(
+                lhs=batched_lhs,
+                rhs=batched_rhs,
+                psd=psd and pkg_constants.CHOLESKY_LSTSQS_BATCHED  # This can be unstable even for fim_a.
             )
-            if batched_lhs is not None:
-                update_batched = self.newton_type_update_byfeature(
-                    lhs=batched_lhs,
-                    rhs=batched_rhs,
-                    psd=psd and pkg_constants.CHOLESKY_LSTSQS_BATCHED  # This can be unstable even for fim_a.
-                )
-            else:
-                update_batched = None
-        elif termination_type == "global":
-            update_full = self.newton_type_update_global(
-                lhs=full_lhs,
-                rhs=full_rhs,
-                psd=psd
-            )
-            if batched_lhs is not None:
-                update_batched = self.newton_type_update_global(
-                    lhs=batched_lhs,
-                    rhs=batched_rhs,
-                    psd=psd and pkg_constants.CHOLESKY_LSTSQS_BATCHED  # This can be unstable even for fim_a.
-                )
-            else:
-                update_batched = None
         else:
-            raise ValueError("convergence_type %s not recognized." % termination_type)
+            update_batched = None
 
         return update_full, update_batched
 
     def build_updates_gd(
             self,
             full_jac,
-            batched_jac,
-            termination_type
+            batched_jac
     ):
-        if termination_type == "by_feature":
-            update_full_nonconverged = tf.gather(
-                full_jac,
-                indices=tf.where(condition=tf.logical_not(self.model_vars.converged), x=None, y=None),
-                axis=0
-            )
-            update_full = self.broadcast_update_byfeature(
-                delta_t_bygene_nonconverged=update_full_nonconverged
-            )
-            if batched_jac is not None:
-                update_batched_nonconverged = tf.gather(
-                    batched_jac,
-                    indices=tf.where(condition=tf.logical_not(self.model_vars.converged), x=None, y=None),
-                    axis=0
-                )
-                update_batched = self.broadcast_update_byfeature(
-                    delta_t_bygene_nonconverged=update_batched_nonconverged
-                )
-            else:
-                update_batched = None
-        elif termination_type == "global":
-            update_full = tf.transpose(full_jac)
-            if batched_jac is not None:
-                update_batched = tf.transpose(batched_jac)
-            else:
-                update_batched = None
+        update_full = tf.transpose(full_jac)
+        if batched_jac is not None:
+            update_batched = tf.transpose(batched_jac)
         else:
-            raise ValueError("convergence_type %s not recognized." % termination_type)
+            update_batched = None
 
         return update_full, update_batched
 
@@ -976,78 +880,7 @@ class NewtonGraphGLM:
 
         return netwon_type_update_full, newton_type_update_batched
 
-    def newton_type_update_byfeature(
-            self,
-            lhs,
-            rhs,
-            psd
-    ):
-        # Compute parameter update for non-converged gene only.
-        delta_t_bygene_nonconverged = tf.squeeze(tf.matrix_solve_ls(
-            tf.gather(
-                lhs,
-                indices=tf.where(condition=tf.logical_not(self.model_vars.converged), x=None, y=None),
-                axis=0),
-            tf.expand_dims(
-                tf.gather(
-                    rhs,
-                    indices=tf.where(condition=tf.logical_not(self.model_vars.converged), x=None, y=None),
-                    axis=0),
-                axis=-1),
-            fast=psd and pkg_constants.CHOLESKY_LSTSQS
-        ), axis=-1)
-        update_tensor = self.broadcast_update_byfeature(
-            delta_t_bygene_nonconverged=delta_t_bygene_nonconverged
-        )
-
-        return update_tensor
-
-    def broadcast_update_byfeature(
-            self,
-            delta_t_bygene_nonconverged
-    ):
-        # Write parameter updates into matrix of size of all parameters which
-        # contains zero entries for updates of already converged genes.
-        if False:
-            delta_t_bygene = tf.concat([
-               tf.gather(delta_t_bygene_nonconverged,
-                          indices=np.where(self.idx_nonconverged == i)[0],
-                          axis=0)
-                if not self.model_vars.converged[i]
-                else tf.zeros([1, rhs.shape[1]], dtype=self.model_vars.params.dtype)
-                for i in range(self.model_vars.n_features)
-            ], axis=0)
-            update_tensor = tf.transpose(delta_t_bygene)
-        else:
-            # TODO try this vectorisation:
-            #indices = np.concatenate([
-            #    np.where(self.model_vars.converged)[0],
-            #    np.where(np.logical_not(self.model_vars.converged))[0]
-            #], axis=0)
-            #update_tensor = tf.gather(tf.matmul(
-            #    tf.transpose(delta_t_bygene_nonconverged),
-            #    tf.eye(num_rows=np.sum(np.logical_not(self.model_vars.converged)),
-            #           num_columns=len(self.model_vars.converged),
-            #           dtype=self.model_vars.params.dtype)
-            #), indices=indices, axis=1)
-            if False:
-                update_tensor = tf.gather(
-                    tf.concat([
-                        delta_t_bygene_nonconverged,
-                        tf.zeros([delta_t_bygene_nonconverged.shape[0],
-                                  tf.reduce_sum(tf.cast(self.model_vars.converged, tf.int32))])
-                    ], axis=1),
-                    indices=tf.argsort(tf.concat([
-                        tf.where(condition=self.model_vars.converged, x=None, y=None),
-                        tf.where(condition=tf.logical_not(self.model_vars.converged), x=None, y=None)], axis=0
-                    )),
-                    axis=1
-                )
-            update_tensor = tf.zeros_like(delta_t_bygene_nonconverged)
-
-        return update_tensor
-
-    def newton_type_update_global(
+    def newton_type_update(
             self,
             lhs,
             rhs,
@@ -1468,7 +1301,6 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
 
     def _run_trainer_init(
             self,
-            termination_type,
             provide_optimizers,
             train_loc,
             train_scale,
@@ -1479,7 +1311,6 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             model_vars=self.model_vars,
             full_data_model=self.full_data_model,
             batched_data_model=self.batched_data_model,
-            termination_type=termination_type,
             train_loc=train_loc,
             train_scale=train_scale
         )
@@ -1489,7 +1320,6 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
         logger.debug(" * building newton-type update graph")
         NewtonGraphGLM.__init__(
             self=self,
-            termination_type=termination_type,
             provide_optimizers=provide_optimizers,
             train_mu=train_loc,
             train_r=train_scale,

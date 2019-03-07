@@ -19,7 +19,6 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             self,
             simulator,
             quick_scale,
-            termination,
             noise_model,
             sparse
     ):
@@ -33,7 +32,8 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
 
         batch_size = 200
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         if sparse:
             input_data = InputData.new(
@@ -54,7 +54,6 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
             provide_batched=True,
-            termination_type=termination,
             init_a="standard",
             init_b="standard"
         )
@@ -75,24 +74,14 @@ class Test_Accuracy_GLM_ALL(
     (incl. one tensorflow internal optimizer and newton-rhapson)
     for each training graph. The training graphs tested are as follows:
 
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
+     - full data model
+        - train a and b model: test_full_global_a_and_b()
+        - train a model only: test_full_global_a_only()
+        - train b model only: test_full_global_b_only()
+    - batched data model
+        - train a and b model: test_batched_global_a_and_b()
+        - train a model only: test_batched_global_a_only()
+        - train b model only: test_batched_global_b_only()
 
     The unit tests throw an assertion error if the required accurcy is
     not met. Accuracy thresholds are fairly lenient so that unit_tests
@@ -117,7 +106,6 @@ class Test_Accuracy_GLM_ALL(
     def basic_test(
             self,
             batched,
-            termination,
             train_loc,
             train_scale,
             sparse
@@ -126,40 +114,24 @@ class Test_Accuracy_GLM_ALL(
         estimator = _Test_Accuracy_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
-            termination=termination,
             noise_model=self.noise_model,
             sparse=sparse
         )
         return self._basic_test(
             estimator=estimator,
             batched=batched,
-            termination=termination,
             algos=algos
         )
 
-    def _test_full_byfeature(self, sparse):
-        logger.debug("* Running tests for full data and feature-wise termination")
-        super()._test_full_byfeature_a_and_b(sparse=sparse)
-        super()._test_full_byfeature_a_only(sparse=sparse)
-        super()._test_full_byfeature_b_only(sparse=sparse)
+    def _test_full(self, sparse):
+        super()._test_full_a_and_b(sparse=sparse)
+        super()._test_full_a_only(sparse=sparse)
+        super()._test_full_b_only(sparse=sparse)
 
-    def _test_batched_byfeature(self, sparse):
-        logger.debug("* Running tests for batched data and feature-wise termination")
-        super()._test_batched_byfeature_a_and_b(sparse=sparse)
-        super()._test_batched_byfeature_a_only(sparse=sparse)
-        super()._test_batched_byfeature_b_only(sparse=sparse)
-
-    def _test_full_global(self, sparse):
-        logger.debug("* Running tests for full data and global termination")
-        super()._test_full_global_a_and_b(sparse=sparse)
-        super()._test_full_global_a_only(sparse=sparse)
-        super()._test_full_global_b_only(sparse=sparse)
-
-    def _test_batched_global(self, sparse):
-        logger.debug("* Running tests for batched data and global termination")
-        super()._test_batched_global_a_and_b(sparse=sparse)
-        super()._test_batched_global_a_only(sparse=sparse)
-        super()._test_batched_global_b_only(sparse=sparse)
+    def _test_batched(self, sparse):
+        super()._test_batched_a_and_b(sparse=sparse)
+        super()._test_batched_a_only(sparse=sparse)
+        super()._test_batched_b_only(sparse=sparse)
 
 
 class Test_Accuracy_GLM_NB(
@@ -170,45 +142,25 @@ class Test_Accuracy_GLM_NB(
     Test whether optimizers yield exact results for negative binomial noise.
     """
 
-    def test_full_byfeature_nb(self):
+    def test_full_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Accuracy_GLM_NB.test_full_byfeature_nb()")
+        logger.error("Test_Accuracy_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
         self.simulate()
-        self._test_full_byfeature(sparse=False)
-        self._test_full_byfeature(sparse=True)
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
 
-    def test_batched_byfeature_nb(self):
+    def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Accuracy_GLM_NB.test_batched_byfeature_nb()")
+        logger.error("Test_Accuracy_GLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
         self.simulate()
-        self._test_batched_byfeature(sparse=False)
-        self._test_batched_byfeature(sparse=True)
-
-    def test_full_global_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Accuracy_GLM_NB.test_full_global_nb()")
-
-        self.noise_model = "nb"
-        self.simulate()
-        self._test_full_global(sparse=False)
-        self._test_full_global(sparse=True)
-
-    def test_batched_global_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Accuracy_GLM_NB.test_batched_global_nb()")
-
-        self.noise_model = "nb"
-        self.simulate()
-        self._test_batched_global(sparse=False)
-        self._test_batched_global(sparse=True)
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
 
 
 if __name__ == '__main__':
