@@ -1,10 +1,6 @@
 import abc
 import logging
 
-import tensorflow as tf
-
-from .model import ModelVarsGLM
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,15 +27,15 @@ class FIMGLM:
     @abc.abstractmethod
     def _weight_fim_aa(
             self,
-            mu,
-            r
+            loc,
+            scale
     ):
         """
         Compute for mean model IWLS update for a GLM.
 
-        :param mu: tf.tensor observations x features
+        :param loc: tf.tensor observations x features
            Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
+        :param scale: tf.tensor observations x features
            Value of dispersion model by observation and feature.
 
         :return tuple of tf.tensors
@@ -52,20 +48,18 @@ class FIMGLM:
     def _weight_fim_bb(
             self,
             X,
-            mu,
-            r
+            loc,
+            scale
     ):
         """
         Compute for dispersion model IWLS update for a GLM.
 
         :param X: tf.tensor observations x features
             Observation by observation and feature.
-        :param mu: tf.tensor observations x features
+        :param loc: tf.tensor observations x features
             Value of mean model by observation and feature.
-        :param r: tf.tensor observations x features
+        :param scale: tf.tensor observations x features
             Value of dispersion model by observation and feature.
-        :param log_rr: tf.tensor observations x features
-            Logarithm of dispersion model by observation and feature.
 
         :return tuple of tf.tensors
             Constants with respect to coefficient index for

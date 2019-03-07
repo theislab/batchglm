@@ -34,7 +34,7 @@ class JacobiansGLMALL(JacobiansGLM):
             :return Jblock: tf.tensor features x coefficients
                 Block of jacobian.
             """
-            W = self._weights_jac_a(X=X, mu=mu, r=r)  # [observations, features]
+            W = self._weights_jac_a(X=X, loc=mu, scale=r)  # [observations, features]
             if self.constraints_loc is not None:
                 XH = tf.matmul(design_loc, self.constraints_loc)
             else:
@@ -47,7 +47,7 @@ class JacobiansGLMALL(JacobiansGLM):
             """
             Compute the dispersion model block of the jacobian.
             """
-            W = self._weights_jac_b(X=X, mu=mu, r=r)  # [observations, features]
+            W = self._weights_jac_b(X=X, loc=mu, scale=r)  # [observations, features]
             if self.constraints_scale is not None:
                 XH = tf.matmul(design_scale, self.constraints_scale)
             else:

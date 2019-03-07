@@ -377,7 +377,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             train_scale: bool,
             provide_optimizers: Union[dict, None],
             provide_batched: bool,
-            termination_type: str,
             extended_summary: bool,
             noise_model: str,
             dtype: str
@@ -419,7 +418,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         :param train_scale: bool
             Whether to train dispersion model. If False, the initialisation is kept.
         :param provide_optimizers:
-        :param termination_type:
         :param extended_summary:
         :param dtype: Precision used in tensorflow.
         """
@@ -522,7 +520,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
 
             logger.debug("building trainers")
             self._run_trainer_init(
-                termination_type=termination_type,
                 provide_optimizers=provide_optimizers,
                 train_loc=train_loc,
                 train_scale=train_scale,

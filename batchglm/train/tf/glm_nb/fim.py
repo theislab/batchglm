@@ -11,36 +11,36 @@ class FIM(FIMGLMALL):
 
     def _weight_fim_aa(
             self,
-            mu,
-            r
+            loc,
+            scale
     ):
-        const = tf.divide(r, r+mu)
-        W = tf.multiply(mu, const)
+        const = tf.divide(scale, scale + loc)
+        W = tf.multiply(loc, const)
 
         return W
 
     def _weight_fim_bb(
             self,
             X,
-            mu,
-            r
+            loc,
+            scale
     ):
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
         scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
 
-        r_plus_mu = r+mu
-        digamma_r = tf.math.digamma(x=r)
-        digamma_r_plus_mu = tf.math.digamma(x=r_plus_mu)
+        scale_plus_loc = scale + loc
+        digamma_r = tf.math.digamma(x=scale)
+        digamma_r_plus_mu = tf.math.digamma(x=scale_plus_loc)
 
         const1 = tf.multiply(scalar_two, tf.add(
             digamma_r,
             digamma_r_plus_mu
         ))
-        const2 = tf.multiply(r, tf.add(
-            tf.math.polygamma(a=scalar_one, x=r),
-            tf.math.polygamma(a=scalar_one, x=r_plus_mu)
+        const2 = tf.multiply(scale, tf.add(
+            tf.math.polygamma(a=scalar_one, x=scale),
+            tf.math.polygamma(a=scalar_one, x=scale_plus_loc)
         ))
-        const3 = tf.divide(r, r_plus_mu)
-        W = tf.multiply(r, tf.add_n([const1, const2, const3]))
+        const3 = tf.divide(scale, scale_plus_loc)
+        W = tf.multiply(scale, tf.add_n([const1, const2, const3]))
 
         return W

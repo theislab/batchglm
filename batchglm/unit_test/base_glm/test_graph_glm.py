@@ -40,34 +40,6 @@ class _Test_Graph_GLM_Estim():
 
 
 class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
-    """
-    Test whether training graph work.
-
-    Quick tests which simply passes small data sets through
-    all possible training graphs to check whether there are graph
-    bugs. This is all tested in test_acc_glm.py but this
-    set of unit_tests runs much faster and does not abort due
-    to accuracy outliers. The training graphs covered are:
-
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
-    """
     _estims: List[_Test_Graph_GLM_Estim]
 
     def setUp(self):
@@ -105,7 +77,6 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def basic_test_one_algo(
             self,
             batched,
-            termination,
             train_loc,
             train_scale,
             algo,
@@ -127,7 +98,6 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def basic_test(
             self,
             batched,
-            termination,
             train_loc,
             train_scale,
             sparse
@@ -137,116 +107,55 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             logger.info("algorithm: %s" % algo)
             self.basic_test_one_algo(
                 batched=batched,
-                termination=termination,
                 train_loc=train_loc,
                 train_scale=train_scale,
                 algo=algo,
                 sparse=sparse
             )
 
-    def _test_full_byfeature_a_and_b(self, sparse):
+    def _test_full_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
-            termination="by_feature",
             train_loc=True,
             train_scale=True,
             sparse=sparse
         )
 
-    def _test_full_byfeature_a_only(self, sparse):
+    def _test_full_a_only(self, sparse):
         return self.basic_test(
             batched=False,
-            termination="by_feature",
             train_loc=True,
             train_scale=False,
             sparse=sparse
         )
 
-    def _test_full_byfeature_b_only(self, sparse):
+    def _test_full_b_only(self, sparse):
         return self.basic_test(
             batched=False,
-            termination="by_feature",
             train_loc=False,
             train_scale=True,
             sparse=sparse
         )
 
-    def _test_batched_byfeature_a_and_b(self, sparse):
+    def _test_batched_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
-            termination="by_feature",
             train_loc=True,
             train_scale=True,
             sparse=sparse
         )
 
-    def _test_batched_byfeature_a_only(self, sparse):
+    def _test_batched_a_only(self, sparse):
         return self.basic_test(
             batched=True,
-            termination="by_feature",
             train_loc=True,
             train_scale=False,
             sparse=sparse
         )
 
-    def _test_batched_byfeature_b_only(self, sparse):
+    def _test_batched_b_only(self, sparse):
         return self.basic_test(
             batched=True,
-            termination="by_feature",
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_full_global_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_full_global_a_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
-
-    def _test_full_global_b_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_batched_global_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_batched_global_a_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
-
-    def _test_batched_global_b_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            termination="global",
             train_loc=False,
             train_scale=True,
             sparse=sparse

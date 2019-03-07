@@ -19,7 +19,6 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
             self,
             simulator,
             quick_scale,
-            termination,
             noise_model,
             constraints_loc,
             constraints_scale
@@ -34,7 +33,8 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
 
         batch_size = 900
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         input_data = simulator.input_data
         design_loc = np.hstack([
@@ -55,7 +55,6 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            termination_type=termination,
             init_a="standard",
             init_b="standard"
         )
@@ -68,39 +67,6 @@ class Test_AccuracyConstrained_VGLM_ALL(
     Test_AccuracyConstrained_VGLM,
     unittest.TestCase
 ):
-    """
-    Test whether optimizers yield exact results.
-
-    Accuracy is evaluted via deviation of simulated ground truth.
-    The unit tests test individual training graphs and multiple optimizers
-    (incl. one tensorflow internal optimizer and newton-rhapson)
-    for each training graph. The training graphs tested are as follows:
-
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
-
-    The unit tests throw an assertion error if the required accurcy is
-    not met. Accuracy thresholds are fairly lenient so that unit_tests
-    pass even with noise inherent in fast optimisation and random
-    initialisation in simulation. Still, large biases (i.e. graph errors)
-    should be discovered here.
-    """
     noise_model: str
     _estims: List[_Estimator_GLM]
 
@@ -118,11 +84,10 @@ class Test_AccuracyConstrained_VGLM_ALL(
     def basic_test(
             self,
             batched,
-            termination,
             train_loc,
             train_scale
     ):
-        algos = ["ADAM", "ADAGRAD", "NR", "IRLS"]
+        algos = ["ADAM", "ADAGRAD", "NR", "NR_TR", "IRLS", "IRLS_GD", "IRLS_TR", "IRLS_GD_TR"]
         # Encode equality constrained on overdetermined confounder coefficient.
         if train_loc:
             constraints = np.zeros([4, 3])
@@ -139,7 +104,6 @@ class Test_AccuracyConstrained_VGLM_ALL(
         estimator = _Test_AccuracyConstrained_VGLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
-            termination=termination,
             noise_model=self.noise_model,
             constraints_loc=constraints,
             constraints_scale=constraints,
@@ -147,7 +111,6 @@ class Test_AccuracyConstrained_VGLM_ALL(
         return self._basic_test(
             estimator=estimator,
             batched=batched,
-            termination=termination,
             algos=algos
         )
 
