@@ -33,14 +33,14 @@ class FIMGLMALL(FIMGLM):
 
             :param X: tf.tensor observations x features
                 Observation by observation and feature.
-            :param mu: tf.tensor observations x features
+            :param model_loc: tf.tensor observations x features
                 Value of mean model by observation and feature.
-            :param r: tf.tensor observations x features
+            :param model_scale: tf.tensor observations x features
                 Value of dispersion model by observation and feature.
             """
             W = self._weight_fim_aa(  # [observations x features]
-                loc=model.mu,
-                scale=model.r
+                loc=model.model_loc,
+                scale=model.model_scale
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.
@@ -84,8 +84,8 @@ class FIMGLMALL(FIMGLM):
             """
             W = self._weight_fim_bb(  # [observations=1 x features]
                 X=model.X,
-                loc=model.mu,
-                scale=model.r
+                loc=model.model_loc,
+                scale=model.model_scale
             )
             # The computation of the hessian block requires two outer products between
             # feature-wise constants and the coefficient wise design matrix entries, for each observation.
