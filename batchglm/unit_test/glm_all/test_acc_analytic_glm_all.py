@@ -33,7 +33,8 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
 
         batch_size = 500
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         if sparse:
             input_data = InputData.new(
@@ -53,6 +54,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
             batch_size=batch_size,
             quick_scale=not train_scale,
             provide_optimizers=provide_optimizers,
+            provide_batched=True,
             init_a=init_a,
             init_b=init_b
         )
@@ -60,6 +62,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
             estimator=estimator,
             simulator=simulator
         )
+
 
 class Test_AccuracyAnalytic_GLM_ALL(
     Test_AccuracyAnalytic_GLM,
@@ -115,7 +118,7 @@ class Test_AccuracyAnalytic_GLM_NB(
 
     def test_a_closed_b_closed(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_closed()")
 
         self.noise_model = "nb"
@@ -125,14 +128,13 @@ class Test_AccuracyAnalytic_GLM_NB(
 
     def test_a_standard_b_standard(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_standard_b_standard()")
 
         self.noise_model = "nb"
         self.simulate_a_b_easy()
         self._test_a_standard_b_standard(sparse=False)
         self._test_a_standard_b_standard(sparse=True)
-
 
 
 if __name__ == '__main__':

@@ -53,6 +53,7 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
+            provide_batched=True,
             init_a="standard",
             init_b="standard"
         )
@@ -85,7 +86,7 @@ class Test_AccuracySizeFactors_GLM_ALL(
             train_scale,
             sparse
     ):
-        algos = ["NR_TR", "IRLS_TR", "IRLS_GD_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
         estimator = _Test_AccuracySizeFactors_GLM_ALL_Estim(
             simulator=self.sim,
             quick_scale=False if train_scale else True,
@@ -118,8 +119,8 @@ class Test_AccuracySizeFactors_GLM_NB(
     """
 
     def test_full_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracySizeFactors_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"

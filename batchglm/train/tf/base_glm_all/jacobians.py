@@ -65,7 +65,7 @@ class JacobiansGLMALL(JacobiansGLM):
         elif not self.compute_a and self.compute_b:
             J = _b_byobs(X=model.X, design_scale=model.design_scale, mu=model.mu, r=model.r)
         else:
-            raise ValueError("either require train_a or train_b")
+            J = tf.zeros((), dtype=self.dtype)
 
         return J
 
@@ -98,6 +98,6 @@ class JacobiansGLMALL(JacobiansGLM):
         elif not self.compute_a and self.compute_b:
             J = _jac_b(model=model)
         else:
-            raise ValueError("either require train_a or train_b")
+            J = tf.zeros((), dtype=self.dtype)
 
         return J

@@ -136,13 +136,15 @@ class ReducableTensorsGLM:
                 n_var_train = n_var_a
             elif not self.compute_a and self.compute_b:
                 n_var_train = n_var_b
+            else:
+                n_var_train = 0
 
-            if self.compute_jac:
+            if self.compute_jac and n_var_train > 0:
                 jac_init = tf.zeros([model_vars.n_features, n_var_train], dtype=dtype)
             else:
                 jac_init = tf.zeros((), dtype=dtype)
 
-            if self.compute_hessian:
+            if self.compute_hessian and n_var_train > 0:
                 hessian_init = tf.zeros([model_vars.n_features, n_var_train, n_var_train], dtype=dtype)
             else:
                 hessian_init = tf.zeros((), dtype=dtype)

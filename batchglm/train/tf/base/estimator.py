@@ -89,13 +89,13 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
         return self._get_unsafe("loss")
 
     def _train_to_convergence(self,
-                              loss,
                               train_op,
                               feed_dict,
                               loss_window_size,
                               stopping_criteria,
                               convergence_criteria="t_test"):
 
+        assert False, "not yet supported"
         previous_loss_hist = np.tile(np.inf, loss_window_size)
         loss_hist = np.tile(np.inf, loss_window_size)
 
@@ -127,7 +127,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 return False
 
         # Report initialization:
-        global_loss = self.session.run(self.model.loss)
+        global_loss = np.sum(self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1))
         tf.logging.info(
             "Step: \t0\tloss: %f",
             global_loss
@@ -167,7 +167,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
               convergence_criteria="t_test",
               loss_window_size=None,
               stopping_criteria=None,
-              loss=None,
               train_op=None,
               trustregion_mode=False,
               is_nr_tr=False,
@@ -199,7 +198,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_window_size: specifies `N` in `convergence_criteria`.
-        :param loss: uses this loss tensor if specified
         :param train_op: uses this training operation if specified
         """
         # feed_dict = dict() if feed_dict is None else feed_dict.copy()
@@ -215,17 +213,15 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             else:
                 stopping_criteria = 0.05
 
-        if loss is None:
-            loss = self.model.loss
-
         if train_op is None:
             train_op = self.model.train_op
 
         if convergence_criteria == "step":
+            assert False, "not supported yet"
             train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
 
             # Report initialization:
-            global_loss = self.session.run(self.model.loss)
+            global_loss = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
             tf.logging.info(
                 "Step: \t0\tloss: %s",
                 global_loss
@@ -234,11 +230,12 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             while train_step < stopping_criteria:
                 t0 = time.time()
                 train_step, _ = self.session.run(
-                    (self.model.global_step, train_op),
+                    (self.model.global_step,
+                     train_op),
                     feed_dict=feed_dict
                 )
-                global_loss = self.session.run(
-                    (loss),
+                ll = self.session.run(
+                    (self.model.full_data_model.norm_neg_log_likelihood_eval1),
                     feed_dict=feed_dict
                 )
                 t1 = time.time()
@@ -246,7 +243,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 tf.logging.info(
                     "Step: \t%d\tloss: %s",
                     train_step,
-                    global_loss,
+                    np.sum(ll),
                     str(np.round(t1 - t0, 3))
                 )
         elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
@@ -438,7 +435,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                 )
         else:
             self._train_to_convergence(
-                loss=loss,
                 train_op=train_op,
                 convergence_criteria=convergence_criteria,
                 loss_window_size=loss_window_size,
