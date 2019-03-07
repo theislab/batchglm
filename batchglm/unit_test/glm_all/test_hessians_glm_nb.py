@@ -42,12 +42,13 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 raise ValueError("noise_model not recognized")
 
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         estimator = Estimator(
             input_data=input_data,
-            termination_type="by_feature",
-            provide_optimizers=provide_optimizers
+            provide_optimizers=provide_optimizers,
+            provide_batched=True
         )
         estimator.initialize()
         estimator.train_sequence(training_strategy=[
@@ -56,7 +57,9 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-4,
                 "use_batching": False,
-                "optim_algo": "adam"  # Newton is very slow if hessian is evaluated through tf
+                "optim_algo": "gd",
+                "train_mu": False,
+                "train_r": False
             },
         ])
         return estimator

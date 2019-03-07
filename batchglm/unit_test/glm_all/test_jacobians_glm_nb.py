@@ -164,7 +164,7 @@ class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
         self.noise_model = "nb"
         self._test_compute_jacobians(sparse=False)
-        #self._test_compute_jacobians(sparse=True)  #TODO automatic differnetiation does not seems to work here yet.
+        #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seems to work here yet.
 
 
 if __name__ == '__main__':
