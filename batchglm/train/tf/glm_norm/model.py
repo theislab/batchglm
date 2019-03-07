@@ -95,8 +95,9 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         model_scale = tf.exp(eta_scale)
 
         # Log-likelihood:
+        const = tf.constant(-0.5 * np.log(2 * np.pi), shape=(), dtype=dtype)
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            log_probs = tf.cast(-0.5 * tf.log(2 * np.pi), tf.float64) - \
+            log_probs = const - \
                         eta_scale - \
                         tf.divide(
                             tf.square(tf.sparse.add(X, -eta_loc)),
@@ -104,7 +105,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
                         )
             log_probs.set_shape([None, a_var.shape[1]])  # Need this so as shape is completely lost.
         else:
-            log_probs = tf.cast(-0.5 * tf.log(2*np.pi), tf.float64) - \
+            log_probs = const - \
                         eta_scale - \
                         tf.divide(
                             tf.square(X - eta_loc),
