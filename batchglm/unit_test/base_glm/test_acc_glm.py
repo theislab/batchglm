@@ -125,7 +125,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             estimator.estimate(
                 algo=algo,
                 batched=batched,
-                acc=1e-6 if algo in ["NR", "NR_TR", "IRLS", "IRLS_TR"] else 1e-4
+                acc=1e-6
             )
             estimator_store = estimator.estimator.finalize()
             self._estims.append(estimator)

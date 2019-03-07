@@ -110,7 +110,7 @@ class Test_Accuracy_GLM_ALL(
             train_scale,
             sparse
     ):
-        algos = ["ADAM", "NR_TR", "IRLS_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
         estimator = _Test_Accuracy_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
@@ -143,8 +143,8 @@ class Test_Accuracy_GLM_NB(
     """
 
     def test_full_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_Accuracy_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
