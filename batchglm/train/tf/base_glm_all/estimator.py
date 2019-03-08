@@ -314,10 +314,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         if train_mu or train_r:
             if use_batching:
-                loss = self.model.batched_data_model.loss
                 train_op = self.model.trainer_batch.train_op_by_name(optim_algo)
             else:
-                loss = self.model.full_data_model.loss_eval0
                 train_op = self.model.trainer_full.train_op_by_name(optim_algo)
 
             super().train(*args,
@@ -325,7 +323,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           convergence_criteria=convergence_criteria,
                           loss_window_size=loss_window_size,
                           stopping_criteria=stopping_criteria,
-                          loss=loss,
                           train_op=train_op,
                           trustregion_mode=trustregion_mode,
                           is_nr_tr=is_nr_tr,

@@ -55,6 +55,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
+            provide_batched=True,
             init_a="standard",
             init_b="standard"
         )
@@ -87,7 +88,7 @@ class Test_AccuracyConstrained_VGLM_ALL(
             train_loc,
             train_scale
     ):
-        algos = ["ADAM", "ADAGRAD", "NR", "NR_TR", "IRLS", "IRLS_GD", "IRLS_TR", "IRLS_GD_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
         # Encode equality constrained on overdetermined confounder coefficient.
         if train_loc:
             constraints = np.zeros([4, 3])
@@ -140,7 +141,7 @@ class Test_AccuracyConstrained_VGLM_NB(
     def test_full_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_AccuracySizeFactors_GLM_NB.test_full_nb()")
+        logger.error("Test_AccuracyConstrained_VGLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
         self._test_full()
@@ -148,7 +149,7 @@ class Test_AccuracyConstrained_VGLM_NB(
     def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_AccuracySizeFactors_GLM_NB.test_batched_nb()")
+        logger.error("Test_AccuracyConstrained_VGLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
         self._test_batched()

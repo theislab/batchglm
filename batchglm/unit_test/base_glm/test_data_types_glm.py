@@ -10,9 +10,11 @@ class _Test_DataTypes_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM
+            estimator: _Estimator_GLM,
+            algo: str
     ):
         self.estimator = estimator
+        self.algo = algo
 
     def test_estimation(self):
         self.estimator.initialize()
@@ -22,7 +24,7 @@ class _Test_DataTypes_GLM_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-1,
                 "use_batching": False,
-                "optim_algo": "Newton",
+                "optim_algo": self.algo,
             },
         ])
         estimator_store = self.estimator.finalize()
@@ -43,14 +45,6 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         - Sparse X in anndata: test_anndata_sparse()
     """
     sim: _Simulator_GLM
-    _estims: List[_Estimator_GLM]
-
-    def setUp(self):
-        self._estims = []
-
-    def tearDown(self):
-        for e in self._estims:
-            e.estimator.close_session()
 
     @abc.abstractmethod
     def get_simulator(self):
@@ -74,7 +68,7 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def get_estimator(
             self,
             input_data: InputData
-    ) -> _Estimator_GLM:
+    ) -> _Test_DataTypes_GLM_Estim:
         pass
 
     def basic_test(

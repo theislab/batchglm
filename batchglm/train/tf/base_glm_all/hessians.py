@@ -128,7 +128,7 @@ class HessianGLMALL(HessiansGLM):
         elif not self.compute_a and self.compute_b:
             H = _bb_byobs_batched(model=model)
         else:
-            raise ValueError("either require hess_a or hess_b")
+            H = tf.zeros((), dtype=self.dtype)
 
         return H
 
@@ -163,7 +163,7 @@ class HessianGLMALL(HessiansGLM):
             elif not self._compute_hess_a and self._compute_hess_b:
                 H = tf.hessians(model.log_likelihood, b_split)
             else:
-                raise ValueError("either require hess_a or hess_b")
+                H = tf.zeros((), dtype=self.dtype)
 
             return H
 
