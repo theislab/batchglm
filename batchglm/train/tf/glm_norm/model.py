@@ -99,18 +99,18 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
             log_probs = const - \
                         eta_scale - \
-                        tf.divide(
-                            tf.square(tf.sparse.add(X, -eta_loc)),
-                            2 * tf.square(model_scale)
-                        )
+                        0.5 * tf.square(tf.divide(
+                            tf.sparse.add(X, - model_loc),
+                            model_scale
+                        ))
             log_probs.set_shape([None, a_var.shape[1]])  # Need this so as shape is completely lost.
         else:
             log_probs = const - \
                         eta_scale - \
-                        tf.divide(
-                            tf.square(X - eta_loc),
-                            2 * tf.square(model_scale)
-                        )
+                        0.5 * tf.square(tf.divide(
+                            X - model_loc,
+                            model_scale
+                        ))
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:

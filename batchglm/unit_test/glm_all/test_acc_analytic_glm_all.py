@@ -36,7 +36,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
         batch_size = 500
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         if sparse:
             input_data = InputData.new(
@@ -100,16 +100,16 @@ class Test_AccuracyAnalytic_GLM_ALL(
         )
 
     def _test_a_closed_b_closed(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="closed_form", init_b="closed_form")
+        self._test_a_and_b(sparse=sparse, init_a="closed_form", init_b="closed_form")
 
     def _test_a_closed_b_standard(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="closed_form", init_b="standard")
+        self._test_a_and_b(sparse=sparse, init_a="closed_form", init_b="standard")
 
     def _test_a_standard_b_closed(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="standard", init_b="closed_form")
+        self._test_a_and_b(sparse=sparse, init_a="standard", init_b="closed_form")
 
     def _test_a_standard_b_standard(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="standard", init_b="standard")
+        self._test_a_and_b(sparse=sparse, init_a="standard", init_b="standard")
 
 
 class Test_AccuracyAnalytic_GLM_NB(
@@ -151,7 +151,7 @@ class Test_AccuracyAnalytic_GLM_NORM(
 
     def test_a_closed_b_closed(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_closed_b_closed()")
 
         self.noise_model = "norm"
@@ -161,7 +161,7 @@ class Test_AccuracyAnalytic_GLM_NORM(
 
     def test_a_standard_b_standard(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_standard_b_standard()")
 
         self.noise_model = "norm"

@@ -24,9 +24,9 @@ class Simulator(_Simulator_GLM, Model):
 
     def generate_params(
             self,
-            rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
-            rand_fn=lambda shape: np.abs(np.random.uniform(0.9, 1.1, shape)),
-            rand_fn_loc=None,
+            rand_fn_ave=lambda shape: np.random.uniform(1000,2150, shape),
+            rand_fn=lambda shape: np.abs(np.random.uniform(1, 1, shape)),
+            rand_fn_loc=lambda shape: np.log(np.random.uniform(1, 1, shape)),
             rand_fn_scale=None,
         ):
         self._generate_params(
