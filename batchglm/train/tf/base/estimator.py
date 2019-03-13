@@ -88,79 +88,6 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
     def loss(self):
         return self._get_unsafe("loss")
 
-    def _train_to_convergence(self,
-                              train_op,
-                              feed_dict,
-                              loss_window_size,
-                              stopping_criteria,
-                              convergence_criteria="t_test"):
-
-        assert False, "not yet supported"
-        previous_loss_hist = np.tile(np.inf, loss_window_size)
-        loss_hist = np.tile(np.inf, loss_window_size)
-
-        def should_stop(step):
-            if step % len(loss_hist) == 0 and not np.any(np.isinf(previous_loss_hist)):
-                if convergence_criteria == "loss_change_to_last":
-                    change = loss_hist[-2] - loss_hist[-1]
-                    tf.logging.info("loss change: %f", change)
-                    return change < stopping_criteria
-                elif convergence_criteria == "moving_average":
-                    change = np.mean(previous_loss_hist) - np.mean(loss_hist)
-                    tf.logging.info("loss change: %f", change)
-                    return change < stopping_criteria
-                elif convergence_criteria == "scaled_moving_average":
-                    change = (np.mean(previous_loss_hist) - np.mean(loss_hist)) / np.mean(previous_loss_hist)
-                    tf.logging.info("loss change: %f", change)
-                    return change < stopping_criteria
-                elif convergence_criteria == "absolute_moving_average":
-                    change = np.abs(np.mean(previous_loss_hist) - np.mean(loss_hist))
-                    tf.logging.info("absolute loss change: %f", change)
-                    return change < stopping_criteria
-                elif convergence_criteria == "t_test":
-                    # H0: pevious_loss_hist and loss_hist are equally distributed
-                    # => continue training while P(H0) < stopping_criteria
-                    pval = stat_utils.welch_t_test(previous_loss_hist, loss_hist)
-                    tf.logging.info("pval: %f", pval)
-                    return not pval < stopping_criteria
-            else:
-                return False
-
-        # Report initialization:
-        global_loss = np.sum(self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1))
-        tf.logging.info(
-            "Step: \t0\tloss: %f",
-            global_loss
-        )
-
-        while True:
-            t0 = time.time()
-            train_step, _ = self.session.run(
-                (self.model.global_step, train_op),
-                feed_dict=feed_dict
-            )
-            global_loss = self.session.run(self.model.loss)
-            t1 = time.time()
-
-            tf.logging.info(
-                "Step: \t%d\tloss: %f\t in %s sec",
-                train_step,
-                global_loss,
-                str(np.round(t1 - t0, 3))
-            )
-
-            # update last_loss every N+1st step:
-            if train_step % len(loss_hist) == 1:
-                previous_loss_hist = np.copy(loss_hist)
-
-            loss_hist[(train_step - 1) % len(loss_hist)] = global_loss
-
-            # check convergence every N steps:
-            if should_stop(train_step):
-                break
-
-        return np.mean(loss_hist)
-
     def train(self, *args,
               learning_rate=None,
               feed_dict=None,
@@ -185,261 +112,218 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
             - "step":
               stop, when the step counter reaches `stopping_criteria`
-            - "difference":
-              stop, when `loss(step=i) - loss(step=i-1)` < `stopping_criteria`
-            - "moving_average":
-                stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stopping_criteria`
-            - "absolute_moving_average":
-                stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stopping_criteria`
-            - "t_test" (recommended):
-                Perform t_test between the last [i-2N..i-N] and [i-N..i] losses.
-                Stop if P(H0: "both distributions are not equal") <= `stopping_criteria`.
         :param stopping_criteria: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
         :param loss_window_size: specifies `N` in `convergence_criteria`.
         :param train_op: uses this training operation if specified
         """
-        # feed_dict = dict() if feed_dict is None else feed_dict.copy()
-
-        # default values:
-        if loss_window_size is None:
-            loss_window_size = 100
+        # Set default values:
         if stopping_criteria is None:
             if convergence_criteria == "step":
-                stopping_criteria = 5000
-            elif convergence_criteria in ["difference", "moving_agerage", "absolute_moving_average"]:
-                stopping_criteria = 1e-5
-            else:
-                stopping_criteria = 0.05
+                stopping_criteria = 100
 
         if train_op is None:
             train_op = self.model.train_op
 
-        if convergence_criteria == "step":
-            assert False, "not supported yet"
-            train_step = self.session.run(self.model.global_step, feed_dict=feed_dict)
-
-            # Report initialization:
-            global_loss = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
-            tf.logging.info(
-                "Step: \t0\tloss: %s",
-                global_loss
+        # Initialize:
+        if pkg_constants.EVAL_ON_BATCHED and is_batched:
+            _, _ = self.session.run(
+                (self.model.batched_data_model.eval_set,
+                 self.model.model_vars.convergence_update),
+                feed_dict={self.model.model_vars.convergence_status:
+                               np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                           }
             )
-
-            while train_step < stopping_criteria:
-                t0 = time.time()
-                train_step, _ = self.session.run(
-                    (self.model.global_step,
-                     train_op),
-                    feed_dict=feed_dict
-                )
-                ll = self.session.run(
-                    (self.model.full_data_model.norm_neg_log_likelihood_eval1),
-                    feed_dict=feed_dict
-                )
-                t1 = time.time()
-
-                tf.logging.info(
-                    "Step: \t%d\tloss: %s",
-                    train_step,
-                    np.sum(ll),
-                    str(np.round(t1 - t0, 3))
-                )
-        elif convergence_criteria in ["all_converged_ll"]:  # TODO depreceat all_converged_theta
-            ## Evaluate initial value of convergence metric:
-            if pkg_constants.EVAL_ON_BATCHED and is_batched:
-                _, _ = self.session.run(
-                    (self.model.batched_data_model.eval_set,
-                     self.model.model_vars.convergence_update),
-                    feed_dict={self.model.model_vars.convergence_status:
-                                   np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-                               }
-                )
-                ll_current = self.session.run(self.model.batched_data_model.norm_neg_log_likelihood)
-            else:
-                _, _ = self.session.run(
-                    (self.model.full_data_model.eval1_set,  # have to use eval1 here so that correct object is pulled in trust region
-                     self.model.model_vars.convergence_update),
-                    feed_dict={self.model.model_vars.convergence_status:
-                                   np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-                    }
-                )
-                ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
-
-            tf.logging.info(
-                "Step: 0 loss: %f models converged 0",
-                np.sum(ll_current)
-            )
-
-            # Set all to convergence status to False, this is need if multiple training strategies are run:
-            converged_current = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
-            while np.any(converged_current == False):
-                t0 = time.time()
-                converged_prev = converged_current.copy()
-                ll_prev = ll_current.copy()
-
-                ## Run update.
-                t_a = time.time()
-                if is_batched:
-                    _ = self.session.run(self.model.batched_data_model.train_set)
-                else:
-                    _ = self.session.run(self.model.full_data_model.train_set)
-
-                if trustregion_mode:
-                    t_b = time.time()
-                    _, x_step = self.session.run(
-                        (train_op["train"]["trial_op"],
-                         train_op["update"]),
-                        feed_dict=feed_dict
-                    )
-                    t_c = time.time()
-                    _ = self.session.run(self.model.full_data_model.eval0_set)
-                    t_d = time.time()
-                    train_step, _, features_updated = self.session.run(
-                        (self.model.global_step,
-                         train_op["train"]["update_op"],
-                         self.model.model_vars.updated),
-                        feed_dict=feed_dict
-                    )
-                    t_e = time.time()
-                else:
-                    t_b = time.time()
-                    train_step, _, x_step, features_updated = self.session.run(
-                        (self.model.global_step,
-                         train_op["train"],
-                         train_op["update"],
-                         self.model.model_vars.updated),
-                        feed_dict=feed_dict
-                    )
-                    t_c = time.time()
-
-                if pkg_constants.EVAL_ON_BATCHED and is_batched:
-                    _ = self.session.run(self.model.batched_data_model.eval_set)
-                    ll_current, jac_train = self.session.run(
-                        (self.model.batched_data_model.norm_neg_log_likelihood,
-                         self.model.batched_data_model.neg_jac_train_eval)
-                    )
-                else:
-                    _ = self.session.run(self.model.full_data_model.eval1_set)
-                    ll_current, jac_train = self.session.run(
-                        (self.model.full_data_model.norm_neg_log_likelihood_eval1,
-                         self.model.full_data_model.neg_jac_train_eval)
-                    )
-                t_f = time.time()
-
-                if trustregion_mode:
-                    tf.logging.debug(
-                        "### run time break-down: reduce op. %s, trial %s, ll %s, update %s, eval %s",
-                        str(np.round(t_b - t_a, 3)),
-                        str(np.round(t_c - t_b, 3)),
-                        str(np.round(t_d - t_c, 3)),
-                        str(np.round(t_e - t_d, 3)),
-                        str(np.round(t_f - t_e, 3))
-                    )
-                else:
-                    tf.logging.debug(
-                        "### run time break-down: reduce op. %s, update %s, eval %s",
-                        str(np.round(t_b - t_a, 3)),
-                        str(np.round(t_c - t_b, 3)),
-                        str(np.round(t_f - t_c, 3))
-                    )
-
-                if len(self.model.full_data_model.idx_train_loc) > 0:
-                    x_norm_loc = np.sqrt(np.sum(np.square(
-                        np.abs(x_step[self.model.model_vars.idx_train_loc, :])
-                    ), axis=0))
-                else:
-                    x_norm_loc = np.zeros([self.model.model_vars.n_features])
-
-                if len(self.model.full_data_model.idx_train_scale) > 0:
-                    x_norm_scale = np.sqrt(np.sum(np.square(
-                        np.abs(x_step[self.model.model_vars.idx_train_scale, :])
-                    ), axis=0))
-                else:
-                    x_norm_scale = np.zeros([self.model.model_vars.n_features])
-
-                # Update convergence status of non-converged features:
-                ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
-                if not pkg_constants.EVAL_ON_BATCHED or not is_batched:
-                    if np.any(ll_current > ll_prev + 1e-12):
-                        tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
-
-                converged_current = np.logical_or(
-                    converged_prev,
-                    np.logical_and(ll_converged, features_updated)
-                )
-                converged_f = np.logical_and(
-                    np.logical_not(converged_prev),
-                    np.logical_and(ll_converged, features_updated)
-                )
-                if pkg_constants.EVAL_ON_BATCHED and is_batched:
-                    jac_normalization = self.model.batch_size
-                else:
-                    jac_normalization = self.model.num_observations
-
-                if len(self.model.full_data_model.idx_train_loc) > 0:
-                    idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
-                                            for x in self.model.full_data_model.idx_train_loc])
-                    grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / jac_normalization
-                else:
-                    grad_norm_loc = np.zeros([self.model.model_vars.n_features])
-                if len(self.model.full_data_model.idx_train_scale) > 0:
-                    idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
-                                              for x in self.model.full_data_model.idx_train_scale])
-                    grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / jac_normalization
-                else:
-                    grad_norm_scale = np.zeros([self.model.model_vars.n_features])
-                converged_g = np.logical_and(
-                    np.logical_not(converged_prev),
-                    np.logical_and(
-                        grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
-                        grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
-                    )
-                )
-                converged_current = np.logical_or(
-                    converged_current,
-                    np.logical_and(
-                        grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
-                        grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
-                    )
-                )
-                if convergence_criteria == "all_converged_ll":
-                    converged_x = np.logical_and(
-                        np.logical_not(converged_prev),
-                        np.logical_and(
-                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
-                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
-                        )
-                    )
-                    converged_current = np.logical_or(
-                        converged_current,
-                        np.logical_and(
-                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
-                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
-                        )
-                    )
-                t1 = time.time()
-
-                self.session.run((self.model.model_vars.convergence_update), feed_dict={
-                    self.model.model_vars.convergence_status: converged_current
-                })
-                tf.logging.info(
-                    "Step: %d loss: %f, converged %i in %s sec., updated %i, {f: %i, g: %i, x: %i}",
-                    train_step,
-                    np.sum(ll_current),
-                    np.sum(converged_current).astype("int32"),
-                    str(np.round(t1 - t0, 3)),
-                    np.sum(np.logical_and(np.logical_not(converged_prev), features_updated)).astype("int32"),
-                    np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
-                )
+            ll_current = self.session.run(self.model.batched_data_model.norm_neg_log_likelihood)
         else:
-            self._train_to_convergence(
-                train_op=train_op,
-                convergence_criteria=convergence_criteria,
-                loss_window_size=loss_window_size,
-                stopping_criteria=stopping_criteria,
-                feed_dict=feed_dict
+            # Have to use eval1 here so that correct object is pulled in trust region.
+            _, _ = self.session.run(
+                (self.model.full_data_model.eval1_set,
+                 self.model.model_vars.convergence_update),
+                feed_dict={self.model.model_vars.convergence_status:
+                               np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+                           }
+            )
+            ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
+
+        tf.logging.info(
+            "Step: 0 loss: %f models converged 0",
+            np.sum(ll_current)
+        )
+
+        # Set all to convergence status to False, this is need if multiple training strategies are run:
+        converged_current = np.repeat(False, repeats=self.model.model_vars.converged.shape[0])
+        train_step = 0
+
+        def convergence_decision(convergence_status, step_counter):
+            if convergence_criteria == "step":
+                return np.any(np.logical_not(convergence_status)) and step_counter < stopping_criteria
+            elif convergence_criteria == "all_converged_ll":
+                return np.any(np.logical_not(convergence_status))
+            else:
+                raise ValueError("convergence_criteria %s not recognized." % convergence_criteria)
+
+        while convergence_decision(converged_current, train_step):
+            t0 = time.time()
+            converged_prev = converged_current.copy()
+            ll_prev = ll_current.copy()
+
+            ## Run update.
+            t_a = time.time()
+            if is_batched:
+                _ = self.session.run(self.model.batched_data_model.train_set)
+            else:
+                _ = self.session.run(self.model.full_data_model.train_set)
+
+            if trustregion_mode:
+                t_b = time.time()
+                _, x_step = self.session.run(
+                    (train_op["train"]["trial_op"],
+                     train_op["update"]),
+                    feed_dict=feed_dict
+                )
+                t_c = time.time()
+                _ = self.session.run(self.model.full_data_model.eval0_set)
+                t_d = time.time()
+                train_step, _, features_updated = self.session.run(
+                    (self.model.global_step,
+                     train_op["train"]["update_op"],
+                     self.model.model_vars.updated),
+                    feed_dict=feed_dict
+                )
+                t_e = time.time()
+            else:
+                t_b = time.time()
+                train_step, _, x_step, features_updated = self.session.run(
+                    (self.model.global_step,
+                     train_op["train"],
+                     train_op["update"],
+                     self.model.model_vars.updated),
+                    feed_dict=feed_dict
+                )
+                t_c = time.time()
+
+            if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                _ = self.session.run(self.model.batched_data_model.eval_set)
+                ll_current, jac_train = self.session.run(
+                    (self.model.batched_data_model.norm_neg_log_likelihood,
+                     self.model.batched_data_model.neg_jac_train_eval)
+                )
+            else:
+                _ = self.session.run(self.model.full_data_model.eval1_set)
+                ll_current, jac_train = self.session.run(
+                    (self.model.full_data_model.norm_neg_log_likelihood_eval1,
+                     self.model.full_data_model.neg_jac_train_eval)
+                )
+            t_f = time.time()
+
+            if trustregion_mode:
+                tf.logging.debug(
+                    "### run time break-down: reduce op. %s, trial %s, ll %s, update %s, eval %s",
+                    str(np.round(t_b - t_a, 3)),
+                    str(np.round(t_c - t_b, 3)),
+                    str(np.round(t_d - t_c, 3)),
+                    str(np.round(t_e - t_d, 3)),
+                    str(np.round(t_f - t_e, 3))
+                )
+            else:
+                tf.logging.debug(
+                    "### run time break-down: reduce op. %s, update %s, eval %s",
+                    str(np.round(t_b - t_a, 3)),
+                    str(np.round(t_c - t_b, 3)),
+                    str(np.round(t_f - t_c, 3))
+                )
+
+            if len(self.model.full_data_model.idx_train_loc) > 0:
+                x_norm_loc = np.sqrt(np.sum(np.square(
+                    np.abs(x_step[self.model.model_vars.idx_train_loc, :])
+                ), axis=0))
+            else:
+                x_norm_loc = np.zeros([self.model.model_vars.n_features])
+
+            if len(self.model.full_data_model.idx_train_scale) > 0:
+                x_norm_scale = np.sqrt(np.sum(np.square(
+                    np.abs(x_step[self.model.model_vars.idx_train_scale, :])
+                ), axis=0))
+            else:
+                x_norm_scale = np.zeros([self.model.model_vars.n_features])
+
+            # Update convergence status of non-converged features:
+            # Cost function value improvement:
+            ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
+            if not pkg_constants.EVAL_ON_BATCHED or not is_batched:
+                if np.any(ll_current > ll_prev + 1e-12):
+                    tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
+
+            converged_current = np.logical_or(
+                converged_prev,
+                np.logical_and(ll_converged, features_updated)
+            )
+            converged_f = np.logical_and(
+                np.logical_not(converged_prev),
+                np.logical_and(ll_converged, features_updated)
+            )
+            # Gradient norm:
+            if pkg_constants.EVAL_ON_BATCHED and is_batched:
+                jac_normalization = self.model.batch_size
+            else:
+                jac_normalization = self.model.num_observations
+
+            if len(self.model.full_data_model.idx_train_loc) > 0:
+                idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
+                                        for x in self.model.full_data_model.idx_train_loc])
+                grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / jac_normalization
+            else:
+                grad_norm_loc = np.zeros([self.model.model_vars.n_features])
+            if len(self.model.full_data_model.idx_train_scale) > 0:
+                idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
+                                          for x in self.model.full_data_model.idx_train_scale])
+                grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / jac_normalization
+            else:
+                grad_norm_scale = np.zeros([self.model.model_vars.n_features])
+            converged_g = np.logical_and(
+                np.logical_not(converged_prev),
+                np.logical_and(
+                    grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
+                    grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
+                )
+            )
+            converged_current = np.logical_or(
+                converged_current,
+                np.logical_and(
+                    grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
+                    grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
+                )
+            )
+            # Step length:
+            converged_x = np.logical_and(
+                np.logical_not(converged_prev),
+                np.logical_and(
+                    x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
+                    x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
+                )
+            )
+            converged_current = np.logical_or(
+                converged_current,
+                np.logical_and(
+                    x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
+                    x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
+                )
+            )
+            t1 = time.time()
+
+            self.session.run((self.model.model_vars.convergence_update), feed_dict={
+                self.model.model_vars.convergence_status: converged_current
+            })
+            tf.logging.info(
+                "Step: %d loss: %f, converged %i in %s sec., updated %i, {f: %i, g: %i, x: %i}",
+                train_step,
+                np.sum(ll_current),
+                np.sum(converged_current).astype("int32"),
+                str(np.round(t1 - t0, 3)),
+                np.sum(np.logical_and(np.logical_not(converged_prev), features_updated)).astype("int32"),
+                np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
             )
 
 

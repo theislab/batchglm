@@ -1,7 +1,6 @@
 import logging
 import unittest
 import time
-
 import numpy as np
 import scipy.sparse
 
@@ -9,7 +8,7 @@ import batchglm.api as glm
 import batchglm.data as data_utils
 import batchglm.pkg_constants as pkg_constants
 
-from batchglm.models.base_glm import _Estimator_GLM, InputData, _Simulator_GLM
+from batchglm.models.base_glm import InputData
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -17,11 +16,6 @@ logger = logging.getLogger(__name__)
 
 class Test_Hessians_GLM_ALL(unittest.TestCase):
     noise_model: str
-    sim: _Simulator_GLM
-    estimator_fw: _Estimator_GLM
-    estimator_ow: _Estimator_GLM
-    estimator_tf: _Estimator_GLM
-    estimator: _Estimator_GLM
 
     def setUp(self):
         pass
@@ -29,14 +23,30 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def estimate(
+    def simulate(self):
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model == "nb":
+                from batchglm.api.models.glm_nb import Simulator
+            else:
+                raise ValueError("noise_model not recognized")
+
+        num_observations = 500
+        sim = Simulator(num_observations=num_observations, num_features=4)
+        sim.generate_sample_description(num_conditions=2, num_batches=2)
+        sim.generate()
+
+        self.sim = sim
+
+    def get_hessians(
             self,
             input_data: InputData
     ):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
@@ -47,22 +57,25 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
 
         estimator = Estimator(
             input_data=input_data,
+            quick_scale=False,
             provide_optimizers=provide_optimizers,
-            provide_batched=True
+            init_a="standard",
+            init_b="standard"
         )
         estimator.initialize()
+        # Do not train, evaluate at initialization!
         estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 0.1,
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-4,
+                "convergence_criteria": "step",
+                "stopping_criteria": 0,
                 "use_batching": False,
                 "optim_algo": "gd",
                 "train_mu": False,
                 "train_r": False
             },
         ])
-        return estimator
+        estimator_store = estimator.finalize()
+        return - estimator_store.fisher_inv
 
     def _test_compute_hessians(self, sparse):
         if self.noise_model is None:
@@ -97,34 +110,34 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 design_scale=design_scale
             )
 
-        logger.debug("* Running analytic Hessian by observation tests")
+        # Compute hessian based on analytic solution.
         pkg_constants.HESSIAN_MODE = "analytic"
-        self.estimator_ob = self.estimate(input_data)
-        t0_ob = time.time()
-        self.H_ob = self.estimator_ob.hessians
-        t1_ob = time.time()
-        self.estimator_ob.close_session()
-        self.t_ob = t1_ob - t0_ob
+        t0_analytic = time.time()
+        h_analytic = self.get_hessians(input_data)
+        t1_analytic = time.time()
+        t_analytic = t1_analytic - t0_analytic
 
-        logger.debug("* Running tensorflow Hessian by feature tests")
+        # Compute hessian based on tensorflow auto-differentiation.
         pkg_constants.HESSIAN_MODE = "tf"
-        self.estimator_tf = self.estimate(input_data)
         t0_tf = time.time()
-        # tensorflow computes the negative hessian as the
-        # objective is the negative log-likelihood.
-        self.H_tf = self.estimator_tf.hessians
+        h_tf = self.get_hessians(input_data)
         t1_tf = time.time()
-        self.estimator_tf.close_session()
-        self.t_tf = t1_tf - t0_tf
+        t_tf = t1_tf - t0_tf
 
-        i = 1
-        logger.info("run time observation batch-wise analytic solution: %f" % self.t_ob)
-        logger.info("run time feature-wise tensorflow solution: %f" % self.t_tf)
-        logger.info("ratio of tensorflow feature-wise hessian to analytic observation batch-wise hessian:")
-        logger.info(self.H_tf.values[i, :, :] / self.H_ob.values[i, :, :])
+        # Make sure that hessians are not all zero which might make evaluation of equality difficult.
+        assert np.sum(np.abs(h_analytic)) > 1e-10, \
+            "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
 
-        max_rel_dev1 = np.max(np.abs((self.H_tf.values - self.H_ob.values) / self.H_tf.values))
-        assert max_rel_dev1 < 1e-10
+        logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
+        logging.getLogger("batchglm").info("run time feature-wise tensorflow solution: %f" % t_tf)
+
+        #i = 1
+        #print(h_tf[i, :, :])
+        #print(h_analytic[i, :, :])
+        #print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
+
+        max_rel_dev1 = np.max(np.abs((h_tf - h_analytic) / h_tf))
+        assert max_rel_dev1 < 1e-12
         return True
 
 

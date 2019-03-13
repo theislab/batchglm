@@ -68,10 +68,10 @@ class _Test_AccuracyConstrained_VGLM_Estim():
         mean_dev_b = np.mean(estimator_store.b_var.values - self.sim.b_var.values)
         std_dev_b = np.std(estimator_store.b_var.values - self.sim.b_var.values)
 
-        logger.info("mean_dev_a %f" % mean_dev_a)
-        logger.info("std_dev_a %f" % std_dev_a)
-        logger.info("mean_dev_b %f" % mean_dev_b)
-        logger.info("std_dev_b %f" % std_dev_b)
+        logging.getLogger("batchglm").info("mean_dev_a %f" % mean_dev_a)
+        logging.getLogger("batchglm").info("std_dev_a %f" % std_dev_a)
+        logging.getLogger("batchglm").info("mean_dev_b %f" % mean_dev_b)
+        logging.getLogger("batchglm").info("std_dev_b %f" % std_dev_b)
 
         if np.abs(mean_dev_a) < threshold_dev_a and \
                 np.abs(mean_dev_b) < threshold_dev_b and \
