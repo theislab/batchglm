@@ -137,51 +137,57 @@ class HessianGLMALL(HessiansGLM):
             model
     ) -> tf.Tensor:
         """
-        Compute hessians via tf.hessian for all gene-wise models separately.
-
-        Contains three functions:
-
-            - feature_wises_batch():
-            a function that computes all hessians for a given batch
-            of data by distributing the computation across features.
-            - hessian_map():
-            a function that unpacks the data from the iterator to run
-            feature_wises_batch.
-            - hessian_red():
-            a function that performs the reduction of the hessians across hessians
-            into a single hessian during the iteration over batches.
+        Compute hessians via tf.gradients for all gene-wise in parallel.
         """
-        def hessian(model, params, a_split, b_split):
-            """ Helper function that computes hessian for a given gene.
+        if self.compute_a and self.compute_b:
+            var_shape = tf.shape(self.model_vars.params)
+            var = self.model_vars.params
+        elif self.compute_a and not self.compute_b:
+            var_shape = tf.shape(self.model_vars.a_var)
+            var = self.model_vars.a_var
+        elif not self.compute_a and self.compute_b:
+            var_shape = tf.shape(self.model_vars.b_var)
+            var = self.model_vars.b_var
 
-            :param data: tuple (X_t, size_factors_t, params_t)
-            """
-            if self._compute_hess_a and self._compute_hess_b:
-                H = tf.hessians(model.log_likelihood, params)
-            elif self._compute_hess_a and not self._compute_hess_b:
-                H = tf.hessians(model.log_likelihood, a_split)
-            elif not self._compute_hess_a and self._compute_hess_b:
-                H = tf.hessians(model.log_likelihood, b_split)
-            else:
-                H = tf.zeros((), dtype=self.dtype)
+        if self.compute_a or self.compute_b:
+            # Compute first order derivatives as first step to get second order derivatives.
+            first_der = tf.gradients(model.log_likelihood, var)[0]
 
-            return H
+            # Note on error comment below: The arguments that cause the error, infer_shape and element_shape,
+            # are not necessary for this code but would provide an extra layer of stability as all
+            # elements of the array have the same shape.
+            loop_vars = [
+                tf.constant(0, tf.int32),  # iteration counter
+                tf.TensorArray(  # hessian slices [:,:,j]
+                    dtype=var.dtype,
+                    size=var_shape[0],
+                    clear_after_read=False
+                    #infer_shape=True,  # TODO tf>=2.0: this causes error related to eager execution in tf1.12
+                    #element_shape=var_shape
+                )
+            ]
 
-        # Map hessian computation across genes
-        p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
-        p_shape_b = self.model_vars.b_var.shape[0]  # This has to be _var to work with constraints.
-        a_split, b_split = tf.split(self.model_vars.params, tf.TensorShape([p_shape_a, p_shape_b]))
-        params_t = tf.transpose(tf.expand_dims(self.model_vars.params, axis=0), perm=[2, 0, 1])
-        a_split_t = tf.transpose(tf.expand_dims(a_split, axis=0), perm=[2, 0, 1])
-        b_split_t = tf.transpose(tf.expand_dims(b_split, axis=0), perm=[2, 0, 1])
+            # Compute second order derivatives based on parameter-wise slices of the tensor of first order derivatives.
+            _, h_tensor_array = tf.while_loop(
+                cond=lambda i, _: i < var_shape[0],
+                body=lambda i, result: (
+                    i + 1,
+                    result.write(
+                        index=i,
+                        value=tf.gradients(first_der[i, :], var)[0]
+                    )
+                ),
+                loop_vars=loop_vars,
+                return_same_structure=True
+            )
 
-        hessians = tf.map_fn(
-            fn=hessian,
-            elems=(params_t, a_split_t, b_split_t),
-            dtype=[self.dtype],
-            parallel_iterations=pkg_constants.TF_LOOP_PARALLEL_ITERATIONS
-        )
+            # h_tensor_array is a TensorArray, reshape this into a tensor so that it can be used
+            # in down-stream computation graphs.
+            h = tf.transpose(tf.reshape(
+                h_tensor_array.stack(),
+                tf.stack((var_shape[0], var_shape[0], var_shape[1]))
+            ), perm=[2, 1, 0])
+        else:
+            h = tf.zeros((), dtype=self.dtype)
 
-        hessians = [tf.squeeze(tf.squeeze(tf.stack(h), axis=2), axis=3) for h in hessians]
-
-        return hessians[0]
+        return h

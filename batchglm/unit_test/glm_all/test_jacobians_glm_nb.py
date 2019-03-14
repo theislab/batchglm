@@ -39,10 +39,9 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
 
         self.sim = sim
 
-    def estimate(
+    def get_jacs(
             self,
-            input_data: InputData,
-            quick_scale
+            input_data: InputData
     ):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
@@ -53,21 +52,34 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 raise ValueError("noise_model not recognized")
 
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         estimator = Estimator(
             input_data=input_data,
-            quick_scale=quick_scale,
-            provide_optimizers=provide_optimizers
+            quick_scale=False,
+            provide_optimizers=provide_optimizers,
+            init_a="standard",
+            init_b="standard"
         )
         estimator.initialize()
-        # Do not train, evalute at initialization!
-        return estimator
+        # Do not train, evaluate at initialization!
+        estimator.train_sequence(training_strategy=[
+            {
+                "convergence_criteria": "step",
+                "stopping_criteria": 0,
+                "use_batching": False,
+                "optim_algo": "gd",
+                "train_mu": False,
+                "train_r": False
+            },
+        ])
+        estimator_store = estimator.finalize()
+        return estimator_store.gradients.values
 
     def compare_jacs(
             self,
             design,
-            quick_scale,
             sparse
     ):
         if self.noise_model is None:
@@ -97,62 +109,36 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
 
         logger.debug("** Running analytic Jacobian test")
         pkg_constants.JACOBIAN_MODE = "analytic"
-        estimator_analytic = self.estimate(input_data, quick_scale)
         t0_analytic = time.time()
-        J_analytic = estimator_analytic['gradients']
+        J_analytic = self.get_jacs(input_data)
         t1_analytic = time.time()
-        estimator_analytic.close_session()
         t_analytic = t1_analytic - t0_analytic
 
         logger.debug("** Running tensorflow Jacobian test")
         pkg_constants.JACOBIAN_MODE = "tf"
-        estimator_tf = self.estimate(input_data, quick_scale)
         t0_tf = time.time()
-        J_tf = estimator_tf['gradients']
+        J_tf = self.get_jacs(input_data)
         t1_tf = time.time()
-        estimator_tf.close_session()
         t_tf = t1_tf - t0_tf
 
-        logger.info("run time tensorflow solution: %f" % t_tf)
-        logger.info("run time observation batch-wise analytic solution: %f" % t_analytic)
-        logger.info("relative difference of analytic jacobian to analytic observation-wise jacobian:")
-        print(J_tf)
-        print(J_analytic)
-        print((J_tf - J_analytic) / J_tf)
+        # Make sure that jacobians are not all zero which might make evaluation of equality difficult.
+        assert np.sum(np.abs(J_analytic)) > 1e-10, \
+            "jacobians too small to perform test: %f" % np.sum(np.abs(J_analytic))
+
+        logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
+        logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
+
+        #print(J_tf)
+        #print(J_analytic)
+        #print((J_tf - J_analytic) / J_tf)
 
         max_rel_dev = np.max(np.abs((J_tf - J_analytic) / J_tf))
-        assert max_rel_dev < 1e-8
+        assert max_rel_dev < 1e-12
         return True
-
-    def _test_compute_jacobians_a_and_b(self, sparse):
-        logger.debug("* Running Jacobian tests for a and b training")
-        return self.compare_jacs(
-            design="~ 1 + condition + batch",
-            quick_scale=False,
-            sparse=sparse
-        )
-
-    def _test_compute_jacobians_a_only(self, sparse):
-        logger.debug("* Running Jacobian tests for a only training")
-        return self.compare_jacs(
-            design="~ 1 + condition + batch",
-            quick_scale=True,
-            sparse=sparse
-        )
-
-    def _test_compute_jacobians_b_only(self, sparse):
-        logger.debug("* Running Jacobian tests for b only training")
-        return self.compare_jacs(
-            design="~ 1 + condition",
-            quick_scale=False,
-            sparse=sparse
-        )
 
     def _test_compute_jacobians(self, sparse):
         self.simulate()
-        self._test_compute_jacobians_a_and_b(sparse=sparse)
-        self._test_compute_jacobians_a_only(sparse=sparse)
-        self._test_compute_jacobians_b_only(sparse=sparse)
+        self.compare_jacs(design="~ 1 + condition + batch", sparse=sparse)
 
 
 class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):

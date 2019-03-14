@@ -51,8 +51,8 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         else:
             assert False
 
-        logger.info("mean_dev_a %f" % mean_dev)
-        logger.info("std_dev_a %f" % std_dev)
+        logging.getLogger("batchglm").info("mean_dev_a %f" % mean_dev)
+        logging.getLogger("batchglm").info("std_dev_a %f" % std_dev)
 
         if np.abs(mean_dev) < threshold_dev and \
                 std_dev < threshold_std:
@@ -77,8 +77,8 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         else:
             assert False
 
-        logger.info("mean_dev_b %f" % mean_dev)
-        logger.info("std_dev_b %f" % std_dev)
+        logging.getLogger("batchglm").info("mean_dev_b %f" % mean_dev)
+        logging.getLogger("batchglm").info("std_dev_b %f" % std_dev)
 
         if np.abs(mean_dev) < threshold_dev and \
                 std_dev < threshold_std:

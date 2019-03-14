@@ -139,7 +139,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
                 compute_ll=True
             )
             self.hessians_final = reducibles_finalize.hessian
-            self.neg_jac_train_final = reducibles_finalize.neg_jac_train
+            self.neg_jac_final = reducibles_finalize.neg_jac
             self.log_likelihood_final = reducibles_finalize.ll
             self.loss_final = tf.reduce_sum(-self.log_likelihood_final / num_observations)
 
@@ -537,7 +537,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             self.hessians = self.full_data_model.hessians_final
             self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians_final)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
-            self.gradients = tf.reduce_sum(tf.transpose(self.gradients_full), axis=1)
+            self.gradients = tf.reduce_sum(tf.abs(self.full_data_model.neg_jac_final / num_observations), axis=1)
 
         with tf.name_scope('summaries'):
             if extended_summary:

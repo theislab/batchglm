@@ -76,27 +76,27 @@ class JacobiansGLMALL(JacobiansGLM):
         """
         Compute the Jacobian matrix for a GLM using gradients from tensorflow.
         """
-        def _jac(model):
+        def _jac():
             J = tf.gradients(model.log_likelihood, self.model_vars.params)[0]
             J = tf.transpose(J)
             return J
 
-        def _jac_a(model):
+        def _jac_a():
             J_a = tf.gradients(model.log_likelihood, self.model_vars.a_var)[0]
             J_a = tf.transpose(J_a)
             return J_a
 
-        def _jac_b(model):
+        def _jac_b():
             J_b = tf.gradients(model.log_likelihood, self.model_vars.b_var)[0]
             J_b = tf.transpose(J_b)
             return J_b
 
         if self.compute_a and self.compute_b:
-            J = _jac(model=model)
+            J = _jac()
         elif self.compute_a and not self.compute_b:
-            J = _jac_a(model=model)
+            J = _jac_a()
         elif not self.compute_a and self.compute_b:
-            J = _jac_b(model=model)
+            J = _jac_b()
         else:
             J = tf.zeros((), dtype=self.dtype)
 

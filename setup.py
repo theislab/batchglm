@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 import versioneer
 
-author = 'Florian R. Hölzlwimmer, David S. Fischer'
-author_email='batchglm@frhoelzlwimmer.de, david.fischer@helmholtz-muenchen.de'
+author = 'David S. Fischer, Florian R. Hölzlwimmer, Sabrina Richter'
+author_email='david.fischer@helmholtz-muenchen.de'
 description="Fast and scalable fitting of over-determined generalized-linear models (GLMs)"
 
 with open("README.md", "r") as fh:
