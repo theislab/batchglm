@@ -30,7 +30,7 @@ class _Test_AccuracyAnalytic_GLM_Estim():
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
                 #"optim_algo": "irls_gd_tr",
-                "optim_algo": "gd",
+                "optim_algo": "nr_tr",
             },
         ])
 
@@ -44,8 +44,6 @@ class _Test_AccuracyAnalytic_GLM_Estim():
 
         if init == "standard":
             mean_dev = np.mean(estimator_store.a[0, :] - self.sim.a[0, :])
-            print(estimator_store.a[0, :])
-            print(self.sim.a[0,:])
             std_dev = np.std(estimator_store.a[0, :] - self.sim.a[0, :])
         elif init == "closed_form":
             mean_dev = np.mean(estimator_store.a - self.sim.a)
@@ -121,9 +119,9 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e2, 2*1e2, shape),
-            rand_fn_loc=lambda shape: np.random.uniform(0, 0, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1, 1, shape)
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(1, 3, shape),
+            rand_fn_scale=lambda shape: np.random.uniform(1, 3, shape)
         )
         self.sim.generate_data()
 
@@ -164,11 +162,9 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             return theta
 
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e2, 2 * 1e2, shape),
-            #rand_fn_loc=lambda shape: np.ones(shape),
-            rand_fn_loc=lambda shape: np.zeros(shape),
-            #rand_fn_scale=lambda shape: rand_fn_standard(shape)
-            rand_fn_scale=lambda shape: np.ones(shape)
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn_loc=lambda shape: np.ones(shape),
+            rand_fn_scale=lambda shape: rand_fn_standard(shape)
         )
         self.sim.generate_data()
 

@@ -28,13 +28,15 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
         else:
             if noise_model=="nb":
                 from batchglm.api.models.glm_nb import Estimator, InputData
+            elif noise_model=="norm":
+                from batchglm.api.models.glm_norm import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
         batch_size = 900
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         input_data = simulator.input_data
         design_loc = np.hstack([
@@ -77,6 +79,8 @@ class Test_AccuracyConstrained_VGLM_ALL(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -88,7 +92,8 @@ class Test_AccuracyConstrained_VGLM_ALL(
             train_loc,
             train_scale
     ):
-        algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
+        #algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
+        algos = ["NR_TR"]
         # Encode equality constrained on overdetermined confounder coefficient.
         if train_loc:
             constraints = np.zeros([4, 3])
@@ -152,6 +157,30 @@ class Test_AccuracyConstrained_VGLM_NB(
         logger.error("Test_AccuracyConstrained_VGLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
+        self._test_batched()
+
+class Test_AccuracyConstrained_VGLM_NORM(
+    Test_AccuracyConstrained_VGLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for normal distributed noise.
+    """
+
+    def test_full_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracyConstrained_VGLM_NORM.test_full_norm()")
+
+        self.noise_model = "norm"
+        self._test_full()
+
+    def test_batched_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracyConstrained_VGLM_NORM.test_batched_norm()")
+
+        self.noise_model = "norm"
         self._test_batched()
 
 

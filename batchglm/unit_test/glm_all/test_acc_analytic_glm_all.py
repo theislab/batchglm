@@ -150,7 +150,7 @@ class Test_AccuracyAnalytic_GLM_NORM(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR),
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_closed_b_closed()")
 

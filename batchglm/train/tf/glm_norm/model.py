@@ -28,19 +28,19 @@ class ProcessModel(ProcessModelGLM):
 
         sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
         bounds_min = {
-            "a_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "a_var": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
             "b_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_loc": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
             "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "mean": np.nextafter(0, np.inf, dtype=dtype),
+            "mean": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
             "sd": np.nextafter(0, np.inf, dtype=dtype),
             "probs": dtype(0),
             "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         }
         bounds_max = {
-            "a_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "a_var": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mean": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "sd": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,

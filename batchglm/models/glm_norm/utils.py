@@ -15,8 +15,8 @@ def closedform_norm_glm_mean(
         design_loc,
         constraints_loc,
         size_factors=None,
-        link_fn=id,
-        inv_link_fn=id
+        link_fn= lambda x: x,
+        inv_link_fn= lambda x: x
 ):
     r"""
     Calculates a closed-form solution for the `mean` parameters of normal GLMs.
@@ -167,7 +167,6 @@ def closedform_norm_glm_logsd(
                         weights.groupby("group")
                     )
                 ], dim="group")
-
         groupwise_scales = np.sqrt(variance)
 
         # # clipping
@@ -176,7 +175,6 @@ def closedform_norm_glm_logsd(
         #                                 where=groupwise_scales == 0,
         #                                 dtype=groupwise_scales.dtype)
         # groupwise_scales = np.fmin(groupwise_scales, np.finfo(groupwise_scales.dtype).max)
-
         return link_fn(groupwise_scales)
 
     groupwise_scales, logsd, rmsd, rank, _ = groupwise_solve_lm(

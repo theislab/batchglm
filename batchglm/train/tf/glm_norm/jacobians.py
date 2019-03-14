@@ -31,11 +31,11 @@ class Jacobians(JacobiansGLMALL):
     ):
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const = - scalar_one + tf.square(
+            const = tf.negative(scalar_one) + tf.square(
                 tf.divide(tf.sparse.add(X, -loc), scale)
             )
         else:
-            const = - scalar_one + tf.square(
+            const = tf.negative(scalar_one) + tf.square(
                 tf.divide(tf.subtract(X, loc), scale)
             )
         return const
