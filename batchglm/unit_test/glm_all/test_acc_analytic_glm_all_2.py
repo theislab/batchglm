@@ -42,7 +42,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
         batch_size = 500
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         if sparse:
             input_data = InputData.new(
@@ -75,8 +75,8 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
-                #"optim_algo": "irls_gd_tr",
-                "optim_algo": "nr_tr",
+                "optim_algo": "irls_gd_tr",
+                #"optim_algo": "nr_tr",
             },
         ])
 
