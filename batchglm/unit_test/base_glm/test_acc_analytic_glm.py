@@ -29,8 +29,7 @@ class _Test_AccuracyAnalytic_GLM_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
-                #"optim_algo": "irls_gd_tr",
-                "optim_algo": "nr_tr",
+                "optim_algo": "irls_gd_tr",
             },
         ])
 
@@ -119,7 +118,7 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2*1e5, shape),
             rand_fn_loc=lambda shape: np.random.uniform(1, 3, shape),
             rand_fn_scale=lambda shape: np.random.uniform(1, 3, shape)
         )
