@@ -36,7 +36,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
         batch_size = 900
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         input_data = simulator.input_data
         design_loc = np.hstack([
@@ -92,8 +92,7 @@ class Test_AccuracyConstrained_VGLM_ALL(
             train_loc,
             train_scale
     ):
-        #algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
-        algos = ["NR_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
         # Encode equality constrained on overdetermined confounder coefficient.
         if train_loc:
             constraints = np.zeros([4, 3])
