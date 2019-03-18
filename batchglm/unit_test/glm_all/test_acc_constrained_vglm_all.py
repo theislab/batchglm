@@ -92,8 +92,7 @@ class Test_AccuracyConstrained_VGLM_ALL(
             train_loc,
             train_scale
     ):
-        #algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
-        algos = ["NR_TR"]
+        algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
         # Encode equality constrained on overdetermined confounder coefficient.
         if train_loc:
             constraints = np.zeros([4, 3])
