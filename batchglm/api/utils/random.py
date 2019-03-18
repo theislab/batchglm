@@ -1,1 +1,1 @@
-from batchglm.utils.random import NegativeBinomial, Normal
+from batchglm.utils.random import NegativeBinomial, Normal, Beta
