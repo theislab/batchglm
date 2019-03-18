@@ -34,7 +34,7 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
         batch_size = 900
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         if sparse:
             input_data = InputData.new(
