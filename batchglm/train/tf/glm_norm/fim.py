@@ -21,7 +21,6 @@ class FIM(FIMGLMALL):
 
     def _weight_fim_bb(
             self,
-            X,
             loc,
             scale
     ):
