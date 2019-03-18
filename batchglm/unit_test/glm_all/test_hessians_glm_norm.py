@@ -53,7 +53,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
 
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         estimator = Estimator(
             input_data=input_data,
