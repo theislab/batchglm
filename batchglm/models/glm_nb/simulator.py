@@ -13,7 +13,7 @@ class Simulator(_Simulator_GLM, Model):
     def __init__(
             self,
             num_observations=1000,
-            num_features=100,
+            num_features=100
     ):
         Model.__init__(self)
         _Simulator_GLM.__init__(
