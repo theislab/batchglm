@@ -27,7 +27,9 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model == "norm":
+            if self.noise_model == "nb":
+                from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
@@ -46,6 +48,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
+            if self.noise_model == "nb":
+                from batchglm.api.models.glm_nb import Estimator
             if self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator
             else:
@@ -70,8 +74,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 "stopping_criteria": 0,
                 "use_batching": False,
                 "optim_algo": "gd",
-                "train_mean": False,
-                "train_sd": False
+                "train_mu": False,
+                "train_r": False
             },
         ])
         estimator_store = estimator.finalize()
@@ -81,7 +85,9 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="norm":
+            if self.noise_model=="nb":
+                from batchglm.api.models.glm_nb import Simulator, InputData
+            elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator, InputData
             else:
                 raise ValueError("noise_model not recognized")
@@ -140,6 +146,19 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         assert max_rel_dev1 < 1e-12
         return True
 
+
+class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
+
+        self.noise_model = "nb"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
 
 class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
 
