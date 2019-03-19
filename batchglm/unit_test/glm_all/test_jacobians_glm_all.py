@@ -31,6 +31,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -52,12 +54,14 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Estimator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         estimator = Estimator(
             input_data=input_data,
@@ -93,6 +97,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import InputData
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import InputData
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -167,6 +173,17 @@ class Test_Jacobians_GLM_NORM(Test_Jacobians_GLM_ALL, unittest.TestCase):
         logger.error("Test_Jacobians_GLM_NORM.test_compute_jacobians_norm()")
 
         self.noise_model = "norm"
+        self._test_compute_jacobians(sparse=False)
+        #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
+
+class Test_Jacobians_GLM_BETA(Test_Jacobians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_jacobians_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_Jacobians_GLM_BETA.test_compute_jacobians_beta()")
+
+        self.noise_model = "beta"
         self._test_compute_jacobians(sparse=False)
         #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 
