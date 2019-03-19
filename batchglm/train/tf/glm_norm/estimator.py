@@ -238,10 +238,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         if init_a_str != init_b:
                             inits_unequal = True
 
-                    if inits_unequal or dmats_unequal:
-                        groupwise_means = None
-                        init_b = "standard"  # remove once have code to deal with this.
-
                     # Watch out: init_mean is full obs x features matrix and is very large in many cases.
                     if inits_unequal or dmats_unequal:
                         raise ValueError("cannot use closed_form init for scale model " +
@@ -255,6 +251,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         groupwise_means=groupwise_means,
                         link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
                     )
+
+                    # train scale, if the closed-form solution is inaccurate
+                    self._train_scale = not (np.all(rmsd_b == 0) or rmsd_b.size == 0)
 
                     logger.debug("Using closed-form MME initialization for standard deviation")
                     logger.debug("Should train sd: %s", self._train_scale)
