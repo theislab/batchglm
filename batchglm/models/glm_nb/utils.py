@@ -20,7 +20,7 @@ def closedform_nb_glm_logmu(
 
     :param X: The sample data
     :param design_loc: design matrix for location
-    :param constraints: tensor (all parameters x dependent parameters)
+    :param constraints_loc: tensor (all parameters x dependent parameters)
         Tensor that encodes how complete parameter set which includes dependent
         parameters arises from indepedent parameters: all = <constraints, indep>.
         This form of constraints is used in vector generalized linear models (VGLMs).
@@ -32,7 +32,6 @@ def closedform_nb_glm_logmu(
         dmat=design_loc,
         constraints=constraints_loc,
         size_factors=size_factors,
-        weights=None,
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
