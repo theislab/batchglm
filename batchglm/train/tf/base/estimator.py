@@ -159,7 +159,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
         def convergence_decision(convergence_status, step_counter):
             if convergence_criteria == "step":
                 return np.any(np.logical_not(convergence_status)) and step_counter < stopping_criteria
-            elif convergence_criteria == "all_converged_ll":
+            elif convergence_criteria == "all_converged":
                 return np.any(np.logical_not(convergence_status))
             else:
                 raise ValueError("convergence_criteria %s not recognized." % convergence_criteria)
