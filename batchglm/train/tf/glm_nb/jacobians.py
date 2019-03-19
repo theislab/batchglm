@@ -9,59 +9,58 @@ logger = logging.getLogger(__name__)
 
 class Jacobians(JacobiansGLMALL):
 
-    def _W_a(
+    def _weights_jac_a(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale,
     ):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
             const = tf.multiply(
-                tf.sparse.add(X, r),
+                tf.sparse.add(X, scale),
                 tf.divide(
-                    mu,
-                    tf.add(mu, r)
+                    loc,
+                    tf.add(loc, scale)
                 )
             )
             const = tf.sparse.add(X, -const)
         else:
             const = tf.multiply(
-                tf.add(X, r),
+                tf.add(X, scale),
                 tf.divide(
-                    mu,
-                    tf.add(mu, r)
+                    loc,
+                    tf.add(loc, scale)
                 )
             )
             const = tf.subtract(X, const)
         return const
 
-
-    def _W_b(
+    def _weights_jac_b(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale,
     ):
         # Pre-define sub-graphs that are used multiple times:
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            r_plus_x = tf.sparse.add(X, r)
+            scale_plus_x = tf.sparse.add(X, scale)
         else:
-            r_plus_x = r + X
+            scale_plus_x = scale + X
 
-        r_plus_mu = r + mu
+        r_plus_mu = scale + loc
 
         # Define graphs for individual terms of constant term of hessian:
         const1 = tf.subtract(
-            tf.math.digamma(x=r_plus_x),
-            tf.math.digamma(x=r)
+            tf.math.digamma(x=scale_plus_x),
+            tf.math.digamma(x=scale)
         )
-        const2 = tf.negative(r_plus_x / r_plus_mu)
+        const2 = tf.negative(scale_plus_x / r_plus_mu)
         const3 = tf.add(
-            tf.log(r),
+            tf.log(scale),
             scalar_one - tf.log(r_plus_mu)
         )
         const = tf.add_n([const1, const2, const3])  # [observations, features]
-        const = r * const
+        const = scale * const
 
         return const

@@ -1,5 +1,4 @@
 import abc
-from copy import copy, deepcopy
 from typing import Union
 import logging
 import pprint
@@ -10,15 +9,14 @@ import tensorflow as tf
 import numpy as np
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, InputData, _Model_GLM, SparseXArrayDataArray
+from .external import MonitoredTFEstimator, InputData, SparseXArrayDataArray
 
 logger = logging.getLogger(__name__)
 
 
 class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     """
-    Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
-    Uses the natural logarithm as linker function.
+    Estimator for Generalized Linear Models (GLMs).
     """
 
     class TrainingStrategy(Enum):
@@ -31,21 +29,19 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def __init__(
             self,
             input_data: InputData,
-            batch_size: int = 500,
-            graph: tf.Graph = None,
-            init_model: _Model_GLM = None,
-            init_a: Union[np.ndarray, str] = "AUTO",
-            init_b: Union[np.ndarray, str] = "AUTO",
-            quick_scale: bool = False,
-            model: EstimatorGraphAll = None,
-            provide_optimizers: dict = None,
-            termination_type: str = "by_feature",
-            extended_summary=False,
-            noise_model: str = None,
-            dtype=tf.float64
+            batch_size: int,
+            graph: tf.Graph,
+            init_a: Union[np.ndarray],
+            init_b: Union[np.ndarray],
+            model: EstimatorGraphAll,
+            provide_optimizers: dict,
+            provide_batched: bool,
+            extended_summary,
+            noise_model: str,
+            dtype: str
     ):
         """
-        Create a new Estimator
+        Create a new estimator for a GLM-like model.
 
         :param input_data: InputData
             The input data
@@ -54,43 +50,28 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param graph: (optional) tf.Graph
         :param init_model: (optional)
             If provided, this model will be used to initialize this Estimator.
-        :param init_a: (Optional)
-            Low-level initial values for a. Can be:
-
-            - str:
-                * "auto": automatically choose best initialization
-                * "random": initialize with random values
-                * "standard": initialize intercept with observed mean
-                * "init_model": initialize with another model (see `ìnit_model` parameter)
-                * "closed_form": try to initialize with closed form
-            - np.ndarray: direct initialization of 'a'
-        :param init_b: (Optional)
-            Low-level initial values for b. Can be:
-
-            - str:
-                * "auto": automatically choose best initialization
-                * "random": initialize with random values
-                * "standard": initialize with zeros
-                * "init_model": initialize with another model (see `ìnit_model` parameter)
-                * "closed_form": try to initialize with closed form
-            - np.ndarray: direct initialization of 'b'
+        :param init_a: np.ndarray
+            Initialization of 'a' (location) model.
+        :param init_b: np.ndarray
+            Initialization of 'b' (scale) model.
         :param quick_scale: bool
             Whether `scale` will be fitted faster and maybe less accurate.
         :param model: EstimatorGraph
             EstimatorGraph to use. Basically for debugging.
         :param provide_optimizers:
 
-            E.g. {"gd": True, "adam": True, "adagrad": True, "rmsprop": True, "nr": True, "irls": True}
-        :param termination_type:
-        :param extended_summary:
-        :param dtype: Precision used in tensorflow.
-
-        Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
+            E.g.    {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
+                    "nr": False, "nr_tr": True, "irls": False, "irls_tr": False}
+        :param provide_batched: bool
+            Whether mini-batched optimizers should be provided.
         :param extended_summary: Include detailed information in the summaries.
-            Will drastically increase runtime of summary writer, use only for debugging.
+            Will increase runtime of summary writer, use only for debugging.
+        :param dtype: Precision used in tensorflow.
         """
         if noise_model == "nb":
             from .external_nb import EstimatorGraph
+        elif noise_model == "norm":
+            from .external_norm import EstimatorGraph
         else:
             raise ValueError("noise model %s was not recognized" % noise_model)
         self.noise_model = noise_model
@@ -181,23 +162,23 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # create model
             model = EstimatorGraph(
                 fetch_fn=fetch_fn,
-                feature_isnonzero=self._input_data.feature_isnonzero,
-                num_observations=self._input_data.num_observations,
-                num_features=self._input_data.num_features,
-                num_design_loc_params=self._input_data.num_design_loc_params,
-                num_design_scale_params=self._input_data.num_design_scale_params,
-                num_loc_params=self._input_data.num_loc_params,
-                num_scale_params=self._input_data.num_scale_params,
+                feature_isnonzero=self.input_data.feature_isnonzero,
+                num_observations=self.input_data.num_observations,
+                num_features=self.input_data.num_features,
+                num_design_loc_params=self.input_data.num_design_loc_params,
+                num_design_scale_params=self.input_data.num_design_scale_params,
+                num_loc_params=self.input_data.num_loc_params,
+                num_scale_params=self.input_data.num_scale_params,
                 batch_size=batch_size,
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                constraints_loc=self._input_data.constraints_loc,
-                constraints_scale=self._input_data.constraints_scale,
+                constraints_loc=self.input_data.constraints_loc,
+                constraints_scale=self.input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
+                provide_batched=provide_batched,
                 train_loc=self._train_loc,
                 train_scale=self._train_scale,
-                termination_type=termination_type,
                 extended_summary=extended_summary,
                 noise_model=self.noise_model,
                 dtype=dtype
@@ -222,7 +203,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
               stopping_criteria=0.05,
               train_mu: bool = None,
               train_r: bool = None,
-              use_batching=True,
+              use_batching=False,
               optim_algo="gradient_descent",
               **kwargs):
         r"""
@@ -272,26 +253,36 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         # Check whether newton-rhapson is desired:
         newton_type_mode = False
+        trustregion_mode = False
+        is_nr_tr = False
+        is_irls_tr = False
+
         if optim_algo.lower() == "newton" or \
-                optim_algo.lower() == "newton-raphson" or \
                 optim_algo.lower() == "newton_raphson" or \
-                optim_algo.lower() == "nr" or \
-                optim_algo.lower() == "irls" or \
-                optim_algo.lower() == "iwls" or \
-                optim_algo.lower() == "newton-trust-region" or \
-                optim_algo.lower() == "newton_trust_region" or \
-                optim_algo.lower() == "newton-raphson-trust-region" or \
-                optim_algo.lower() == "newton_raphson_trust_region" or \
-                optim_algo.lower() == "newton_tr" or \
-                optim_algo.lower() == "nr_tr" or \
-                optim_algo.lower() == "irls_tr" or \
-                optim_algo.lower() == "iwls_tr" or \
-                optim_algo.lower() == "irls_trust_region" or \
-                optim_algo.lower() == "iwls_trust_region" or \
-                optim_algo.lower() == "irls-trust-region" or \
-                optim_algo.lower() == "iwls-trust-region":
+                optim_algo.lower() == "nr":
             newton_type_mode = True
-        # Set learning rae defaults if not set by user.
+
+        if optim_algo.lower() == "irls" or \
+                optim_algo.lower() == "iwls" or \
+                optim_algo.lower() == "irls_gd" or \
+                optim_algo.lower() == "iwls_gd":
+            newton_type_mode = True
+
+        if optim_algo.lower() == "newton_tr" or \
+                optim_algo.lower() == "nr_tr":
+            newton_type_mode = True
+            trustregion_mode = True
+            is_nr_tr = True
+
+        if optim_algo.lower() == "irls_tr" or \
+                optim_algo.lower() == "iwls_tr" or \
+                optim_algo.lower() == "irls_gd_tr" or \
+                optim_algo.lower() == "iwls_gd_tr":
+            newton_type_mode = True
+            trustregion_mode = True
+            is_irls_tr = True
+
+        # Set learning rate defaults if not set by user.
         if learning_rate is None:
             if newton_type_mode:
                 learning_rate = 1
@@ -323,10 +314,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         if train_mu or train_r:
             if use_batching:
-                loss = self.model.batched_data_model.loss
                 train_op = self.model.trainer_batch.train_op_by_name(optim_algo)
             else:
-                loss = self.model.full_data_model.loss
                 train_op = self.model.trainer_full.train_op_by_name(optim_algo)
 
             super().train(*args,
@@ -334,8 +323,11 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                           convergence_criteria=convergence_criteria,
                           loss_window_size=loss_window_size,
                           stopping_criteria=stopping_criteria,
-                          loss=loss,
                           train_op=train_op,
+                          trustregion_mode=trustregion_mode,
+                          is_nr_tr=is_nr_tr,
+                          is_irls_tr=is_irls_tr,
+                          is_batched=use_batching,
                           **kwargs)
 
     def train_sequence(self, training_strategy):
@@ -350,7 +342,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
 
         for idx, d in enumerate(training_strategy):
-            self.model.model_vars.converged = False
             logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
             logger.info("Training sequence #%d complete", idx + 1)
@@ -390,9 +381,12 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     def finalize(self):
         if self.noise_model == "nb":
             from .external_nb import EstimatorStoreXArray
+        elif self.noise_model == "norm":
+            from .external_norm import EstimatorStoreXArray
         else:
             raise ValueError("noise model not recognized")
 
+        self.session.run(self.model.full_data_model.final_set)
         store = EstimatorStoreXArray(self)
         logger.debug("Closing session")
         self.close_session()

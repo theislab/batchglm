@@ -1,11 +1,10 @@
 import abc
 import logging
-from typing import List
 import unittest
 import numpy as np
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM, InputData, _Simulator_GLM
+from batchglm.models.base_glm import _Estimator_GLM, InputData
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -15,20 +14,22 @@ class _Test_ExtremValues_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM
+            estimator: _Estimator_GLM,
+            algo
     ):
         self.estimator = estimator
+        self.algo = algo
 
     def estimate(
-            self,
-        ):
+            self
+    ):
         self.estimator.initialize()
         self.estimator.train_sequence(training_strategy=[
             {
                 "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-4,
+                "stopping_criteria": 1e-8,
                 "use_batching": False,
-                "optim_algo": "IRLS",
+                "optim_algo": self.algo
             },
         ])
 
@@ -48,9 +49,6 @@ class Test_ExtremValues_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             - Train b model only: test_zero_variance_b_only()
         - Low mean features: test_low_values()
     """
-    sim: _Simulator_GLM
-    _estims: List[_Test_ExtremValues_GLM_Estim]
-
     def setUp(self):
         self._estims = []
 
@@ -86,9 +84,8 @@ class Test_ExtremValues_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def get_estimator(
             self,
             input_data: InputData,
-            termination,
             quick_scale
-    ) -> _Estimator_GLM:
+    ) -> _Test_ExtremValues_GLM_Estim:
         pass
 
     def _basic_test(
@@ -106,21 +103,11 @@ class Test_ExtremValues_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         :param quick_scale:
         :return:
         """
-        # Run estimation with termination by feature:
         estimator = self.get_estimator(
             input_data=input_data,
-            termination="by_feature",
             quick_scale=quick_scale
         )
-        self._estims.append(estimator)
-
-        # Run estimation with termination globally:
-        estimator = self.get_estimator(
-            input_data=input_data,
-            termination="global",
-            quick_scale=quick_scale
-        )
-        self._estims.append(estimator)
+        estimator.estimate()
 
         return True
 

@@ -22,7 +22,7 @@ ESTIMATOR_PARAMS.update({
 class ProcessModelGLM(ProcessModelBase):
 
     @abc.abstractmethod
-    def param_bounds(self, dtype):
+    def param_bounds(self, dtype: str):
         pass
 
 
@@ -47,11 +47,11 @@ class ModelVarsGLM(ProcessModelGLM):
 
     def __init__(
             self,
-            dtype,
-            init_a,
-            init_b,
-            constraints_loc,
-            constraints_scale
+            dtype: str,
+            init_a: np.ndarray,
+            init_b: np.ndarray,
+            constraints_loc: tf.Tensor,
+            constraints_scale: tf.Tensor
     ):
         """
 
@@ -102,12 +102,21 @@ class ModelVarsGLM(ProcessModelGLM):
         self.a_var = self.tf_clip_param(a_var, "a_var")
         self.b_var = self.tf_clip_param(b_var, "b_var")
 
-        self.a = tf.matmul(constraints_loc,  self.a_var)
-        self.b = tf.matmul(constraints_scale,  self.b_var)
+        if constraints_loc is not None:
+            self.a = tf.matmul(constraints_loc,  self.a_var)
+        else:
+            self.a = self.a_var
+
+        if constraints_scale is not None:
+            self.b = tf.matmul(constraints_scale,  self.b_var)
+        else:
+            self.b = self.b_var
 
         # Properties to follow gene-wise convergence.
-        self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
         self.updated = tf.Variable(np.repeat(a=True, repeats=self.params.shape[1]))  # Initialise to is updated.
+        self.converged = tf.Variable(np.repeat(a=False, repeats=self.params.shape[1]))  # Initialise to non-converged.
+        self.convergence_status = tf.placeholder(shape=[self.params.shape[1]], dtype=tf.bool)
+        self.convergence_update = tf.assign(self.converged, self.convergence_status)
         #self.params_by_gene = params_by_gene
         #self.a_by_gene = a_by_gene
         #self.b_by_gene = b_by_gene
@@ -116,56 +125,8 @@ class ModelVarsGLM(ProcessModelGLM):
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
         self.n_features = self.params.shape[1]
-
-    @abc.abstractmethod
-    def param_bounds(self, dtype):
-        pass
-
-
-class ModelVarsEvalGLM(ProcessModelGLM):
-
-    a: tf.Tensor
-    b: tf.Tensor
-    a_var: tf.Tensor
-    b_var: tf.Tensor
-    params: tf.Tensor
-
-    def __init__(
-            self,
-            dtype,
-            init_a,
-            init_b,
-            constraints_loc,
-            constraints_scale
-    ):
-        self.dtype = dtype
-        self.constraints_loc = constraints_loc
-        self.constraints_scale = constraints_scale
-
-        # Properties to follow gene-wise convergence.
-        self.converged = np.repeat(a=False, repeats=init_a.shape[1])  # Initialise to non-converged.
-        self.n_features = init_a.shape[1]
-
-        self.init_a_shape = init_a.shape
-        self.init_b_shape = init_b.shape
-
-    def new(
-            self,
-            params: tf.Tensor
-    ):
-        """
-
-        """
-        self.params = params
-
-        a_var = self.params[:self.init_a_shape[0]]
-        b_var = self.params[self.init_a_shape[0]:]
-
-        self.a_var = self.tf_clip_param(a_var, "a_var")
-        self.b_var = self.tf_clip_param(b_var, "b_var")
-
-        self.a = tf.matmul(self.constraints_loc,  self.a_var)
-        self.b = tf.matmul(self.constraints_scale,  self.b_var)
+        self.idx_train_loc = np.arange(0, init_a.shape[0])
+        self.idx_train_scale = np.arange(init_a.shape[0], init_a.shape[0]+init_b.shape[0])
 
     @abc.abstractmethod
     def param_bounds(self, dtype):
@@ -187,63 +148,6 @@ class BasicModelGraphGLM(ProcessModelGLM):
     norm_log_likelihood: tf.Tensor
     norm_neg_log_likelihood: tf.Tensor
     loss: tf.Tensor
-
-    def __init__(
-            self,
-            X,
-            design_loc,
-            design_scale,
-            constraints_loc,
-            constraints_scale,
-            a_var,
-            b_var,
-            dtype,
-            size_factors=None
-    ):
-        """
-
-        :param X: tensor (observations x features)
-            The input data.
-        :param design_loc: Some matrix format (observations x mean model parameters)
-            The location design model. Optional if already specified in `data`
-        :param design_scale: Some matrix format (observations x dispersion model parameters)
-            The scale design model. Optional if already specified in `data`
-        :param constraints_loc: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the mean model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param constraints_scale: tensor (all parameters x dependent parameters)
-            Tensor that encodes how complete parameter set which includes dependent
-            parameters arises from indepedent parameters: all = <constraints, indep>.
-            This tensor describes this relation for the dispersion model.
-            This form of constraints is used in vector generalized linear models (VGLMs).
-        :param b_var: tf.Variable or tensor (dispersion model size x features)
-            Dispersion model variables.
-        :param dtype: Precision used in tensorflow.
-        :param size_factors: tensor (observations x features)
-            Constant scaling factors for mean model, such as library size factors.
-        """
-        eta_loc = tf.matmul(design_loc, tf.matmul(constraints_loc, a_var))
-        if size_factors is not None:
-            eta_loc = tf.add(eta_loc, size_factors)
-        eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
-
-        eta_scale = tf.matmul(design_scale, tf.matmul(constraints_scale, b_var))
-        eta_scale = self.tf_clip_param(eta_scale, "eta_scale")
-
-        self.X = X
-        self.design_loc = design_loc
-        self.design_scale = design_scale
-        self.constraints_loc = constraints_loc
-        self.constraints_scale = constraints_scale
-        self.a_var = a_var
-        self.b_var = b_var
-        self.size_factors = size_factors
-        self.dtype = dtype
-
-        self.eta_loc = eta_loc
-        self.eta_scale = eta_scale
 
     @property
     def probs(self):

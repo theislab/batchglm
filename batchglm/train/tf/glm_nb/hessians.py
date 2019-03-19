@@ -9,85 +9,85 @@ logger = logging.getLogger(__name__)
 
 class Hessians(HessianGLMALL):
 
-    def _W_ab(
+    def _weight_hessian_ab(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale,
     ):
         if isinstance(X, tf.SparseTensor):
-            X_minus_mu = tf.sparse.add(X, -mu)
+            X_minus_mu = tf.sparse.add(X, -loc)
         else:
-            X_minus_mu = X - mu
+            X_minus_mu = X - loc
 
         const = tf.multiply(
-            mu * r,
+            loc * scale,
             tf.divide(
                 X_minus_mu,
-                tf.square(mu + r)
+                tf.square(loc + scale)
             )
         )
 
         return const
 
-    def _W_aa(
+    def _weight_hessian_aa(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale,
     ):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            X_by_r_plus_one = tf.sparse.add(X.__div__(r), tf.ones_like(r))
+            X_by_scale_plus_one = tf.sparse.add(X.__div__(scale), tf.ones_like(scale))
         else:
-            X_by_r_plus_one = X / r + tf.ones_like(r)
+            X_by_scale_plus_one = X / scale + tf.ones_like(scale)
 
         const = tf.negative(tf.multiply(
-            mu,
+            loc,
             tf.divide(
-                X_by_r_plus_one,
-                tf.square((mu / r) + tf.ones_like(mu))
+                X_by_scale_plus_one,
+                tf.square((loc / scale) + tf.ones_like(loc))
             )
         ))
 
         return const
 
-    def _W_bb(
+    def _weight_hessian_bb(
             self,
             X,
-            mu,
-            r,
+            loc,
+            scale,
     ):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            r_plus_x = tf.sparse.add(X, r)
+            scale_plus_x = tf.sparse.add(X, scale)
         else:
-            r_plus_x = X + r
+            scale_plus_x = X + scale
 
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
         scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
         # Pre-define sub-graphs that are used multiple times:
-        r_plus_mu = r + mu
+        scale_plus_loc = scale + loc
         # Define graphs for individual terms of constant term of hessian:
         const1 = tf.add(
-            tf.math.digamma(x=r_plus_x),
-            r * tf.math.polygamma(a=scalar_one, x=r_plus_x)
+            tf.math.digamma(x=scale_plus_x),
+            scale * tf.math.polygamma(a=scalar_one, x=scale_plus_x)
         )
         const2 = tf.negative(tf.add(
-            tf.math.digamma(x=r),
-            r * tf.math.polygamma(a=scalar_one, x=r)
+            tf.math.digamma(x=scale),
+            scale * tf.math.polygamma(a=scalar_one, x=scale)
         ))
         const3 = tf.negative(tf.divide(
             tf.add(
-                mu * r_plus_x,
-                scalar_two * r * r_plus_mu
+                loc * scale_plus_x,
+                scalar_two * scale * scale_plus_loc
             ),
-            tf.square(r_plus_mu)
+            tf.square(scale_plus_loc)
         ))
         const4 = tf.add(
-            tf.log(r),
-            scalar_two - tf.log(r_plus_mu)
+            tf.log(scale),
+            scalar_two - tf.log(scale_plus_loc)
         )
         const = tf.add_n([const1, const2, const3, const4])
-        const = tf.multiply(r, const)
+        const = tf.multiply(scale, const)
         return const
 
 

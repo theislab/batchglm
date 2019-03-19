@@ -1,3 +1,5 @@
+import numpy as np
+
 from .model import Model
 from .external import rand_utils, _Simulator_GLM
 
@@ -18,6 +20,21 @@ class Simulator(_Simulator_GLM, Model):
             self,
             num_observations=num_observations,
             num_features=num_features
+        )
+
+    def generate_params(
+            self,
+            rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
+            rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
+            rand_fn_loc=None,
+            rand_fn_scale=None,
+        ):
+        self._generate_params(
+            self,
+            rand_fn_ave=rand_fn_ave,
+            rand_fn=rand_fn,
+            rand_fn_loc=rand_fn_loc,
+            rand_fn_scale=rand_fn_scale,
         )
 
     def generate_data(self):

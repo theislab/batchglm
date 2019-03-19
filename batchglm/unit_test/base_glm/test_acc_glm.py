@@ -25,23 +25,20 @@ class _Test_Accuracy_GLM_Estim():
             self,
             algo,
             batched,
-            termination,
             acc,
         ):
         self.estimator.initialize()
 
         # Choose learning rate based on optimizer
-        if algo.lower() in ["nr", "nr_tr", "irls", "irls_tr"]:
+        if algo.lower() in ["nr", "nr_tr", "irls", "irls_gd", "irls_tr", "irls_gd_tr"]:
             lr = 1
-        elif algo.lower() == "gd":
-            lr = 0.05
         else:
-            lr = 0.5
+            lr = 0.05
 
         self.estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": lr,
-                "convergence_criteria": "all_converged_ll" if termination == "by_feature" else "scaled_moving_average",
+                "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": acc,
                 "use_batching": batched,
                 "optim_algo": algo,
@@ -64,15 +61,15 @@ class _Test_Accuracy_GLM_Estim():
             threshold_std_a = 1
             threshold_std_b = 2
 
-        mean_dev_a = np.mean(estimator_store.a.values - self.sim.a.values)
-        std_dev_a = np.std(estimator_store.a.values - self.sim.a.values)
-        mean_dev_b = np.mean(estimator_store.b.values - self.sim.b.values)
-        std_dev_b = np.std(estimator_store.b.values - self.sim.b.values)
+        mean_dev_a = np.mean(estimator_store.a - self.sim.a.values)
+        std_dev_a = np.std(estimator_store.a - self.sim.a.values)
+        mean_dev_b = np.mean(estimator_store.b - self.sim.b.values)
+        std_dev_b = np.std(estimator_store.b - self.sim.b.values)
 
-        logger.info("mean_dev_a %f" % mean_dev_a)
-        logger.info("std_dev_a %f" % std_dev_a)
-        logger.info("mean_dev_b %f" % mean_dev_b)
-        logger.info("std_dev_b %f" % std_dev_b)
+        logging.getLogger("batchglm").info("mean_dev_a %f" % mean_dev_a)
+        logging.getLogger("batchglm").info("std_dev_a %f" % std_dev_a)
+        logging.getLogger("batchglm").info("mean_dev_b %f" % mean_dev_b)
+        logging.getLogger("batchglm").info("std_dev_b %f" % std_dev_b)
 
         if np.abs(mean_dev_a) < threshold_dev_a and \
                 np.abs(mean_dev_b) < threshold_dev_b and \
@@ -84,39 +81,6 @@ class _Test_Accuracy_GLM_Estim():
 
 
 class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
-    """
-    Test whether optimizers yield exact results.
-
-    Accuracy is evaluted via deviation of simulated ground truth.
-    The unit tests test individual training graphs and multiple optimizers
-    (incl. one tensorflow internal optimizer and newton-rhapson)
-    for each training graph. The training graphs tested are as follows:
-
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
-
-    The unit tests throw an assertion error if the required accuracy is
-    not met. Accuracy thresholds are fairly lenient so that unit_tests
-    pass even with noise inherent in fast optimisation and random
-    initialisation in simulation. Still, large biases (i.e. graph errors)
-    should be discovered here.
-    """
     _estims: List[_Test_Accuracy_GLM_Estim]
 
     def setUp(self):
@@ -154,7 +118,6 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             self,
             estimator,
             batched,
-            termination,
             algos
     ):
         for algo in algos:
@@ -162,8 +125,7 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             estimator.estimate(
                 algo=algo,
                 batched=batched,
-                termination=termination,
-                acc=1e-6 if algo in ["NR", "NR_TR", "IRLS", "IRLS_TR"] else 1e-4
+                acc=1e-6
             )
             estimator_store = estimator.estimator.finalize()
             self._estims.append(estimator)
@@ -179,116 +141,55 @@ class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def basic_test(
             self,
             batched,
-            termination,
             train_loc,
             train_scale,
             sparse
     ):
         pass
 
-    def _test_full_byfeature_a_and_b(self, sparse):
+    def _test_full_a_and_b(self, sparse):
         return self.basic_test(
             batched=False,
-            termination="by_feature",
             train_loc=True,
             train_scale=True,
             sparse=sparse
         )
 
-    def _test_full_byfeature_a_only(self, sparse):
+    def _test_full_a_only(self, sparse):
         return self.basic_test(
             batched=False,
-            termination="by_feature",
             train_loc=True,
             train_scale=False,
             sparse=sparse
         )
 
-    def _test_full_byfeature_b_only(self, sparse):
+    def _test_full_b_only(self, sparse):
         return self.basic_test(
             batched=False,
-            termination="by_feature",
             train_loc=False,
             train_scale=True,
             sparse=sparse
         )
 
-    def _test_batched_byfeature_a_and_b(self, sparse):
+    def _test_batched_a_and_b(self, sparse):
         return self.basic_test(
             batched=True,
-            termination="by_feature",
             train_loc=True,
             train_scale=True,
             sparse=sparse
         )
 
-    def _test_batched_byfeature_a_only(self, sparse):
+    def _test_batched_a_only(self, sparse):
         return self.basic_test(
             batched=True,
-            termination="by_feature",
             train_loc=True,
             train_scale=False,
             sparse=sparse
         )
 
-    def _test_batched_byfeature_b_only(self, sparse):
+    def _test_batched_b_only(self, sparse):
         return self.basic_test(
             batched=True,
-            termination="by_feature",
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_full_global_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_full_global_a_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
-
-    def _test_full_global_b_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            termination="global",
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_batched_global_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
-
-    def _test_batched_global_a_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            termination="global",
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
-
-    def _test_batched_global_b_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            termination="global",
             train_loc=False,
             train_scale=True,
             sparse=sparse

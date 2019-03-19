@@ -65,6 +65,8 @@ class _Model_Base(metaclass=abc.ABCMeta):
                     if i in coords.coords:
                         output.coords[i] = coords[i]
 
+            #TODO: output['a_var'] does not have the correct dimension names!
+
         return output
 
     def to_anndata(self, parm: list, adata: anndata.AnnData):

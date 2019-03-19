@@ -29,7 +29,7 @@ class _Test_AccuracyAnalytic_GLM_Estim():
                 "convergence_criteria": "all_converged_ll",
                 "stopping_criteria": 1e-6,
                 "use_batching": False,
-                "optim_algo": "nr_tr",
+                "optim_algo": "irls_gd_tr",
             },
         ])
 
@@ -42,16 +42,16 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         threshold_std = 1e-1
 
         if init == "standard":
-            mean_dev = np.mean(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
-            std_dev = np.std(estimator_store.a.values[0, :] - self.sim.a.values[0, :])
+            mean_dev = np.mean(estimator_store.a[0, :] - self.sim.a[0, :])
+            std_dev = np.std(estimator_store.a[0, :] - self.sim.a[0, :])
         elif init == "closed_form":
-            mean_dev = np.mean(estimator_store.a.values - self.sim.a.values)
-            std_dev = np.std(estimator_store.a.values - self.sim.a.values)
+            mean_dev = np.mean(estimator_store.a - self.sim.a)
+            std_dev = np.std(estimator_store.a - self.sim.a)
         else:
             assert False
 
-        logger.info("mean_dev_a %f" % mean_dev)
-        logger.info("std_dev_a %f" % std_dev)
+        logging.getLogger("batchglm").info("mean_dev_a %f" % mean_dev)
+        logging.getLogger("batchglm").info("std_dev_a %f" % std_dev)
 
         if np.abs(mean_dev) < threshold_dev and \
                 std_dev < threshold_std:
@@ -68,16 +68,16 @@ class _Test_AccuracyAnalytic_GLM_Estim():
         threshold_std = 12-1
 
         if init == "standard":
-            mean_dev = np.mean(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
-            std_dev = np.std(estimator_store.b.values[0, :] - self.sim.b.values[0, :])
+            mean_dev = np.mean(estimator_store.b[0, :] - self.sim.b[0, :])
+            std_dev = np.std(estimator_store.b[0, :] - self.sim.b[0, :])
         elif init == "closed_form":
-            mean_dev = np.mean(estimator_store.b.values - self.sim.b.values)
-            std_dev = np.std(estimator_store.b.values - self.sim.b.values)
+            mean_dev = np.mean(estimator_store.b - self.sim.b)
+            std_dev = np.std(estimator_store.b - self.sim.b)
         else:
             assert False
 
-        logger.info("mean_dev_b %f" % mean_dev)
-        logger.info("std_dev_b %f" % std_dev)
+        logging.getLogger("batchglm").info("mean_dev_b %f" % mean_dev)
+        logging.getLogger("batchglm").info("std_dev_b %f" % std_dev)
 
         if np.abs(mean_dev) < threshold_dev and \
                 std_dev < threshold_std:
@@ -91,13 +91,12 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     Test whether analytic solutions yield exact results.
 
     Accuracy is evaluted via deviation of simulated ground truth.
-    The analytic solution is independent of the optimizer, batching and
-    termination mode and therefore only tested for one example each.
+    The analytic solution is independent of the optimizer and batching
+    and therefore only tested for one example each.
 
-    - termination by feature
-        - full data model
-            - train a model only: test_a_analytic()
-            - train b model only: test_b_analytic()
+    - full data model
+        - train a model only: test_a_analytic()
+        - train b model only: test_b_analytic()
 
     The unit tests throw an assertion error if the required accurcy is
     not met.
@@ -172,7 +171,7 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def get_estimator(self, train_scale, sparse, init_a, init_b):
         pass
 
-    def _test_a_and_b_closed(self, sparse, init_a, init_b):
+    def _test_a_and_b(self, sparse, init_a, init_b):
         estimator = self.get_estimator(
             train_scale=False,
             sparse=sparse,
@@ -186,12 +185,12 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             estimator_store=estimator_store,
             init=init_a
         )
-        assert success, "closed form for a model was inaccurate"
+        assert success, "estimation for a_model was inaccurate"
         success = estimator.eval_estimation_b(
             estimator_store=estimator_store,
             init=init_b
         )
-        assert success, "closed form for b model was inaccurate"
+        assert success, "estimation for b_model was inaccurate"
         return True
 
 

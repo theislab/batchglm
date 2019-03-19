@@ -5,6 +5,7 @@ try:
 except ImportError:
     anndata = None
 
+import numpy as np
 import xarray as xr
 
 from .input import InputData, INPUT_DATA_PARAMS
@@ -19,8 +20,8 @@ MODEL_PARAMS.update({
     "log_likelihood": (),
     "a_var": ("loc_params", "features"),
     "b_var": ("scale_params", "features"),
-    "par_link_loc": ("loc_params", "features"),
-    "par_link_scale": ("scale_params", "features"),
+    "par_link_loc": ("design_loc_params", "features"),
+    "par_link_scale": ("design_scale_params", "features"),
 })
 
 class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
@@ -64,20 +65,24 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
 
     @property
     def eta_loc(self) -> xr.DataArray:
-        eta = self.design_loc.dot(
-            self.constraints_loc.dot(self.par_link_loc, dims="loc_params"),
-            dims="design_loc_params"
-        )
+        # TODO: take this switch out once xr.dataset slicing yields dataarray with loc_names coordinate:
+        if isinstance(self.par_link_loc, xr.DataArray):
+            eta = self.design_loc.dot(self.par_link_loc, dims="design_loc_params")
+        else:
+            eta = np.matmul(self.design_loc.values, self.par_link_loc)
+
         if self.size_factors is not None:
-            eta += self.link_loc(self.size_factors)
+            eta += self.link_loc(np.expand_dims(self.size_factors, axis=1))
         return eta
 
     @property
     def eta_scale(self) -> xr.DataArray:
-        eta = self.design_scale.dot(
-            self.constraints_scale.dot(self.par_link_scale, dims="scale_params"),
-            dims="design_scale_params"
-        )
+        # TODO: take this switch out once xr.dataset slicing yields dataarray with loc_names coordinate:
+        if isinstance(self.par_link_loc, xr.DataArray):
+            eta = self.design_scale.dot(self.par_link_scale, dims="design_scale_params")
+        else:
+            eta = np.matmul(self.design_scale.values, self.par_link_scale)
+
         return eta
 
     @property
@@ -124,11 +129,15 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
 
     @property
     def a(self) -> xr.DataArray:
-        return self.constraints_loc.dot(self.a_var, dims="loc_params")
+        # TODO: take this out once xr.dataset slicing yields dataarray with loc_names coordinate:
+        #return self.constraints_loc.dot(self.a_var, dims="loc_params")
+        return np.matmul(self.constraints_loc.values, self.a_var.values)
 
     @property
     def b(self) -> xr.DataArray:
-        return self.constraints_scale.dot(self.b_var, dims="scale_params")
+        # TODO: take this out once xr.dataset slicing yields dataarray with loc_names coordinate:
+        #return self.constraints_scale.dot(self.b_var, dims="scale_params")
+        return np.matmul(self.constraints_scale.values, self.b_var.values)
 
     @abc.abstractmethod
     def link_loc(self, data):

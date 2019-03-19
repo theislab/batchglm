@@ -28,17 +28,19 @@ class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
 
         batch_size = 10
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         estimator = Estimator(
             input_data=input_data,
             batch_size=batch_size,
             quick_scale=True,
             provide_optimizers=provide_optimizers,
-            termination_type="by_feature"
+            provide_batched=True
         )
         super().__init__(
-            estimator=estimator
+            estimator=estimator,
+            algo="IRLS_GD_TR"
         )
 
 

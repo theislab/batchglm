@@ -18,8 +18,8 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             self,
             simulator,
             quick_scale,
-            termination,
             algo,
+            batched,
             noise_model,
             sparse
     ):
@@ -28,12 +28,15 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
         else:
             if noise_model=="nb":
                 from batchglm.api.models.glm_nb import Estimator, InputData
+            elif noise_model=="norm":
+                from batchglm.api.models.glm_norm import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
         batch_size = 100
         provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                              "nr": False, "nr_tr": False, "irls": False, "irls_tr": False}
+                              "nr": False, "nr_tr": False,
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         provide_optimizers[algo.lower()] = True
 
         if sparse:
@@ -55,7 +58,7 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            termination_type=termination
+            provide_batched=batched
         )
         super().__init__(
             estimator=estimator,
@@ -76,24 +79,14 @@ class Test_Graph_GLM_ALL(
     set of unit_tests runs much faster and does not abort due
     to accuracy outliers. The training graphs covered are:
 
-    - termination by feature
-        - full data model
-            - train a and b model: test_full_byfeature_a_and_b()
-            - train a model only: test_full_byfeature_a_only()
-            - train b model only: test_full_byfeature_b_only()
-        - batched data model
-            - train a and b model: test_batched_byfeature_a_and_b()
-            - train a model only: test_batched_byfeature_a_only()
-            - train b model only: test_batched_byfeature_b_only()
-    - termination global
-        - full data model
-            - train a and b model: test_full_global_a_and_b()
-            - train a model only: test_full_global_a_only()
-            - train b model only: test_full_global_b_only()
-        - batched data model
-            - train a and b model: test_batched_global_a_and_b()
-            - train a model only: test_batched_global_a_only()
-            - train b model only: test_batched_global_b_only()
+     - full data model
+        - train a and b model: test_full_global_a_and_b()
+        - train a model only: test_full_global_a_only()
+        - train b model only: test_full_global_b_only()
+    - batched data model
+        - train a and b model: test_batched_global_a_and_b()
+        - train a model only: test_batched_global_a_only()
+        - train b model only: test_batched_global_b_only()
     """
     noise_model: str
     _estims: List[_Estimator_GLM]
@@ -104,6 +97,8 @@ class Test_Graph_GLM_ALL(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model=="norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -112,7 +107,6 @@ class Test_Graph_GLM_ALL(
     def basic_test_one_algo(
             self,
             batched,
-            termination,
             train_loc,
             train_scale,
             algo,
@@ -121,8 +115,8 @@ class Test_Graph_GLM_ALL(
         estimator = _Test_Graph_GLM_ALL_Estim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
-            termination=termination,
             algo=algo,
+            batched=batched,
             noise_model=self.noise_model,
             sparse=sparse
         )
@@ -131,33 +125,17 @@ class Test_Graph_GLM_ALL(
             batched=batched
         )
 
-    def _test_full_byfeature(self, sparse):
+    def _test_full(self, sparse):
         self.simulate()
-        logger.debug("* Running tests for full data and feature-wise termination")
-        super()._test_full_byfeature_a_and_b(sparse=sparse)
-        super()._test_full_byfeature_a_only(sparse=sparse)
-        super()._test_full_byfeature_b_only(sparse=sparse)
+        super()._test_full_a_and_b(sparse=sparse)
+        super()._test_full_a_only(sparse=sparse)
+        super()._test_full_b_only(sparse=sparse)
 
-    def _test_batched_byfeature(self, sparse):
+    def _test_batched(self, sparse):
         self.simulate()
-        logger.debug("* Running tests for batched data and feature-wise termination")
-        super()._test_batched_byfeature_a_and_b(sparse=sparse)
-        super()._test_batched_byfeature_a_only(sparse=sparse)
-        super()._test_batched_byfeature_b_only(sparse=sparse)
-
-    def _test_full_global(self, sparse):
-        self.simulate()
-        logger.debug("* Running tests for full data and global termination")
-        super()._test_full_global_a_and_b(sparse=sparse)
-        super()._test_full_global_a_only(sparse=sparse)
-        super()._test_full_global_b_only(sparse=sparse)
-
-    def _test_batched_global(self, sparse):
-        self.simulate()
-        logger.debug("* Running tests for batched data and global termination")
-        super()._test_batched_global_a_and_b(sparse=sparse)
-        super()._test_batched_global_a_only(sparse=sparse)
-        super()._test_batched_global_b_only(sparse=sparse)
+        super()._test_batched_a_and_b(sparse=sparse)
+        super()._test_batched_a_only(sparse=sparse)
+        super()._test_batched_b_only(sparse=sparse)
 
 
 class Test_Graph_GLM_NB(
@@ -168,41 +146,50 @@ class Test_Graph_GLM_NB(
     Test whether training graphs work for negative binomial noise.
     """
 
-    def test_full_byfeature_nb(self):
+    def test_full_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NB.test_full_byfeature_nb()")
+        logger.error("Test_Graph_GLM_NB.test_full_nb()")
 
         self.noise_model = "nb"
-        self._test_full_byfeature(sparse=False)
-        self._test_full_byfeature(sparse=True)
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
 
-    def test_batched_byfeature_nb(self):
+    def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NB.test_batched_byfeature_nb()")
+        logger.error("Test_Graph_GLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
-        self._test_batched_byfeature(sparse=False)
-        self._test_batched_byfeature(sparse=True)
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
 
-    def test_full_global_nb(self):
+class Test_Graph_GLM_NORM(
+    Test_Graph_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether training graphs work for normally distributed noise.
+    """
+
+    def test_full_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NB.test_full_global_nb()")
+        logger.error("Test_Graph_GLM_NORM.test_full_norm()")
 
-        self.noise_model = "nb"
-        self._test_full_global(sparse=False)
-        self._test_full_global(sparse=True)
+        self.noise_model = "norm"
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
 
-    def test_batched_global_nb(self):
+    def test_batched_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NB.test_batched_global_nb()")
+        logger.error("Test_Graph_GLM_NORM.test_batched_norm()")
 
-        self.noise_model = "nb"
-        self._test_batched_global(sparse=False)
-        self._test_batched_global(sparse=True)
+        self.noise_model = "norm"
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
+
 
 if __name__ == '__main__':
     unittest.main()

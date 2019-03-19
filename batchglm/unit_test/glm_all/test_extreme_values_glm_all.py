@@ -16,7 +16,6 @@ class _Test_ExtremValues_GLM_ALL_Estim(_Test_ExtremValues_GLM_Estim):
     def __init__(
             self,
             input_data,
-            termination,
             quick_scale,
             noise_model
     ):
@@ -30,17 +29,19 @@ class _Test_ExtremValues_GLM_ALL_Estim(_Test_ExtremValues_GLM_Estim):
 
         batch_size = 10
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True, "irls": True, "irls_tr": True}
+                              "nr": True, "nr_tr": True,
+                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         estimator = Estimator(
             input_data=input_data,
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            termination_type=termination
+            provide_batched=True
         )
         super().__init__(
-            estimator=estimator
+            estimator=estimator,
+            algo="IRLS_GD_TR"
         )
 
 
@@ -75,38 +76,28 @@ class Test_ExtremValues_GLM_ALL(Test_ExtremValues_GLM, unittest.TestCase):
     def get_estimator(
             self,
             input_data,
-            termination,
             quick_scale
     ):
         return _Test_ExtremValues_GLM_ALL_Estim(
             input_data=input_data,
-            termination=termination,
             quick_scale=quick_scale,
             noise_model=self.noise_model
         )
 
     def _test_low_values(self):
         self.simulate()
-        logger.debug("** Running tests for low values")
-        logger.debug("** Running a and b training test")
         self._test_low_values_a_and_b()
-        logger.debug("** Running a only training test")
         self._test_low_values_a_only()
-        logger.debug("** Running b only training test")
         self._test_low_values_b_only()
 
     def _test_zero_variance(self):
         self.simulate()
-        logger.debug("** Running tests for zero-variance features")
-        logger.debug("** Running a and b training test")
         self._test_zero_variance_a_and_b()
-        logger.debug("** Running a only training test")
         self._test_zero_variance_a_only()
-        logger.debug("** Running b only training test")
         self._test_zero_variance_b_only()
 
 
-class Test_ExtremValues_GLM_NB(
+class Test_ExtremeValues_GLM_NB(
     Test_ExtremValues_GLM_ALL,
     unittest.TestCase
 ):
@@ -117,8 +108,7 @@ class Test_ExtremValues_GLM_NB(
     def test_low_values_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_ExtremValues_GLM_NB.test_low_values_nb()")
-
+        logger.error("Test_ExtremeValues_GLM_NB.test_low_values_nb()")
 
         self.noise_model = "nb"
         self._test_low_values()
@@ -126,10 +116,11 @@ class Test_ExtremValues_GLM_NB(
     def test_zero_variance_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_ExtremValues_GLM_NB.test_zero_variance_nb()")
+        logger.error("Test_ExtremeValues_GLM_NB.test_zero_variance_nb()")
 
         self.noise_model = "nb"
         self._test_zero_variance()
+
 
 if __name__ == '__main__':
     unittest.main()
