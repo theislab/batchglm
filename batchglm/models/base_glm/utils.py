@@ -114,7 +114,6 @@ def closedform_glm_mean(
         dmat,
         constraints=None,
         size_factors=None,
-        weights=None,
         link_fn: Union[callable, None] = None,
         inv_link_fn: Union[callable, None] = None
 ):
@@ -128,7 +127,6 @@ def closedform_glm_mean(
         parameters arises from indepedent parameters: all = <constraints, indep>.
         This form of constraints is used in vector generalized linear models (VGLMs).
     :param size_factors: size factors for X
-    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
     :param link_fn: linker function for GLM
     :return: tuple: (groupwise_means, mu, rmsd)
     """
@@ -145,31 +143,10 @@ def closedform_glm_mean(
         else:
             grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
 
-        if weights is None:
-            if isinstance(X, SparseXArrayDataArray):
-                groupwise_means = X.group_means(X.dims[0])
-            else:
-                groupwise_means = grouped_data.mean(X.dims[0]).values
+        if isinstance(X, SparseXArrayDataArray):
+            groupwise_means = X.group_means(X.dims[0])
         else:
-            if isinstance(X, SparseXArrayDataArray):
-                assert False, "not implemented"
-
-            grouped_weights = xr.DataArray(
-                data=weights,
-                dims=(X.dims[0],),
-                coords={
-                    "group": ((X.dims[0],), grouping),
-                }
-            ).groupby("group")
-
-            groupwise_means: xr.DataArray = xr.concat([
-                weighted_mean(
-                    d,
-                    weights=w,
-                    axis=0
-                ) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
-            ], dim="group")
-            groupwise_means = groupwise_means.values
+            groupwise_means = grouped_data.mean(X.dims[0]).values
 
         if link_fn is None:
             return groupwise_means

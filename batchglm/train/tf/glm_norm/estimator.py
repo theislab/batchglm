@@ -12,7 +12,7 @@ from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
@@ -169,21 +169,43 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 if init_a.lower() == "auto":
                     init_a = "closed_form"
 
+                is_ols_model =  np.logical_and(
+                    input_data.design_scale.shape[1] == 1,
+                    np.all(np.abs(input_data.design_scale - 1.) < 1e-8)
+                )
+
+                sf_given = False
+                if input_data.size_factors is not None:
+                    if np.any(np.abs(input_data.size_factors - 1.) > 1e-8):
+                        sf_given = True
+
                 if init_a.lower() == "closed_form":
-                    groupwise_means, init_a, rmsd_a = closedform_norm_glm_mean(
-                        X=input_data.X,
-                        design_loc=input_data.design_loc,
-                        constraints_loc=input_data.constraints_loc.values,
-                        size_factors=size_factors_init,
-                        link_fn=lambda mean: self.np_clip_param(mean, "mean")
-                    )
+                    if not sf_given and is_ols_model:
+                        logger.info("using OLS for location model")
+                        design_constr = np.matmul(input_data.design_loc.values, input_data.constraints_loc.values)
+                        if isinstance(input_data.X, SparseXArrayDataArray):
+                            X = np.asarray(input_data.X.X.todense())
+                        init_a, rmsd_a, _, _ = np.linalg.lstsq(
+                            np.matmul(design_constr.T, design_constr),
+                            np.matmul(design_constr.T, X),
+                            rcond=None
+                        )
+                        groupwise_means = None
+                        self._train_loc = False
+                    else:
+                        groupwise_means, init_a, rmsd_a = closedform_norm_glm_mean(
+                            X=input_data.X,
+                            design_loc=input_data.design_loc,
+                            constraints_loc=input_data.constraints_loc.values,
+                            size_factors=size_factors_init,
+                            link_fn=lambda mean: self.np_clip_param(mean, "mean")
+                        )
 
-                    # train mean, if the closed-form solution is inaccurate
-                    self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
+                        # train mean, if the closed-form solution is inaccurate
+                        self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
 
-                    if input_data.size_factors is not None:
-                        if np.any(input_data.size_factors != 1):
-                            self._train_loc = True
+                    if sf_given:
+                        self._train_loc = True
 
                     logger.debug("Using closed-form MLE initialization for mean")
                     logger.debug("Should train mean: %s", self._train_loc)
@@ -213,21 +235,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 if init_b.lower() == "auto":
                     init_b = "standard"
 
-                if init_b.lower() == "standard":
-                    groupwise_scales, init_b_intercept, rmsd_b = closedform_norm_glm_logsd(
-                        X=input_data.X,
-                        design_scale=input_data.design_scale[:, [0]],
-                        constraints=input_data.constraints_scale[[0], [0]].values,
-                        size_factors=size_factors_init,
-                        groupwise_means=None,
-                        link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
-                    )
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
-                    init_b[0, :] = init_b_intercept
-
-                    logger.debug("Using closed-form MME initialization for standard deviation")
-                    logger.debug("Should train sd: %s", self._train_scale)
-                elif init_b.lower() == "closed_form":
+                if init_b.lower() == "closed_form":
                     dmats_unequal = False
                     if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
                         if np.any(input_data.design_loc.values != input_data.design_scale.values):
@@ -254,6 +262,20 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                     # train scale, if the closed-form solution is inaccurate
                     self._train_scale = not (np.all(rmsd_b == 0) or rmsd_b.size == 0)
+
+                    logger.debug("Using closed-form MME initialization for standard deviation")
+                    logger.debug("Should train sd: %s", self._train_scale)
+                elif init_b.lower() == "standard":
+                    groupwise_scales, init_b_intercept, rmsd_b = closedform_norm_glm_logsd(
+                        X=input_data.X,
+                        design_scale=input_data.design_scale[:, [0]],
+                        constraints=input_data.constraints_scale[[0], [0]].values,
+                        size_factors=size_factors_init,
+                        groupwise_means=None,
+                        link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
+                    )
+                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b[0, :] = init_b_intercept
 
                     logger.debug("Using closed-form MME initialization for standard deviation")
                     logger.debug("Should train sd: %s", self._train_scale)
