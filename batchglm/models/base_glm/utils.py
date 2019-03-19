@@ -186,24 +186,30 @@ def closedform_glm_mean(
     return inv_link_fn(linker_groupwise_means), mu, rmsd
 
 
-def closedform_glm_var(
+def closedform_glm_scale(
         X: Union[xr.DataArray, SparseXArrayDataArray],
-        dmat,
+        design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
-        weights=None,
-        link_fn: Union[callable, None] = None
+        weights: Union[np.ndarray, xr.DataArray] = None,
+        mu=None,
+        groupwise_means=None,
+        link_fn=None,
+        compute_scales_fun=None
 ):
-    """
-    Calculates a closed-form solution for the variance parameters of GLMs.
+    r"""
+    Calculates a closed-form solution for the scale parameters of GLMs.
 
-    :param X: The input data array
-    :param dmat: some design matrix
-    :param constraints: constraints
+    :param X: The sample data
+    :param design_scale: design matrix for scale
+    :param constraints: some design constraints
     :param size_factors: size factors for X
     :param weights: the weights of the arrays' elements; if `none` it will be ignored.
-    :param link_fn: linker function for GLM
-    :return: tuple: (groupwise_variance, phi, rmsd)
+    :param mu: optional, if there are for example different mu's per observation.
+
+        Used to calculate `Xdiff = X - mu`.
+    :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
+    :return: tuple (groupwise_scales, logphi, rmsd)
     """
     if size_factors is not None:
         if isinstance(X, SparseXArrayDataArray):
@@ -211,41 +217,124 @@ def closedform_glm_var(
         else:
             X = np.divide(X, size_factors)
 
+    # to circumvent nonlocal error
+    provided_groupwise_means = groupwise_means
+    provided_weights = weights
+    provided_mu = mu
+
     def apply_fun(grouping):
         if isinstance(X, SparseXArrayDataArray):
             X.assign_coords(coords=("group", grouping))
             X.groupby("group")
         else:
-            grouped_data = X.assign_coords(group=((X.dims[0],), grouping)).groupby("group")
+            grouped_data = X.assign_coords(group=((X.dims[0],), grouping))
 
-        if weights is None:
+        # convert weights into a xr.DataArray
+        if provided_weights is not None:
             if isinstance(X, SparseXArrayDataArray):
-                groupwise_variance = X.group_vars(X.dims[0])
-            else:
-                groupwise_variance = grouped_data.var(X.dims[0]).values
-        else:
-            grouped_weights = xr.DataArray(
-                data=weights,
+                assert False, "not implemented"
+
+            weights = xr.DataArray(
+                data=provided_weights,
                 dims=(X.dims[0],),
                 coords={
                     "group": ((X.dims[0],), grouping),
                 }
-            ).groupby("group")
-
-            groupwise_variance: xr.DataArray = xr.concat([
-                weighted_variance(d, w, axis=0) for (g, d), (g, w) in zip(grouped_data, grouped_weights)
-            ], dim="group")
-            groupwise_variance = groupwise_variance.values
-
-        if link_fn is None:
-            return groupwise_variance
+            )
         else:
-            return link_fn(groupwise_variance)
+            weights = None
 
-    groupwise_variance, phi, rmsd, rank, s = groupwise_solve_lm(
-        dmat=dmat,
+        # Calculate group-wise means if not supplied. These are required for variance and MME computation.
+        if provided_groupwise_means is None:
+            if weights is None:
+                if isinstance(X, SparseXArrayDataArray):
+                    gw_means = X.group_means(X.dims[0])
+                else:
+                    gw_means = grouped_data.groupby("group").mean(X.dims[0]).values
+            else:
+                if isinstance(X, SparseXArrayDataArray):
+                    assert False, "not implemented"
+
+                # for each group: calculate weighted mean
+                gw_means: xr.DataArray = xr.concat([
+                    weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(
+                        grouped_data.groupby("group"),
+                        weights.groupby("group"))
+                ], dim="group")
+        else:
+            if isinstance(X, SparseXArrayDataArray):
+                X._group_means = provided_groupwise_means
+            gw_means = provided_groupwise_means
+
+        # calculated variance via E(x)^2 or directly depending on whether `mu` was specified
+        if provided_mu is None:
+            if weights is None:
+                if isinstance(X, SparseXArrayDataArray):
+                    variance = X.group_vars(X.dims[0])
+                else:
+                    expect_xsq = np.square(grouped_data).groupby("group").mean(X.dims[0])
+                    expect_x_sq = np.square(gw_means)
+                    variance = expect_xsq - expect_x_sq
+            else:
+                if isinstance(X, SparseXArrayDataArray):
+                    assert False, "not implemented"
+                else:
+                    assert False, "not implemented"
+
+                # for each group:
+                #   calculate weighted mean of (X - mean)^2
+                # variance: xr.DataArray = xr.concat([
+                #    weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(
+                #        np.square(Xdiff).groupby("group"),
+                #        weights.groupby("group")
+                #    )
+                # ], dim="group")
+        else:
+            if isinstance(X, SparseXArrayDataArray):
+                Xdiff = X.add(- provided_mu, copy=True)
+            else:
+                Xdiff = grouped_data - provided_mu
+
+            if weights is None:
+                if isinstance(X, SparseXArrayDataArray):
+                    Xdiff.square(copy=False)
+                    Xdiff.assign_coords(coords=("group", grouping))
+                    Xdiff.groupby("group")
+                    variance = Xdiff.group_means(X.dims[0])
+                else:
+                    variance = np.square(Xdiff).groupby("group").mean(X.dims[0])
+            else:
+                if isinstance(X, SparseXArrayDataArray):
+                    assert False, "not implemented"
+
+                # for each group:
+                #   calculate weighted mean of (X - mean)^2
+                variance: xr.DataArray = xr.concat([
+                    weighted_mean(d, w, axis=0) for (g, d), (g, w) in zip(
+                        np.square(Xdiff).groupby("group"),
+                        weights.groupby("group")
+                    )
+                ], dim="group")
+
+        if compute_scales_fun is not None:
+            groupwise_scales = compute_scales_fun(variance, gw_means)
+        else:
+            groupwise_scales = variance
+
+        # # clipping
+        # # r = np_clip_param(r, "r")
+        # groupwise_scales = np.nextafter(0, 1, out=groupwise_scales,
+        #                                 where=groupwise_scales == 0,
+        #                                 dtype=groupwise_scales.dtype)
+        # groupwise_scales = np.fmin(groupwise_scales, np.finfo(groupwise_scales.dtype).max)
+        if link_fn is not None:
+            return link_fn(groupwise_scales)
+        return groupwise_scales
+
+    groupwise_scales, scaleparam, rmsd, rank, _ = groupwise_solve_lm(
+        dmat=design_scale,
         apply_fun=apply_fun,
         constraints=constraints
     )
 
-    return groupwise_variance, phi, rmsd
+    return groupwise_scales, scaleparam, rmsd
