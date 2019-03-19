@@ -83,7 +83,6 @@ class FIMGLMALL(FIMGLM):
             closed form hessian of base_glm_all model by observation across features.
             """
             W = self._weight_fim_bb(  # [observations=1 x features]
-                X=model.X,
                 loc=model.model_loc,
                 scale=model.model_scale
             )

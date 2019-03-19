@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class FullDataModelGraph(FullDataModelGraphGLM):
     """
-    Computational graph to evaluate negative binomial GLM metrics on full data set.
+    Computational graph to evaluate GLM metrics on full data set.
 
     Evaluate model and cost function, Jacobians, Hessians and Fisher information matrix.
     """
@@ -62,6 +62,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         """
         if noise_model == "nb":
             from .external_nb import ReducibleTensors
+        elif noise_model == "norm":
+            from .external_norm import ReducibleTensors
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -202,7 +204,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
 
 class BatchedDataModelGraph(BatchedDataModelGraphGLM):
     """
-    Basic computational graph to evaluate negative binomial GLM metrics on batched data set.
+    Basic computational graph to evaluate GLM metrics on batched data set.
 
     Evaluate model and cost function and Jacobians, Hessians and Fisher information matrix.
     """
@@ -244,6 +246,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         """
         if noise_model == "nb":
             from .external_nb import ReducibleTensors
+        elif noise_model == "norm":
+            from .external_norm import ReducibleTensors
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model
@@ -419,6 +423,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
         """
         if noise_model == "nb":
             from .external_nb import ModelVars
+        elif noise_model == "norm":
+            from .external_norm import ModelVars
         else:
             raise ValueError("noise model not recognized")
         self.noise_model = noise_model

@@ -171,7 +171,7 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     def get_estimator(self, train_scale, sparse, init_a, init_b):
         pass
 
-    def _test_a_and_b_closed(self, sparse, init_a, init_b):
+    def _test_a_and_b(self, sparse, init_a, init_b):
         estimator = self.get_estimator(
             train_scale=False,
             sparse=sparse,
@@ -185,12 +185,12 @@ class Test_AccuracyAnalytic_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             estimator_store=estimator_store,
             init=init_a
         )
-        assert success, "closed form for a model was inaccurate"
+        assert success, "estimation for a_model was inaccurate"
         success = estimator.eval_estimation_b(
             estimator_store=estimator_store,
             init=init_b
         )
-        assert success, "closed form for b model was inaccurate"
+        assert success, "estimation for b_model was inaccurate"
         return True
 
 

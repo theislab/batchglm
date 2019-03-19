@@ -144,3 +144,35 @@ class NegativeBinomial:
         # return scipy.stats.nbinom(n=r, p=1 - p).logpmf(X)
         coeff = gammaln(r + X) - gammaln(X + 1) - gammaln(r)
         return coeff + r * np.log(1 - p) + X * np.log(p)
+
+
+class Normal:
+    r"""
+    Normal distribution.
+    This class supports re-parameterising, sampling and calculation of
+    probabilities of normal distributed data.
+    """
+
+    mean: np.ndarray
+    # variance: np.ndarray
+    # p: np.ndarray
+    # r: np.ndarray
+    sd: np.ndarray #standard deviation
+
+    def __init__(self, mean, sd):
+        self.sd=sd
+        self.mean=mean
+
+    def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
+        random_data = np.random.normal(
+            loc=self.mean,
+            scale=self.sd,
+            size=size
+        )
+        return random_data

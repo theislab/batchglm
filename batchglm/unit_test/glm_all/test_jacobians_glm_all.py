@@ -29,6 +29,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -48,6 +50,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -87,6 +91,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model=="nb":
                 from batchglm.api.models.glm_nb import InputData
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -151,6 +157,18 @@ class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
         self.noise_model = "nb"
         self._test_compute_jacobians(sparse=False)
         #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seems to work here yet.
+
+
+class Test_Jacobians_GLM_NORM(Test_Jacobians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_jacobians_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_Jacobians_GLM_NORM.test_compute_jacobians_norm()")
+
+        self.noise_model = "norm"
+        self._test_compute_jacobians(sparse=False)
+        #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 
 
 if __name__ == '__main__':

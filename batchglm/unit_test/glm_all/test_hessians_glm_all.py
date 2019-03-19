@@ -29,6 +29,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -48,6 +50,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator
+            if self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -83,6 +87,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model=="nb":
                 from batchglm.api.models.glm_nb import Simulator, InputData
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -149,6 +155,19 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
         logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
+
+        self.noise_model = "norm"
         self._test_compute_hessians(sparse=False)
         #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
 

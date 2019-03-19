@@ -28,6 +28,8 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim(_Test_AccuracyAnalytic_GLM_Estim):
         else:
             if noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator, InputData
+            elif noise_model=="norm":
+                from batchglm.api.models.glm_norm import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -77,6 +79,8 @@ class Test_AccuracyAnalytic_GLM_ALL(
         else:
             if self.noise_model=="nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model=="norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -96,16 +100,16 @@ class Test_AccuracyAnalytic_GLM_ALL(
         )
 
     def _test_a_closed_b_closed(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="closed_form", init_b="closed_form")
+        self._test_a_and_b(sparse=sparse, init_a="closed_form", init_b="closed_form")
 
     def _test_a_closed_b_standard(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="closed_form", init_b="standard")
+        self._test_a_and_b(sparse=sparse, init_a="closed_form", init_b="standard")
 
     def _test_a_standard_b_closed(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="standard", init_b="closed_form")
+        self._test_a_and_b(sparse=sparse, init_a="standard", init_b="closed_form")
 
     def _test_a_standard_b_standard(self, sparse):
-        self._test_a_and_b_closed(sparse=sparse, init_a="standard", init_b="standard")
+        self._test_a_and_b(sparse=sparse, init_a="standard", init_b="standard")
 
 
 class Test_AccuracyAnalytic_GLM_NB(
@@ -132,6 +136,35 @@ class Test_AccuracyAnalytic_GLM_NB(
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_standard_b_standard()")
 
         self.noise_model = "nb"
+        self.simulate_a_b_easy()
+        self._test_a_standard_b_standard(sparse=False)
+        self._test_a_standard_b_standard(sparse=True)
+
+
+class Test_AccuracyAnalytic_GLM_NORM(
+    Test_AccuracyAnalytic_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for normally distributed noise.
+    """
+
+    def test_a_closed_b_closed(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_closed_b_closed()")
+
+        self.noise_model = "norm"
+        self.simulate_complex()
+        self._test_a_closed_b_closed(sparse=False)
+        self._test_a_closed_b_closed(sparse=True)
+
+    def test_a_standard_b_standard(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_standard_b_standard()")
+
+        self.noise_model = "norm"
         self.simulate_a_b_easy()
         self._test_a_standard_b_standard(sparse=False)
         self._test_a_standard_b_standard(sparse=True)

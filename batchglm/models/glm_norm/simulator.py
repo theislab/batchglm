@@ -6,8 +6,8 @@ from .external import rand_utils, _Simulator_GLM
 
 class Simulator(_Simulator_GLM, Model):
     """
-    Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
-    Uses the natural logarithm as linker function.
+    Simulator for Generalized Linear Models (GLMs) with normal noise.
+    Uses the identity as linker function for loc and a log-linker function for scale.
     """
 
     def __init__(
@@ -24,9 +24,9 @@ class Simulator(_Simulator_GLM, Model):
 
     def generate_params(
             self,
-            rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
-            rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
-            rand_fn_loc=None,
+            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
+            rand_fn=lambda shape: np.random.uniform(1.5, 10, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(100, 200, shape),
             rand_fn_scale=None,
         ):
         self._generate_params(
@@ -39,9 +39,9 @@ class Simulator(_Simulator_GLM, Model):
 
     def generate_data(self):
         """
-        Sample random data based on negative binomial distribution and parameters.
+        Sample random data based on normal distribution and parameters.
         """
         self.data["X"] = (
             self.param_shapes()["X"],
-            rand_utils.NegativeBinomial(mean=self.mu, r=self.r).sample()
+            rand_utils.Normal(mean=self.mean, sd=self.sd).sample()
         )
