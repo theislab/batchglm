@@ -47,7 +47,6 @@ class FIMGLM:
     @abc.abstractmethod
     def _weight_fim_bb(
             self,
-            X,
             loc,
             scale
     ):

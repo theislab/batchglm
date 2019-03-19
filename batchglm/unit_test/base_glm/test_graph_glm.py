@@ -31,7 +31,7 @@ class _Test_Graph_GLM_Estim():
         self.estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": 1,
-                "convergence_criteria": "all_converged_ll",
+                "convergence_criteria": "all_converged",
                 "stopping_criteria": 1e1,
                 "use_batching": batched,
                 "optim_algo": self.algo,

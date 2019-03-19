@@ -28,6 +28,8 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
         else:
             if noise_model=="nb":
                 from batchglm.api.models.glm_nb import Estimator, InputData
+            elif noise_model=="norm":
+                from batchglm.api.models.glm_norm import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -95,6 +97,8 @@ class Test_Graph_GLM_ALL(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model=="norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -159,6 +163,33 @@ class Test_Graph_GLM_NB(
         self.noise_model = "nb"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
+
+class Test_Graph_GLM_NORM(
+    Test_Graph_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether training graphs work for normally distributed noise.
+    """
+
+    def test_full_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_NORM.test_full_norm()")
+
+        self.noise_model = "norm"
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
+
+    def test_batched_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_NORM.test_batched_norm()")
+
+        self.noise_model = "norm"
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
+
 
 if __name__ == '__main__':
     unittest.main()

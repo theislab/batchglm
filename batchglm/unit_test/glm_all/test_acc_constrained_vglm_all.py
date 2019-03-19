@@ -28,6 +28,8 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim(_Test_AccuracyConstrained_VGLM_Es
         else:
             if noise_model=="nb":
                 from batchglm.api.models.glm_nb import Estimator, InputData
+            elif noise_model=="norm":
+                from batchglm.api.models.glm_norm import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -77,6 +79,8 @@ class Test_AccuracyConstrained_VGLM_ALL(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -152,6 +156,30 @@ class Test_AccuracyConstrained_VGLM_NB(
         logger.error("Test_AccuracyConstrained_VGLM_NB.test_batched_nb()")
 
         self.noise_model = "nb"
+        self._test_batched()
+
+class Test_AccuracyConstrained_VGLM_NORM(
+    Test_AccuracyConstrained_VGLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for normal distributed noise.
+    """
+
+    def test_full_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracyConstrained_VGLM_NORM.test_full_norm()")
+
+        self.noise_model = "norm"
+        self._test_full()
+
+    def test_batched_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_AccuracyConstrained_VGLM_NORM.test_batched_norm()")
+
+        self.noise_model = "norm"
         self._test_batched()
 
 
