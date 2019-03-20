@@ -1,6 +1,7 @@
 import abc
 from enum import Enum
 import logging
+import numpy as np
 
 try:
     import anndata
@@ -84,7 +85,7 @@ class _Estimator_Base(_Model_Base, metaclass=abc.ABCMeta):
         pass
 
 
-class _EstimatorStore_XArray_Base():
+class _EstimatorStore_XArray_Base:
 
     def __init__(self):
         pass
@@ -116,3 +117,101 @@ class _EstimatorStore_XArray_Base():
     @property
     def loss(self):
         return self.params["loss"]
+
+    def _plot_coef_vs_ref(
+            self,
+            true_values: np.ndarray,
+            estim_values: np.ndarray,
+            size=1,
+            log=False,
+            save=None,
+            show=True,
+            ncols=3,
+            row_gap=0.3,
+            col_gap=0.25,
+            return_axs=False
+    ):
+        """
+        Plot estimated coefficients against reference (true) coefficients.
+
+        :param true_values:
+        :param estim_values:
+        :param size: Point size.
+        :param save: Path+file name stem to save plots to.
+            File will be save+"_genes.png". Does not save if save is None.
+        :param show: Whether to display plot.
+        :param ncols: Number of columns in plot grid if multiple genes are plotted.
+        :param row_gap: Vertical gap between panel rows relative to panel height.
+        :param col_gap: Horizontal gap between panel columns relative to panel width.
+        :param return_axs: Whether to return axis objects.
+        :return: Matplotlib axis objects.
+        """
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        from matplotlib import gridspec
+        from matplotlib import rcParams
+
+        plt.ioff()
+
+        n_par = true_values.shape[0]
+        ncols = ncols if n_par > ncols else n_par
+        nrows = n_par // ncols + (n_par - (n_par // ncols) * ncols)
+
+        plt.ioff()
+        gs = gridspec.GridSpec(
+            nrows=nrows,
+            ncols=ncols,
+            hspace=row_gap,
+            wspace=col_gap
+        )
+
+        fig = plt.figure(
+            figsize=(
+                ncols * rcParams['figure.figsize'][0],  # width in inches
+                nrows * rcParams['figure.figsize'][1] * (1 + row_gap)  # height in inches
+            )
+        )
+
+        # Build axis objects in loop.
+        axs = []
+        for i in range(n_par):
+            ax = plt.subplot(gs[i])
+            axs.append(ax)
+
+            x = true_values[i, :]
+            y = estim_values[i, :]
+            if log:
+                x = np.log(x + 1)
+                y = np.log(y + 1)
+
+            sns.scatterplot(
+                x=x,
+                y=y,
+                size=size,
+                ax=ax,
+                legend=False
+            )
+            sns.lineplot(
+                x=np.array([np.min([np.min(x), np.min(y), np.max([np.max(x), np.max(y)])])]),
+                y=np.array([np.min([np.min(x), np.min(y), np.max([np.max(x), np.max(y)])])]),
+                ax=ax
+            )
+
+            ax.set_title("parameter_" + str(i))
+            ax.set_xlabel("true parameter")
+            ax.set_ylabel("estimated parameter")
+
+        # Save, show and return figure.
+        if save is not None:
+            plt.savefig(save + '_genes.png')
+
+        if show:
+            plt.show()
+
+        plt.close(fig)
+        plt.ion()
+
+        if return_axs:
+            return axs
+        else:
+            return
