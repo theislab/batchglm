@@ -243,7 +243,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                             init_mean = input_data.design_loc.dot(input_data.constraints_loc.dot(init_a_xr))
 
                         if size_factors_init is not None:
-                            init_mean = init_mean + np.log(size_factors_init)
+                            init_mean = init_mean / size_factors_init
                     else:
                         init_mean = None
 
