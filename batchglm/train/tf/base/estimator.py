@@ -273,13 +273,13 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             if len(self.model.full_data_model.idx_train_loc) > 0:
                 idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
                                         for x in self.model.full_data_model.idx_train_loc])
-                grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / jac_normalization
+                grad_norm_loc = np.sum(np.abs(jac_train[:, idx_jac_loc]), axis=1) / jac_normalization
             else:
                 grad_norm_loc = np.zeros([self.model.model_vars.n_features])
             if len(self.model.full_data_model.idx_train_scale) > 0:
                 idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
                                           for x in self.model.full_data_model.idx_train_scale])
-                grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / jac_normalization
+                grad_norm_scale = np.sum(np.abs(jac_train[:, idx_jac_scale]), axis=1) / jac_normalization
             else:
                 grad_norm_scale = np.zeros([self.model.model_vars.n_features])
             converged_g = np.logical_and(
