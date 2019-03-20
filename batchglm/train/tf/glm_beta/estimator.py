@@ -38,10 +38,10 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 "rmsprop": True,
                 "nr": True,
                 "nr_tr": True,
-                "irls": True,
-                "irls_gd": True,
-                "irls_tr": True,
-                "irls_gd_tr": True,
+                "irls": False,
+                "irls_gd": False,
+                "irls_tr": False,
+                "irls_gd_tr": False,
             },
             provide_batched: bool = False,
             extended_summary=False,
@@ -107,11 +107,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         )
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
-
-        print("init_a: ")
-        print(init_a)
-        print("init_b: ")
-        print(init_b)
 
         EstimatorAll.__init__(
             self=self,

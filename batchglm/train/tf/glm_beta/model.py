@@ -45,7 +45,7 @@ class ProcessModel(ProcessModelGLM):
             "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.log(one/(1-one)) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "mean": one / sf,
+            "mean": one,
             "samplesize": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "probs": dtype(1),
             "log_probs": dtype(0),
