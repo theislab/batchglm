@@ -79,8 +79,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             eta_loc = tf.matmul(design_loc, a_var)
 
         if size_factors is not None:
-            #TODO: find out where size_factors comes from, they seem to be already link(size_factors)
-            eta_loc = tf.add(eta_loc, size_factors)
+            eta_loc = tf.divide(eta_loc, size_factors)
 
         eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
 
