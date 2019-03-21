@@ -57,7 +57,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             return_axs=False
     ):
         """
-        Plot estimated coefficients against reference (true) coefficients.
+        Plot estimated coefficients against reference (true) coefficients for location model.
 
         :param true_values:
         :param size: Point size.
@@ -70,10 +70,12 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
+        assert len(true_values.shape) == len(self.a_var.shape), "true_values must have same dimensions as self.a_var"
+        assert np.all(true_values.shape == self.a_var.shape), "true_values must have same dimensions as self.a_var"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.a,
+            estim_values=self.a_var,
             size=size,
             log=log,
             save=save,
@@ -98,7 +100,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             return_axs=False
     ):
         """
-        Plot estimated coefficients against reference (true) coefficients.
+        Plot estimated coefficients against reference (true) coefficients for scale model.
 
         :param true_values:
         :param size: Point size.
@@ -111,10 +113,12 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
+        assert len(true_values.shape) == len(self.b_var.shape), "true_values must have same dimensions as self.b_var"
+        assert np.all(true_values.shape == self.b_var.shape), "true_values must have same dimensions as self.b_var"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.b,
+            estim_values=self.b_var,
             size=size,
             log=log,
             save=save,
@@ -123,5 +127,65 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             row_gap=row_gap,
             col_gap=col_gap,
             title="dispersion_parameter",
+            return_axs=return_axs
+        )
+
+    def plot_deviation_a(
+            self,
+            true_values: np.ndarray,
+            save=None,
+            show=True,
+            return_axs=False
+    ):
+        """
+        Plot deviation of estimated coefficients from reference (true) coefficients
+        as violin plot for location model.
+
+        :param true_values:
+        :param save: Path+file name stem to save plots to.
+            File will be save+"_genes.png". Does not save if save is None.
+        :param show: Whether to display plot.
+        :param return_axs: Whether to return axis objects.
+        :return: Matplotlib axis objects.
+        """
+        assert len(true_values.shape) == len(self.a_var.shape), "true_values must have same dimensions as self.a_var"
+        assert np.all(true_values.shape == self.a_var.shape), "true_values must have same dimensions as self.a_var"
+
+        return self._plot_deviation(
+            true_values=true_values,
+            estim_values=self.a_var,
+            save=save,
+            show=show,
+            title=None,
+            return_axs=return_axs
+        )
+
+    def plot_deviation_b(
+            self,
+            true_values: np.ndarray,
+            save=None,
+            show=True,
+            return_axs=False
+    ):
+        """
+        Plot deviation of estimated coefficients from reference (true) coefficients
+        as violin plot for scale model.
+
+        :param true_values:
+        :param save: Path+file name stem to save plots to.
+            File will be save+"_genes.png". Does not save if save is None.
+        :param show: Whether to display plot.
+        :param return_axs: Whether to return axis objects.
+        :return: Matplotlib axis objects.
+        """
+        assert len(true_values.shape) == len(self.b_var.shape), "true_values must have same dimensions as self.b_var"
+        assert np.all(true_values.shape == self.b_var.shape), "true_values must have same dimensions as self.b_var"
+
+        return self._plot_deviation(
+            true_values=true_values,
+            estim_values=self.b_var,
+            save=save,
+            show=show,
+            title=None,
             return_axs=return_axs
         )

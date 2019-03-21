@@ -2,6 +2,7 @@ import abc
 from enum import Enum
 import logging
 import numpy as np
+import pandas as pd
 
 try:
     import anndata
@@ -158,7 +159,6 @@ class _EstimatorStore_XArray_Base:
         ncols = ncols if n_par > ncols else n_par
         nrows = n_par // ncols + (n_par - (n_par // ncols) * ncols)
 
-        plt.ioff()
         gs = gridspec.GridSpec(
             nrows=nrows,
             ncols=ncols,
@@ -210,7 +210,7 @@ class _EstimatorStore_XArray_Base:
 
         # Save, show and return figure.
         if save is not None:
-            plt.savefig(save + '_genes.png')
+            plt.savefig(save + '_parameter_scatter.png')
 
         if show:
             plt.show()
@@ -222,3 +222,63 @@ class _EstimatorStore_XArray_Base:
             return axs
         else:
             return
+
+    def _plot_deviation(
+            self,
+            true_values: np.ndarray,
+            estim_values: np.ndarray,
+            save=None,
+            show=True,
+            title=None,
+            return_axs=False
+    ):
+        """
+        Plot estimated coefficients against reference (true) coefficients.
+
+        :param true_values:
+        :param estim_values:
+        :param save: Path+file name stem to save plots to.
+            File will be save+"_genes.png". Does not save if save is None.
+        :param show: Whether to display plot.
+        :param return_axs: Whether to return axis objects.
+        :return: Matplotlib axis objects.
+        """
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+
+        plt.ioff()
+
+        n_par = true_values.shape[0]
+        summary_fit = pd.concat([
+            pd.DataFrame({
+                "deviation": estim_values[i, :] - true_values[i, :],
+                "coefficient": pd.Series(["coef_"+str(i) for i in range(n_par)], dtype="category")
+            }) for i in range(n_par)])
+        summary_fit['coefficient'] = summary_fit['coefficient'].astype("category")
+
+        fig, ax = plt.subplots()
+        sns.scatterplot(
+            x=summary_fit["coefficient"],
+            y=summary_fit["deviation"],
+            ax=ax,
+            legend=True
+        )
+
+        if title is not None:
+            ax.set_title(title)
+
+        # Save, show and return figure.
+        if save is not None:
+            plt.savefig(save + '_deviation_violin.png')
+
+        if show:
+            plt.show()
+
+        plt.close(fig)
+        plt.ion()
+
+        if return_axs:
+            return ax
+        else:
+            return
+
