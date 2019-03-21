@@ -81,9 +81,6 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         else:
             eta_loc = tf.matmul(design_loc, a_var)
 
-        if size_factors is not None:
-            assert False, "size factors must be None"
-
         eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
 
         if constraints_scale is not None:

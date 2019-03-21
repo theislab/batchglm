@@ -233,7 +233,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                             init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
                             init_a_xr.coords["loc_params"] = input_data.constraints_loc.coords["loc_params"].values
                             init_mu = input_data.design_loc.dot(input_data.constraints_loc.dot(init_a_xr))
-
                         init_mu = 1/(1+np.exp(-init_mu))
                     else:
                         init_mu = None

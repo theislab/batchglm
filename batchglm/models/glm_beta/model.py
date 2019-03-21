@@ -45,6 +45,10 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
         else:
             eta = np.matmul(self.design_loc.values, self.par_link_loc)
 
+        if self.size_factors is not None:
+            assert False, "size factors not allowed"
+        return eta
+
     @property
     def mean(self) -> xr.DataArray:
         return self.location
