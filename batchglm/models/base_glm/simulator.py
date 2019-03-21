@@ -71,7 +71,12 @@ class _Simulator_GLM(_Simulator_Base, metaclass=abc.ABCMeta):
             num_features=num_features
         )
 
-    def generate_sample_description(self, num_conditions=2, num_batches=4, **kwargs):
+    def generate_sample_description(
+            self,
+            num_conditions=2,
+            num_batches=4,
+            **kwargs
+    ):
         sample_description = generate_sample_description(
             self.num_observations,
             num_conditions=num_conditions,

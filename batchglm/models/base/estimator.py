@@ -126,9 +126,10 @@ class _EstimatorStore_XArray_Base:
             log=False,
             save=None,
             show=True,
-            ncols=3,
+            ncols=5,
             row_gap=0.3,
             col_gap=0.25,
+            title=None,
             return_axs=False
     ):
         """
@@ -172,6 +173,9 @@ class _EstimatorStore_XArray_Base:
             )
         )
 
+        if title is None:
+            title = "parameter"
+
         # Build axis objects in loop.
         axs = []
         for i in range(n_par):
@@ -197,7 +201,10 @@ class _EstimatorStore_XArray_Base:
                 ax=ax
             )
 
-            ax.set_title("parameter_" + str(i))
+            title_i = title + "_" + str(i)
+            # Add correlation into title:
+            title_i = title_i + " (R=" + str(np.round(np.corrcoef(x, y)[0, 1], 3)) + ")"
+            ax.set_title(title_i)
             ax.set_xlabel("true parameter")
             ax.set_ylabel("estimated parameter")
 

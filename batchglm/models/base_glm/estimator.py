@@ -51,7 +51,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             log=False,
             save=None,
             show=True,
-            ncols=3,
+            ncols=5,
             row_gap=0.3,
             col_gap=0.25,
             return_axs=False
@@ -72,7 +72,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         """
 
         return self._plot_coef_vs_ref(
-            true_values=self.link_loc(true_values),
+            true_values=true_values,
             estim_values=self.a,
             size=size,
             log=log,
@@ -81,6 +81,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             ncols=ncols,
             row_gap=row_gap,
             col_gap=col_gap,
+            title="location_parameter",
             return_axs=return_axs
         )
 
@@ -91,7 +92,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             log=False,
             save=None,
             show=True,
-            ncols=3,
+            ncols=5,
             row_gap=0.3,
             col_gap=0.25,
             return_axs=False
@@ -112,7 +113,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         """
 
         return self._plot_coef_vs_ref(
-            true_values=self.link_scale(true_values),
+            true_values=true_values,
             estim_values=self.b,
             size=size,
             log=log,
@@ -121,5 +122,6 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             ncols=ncols,
             row_gap=row_gap,
             col_gap=col_gap,
+            title="dispersion_parameter",
             return_axs=return_axs
         )
