@@ -38,6 +38,14 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
         return np.exp(data)
 
     @property
+    def eta_loc(self) -> xr.DataArray:
+        # TODO: take this switch out once xr.dataset slicing yields dataarray with loc_names coordinate:
+        if isinstance(self.par_link_loc, xr.DataArray):
+            eta = self.design_loc.dot(self.par_link_loc, dims="design_loc_params")
+        else:
+            eta = np.matmul(self.design_loc.values, self.par_link_loc)
+
+    @property
     def mean(self) -> xr.DataArray:
         return self.location
 

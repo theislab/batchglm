@@ -152,12 +152,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         """
 
         size_factors_init = input_data.size_factors
-        if size_factors_init is not None:
-            size_factors_init = np.expand_dims(size_factors_init, axis=1)
-            size_factors_init = np.broadcast_to(
-                array=size_factors_init,
-                shape=[input_data.num_observations, input_data.num_features]
-            )
 
         if init_model is None:
             groupwise_means = None
@@ -182,9 +176,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     # train mu, if the closed-form solution is inaccurate
                     self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
 
-                    if input_data.size_factors is not None:
-                        if np.any(input_data.size_factors != 1):
-                            self._train_loc = True
 
                     logger.debug("Using closed-form MME initialization for mean")
                     logger.debug("Should train mean: %s", self._train_loc)
@@ -243,8 +234,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                             init_a_xr.coords["loc_params"] = input_data.constraints_loc.coords["loc_params"].values
                             init_mu = input_data.design_loc.dot(input_data.constraints_loc.dot(init_a_xr))
 
-                        if size_factors_init is not None:
-                            init_mu = init_mu + np.log(size_factors_init/(1-size_factors_init))
                         init_mu = 1/(1+np.exp(-init_mu))
                     else:
                         init_mu = None
