@@ -63,10 +63,9 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     def par_link_scale(self):
         return self.b
 
-    @property
+    @abc.abstractmethod
     def eta_loc(self) -> xr.DataArray:
-        # TODO: take this switch out once xr.dataset slicing yields dataarray with loc_names coordinate:
-        raise NotImplementedError()
+        pass
 
     @property
     def eta_scale(self) -> xr.DataArray:
