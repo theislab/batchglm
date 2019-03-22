@@ -194,7 +194,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         X = np.asarray(input_data.X.X.todense())
                     init_a, rmsd_a, _, _ = np.linalg.lstsq(
                         np.matmul(design_constr.T, design_constr),
-                        np.matmul(design_constr.T, X),
+                        np.matmul(design_constr.T, input_data.X),
                         rcond=None
                     )
                     groupwise_means = None
