@@ -66,14 +66,7 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     @property
     def eta_loc(self) -> xr.DataArray:
         # TODO: take this switch out once xr.dataset slicing yields dataarray with loc_names coordinate:
-        if isinstance(self.par_link_loc, xr.DataArray):
-            eta = self.design_loc.dot(self.par_link_loc, dims="design_loc_params")
-        else:
-            eta = np.matmul(self.design_loc.values, self.par_link_loc)
-
-        if self.size_factors is not None:
-            eta += self.link_loc(np.expand_dims(self.size_factors, axis=1))
-        return eta
+        raise NotImplementedError()
 
     @property
     def eta_scale(self) -> xr.DataArray:

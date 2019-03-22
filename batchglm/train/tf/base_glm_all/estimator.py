@@ -142,17 +142,17 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None:
-                size_factors_tensor = tf.log(tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                size_factors_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_size_factors,
                     inp=[idx],
                     Tout=input_data.size_factors.dtype,
                     stateful=False  #  TODO: remove with tf>=v1.13
-                ))
+                )
                 size_factors_tensor.set_shape(idx.get_shape())
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                size_factors_tensor = tf.constant(0, shape=[1, 1], dtype=dtype)
+                size_factors_tensor = tf.constant(1, shape=[1, 1], dtype=dtype)
             size_factors_tensor = tf.broadcast_to(size_factors_tensor,
                                                   shape=[tf.size(idx), input_data.num_features])
 
