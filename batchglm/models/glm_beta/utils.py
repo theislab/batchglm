@@ -46,8 +46,6 @@ def closedform_beta_glm_logsamplesize(
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
-        weights: Union[np.ndarray, xr.DataArray] = None,
-        mean=None,
         groupwise_means=None,
         link_fn=np.log
 ):
@@ -58,8 +56,6 @@ def closedform_beta_glm_logsamplesize(
     :param design_scale: design matrix for scale
     :param constraints: some design constraints
     :param size_factors: size factors for X
-    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
-    :param mean: optional, if there are for example different mean's per observation.
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
     :return: tuple (groupwise_scales, logsd, rmsd)
     """
@@ -73,8 +69,6 @@ def closedform_beta_glm_logsamplesize(
         design_scale=design_scale,
         constraints=constraints,
         size_factors=size_factors,
-        weights=weights,
-        mu=mean,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
         compute_scales_fun=compute_scales_fun

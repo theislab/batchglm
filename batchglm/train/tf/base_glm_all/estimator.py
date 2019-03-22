@@ -10,8 +10,6 @@ import numpy as np
 from .estimator_graph import EstimatorGraphAll
 from .external import MonitoredTFEstimator, InputData, SparseXArrayDataArray
 
-logger = logging.getLogger(__name__)
-
 
 class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
     """
@@ -143,10 +141,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             design_scale_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_scale_params])
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
-            if input_data.size_factors is not None:
-                if noise_model == "beta":
-                    assert False, "size factors must be None"
-                    
+            if input_data.size_factors is not None and noise_model in ["nb", "norm"]:
                 size_factors_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_size_factors,
                     inp=[idx],
@@ -157,8 +152,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                if noise_model in ["nb", "norm"]:
-                    size_factors_tensor = tf.constant(1, shape=[1, 1], dtype=dtype)
+                size_factors_tensor = tf.constant(1, shape=[1, 1], dtype=dtype)
+
             size_factors_tensor = tf.broadcast_to(size_factors_tensor,
                                                   shape=[tf.size(idx), input_data.num_features])
 
@@ -284,24 +279,24 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         # Check that newton-rhapson is called properly:
         if require_hessian or require_fim:
             if learning_rate != 1:
-                logger.warning(
+                logging.getLogger("batchglm").warning(
                     "Newton-rhapson or IRLS in base_glm_all is used with learning rate " +
                     str(learning_rate) +
                     ". Newton-rhapson and IRLS should only be used with learning rate = 1."
                 )
 
         # Report all parameters after all defaults were imputed in settings:
-        logger.debug("Optimizer settings in base_glm_all Estimator.train():")
-        logger.debug("learning_rate " + str(learning_rate))
-        logger.debug("convergence_criteria " + str(convergence_criteria))
-        logger.debug("stopping_criteria " + str(stopping_criteria))
-        logger.debug("train_mu " + str(train_mu))
-        logger.debug("train_r " + str(train_r))
-        logger.debug("use_batching " + str(use_batching))
-        logger.debug("optim_algo " + str(optim_algo))
+        logging.getLogger("batchglm").debug("Optimizer settings in base_glm_all Estimator.train():")
+        logging.getLogger("batchglm").debug("learning_rate " + str(learning_rate))
+        logging.getLogger("batchglm").debug("convergence_criteria " + str(convergence_criteria))
+        logging.getLogger("batchglm").debug("stopping_criteria " + str(stopping_criteria))
+        logging.getLogger("batchglm").debug("train_mu " + str(train_mu))
+        logging.getLogger("batchglm").debug("train_r " + str(train_r))
+        logging.getLogger("batchglm").debug("use_batching " + str(use_batching))
+        logging.getLogger("batchglm").debug("optim_algo " + str(optim_algo))
         if len(kwargs) > 0:
-            logger.debug("**kwargs: ")
-            logger.debug(kwargs)
+            logging.getLogger("batchglm").debug("**kwargs: ")
+            logging.getLogger("batchglm").debug(kwargs)
 
         if train_mu or train_r:
             if use_batching:
@@ -366,7 +361,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
         self.session.run(self.model.full_data_model.final_set)
         store = EstimatorStoreXArray(self)
-        logger.debug("Closing session")
+        logging.getLogger("batchglm").debug("Closing session")
         self.close_session()
         return store
 

@@ -5,14 +5,12 @@ import numpy as np
 import tensorflow as tf
 
 from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
-from .external import data_utils
 from .external import closedform_beta_glm_logitmean, closedform_beta_glm_logsamplesize
 from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
-logger = logging.getLogger(__name__)
 
 
 class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
@@ -44,6 +42,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 "irls_gd_tr": False,
             },
             provide_batched: bool = False,
+            provide_fim: bool = False,
+            provide_hessian: bool = False,
+            optim_algos: list = [],
             extended_summary=False,
             dtype="float64"
     ):
@@ -89,6 +90,13 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
+        :param provide_fim: Whether to compute fisher information matrix during training
+            Either supply provide_fim and provide_hessian or optim_algos.
+        :param provide_hessian: Whether to compute hessians during training
+            Either supply provide_fim and provide_hessian or optim_algos.
+        :param optim_algos: Algorithms that you want to use on this object. Depending on that,
+            the hessian and/or fisher information matrix are computed.
+            Either supply provide_fim and provide_hessian or optim_algos.
         :param extended_summary: Include detailed information in the summaries.
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
@@ -108,6 +116,12 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
 
+        if len(optim_algos) > 0:
+            if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
+                provide_hessian = True
+            if np.any([x.lower() in ["irls", "irls_tr"] for x in optim_algos]):
+                provide_fim = True
+
         EstimatorAll.__init__(
             self=self,
             input_data=input_data,
@@ -118,6 +132,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             model=model,
             provide_optimizers=provide_optimizers,
             provide_batched=provide_batched,
+            provide_fim=provide_fim,
+            provide_hessian=provide_hessian,
             extended_summary=extended_summary,
             noise_model="beta",
             dtype=dtype
@@ -177,8 +193,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
 
 
-                    logger.debug("Using closed-form MME initialization for mean")
-                    logger.debug("Should train mean: %s", self._train_loc)
+                    logging.getLogger("batchglm").debug("Using closed-form MME initialization for mean")
                 elif init_a.lower() == "standard":
                     if isinstance(input_data.X, SparseXArrayDataArray):
                         overall_means = input_data.X.mean(dim="observations")
@@ -190,24 +205,33 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_a[0, :] = np.log(overall_means/(1-overall_means))
                     self._train_loc = True
 
-                    logger.debug("Using standard initialization for mean")
-                    logger.debug("Should train mean: %s", self._train_loc)
+                    logging.getLogger("batchglm").debug("Using standard initialization for mean")
                 elif init_a.lower() == "all_zero":
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     self._train_loc = True
 
                     logger.debug("Using all_zero initialization for mean")
-                    logger.debug("Should train mean: %s", self._train_loc)
                 else:
                     raise ValueError("init_a string %s not recognized" % init_a)
-
+                logging.getLogger("batchglm").debug("Should train mean: %s", self._train_loc)
             if isinstance(init_b, str):
                 if init_b.lower() == "auto":
                     init_b = "standard"
 
-                if init_b.lower() == "closed_form" or init_b.lower() == "standard":
-                    #try:
-                    # Check whether it is necessary to recompute group-wise means.
+                if init_b.lower() == "standard":
+                    groupwise_scales, init_b_intercept, rmsd_b = closedform_beta_glm_logsamplesize(
+                        X=input_data.X,
+                        design_scale=input_data.design_scale[:, [0]],
+                        constraints=input_data.constraints_scale[[0], [0]].values,
+                        size_factors=size_factors_init,
+                        groupwise_means=groupwise_means,
+                        link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
+                    )
+                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b[0, :] = init_b_intercept
+
+                    logging.getLogger("batchglm").debug("Using standard-form MME initialization for dispersion")
+                elif init_b.lower() == "closed_form":
                     dmats_unequal = False
                     if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
                         if np.any(input_data.design_loc.values != input_data.design_scale.values):
@@ -219,61 +243,26 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                             inits_unequal = True
 
                     if inits_unequal or dmats_unequal:
-                        groupwise_means = None
-                        init_b = "standard"  # remove once have code to deal with this.
+                        raise ValueError("cannot use closed_form init for scale model " +
+                                         "if scale model differs from loc model")
 
-                    # Watch out: init_mu is full obs x features matrix and is very large in many cases.
-                    if inits_unequal or dmats_unequal:
-                        if isinstance(input_data.X, SparseXArrayDataArray):
-                            init_mu = np.matmul(
-                                    input_data.design_loc.values,
-                                    np.matmul(input_data.constraints_loc.values, init_a)
-                            )
-                        else:
-                            init_a_xr = data_utils.xarray_from_data(init_a, dims=("loc_params", "features"))
-                            init_a_xr.coords["loc_params"] = input_data.constraints_loc.coords["loc_params"].values
-                            init_mu = input_data.design_loc.dot(input_data.constraints_loc.dot(init_a_xr))
-                        init_mu = 1/(1+np.exp(-init_mu))
-                    else:
-                        init_mu = None
+                    groupwise_scales, init_b, rmsd_b = closedform_beta_glm_logsamplesize(
+                        X=input_data.X,
+                        design_scale=input_data.design_scale,
+                        constraints=input_data.constraints_scale.values,
+                        size_factors=size_factors_init,
+                        groupwise_means=groupwise_means,
+                        link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
+                    )
 
-                    if init_b.lower() == "closed_form":
-                        groupwise_scales, init_b, rmsd_b = closedform_beta_glm_logsamplesize(
-                            X=input_data.X,
-                            mean=init_mu,
-                            design_scale=input_data.design_scale,
-                            constraints=input_data.constraints_scale.values,
-                            size_factors=size_factors_init,
-                            groupwise_means=groupwise_means,
-                            link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
-                        )
-
-                        logger.debug("Using closed-form MME initialization for dispersion")
-                        logger.debug("Should train samplesize: %s", self._train_scale)
-                    elif init_b.lower() == "standard":
-                        groupwise_scales, init_b_intercept, rmsd_b = closedform_beta_glm_logsamplesize(
-                            X=input_data.X,
-                            mean=init_mu,
-                            design_scale=input_data.design_scale[:,[0]],
-                            constraints=input_data.constraints_scale[[0], [0]].values,
-                            size_factors=size_factors_init,
-                            groupwise_means=None,
-                            link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
-                        )
-                        init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
-                        init_b[0, :] = init_b_intercept
-
-                        logger.debug("Using closed-form MME initialization for dispersion")
-                        logger.debug("Should train samplesize: %s", self._train_scale)
-                    #except np.linalg.LinAlgError:
-                    #    logger.warning("Closed form initialization failed!")
+                    logging.getLogger("batchglm").debug("Using closed-form MME initialization for dispersion")
                 elif init_b.lower() == "all_zero":
                     init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
 
-                    logger.debug("Using standard initialization for dispersion")
-                    logger.debug("Should train r: %s", self._train_scale)
+                    logging.getLogger("batchglm").debug("Using standard initialization for dispersion")
                 else:
                     raise ValueError("init_b string %s not recognized" % init_b)
+                logging.getLogger("batchglm").debug("Should train r: %s", self._train_scale)
         else:
             # Locations model:
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
@@ -287,7 +276,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_loc[my_idx] = init_model.a_var[init_idx]
 
                 init_a = init_loc
-                logger.debug("Using initialization based on input model for mean")
+                logging.getLogger("batchglm").debug("Using initialization based on input model for mean")
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
@@ -301,7 +290,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_scale[my_idx] = init_model.b_var[init_idx]
 
                 init_b = init_scale
-                logger.debug("Using initialization based on input model for dispersion")
+                logging.getLogger("batchglm").debug("Using initialization based on input model for dispersion")
 
         return init_a, init_b
 

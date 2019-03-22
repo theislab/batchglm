@@ -60,13 +60,15 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 raise ValueError("noise_model not recognized")
 
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True,
+                              "nr": False, "nr_tr": False,
                               "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         estimator = Estimator(
             input_data=input_data,
             quick_scale=False,
             provide_optimizers=provide_optimizers,
+            provide_fim=False,
+            provide_hessian=False,
             init_a="standard",
             init_b="standard"
         )
