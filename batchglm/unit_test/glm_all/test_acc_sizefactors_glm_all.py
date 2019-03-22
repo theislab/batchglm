@@ -56,6 +56,8 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
             provide_batched=True,
+            provide_fim=True,
+            provide_hessian=True,
             init_a="standard",
             init_b="standard"
         )

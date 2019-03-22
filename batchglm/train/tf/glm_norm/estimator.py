@@ -3,6 +3,7 @@ from typing import Union
 
 import numpy as np
 import tensorflow as tf
+import xarray as xr
 
 from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
 from .external import data_utils
@@ -190,13 +191,29 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                 if init_a.lower() == "closed_form" or init_a.lower() == "standard":
                     design_constr = np.matmul(input_data.design_loc.values, input_data.constraints_loc.values)
+                    # Iterate over genes if X is sparse to avoid large sparse tensor.
+                    # If X is dense, the least square problem can be vectorised easily.
                     if isinstance(input_data.X, SparseXArrayDataArray):
-                        X = np.asarray(input_data.X.X.todense())
-                    init_a, rmsd_a, _, _ = np.linalg.lstsq(
-                        np.matmul(design_constr.T, design_constr),
-                        np.matmul(design_constr.T, input_data.X),
-                        rcond=None
-                    )
+                        init_a = np.zeros([design_constr.shape[1], input_data.X.shape[1]])
+                        for j in range(input_data.X.shape[1]):
+                            X = np.asarray(input_data.X.X[:, [j]].todense())
+                            init_a_j, _, _, _ = np.linalg.lstsq(
+                                np.matmul(design_constr.T, design_constr),
+                                np.matmul(design_constr.T, X),
+                                rcond=None
+                            )
+                            init_a[:, j] = init_a_j
+                    else:
+                        if isinstance(input_data.X, xr.DataArray):
+                            X = input_data.X.values
+                        else:
+                            X = input_data.X
+
+                        init_a, rmsd_a, _, _ = np.linalg.lstsq(
+                            np.matmul(design_constr.T, design_constr),
+                            np.matmul(design_constr.T, X),
+                            rcond=None
+                        )
                     groupwise_means = None
                     if is_ols_model:
                         self._train_loc = False
