@@ -157,7 +157,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
                 size_factors_tensor = tf.cast(size_factors_tensor, dtype=dtype)
             else:
-                size_factors_tensor = tf.constant(1, shape=[1, 1], dtype=dtype)
+                if noise_model in ["nb", "norm"]:
+                    size_factors_tensor = tf.constant(1, shape=[1, 1], dtype=dtype)
             size_factors_tensor = tf.broadcast_to(size_factors_tensor,
                                                   shape=[tf.size(idx), input_data.num_features])
 
