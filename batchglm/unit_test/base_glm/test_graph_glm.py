@@ -7,7 +7,7 @@ import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 class _Test_Graph_GLM_Estim():

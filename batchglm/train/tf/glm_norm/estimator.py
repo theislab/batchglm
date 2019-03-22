@@ -44,6 +44,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 "irls_gd_tr": True,
             },
             provide_batched: bool = False,
+            provide_fim: bool = False,
+            provide_hessian: bool = False,
             extended_summary=False,
             dtype="float64"
     ):
@@ -90,6 +92,10 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
+        :param provide_fim: Whether to compute fisher information matrix during training
+            Either supply provide_fim and provide_hessian or optim_algos.
+        :param provide_hessian: Whether to compute hessians during training
+            Either supply provide_fim and provide_hessian or optim_algos.
         :param extended_summary: Include detailed information in the summaries.
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
@@ -119,6 +125,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             model=model,
             provide_optimizers=provide_optimizers,
             provide_batched=provide_batched,
+            provide_fim=provide_fim,
+            provide_hessian=provide_hessian,
             extended_summary=extended_summary,
             noise_model="norm",
             dtype=dtype

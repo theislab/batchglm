@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from .external import ReducableTensorsGLM
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 class ReducableTensorsGLMALL(ReducableTensorsGLM):
@@ -19,6 +19,7 @@ class ReducableTensorsGLMALL(ReducableTensorsGLM):
         model graph and calls the wrappers that compute the
         individual closed forms of the jacobian.
 
+        :param idx: Indices of observations.
         :param data: tuple
             Containing the following parameters:
             - X: tf.tensor observations x features

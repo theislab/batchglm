@@ -5,14 +5,13 @@ import numpy as np
 import tensorflow as tf
 
 from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
-from .external import data_utils
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
@@ -44,6 +43,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 "irls_gd_tr": True,
             },
             provide_batched: bool = False,
+            provide_fim: bool = False,
+            provide_hessian: bool = False,
+            optim_algos: list = [],
             extended_summary=False,
             dtype="float64"
     ):
@@ -89,6 +91,13 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
         :param provide_batched: bool
             Whether mini-batched optimizers should be provided.
+        :param provide_fim: Whether to compute fisher information matrix during training
+            Either supply provide_fim and provide_hessian or optim_algos.
+        :param provide_hessian: Whether to compute hessians during training
+            Either supply provide_fim and provide_hessian or optim_algos.
+        :param optim_algos: Algorithms that you want to use on this object. Depending on that,
+            the hessian and/or fisher information matrix are computed.
+            Either supply provide_fim and provide_hessian or optim_algos.
         :param extended_summary: Include detailed information in the summaries.
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
@@ -108,6 +117,12 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
 
+        if len(optim_algos) > 0:
+            if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
+                provide_hessian = True
+            if np.any([x.lower() in ["irls", "irls_tr", "irls_gd", "irls_gd_tr"] for x in optim_algos]):
+                provide_fim = True
+
         EstimatorAll.__init__(
             self=self,
             input_data=input_data,
@@ -118,6 +133,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             model=model,
             provide_optimizers=provide_optimizers,
             provide_batched=provide_batched,
+            provide_fim=provide_fim,
+            provide_hessian=provide_hessian,
             extended_summary=extended_summary,
             noise_model="nb",
             dtype=dtype

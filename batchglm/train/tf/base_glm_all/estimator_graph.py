@@ -377,6 +377,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             train_scale: bool,
             provide_optimizers: Union[dict, None],
             provide_batched: bool,
+            provide_hessian: bool,
+            provide_fim: bool,
             extended_summary: bool,
             noise_model: str,
             dtype: str
@@ -460,19 +462,6 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             # ### performance related settings
             buffer_size = 4
 
-            # Check whether it is necessary to compute FIM or hessian:
-            # The according sub-graphs are only compiled if this is needed during training.
-            # Secondly, the tensors are evaluated during reduction operations if these options are set.
-            if provide_optimizers["irls"] or provide_optimizers["irls_gd"] or \
-                    provide_optimizers["irls_tr"] or provide_optimizers["irls_gd_tr"]:
-                compute_fim = True
-            else:
-                compute_fim = False
-            if provide_optimizers["nr"] or provide_optimizers["nr_tr"]:
-                compute_hessian = True
-            else:
-                compute_hessian = False
-
             with tf.name_scope("batched_data"):
                 logger.debug("building batched data model")
                 if provide_batched:
@@ -487,8 +476,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                         noise_model=noise_model,
                         train_a=train_loc,
                         train_b=train_scale,
-                        compute_fim=compute_fim,
-                        compute_hessian=compute_hessian,
+                        compute_fim=provide_fim,
+                        compute_hessian=provide_hessian,
                         dtype=dtype
                     )
                 else:
@@ -513,8 +502,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                     noise_model=noise_model,
                     train_a=train_loc,
                     train_b=train_scale,
-                    compute_fim=compute_fim,
-                    compute_hessian=compute_hessian,
+                    compute_fim=provide_fim,
+                    compute_hessian=provide_hessian,
                     dtype=dtype
                 )
 
