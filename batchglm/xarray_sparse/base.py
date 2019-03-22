@@ -188,7 +188,6 @@ class SparseXArrayDataArray:
         return type(self)(self.X)
 
     def __getitem__(self, key):
-        print(key)
         if isinstance(key, np.ndarray) or isinstance(key, slice):  # This is an observation wise slice!
             return self.new_from_x(x=self.X[key])
         elif isinstance(key, tuple) and len(key) == 2:
