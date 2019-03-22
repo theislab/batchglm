@@ -83,7 +83,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             ncols=ncols,
             row_gap=row_gap,
             col_gap=col_gap,
-            title="location_parameter",
+            title="location_model",
             return_axs=return_axs
         )
 
@@ -126,7 +126,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             ncols=ncols,
             row_gap=row_gap,
             col_gap=col_gap,
-            title="dispersion_parameter",
+            title="dispersion_model",
             return_axs=return_axs
         )
 
@@ -156,7 +156,7 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             estim_values=self.a_var,
             save=save,
             show=show,
-            title=None,
+            title="location_model",
             return_axs=return_axs
         )
 
@@ -186,6 +186,6 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
             estim_values=self.b_var,
             save=save,
             show=show,
-            title=None,
+            title="scale_model",
             return_axs=return_axs
         )

@@ -252,16 +252,15 @@ class _EstimatorStore_XArray_Base:
         summary_fit = pd.concat([
             pd.DataFrame({
                 "deviation": estim_values[i, :] - true_values[i, :],
-                "coefficient": pd.Series(["coef_"+str(i) for i in range(n_par)], dtype="category")
+                "coefficient": pd.Series(["coef_"+str(i) for x in range(estim_values.shape[1])], dtype="category")
             }) for i in range(n_par)])
         summary_fit['coefficient'] = summary_fit['coefficient'].astype("category")
 
         fig, ax = plt.subplots()
-        sns.scatterplot(
+        sns.violinplot(
             x=summary_fit["coefficient"],
             y=summary_fit["deviation"],
-            ax=ax,
-            legend=True
+            ax=ax
         )
 
         if title is not None:
