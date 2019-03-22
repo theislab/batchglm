@@ -202,21 +202,38 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         self._train_loc = False
 
                     logger.debug("Using OLS initialization for location model")
-                    logger.debug("Should train location model: %s", self._train_loc)
                 elif init_a.lower() == "all_zero":
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     self._train_loc = True
 
                     logger.debug("Using all_zero initialization for mean")
-                    logger.debug("Should train mean: %s", self._train_loc)
                 else:
                     raise ValueError("init_a string %s not recognized" % init_a)
+                logger.debug("Should train location model: %s", self._train_loc)
 
             if isinstance(init_b, str):
                 if init_b.lower() == "auto":
                     init_b = "standard"
 
-                if init_b.lower() == "closed_form":
+                if is_ols_model:
+                    # Calculated variance via E(x)^2 or directly depending on whether `mu` was specified.
+                    if isinstance(input_data.X, SparseXArrayDataArray):
+                        variance = input_data.X.var(input_data.X.dims[0])
+                        variance = np.expand_dims(variance, axis=0)
+                    else:
+                        expect_xsq = input_data.X.mean(input_data.X.dims[0])
+                        mean_model = np.matmul(
+                            np.matmul(input_data.design_loc.values, input_data.constraints_loc.values),
+                            init_a
+                        )
+                        expect_x_sq = np.square(mean_model).mean(input_data.X.dims[0])
+                        variance = expect_xsq - expect_x_sq
+                    init_b = np.log(np.sqrt(variance))
+
+                    self._train_scale = False
+
+                    logger.debug("Using residuals from OLS estimate for variance estimate")
+                elif init_b.lower() == "closed_form":
                     dmats_unequal = False
                     if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
                         if np.any(input_data.design_loc.values != input_data.design_scale.values):
@@ -245,7 +262,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     self._train_scale = not (np.all(rmsd_b == 0) or rmsd_b.size == 0)
 
                     logger.debug("Using closed-form MME initialization for standard deviation")
-                    logger.debug("Should train sd: %s", self._train_scale)
                 elif init_b.lower() == "standard":
                     groupwise_scales, init_b_intercept, rmsd_b = closedform_norm_glm_logsd(
                         X=input_data.X,
@@ -267,9 +283,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
 
                     logger.debug("Using standard initialization for standard deviation")
-                    logger.debug("Should train sd: %s", self._train_scale)
                 else:
                     raise ValueError("init_b string %s not recognized" % init_b)
+                logger.debug("Should train sd: %s", self._train_scale)
         else:
             # Locations model:
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
