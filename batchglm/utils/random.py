@@ -149,15 +149,10 @@ class NegativeBinomial:
 class Normal:
     r"""
     Normal distribution.
-    This class supports re-parameterising, sampling and calculation of
-    probabilities of normal distributed data.
     """
 
     mean: np.ndarray
-    # variance: np.ndarray
-    # p: np.ndarray
-    # r: np.ndarray
-    sd: np.ndarray #standard deviation
+    sd: np.ndarray
 
     def __init__(self, mean, sd):
         self.sd=sd
@@ -173,6 +168,33 @@ class Normal:
         random_data = np.random.normal(
             loc=self.mean,
             scale=self.sd,
+            size=size
+        )
+        return random_data
+
+
+class Beta:
+    r"""
+    Beta distribution.
+    """
+
+    p: np.ndarray
+    q: np.ndarray
+
+    def __init__(self, mean, samplesize):
+        self.p=mean*samplesize
+        self.q=(1-mean)*samplesize
+
+    def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
+        random_data = np.random.beta(
+            a=self.p,
+            b=self.q,
             size=size
         )
         return random_data

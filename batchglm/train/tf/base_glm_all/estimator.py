@@ -73,6 +73,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             from .external_nb import EstimatorGraph
         elif noise_model == "norm":
             from .external_norm import EstimatorGraph
+        elif noise_model == "beta":
+            from .external_beta import EstimatorGraph
         else:
             raise ValueError("noise model %s was not recognized" % noise_model)
         self.noise_model = noise_model
@@ -142,6 +144,9 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None:
+                if noise_model == "beta":
+                    assert False, "size factors must be None"
+                    
                 size_factors_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_size_factors,
                     inp=[idx],
@@ -353,6 +358,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             from .external_nb import EstimatorStoreXArray
         elif self.noise_model == "norm":
             from .external_norm import EstimatorStoreXArray
+        elif self.noise_model == "beta":
+            from .external_beta import EstimatorStoreXArray
         else:
             raise ValueError("noise model not recognized")
 

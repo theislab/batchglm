@@ -31,6 +31,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -50,14 +52,16 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator
-            if self.noise_model == "norm":
+            elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
                               "nr": True, "nr_tr": True,
-                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         estimator = Estimator(
             input_data=input_data,
@@ -89,6 +93,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator, InputData
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator, InputData
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Simulator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -168,6 +174,20 @@ class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
         logger.error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
 
         self.noise_model = "norm"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+
+class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
+
+        self.noise_model = "beta"
         self._test_compute_hessians(sparse=False)
         #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
 

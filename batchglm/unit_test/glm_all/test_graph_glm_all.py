@@ -30,6 +30,8 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
                 from batchglm.api.models.glm_nb import Estimator, InputData
             elif noise_model=="norm":
                 from batchglm.api.models.glm_norm import Estimator, InputData
+            elif noise_model=="beta":
+                from batchglm.api.models.glm_beta import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -99,6 +101,8 @@ class Test_Graph_GLM_ALL(
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model=="norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model=="beta":
+                from batchglm.api.models.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -187,6 +191,32 @@ class Test_Graph_GLM_NORM(
         logger.error("Test_Graph_GLM_NORM.test_batched_norm()")
 
         self.noise_model = "norm"
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
+
+class Test_Graph_GLM_BETA(
+    Test_Graph_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether training graphs work for beta distributed noise.
+    """
+
+    def test_full_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_BETA.test_full_beta()")
+
+        self.noise_model = "beta"
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
+
+    def test_batched_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_BETA.test_batched_beta()")
+
+        self.noise_model = "beta"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 

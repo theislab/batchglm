@@ -35,6 +35,8 @@ class ReducableTensorsGLMALL(ReducableTensorsGLM):
             from .external_nb import BasicModelGraph
         elif self.noise_model == "norm":
             from .external_norm import BasicModelGraph
+        elif self.noise_model == "beta":
+            from .external_beta import BasicModelGraph
         else:
             raise ValueError("noise model %s was not recognized" % self.noise_model)
 
