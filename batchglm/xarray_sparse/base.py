@@ -188,8 +188,13 @@ class SparseXArrayDataArray:
         return type(self)(self.X)
 
     def __getitem__(self, key):
+        print(key)
         if isinstance(key, np.ndarray) or isinstance(key, slice):  # This is an observation wise slice!
             return self.new_from_x(x=self.X[key])
+        elif isinstance(key, tuple) and len(key) == 2:
+            if isinstance(key[0], slice) and isinstance(key[1], np.int64):  # This is an gene-wise wise slice!
+                # TODO: just returning values here and not new instance of class.
+                return np.asarray(self.X[:, key[1]].todense()).flatten()
         elif key in self.coords:
             return self.coords[key]
         else:
