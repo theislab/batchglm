@@ -157,7 +157,7 @@ class Test_AccuracySizeFactors_GLM_NORM(
 
     def test_full_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.DEBUG)
         logging.getLogger("batchglm").error("Test_AccuracySizeFactors_GLM_NORM.test_full_norm()")
 
         self.noise_model = "norm"

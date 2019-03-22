@@ -46,7 +46,7 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
             eta = np.matmul(self.design_loc.values, self.par_link_loc)
 
         if self.size_factors is not None:
-            eta /= np.expand_dims(self.size_factors, axis=1)
+            eta *= np.expand_dims(self.size_factors, axis=1)
         return eta
 
     @property
