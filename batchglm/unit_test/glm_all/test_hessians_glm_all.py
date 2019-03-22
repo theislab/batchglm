@@ -10,9 +10,6 @@ import batchglm.pkg_constants as pkg_constants
 
 from batchglm.models.base_glm import InputData
 
-glm.setup_logging(verbosity="WARNING", stream="STDOUT")
-logger = logging.getLogger(__name__)
-
 
 class Test_Hessians_GLM_ALL(unittest.TestCase):
     noise_model: str
@@ -138,20 +135,21 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         t1_tf = time.time()
         t_tf = t1_tf - t0_tf
 
-        # Make sure that hessians are not all zero which might make evaluation of equality difficult.
-        assert np.sum(np.abs(h_analytic)) > 1e-10, \
-            "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
-
         logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
-        logging.getLogger("batchglm").info("run time feature-wise tensorflow solution: %f" % t_tf)
+        logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
+        logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((h_tf - h_analytic))))
+        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs((h_tf - h_analytic) / h_tf)))
 
         #i = 1
         #print(h_tf[i, :, :])
         #print(h_analytic[i, :, :])
         #print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
 
-        max_rel_dev1 = np.max(np.abs((h_tf - h_analytic) / h_tf))
-        assert max_rel_dev1 < 1e-12
+        # Make sure that hessians are not all zero which might make evaluation of equality difficult.
+        assert np.sum(np.abs(h_analytic)) > 1e-10, \
+            "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
+        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf)) < 1e-12
+        assert mrad < 1e-12, mrad
         return True
 
 
@@ -160,7 +158,7 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
     def test_compute_hessians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
 
         self.noise_model = "nb"
         self._test_compute_hessians(sparse=False)
@@ -172,8 +170,8 @@ class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
 
         self.noise_model = "norm"
         self._test_compute_hessians(sparse=False)
@@ -187,7 +185,7 @@ class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
     def test_compute_hessians_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
 
         self.noise_model = "beta"
         self._test_compute_hessians(sparse=False)

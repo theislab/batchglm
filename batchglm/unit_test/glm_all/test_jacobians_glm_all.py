@@ -10,9 +10,6 @@ import batchglm.pkg_constants as pkg_constants
 
 from batchglm.models.base_glm import InputData
 
-glm.setup_logging(verbosity="WARNING", stream="STDOUT")
-logger = logging.getLogger(__name__)
-
 
 class Test_Jacobians_GLM_ALL(unittest.TestCase):
     noise_model: str
@@ -121,14 +118,14 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 design_scale=design_scale
             )
 
-        logger.debug("** Running analytic Jacobian test")
+        logging.getLogger("batchglm").debug("** Running analytic Jacobian test")
         pkg_constants.JACOBIAN_MODE = "analytic"
         t0_analytic = time.time()
         J_analytic = self.get_jacs(input_data)
         t1_analytic = time.time()
         t_analytic = t1_analytic - t0_analytic
 
-        logger.debug("** Running tensorflow Jacobian test")
+        logging.getLogger("batchglm").debug("** Running tensorflow Jacobian test")
         pkg_constants.JACOBIAN_MODE = "tf"
         t0_tf = time.time()
         J_tf = self.get_jacs(input_data)
@@ -141,13 +138,15 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
 
         logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
         logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
+        logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((J_tf - J_analytic))))
+        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs((J_tf - J_analytic) / J_tf)))
 
         #print(J_tf)
         #print(J_analytic)
         #print((J_tf - J_analytic) / J_tf)
 
-        max_rel_dev = np.max(np.abs((J_tf - J_analytic) / J_tf))
-        assert max_rel_dev < 1e-12
+        mrad = np.max(np.abs((J_tf - J_analytic) / J_tf))
+        assert mrad < 1e-12, mrad
         return True
 
     def _test_compute_jacobians(self, sparse):
@@ -160,7 +159,7 @@ class Test_Jacobians_GLM_NB(Test_Jacobians_GLM_ALL, unittest.TestCase):
     def test_compute_jacobians_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
+        logging.getLogger("batchglm").error("Test_Jacobians_GLM_NB.test_compute_jacobians_nb()")
 
         self.noise_model = "nb"
         self._test_compute_jacobians(sparse=False)
@@ -172,7 +171,7 @@ class Test_Jacobians_GLM_NORM(Test_Jacobians_GLM_ALL, unittest.TestCase):
     def test_compute_jacobians_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_Jacobians_GLM_NORM.test_compute_jacobians_norm()")
+        logging.getLogger("batchglm").error("Test_Jacobians_GLM_NORM.test_compute_jacobians_norm()")
 
         self.noise_model = "norm"
         self._test_compute_jacobians(sparse=False)
@@ -183,7 +182,7 @@ class Test_Jacobians_GLM_BETA(Test_Jacobians_GLM_ALL, unittest.TestCase):
     def test_compute_jacobians_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_Jacobians_GLM_BETA.test_compute_jacobians_beta()")
+        logging.getLogger("batchglm").error("Test_Jacobians_GLM_BETA.test_compute_jacobians_beta()")
 
         self.noise_model = "beta"
         self._test_compute_jacobians(sparse=False)
