@@ -4,11 +4,7 @@ from typing import List
 import unittest
 import numpy as np
 
-import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
-
-glm.setup_logging(verbosity="WARNING", stream="STDOUT")
-logger = logging.getLogger(__name__)
 
 
 class _Test_AccuracySizeFactors_GLM_Estim():
@@ -24,8 +20,7 @@ class _Test_AccuracySizeFactors_GLM_Estim():
     def estimate(
             self,
             algo,
-            batched,
-            acc,
+            batched
         ):
         self.estimator.initialize()
 
@@ -40,8 +35,7 @@ class _Test_AccuracySizeFactors_GLM_Estim():
         self.estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": lr,
-                "convergence_criteria": "all_converged_ll" ,
-                "stopping_criteria": acc,
+                "convergence_criteria": "all_converged",
                 "use_batching": batched,
                 "optim_algo": algo,
             },
@@ -105,7 +99,7 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         sim.generate_params()
         sim.size_factors = np.random.uniform(0.1, 2, size=sim.num_observations)
         sim.generate_data()
-        logger.debug(" Size factor standard deviation % f" % np.std(sim.size_factors.data))
+        logging.getLogger("batchglm").debug(" Size factor standard deviation % f" % np.std(sim.size_factors.data))
         self.sim = sim
 
     def _basic_test(
@@ -115,11 +109,9 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             algos
     ):
         for algo in algos:
-            logger.debug("algorithm: %s" % algo)
             estimator.estimate(
                 algo=algo,
-                batched=batched,
-                acc=1e-6
+                batched=batched
             )
             estimator_store = estimator.estimator.finalize()
             self._estims.append(estimator)
@@ -167,6 +159,3 @@ class Test_AccuracySizeFactors_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=False,
             sparse=sparse
         )
-
-if __name__ == '__main__':
-    unittest.main()

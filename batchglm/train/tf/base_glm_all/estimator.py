@@ -1,7 +1,6 @@
 import abc
 from typing import Union
 import logging
-import pprint
 from enum import Enum
 
 import tensorflow as tf
@@ -36,6 +35,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             model: EstimatorGraphAll,
             provide_optimizers: dict,
             provide_batched: bool,
+            provide_fim: bool,
+            provide_hessian: bool,
             extended_summary,
             noise_model: str,
             dtype: str
@@ -145,6 +146,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if input_data.size_factors is not None:
                 if noise_model == "beta":
                     assert False, "size factors must be None"
+                    
                 size_factors_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
                     func=input_data.fetch_size_factors,
                     inp=[idx],
@@ -181,6 +183,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 constraints_scale=self.input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
                 provide_batched=provide_batched,
+                provide_fim=provide_fim,
+                provide_hessian=provide_hessian,
                 train_loc=self._train_loc,
                 train_scale=self._train_scale,
                 extended_summary=extended_summary,
@@ -200,16 +204,18 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             )
         return scaffold
 
-    def train(self, *args,
-              learning_rate=None,
-              convergence_criteria="t_test",
-              loss_window_size=100,
-              stopping_criteria=0.05,
-              train_mu: bool = None,
-              train_r: bool = None,
-              use_batching=False,
-              optim_algo="gradient_descent",
-              **kwargs):
+    def train(
+            self,
+            *args,
+            learning_rate=None,
+            convergence_criteria="all_converged",
+            stopping_criteria=None,
+            train_mu: bool = None,
+            train_r: bool = None,
+            use_batching=False,
+            optim_algo=None,
+            **kwargs
+    ):
         r"""
         Starts training of the model
 
@@ -222,30 +228,14 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
             - "step":
               stop, when the step counter reaches `stopping_criteria`
-            - "difference":
-              stop, when `loss(step=i) - loss(step=i-1)` < `stopping_criteria`
-            - "moving_average":
-              stop, when `mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)` < `stopping_criteria`
-            - "absolute_moving_average":
-              stop, when `|mean_loss(steps=[i-2N..i-N) - mean_loss(steps=[i-N..i)|` < `stopping_criteria`
-            - "t_test" (recommended):
-              Perform t-Test between the last [i-2N..i-N] and [i-N..i] losses.
-              Stop if P("both distributions are equal") > `stopping_criteria`.
         :param stopping_criteria: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
-        :param loss_window_size: specifies `N` in `convergence_criteria`.
         :param train_mu: Set to True/False in order to enable/disable training of mu
         :param train_r: Set to True/False in order to enable/disable training of r
         :param use_batching: If True, will use mini-batches with the batch size defined in the constructor.
             Otherwise, the gradient of the full dataset will be used.
-        :param optim_algo: name of the requested train op. Can be:
-
-            - "Adam"
-            - "Adagrad"
-            - "RMSprop"
-            - "GradientDescent" or "GD"
-
+        :param optim_algo: name of the requested train op.
             See :func:train_utils.MultiTrainer.train_op_by_name for further details.
         """
         if train_mu is None:
@@ -256,45 +246,42 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             train_r = self._train_scale
 
         # Check whether newton-rhapson is desired:
-        newton_type_mode = False
+        require_hessian = False
+        require_fim = False
         trustregion_mode = False
-        is_nr_tr = False
-        is_irls_tr = False
 
         if optim_algo.lower() == "newton" or \
                 optim_algo.lower() == "newton_raphson" or \
                 optim_algo.lower() == "nr":
-            newton_type_mode = True
+            require_hessian = True
 
         if optim_algo.lower() == "irls" or \
                 optim_algo.lower() == "iwls" or \
                 optim_algo.lower() == "irls_gd" or \
                 optim_algo.lower() == "iwls_gd":
-            newton_type_mode = True
+            require_fim = True
 
         if optim_algo.lower() == "newton_tr" or \
                 optim_algo.lower() == "nr_tr":
-            newton_type_mode = True
+            require_hessian = True
             trustregion_mode = True
-            is_nr_tr = True
 
         if optim_algo.lower() == "irls_tr" or \
                 optim_algo.lower() == "iwls_tr" or \
                 optim_algo.lower() == "irls_gd_tr" or \
                 optim_algo.lower() == "iwls_gd_tr":
-            newton_type_mode = True
+            require_fim = True
             trustregion_mode = True
-            is_irls_tr = True
 
         # Set learning rate defaults if not set by user.
         if learning_rate is None:
-            if newton_type_mode:
+            if require_hessian or require_fim:
                 learning_rate = 1
             else:
                 learning_rate = 0.5
 
         # Check that newton-rhapson is called properly:
-        if newton_type_mode:
+        if require_hessian or require_fim:
             if learning_rate != 1:
                 logger.warning(
                     "Newton-rhapson or IRLS in base_glm_all is used with learning rate " +
@@ -306,7 +293,6 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         logger.debug("Optimizer settings in base_glm_all Estimator.train():")
         logger.debug("learning_rate " + str(learning_rate))
         logger.debug("convergence_criteria " + str(convergence_criteria))
-        logger.debug("loss_window_size " + str(loss_window_size))
         logger.debug("stopping_criteria " + str(stopping_criteria))
         logger.debug("train_mu " + str(train_mu))
         logger.debug("train_r " + str(train_r))
@@ -322,33 +308,18 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             else:
                 train_op = self.model.trainer_full.train_op_by_name(optim_algo)
 
-            super().train(*args,
-                          feed_dict={"learning_rate:0": learning_rate},
-                          convergence_criteria=convergence_criteria,
-                          loss_window_size=loss_window_size,
-                          stopping_criteria=stopping_criteria,
-                          train_op=train_op,
-                          trustregion_mode=trustregion_mode,
-                          is_nr_tr=is_nr_tr,
-                          is_irls_tr=is_irls_tr,
-                          is_batched=use_batching,
-                          **kwargs)
-
-    def train_sequence(self, training_strategy):
-        if isinstance(training_strategy, Enum):
-            training_strategy = training_strategy.value
-        elif isinstance(training_strategy, str):
-            training_strategy = self.TrainingStrategies[training_strategy].value
-
-        if training_strategy is None:
-            training_strategy = self.TrainingStrategies.DEFAULT.value
-
-        logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
-
-        for idx, d in enumerate(training_strategy):
-            logger.info("Beginning with training sequence #%d", idx + 1)
-            self.train(**d)
-            logger.info("Training sequence #%d complete", idx + 1)
+            super()._train(
+                *args,
+                feed_dict={"learning_rate:0": learning_rate},
+                convergence_criteria=convergence_criteria,
+                stopping_criteria=stopping_criteria,
+                train_op=train_op,
+                trustregion_mode=trustregion_mode,
+                require_hessian=require_hessian,
+                require_fim=require_fim,
+                is_batched=use_batching,
+                **kwargs
+            )
 
     @property
     def input_data(self):

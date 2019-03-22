@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from batchglm.train.tf.base_glm.model import ModelVarsGLM
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 class ReducableTensorsGLM:

@@ -1,5 +1,8 @@
 import abc
+from enum import Enum
+import logging
 from typing import Dict, Any, Union, List, Iterable
+import pprint
 import os
 import time
 import datetime
@@ -8,8 +11,10 @@ import numpy as np
 import xarray as xr
 import tensorflow as tf
 
-from .external import _Estimator_Base, pkg_constants, stat_utils, SparseXArrayDataArray
+from .external import _Estimator_Base, pkg_constants
 from batchglm.train.tf.train import StopAtLossHook, TimedRunHook
+
+logger = logging.getLogger("batchglm")
 
 
 class TFEstimatorGraph(metaclass=abc.ABCMeta):
@@ -88,18 +93,36 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
     def loss(self):
         return self._get_unsafe("loss")
 
-    def train(self, *args,
-              learning_rate=None,
-              feed_dict=None,
-              convergence_criteria="t_test",
-              loss_window_size=None,
-              stopping_criteria=None,
-              train_op=None,
-              trustregion_mode=False,
-              is_nr_tr=False,
-              is_irls_tr=False,
-              is_batched=False,
-              **kwargs):
+    def train_sequence(self, training_strategy):
+        if isinstance(training_strategy, Enum):
+            training_strategy = training_strategy.value
+        elif isinstance(training_strategy, str):
+            training_strategy = self.TrainingStrategies[training_strategy].value
+
+        if training_strategy is None:
+            training_strategy = self.TrainingStrategies.DEFAULT.value
+
+        logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
+
+        for idx, d in enumerate(training_strategy):
+            logger.info("Beginning with training sequence #%d", idx + 1)
+            self.train(**d)
+            logger.info("Training sequence #%d complete", idx + 1)
+
+    def _train(
+            self,
+            *args,
+            learning_rate=None,
+            feed_dict=None,
+            convergence_criteria="all_converged",
+            stopping_criteria=None,
+            train_op=None,
+            trustregion_mode=False,
+            require_hessian=False,
+            require_fim=False,
+            is_batched=False,
+            **kwargs
+    ):
         """
         Starts training of the model
 
@@ -159,7 +182,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
         def convergence_decision(convergence_status, step_counter):
             if convergence_criteria == "step":
                 return np.any(np.logical_not(convergence_status)) and step_counter < stopping_criteria
-            elif convergence_criteria == "all_converged_ll":
+            elif convergence_criteria == "all_converged":
                 return np.any(np.logical_not(convergence_status))
             else:
                 raise ValueError("convergence_criteria %s not recognized." % convergence_criteria)
@@ -273,13 +296,13 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             if len(self.model.full_data_model.idx_train_loc) > 0:
                 idx_jac_loc = np.array([list(self.model.full_data_model.idx_train).index(x)
                                         for x in self.model.full_data_model.idx_train_loc])
-                grad_norm_loc = np.sum(jac_train[:, idx_jac_loc], axis=1) / jac_normalization
+                grad_norm_loc = np.sum(np.abs(jac_train[:, idx_jac_loc]), axis=1) / jac_normalization
             else:
                 grad_norm_loc = np.zeros([self.model.model_vars.n_features])
             if len(self.model.full_data_model.idx_train_scale) > 0:
                 idx_jac_scale = np.array([list(self.model.full_data_model.idx_train).index(x)
                                           for x in self.model.full_data_model.idx_train_scale])
-                grad_norm_scale = np.sum(jac_train[:, idx_jac_scale], axis=1) / jac_normalization
+                grad_norm_scale = np.sum(np.abs(jac_train[:, idx_jac_scale]), axis=1) / jac_normalization
             else:
                 grad_norm_scale = np.zeros([self.model.model_vars.n_features])
             converged_g = np.logical_and(

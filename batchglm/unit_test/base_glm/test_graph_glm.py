@@ -7,7 +7,7 @@ import batchglm.api as glm
 from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 class _Test_Graph_GLM_Estim():
@@ -31,7 +31,7 @@ class _Test_Graph_GLM_Estim():
         self.estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": 1,
-                "convergence_criteria": "all_converged_ll",
+                "convergence_criteria": "all_converged",
                 "stopping_criteria": 1e1,
                 "use_batching": batched,
                 "optim_algo": self.algo,

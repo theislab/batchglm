@@ -1,12 +1,9 @@
-from copy import copy, deepcopy
 from typing import Union
 
 import numpy as np
-import scipy.sparse
 import xarray as xr
 
 from .external import closedform_glm_mean, closedform_glm_scale
-from .external import weighted_mean
 from .external import SparseXArrayDataArray
 
 
@@ -23,7 +20,7 @@ def closedform_nb_glm_logmu(
 
     :param X: The sample data
     :param design_loc: design matrix for location
-    :param constraints: tensor (all parameters x dependent parameters)
+    :param constraints_loc: tensor (all parameters x dependent parameters)
         Tensor that encodes how complete parameter set which includes dependent
         parameters arises from indepedent parameters: all = <constraints, indep>.
         This form of constraints is used in vector generalized linear models (VGLMs).
@@ -35,7 +32,6 @@ def closedform_nb_glm_logmu(
         dmat=design_loc,
         constraints=constraints_loc,
         size_factors=size_factors,
-        weights=None,
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
@@ -46,8 +42,6 @@ def closedform_nb_glm_logphi(
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
-        weights: Union[np.ndarray, xr.DataArray] = None,
-        mu=None,
         groupwise_means=None,
         link_fn=np.log
 ):
@@ -59,10 +53,6 @@ def closedform_nb_glm_logphi(
     :param design_scale: design matrix for scale
     :param constraints: some design constraints
     :param size_factors: size factors for X
-    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
-    :param mu: optional, if there are for example different mu's per observation.
-
-        Used to calculate `Xdiff = X - mu`.
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
     :return: tuple (groupwise_scales, logphi, rmsd)
     """
@@ -72,14 +62,11 @@ def closedform_nb_glm_logphi(
         groupwise_scales = np.square(mean) / denominator
         return groupwise_scales
 
-
     return closedform_glm_scale(
         X=X,
         design_scale=design_scale,
         constraints=constraints,
         size_factors=size_factors,
-        weights=weights,
-        mu=mu,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
         compute_scales_fun=compute_scales_fun

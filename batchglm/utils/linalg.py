@@ -2,7 +2,7 @@ import numpy as np
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("batchglm")
 
 
 def stacked_lstsq(L, b, rcond=1e-10):
@@ -72,6 +72,8 @@ def groupwise_solve_lm(
     """
     # Get unqiue rows of design matrix and vector with group assignments:
     unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
+    if unique_design.shape[0] > 100:
+        raise ValueError("large least-square problem in init, likely defined a numeric predictor as categorical")
 
     full_rank = constraints.shape[1]
     rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))

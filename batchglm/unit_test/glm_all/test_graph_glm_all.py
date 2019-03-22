@@ -54,13 +54,13 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
                 design_scale=simulator.input_data.design_scale
             )
 
-
         estimator = Estimator(
             input_data=input_data,
             batch_size=batch_size,
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
-            provide_batched=batched
+            provide_batched=batched,
+            optim_algos=[algo.lower()]
         )
         super().__init__(
             estimator=estimator,

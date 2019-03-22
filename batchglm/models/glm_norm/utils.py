@@ -1,13 +1,12 @@
-from copy import copy, deepcopy
-from typing import Union
-
+import logging
 import numpy as np
-import scipy.sparse
+from typing import Union
 import xarray as xr
 
 from .external import closedform_glm_mean, closedform_glm_scale
-from .external import weighted_mean
 from .external import SparseXArrayDataArray
+
+logger = logging.getLogger("batchglm")
 
 
 def closedform_norm_glm_mean(
@@ -23,7 +22,7 @@ def closedform_norm_glm_mean(
 
     :param X: The sample data
     :param design_loc: design matrix for location
-    :param constraints: tensor (all parameters x dependent parameters)
+    :param constraints_loc: tensor (all parameters x dependent parameters)
         Tensor that encodes how complete parameter set which includes dependent
         parameters arises from indepedent parameters: all = <constraints, indep>.
         This form of constraints is used in vector generalized linear models (VGLMs).
@@ -35,7 +34,6 @@ def closedform_norm_glm_mean(
         dmat=design_loc,
         constraints=constraints_loc,
         size_factors=size_factors,
-        weights=None,
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
@@ -46,8 +44,6 @@ def closedform_norm_glm_logsd(
         design_scale: xr.DataArray,
         constraints=None,
         size_factors=None,
-        weights: Union[np.ndarray, xr.DataArray] = None,
-        mean=None,
         groupwise_means=None,
         link_fn=np.log
 ):
@@ -58,8 +54,6 @@ def closedform_norm_glm_logsd(
     :param design_scale: design matrix for scale
     :param constraints: some design constraints
     :param size_factors: size factors for X
-    :param weights: the weights of the arrays' elements; if `none` it will be ignored.
-    :param mean: optional, if there are for example different mean's per observation.
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
     :return: tuple (groupwise_scales, logsd, rmsd)
     """
@@ -68,14 +62,11 @@ def closedform_norm_glm_logsd(
         groupwise_scales = np.sqrt(variance)
         return groupwise_scales
 
-
     return closedform_glm_scale(
         X=X,
         design_scale=design_scale,
         constraints=constraints,
         size_factors=size_factors,
-        weights=weights,
-        mu=mean,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
         compute_scales_fun=compute_scales_fun

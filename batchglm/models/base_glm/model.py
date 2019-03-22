@@ -63,7 +63,7 @@ class _Model_GLM(_Model_Base, metaclass=abc.ABCMeta):
     def par_link_scale(self):
         return self.b
 
-    @property
+    @abc.abstractmethod
     def eta_loc(self) -> xr.DataArray:
         pass
 
