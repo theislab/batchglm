@@ -47,6 +47,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             provide_batched: bool = False,
             provide_fim: bool = False,
             provide_hessian: bool = False,
+            optim_algos: list = [],
             extended_summary=False,
             dtype="float64"
     ):
@@ -97,6 +98,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             Either supply provide_fim and provide_hessian or optim_algos.
         :param provide_hessian: Whether to compute hessians during training
             Either supply provide_fim and provide_hessian or optim_algos.
+        :param optim_algos: Algorithms that you want to use on this object. Depending on that,
+            the hessian and/or fisher information matrix are computed.
+            Either supply provide_fim and provide_hessian or optim_algos.
         :param extended_summary: Include detailed information in the summaries.
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
@@ -117,6 +121,12 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         init_b = init_b.astype(dtype)
         if quick_scale:
             self._train_scale = False
+
+        if len(optim_algos) > 0:
+            if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
+                provide_hessian = True
+            if np.any([x.lower() in ["irls", "irls_tr"] for x in optim_algos]):
+                provide_fim = True
 
         EstimatorAll.__init__(
             self=self,
@@ -202,7 +212,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                                 np.matmul(design_constr.T, X),
                                 rcond=None
                             )
-                            init_a[:, j] = init_a_j
+                            init_a[:, j] = init_a_j[:, 0]
                     else:
                         if isinstance(input_data.X, xr.DataArray):
                             X = input_data.X.values
