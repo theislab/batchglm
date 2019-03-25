@@ -106,7 +106,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
         self._input_data = input_data
         self._train_loc = True
-        self._train_scale = not quick_scale
+        self._train_scale = True
 
         (init_a, init_b) = self.init_par(
             input_data=input_data,
@@ -116,6 +116,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         )
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
+        if quick_scale:
+            self._train_scale = False
 
         if len(optim_algos) > 0:
             if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
