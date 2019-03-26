@@ -532,7 +532,10 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             self.hessians = self.full_data_model.hessians_final
             self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians_final)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
-            self.gradients = tf.reduce_sum(tf.abs(self.full_data_model.neg_jac_final / num_observations), axis=1)
+            a = tf.abs(self.full_data_model.neg_jac_final / num_observations)
+            b = tf.print(a)
+            with tf.control_dependencies([b]):
+                self.gradients = tf.reduce_sum(a, axis=1)
 
         with tf.name_scope('summaries'):
             if extended_summary:

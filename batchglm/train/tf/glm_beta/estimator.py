@@ -116,6 +116,11 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
 
+        print("init_a")
+        print(init_a)
+        print("init_b")
+        print(init_b)
+
         if len(optim_algos) > 0:
             if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
                 provide_hessian = True
@@ -210,7 +215,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     self._train_loc = True
 
-                    logger.debug("Using all_zero initialization for mean")
+                    logging.getLogger("batchglm").debug("Using all zero initialization for mean")
                 else:
                     raise ValueError("init_a string %s not recognized" % init_a)
                 logging.getLogger("batchglm").debug("Should train mean: %s", self._train_loc)
@@ -224,7 +229,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         design_scale=input_data.design_scale[:, [0]],
                         constraints=input_data.constraints_scale[[0], [0]].values,
                         size_factors=size_factors_init,
-                        groupwise_means=groupwise_means,
+                        groupwise_means=None,
                         link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
                     )
                     init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])

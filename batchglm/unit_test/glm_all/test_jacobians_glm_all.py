@@ -132,6 +132,10 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         t1_tf = time.time()
         t_tf = t1_tf - t0_tf
 
+
+        print("J_analytic: ", J_analytic)
+        print("J_tf: ", J_tf)
+
         # Make sure that jacobians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(J_analytic)) > 1e-10, \
             "jacobians too small to perform test: %f" % np.sum(np.abs(J_analytic))

@@ -107,8 +107,14 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
                     - tf.lgamma(one_minus_loc * model_scale)\
                     + (model_scale * model_loc - 1) * tf.log(Xdense)\
                     + (one_minus_loc * model_scale - 1) * tf.log(one_minus_X)
-
-        log_probs = self.tf_clip_param(log_probs, "log_probs")
+        a = tf.print("log_probs: \n", log_probs)
+        b = tf.print("model_loc: \n", model_loc)
+        c = tf.print("model_scale: \n", model_scale)
+        d = tf.print("X: \n", X)
+        e = tf.print("a_var: \n", a_var)
+        f = tf.print("eta_loc: \n", eta_loc)
+        with tf.control_dependencies([a, b, c, d, e, f]):
+            log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:
         sigma2 = (model_loc * one_minus_loc) / (1 + model_scale)

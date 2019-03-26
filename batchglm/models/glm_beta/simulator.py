@@ -26,8 +26,8 @@ class Simulator(_Simulator_GLM, Model):
             self,
             rand_fn_ave=lambda shape: np.random.uniform(0.2, 0.8, shape),
             rand_fn=None,
-            rand_fn_loc=lambda shape: np.random.uniform(0.05, 0.15, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1e5, 2*1e5, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(0.5, 0.6, shape),
+            rand_fn_scale=lambda shape: np.random.uniform(1e1, 2*1e1, shape),
         ):
         self._generate_params(
             self,
