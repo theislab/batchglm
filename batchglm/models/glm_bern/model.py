@@ -32,10 +32,10 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
         return 1/(1+np.exp(-data))
 
     def link_scale(self, data):
-        return np.log(data)
+        return data
 
     def inverse_link_scale(self, data):
-        return np.exp(data)
+        return data
 
     @property
     def eta_loc(self) -> xr.DataArray:

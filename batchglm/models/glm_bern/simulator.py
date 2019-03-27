@@ -6,8 +6,8 @@ from .external import rand_utils, _Simulator_GLM
 
 class Simulator(_Simulator_GLM, Model):
     """
-    Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
-    Uses the natural logarithm as linker function.
+    Simulator for Generalized Linear Models (GLMs) with bernoulli noise.
+    Uses logit linker function.
     """
 
     def __init__(
