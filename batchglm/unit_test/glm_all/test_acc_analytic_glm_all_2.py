@@ -36,6 +36,10 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 from batchglm.api.models.glm_nb import Estimator, InputData
             elif noise_model=="norm":
                 from batchglm.api.models.glm_norm import Estimator, InputData
+            elif noise_model=="beta":
+                from batchglm.api.models.glm_beta import Estimator, InputData
+            elif noise_model=="bern":
+                from batchglm.api.models.glm_bern import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -94,6 +98,12 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             elif self.noise_model=="norm":
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
+            elif self.noise_model=="beta":
+                threshold_dev = 1e-2
+                threshold_std = 1e-1
+            elif self.noise_model=="bern":
+                threshold_dev = 1e-2
+                threshold_std = 1e-1
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -127,6 +137,12 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
             elif self.noise_model == "norm":
+                threshold_dev = 1e-2
+                threshold_std = 1e-1
+            elif self.noise_model == "beta":
+                threshold_dev = 1e-2
+                threshold_std = 1e-1
+            elif self.noise_model == "bern":
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
             else:
@@ -167,6 +183,10 @@ class Test_AccuracyAnalytic_GLM_ALL(
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model=="norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model=="beta":
+                from batchglm.api.models.glm_beta import Simulator
+            elif self.noise_model=="bern":
+                from batchglm.api.models.glm_bern import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -188,10 +208,33 @@ class Test_AccuracyAnalytic_GLM_ALL(
     def simulate_complex(self):
         self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
+
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model=="nb":
+                rand_fn_ave = lambda shape: np.random.uniform(1e5, 2 * 1e5, shape)
+                rand_fn_loc = lambda shape: np.random.uniform(1, 3, shape)
+                rand_fn_scale = lambda shape: np.random.uniform(1, 3, shape)
+            elif self.noise_model=="norm":
+                rand_fn_ave = lambda shape: np.random.uniform(1e5, 2 * 1e5, shape)
+                rand_fn_loc = lambda shape: np.random.uniform(1, 3, shape)
+                rand_fn_scale = lambda shape: np.random.uniform(1, 3, shape)
+            elif self.noise_model=="beta":
+                rand_fn_ave = lambda shape: np.random.uniform(0.3, 0.4, shape)
+                rand_fn_loc = lambda shape: np.random.uniform(0.35, 0.45, shape)
+                rand_fn_scale = lambda shape: np.random.uniform(10, 30, shape)
+            elif self.noise_model=="bern":
+                rand_fn_ave = lambda shape: np.random.uniform(0.3, 0.4, shape)
+                rand_fn_loc = lambda shape: np.random.uniform(0.35, 0.45, shape)
+                rand_fn_scale = lambda shape: np.random.uniform(0, 0, shape)
+            else:
+                raise ValueError("noise_model not recognized")
+
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.random.uniform(1, 3, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1, 3, shape)
+            rand_fn_ave=rand_fn_ave,
+            rand_fn_loc=rand_fn_loc,
+            rand_fn_scale=rand_fn_scale
         )
         self.sim.generate_data()
 
@@ -199,14 +242,36 @@ class Test_AccuracyAnalytic_GLM_ALL(
         self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
 
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model=="nb":
+                rand_fn_ave = lambda shape: np.random.uniform(1e5, 2 * 1e5, shape)
+                rand_fn_loc = lambda shape: np.ones(shape)
+                rand_fn_scale = lambda shape: np.random.uniform(1, 3, shape)
+            elif self.noise_model=="norm":
+                rand_fn_ave = lambda shape: np.random.uniform(1e5, 2 * 1e5, shape)
+                rand_fn_loc = lambda shape: np.ones(shape)
+                rand_fn_scale = lambda shape: np.random.uniform(1, 3, shape)
+            elif self.noise_model=="beta":
+                rand_fn_ave = lambda shape: np.random.uniform(0.3, 0.4, shape)
+                rand_fn_loc = lambda shape: 0.5*np.ones(shape)
+                rand_fn_scale = lambda shape: np.random.uniform(10, 30, shape)
+            elif self.noise_model=="bern":
+                rand_fn_ave = lambda shape: np.random.uniform(0.3, 0.4, shape)
+                rand_fn_loc = lambda shape: 0.5*np.ones(shape)
+                rand_fn_scale = lambda shape: np.random.uniform(0, 0, shape)
+            else:
+                raise ValueError("noise_model not recognized")
+
         def rand_fn_standard(shape):
             theta = np.ones(shape)
             theta[0, :] = np.random.uniform(5, 20, shape[1])
             return theta
 
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.ones(shape),
+            rand_fn_ave=rand_fn_ave,
+            rand_fn_loc=rand_fn_loc,
             rand_fn_scale=lambda shape: rand_fn_standard(shape)
         )
         self.sim.generate_data()
@@ -251,7 +316,7 @@ class Test_AccuracyAnalytic_GLM_NB(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_closed()")
 
@@ -280,7 +345,7 @@ class Test_AccuracyAnalytic_GLM_NORM(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_closed_b_closed()")
 
@@ -295,6 +360,62 @@ class Test_AccuracyAnalytic_GLM_NORM(
         logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_standard_b_standard()")
 
         self.noise_model = "norm"
+        self.simulate_easy()
+        self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
+        self._test_a_and_b(sparse=True, init_a="standard", init_b="standard")
+
+class Test_AccuracyAnalytic_GLM_BETA(
+    Test_AccuracyAnalytic_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for beta distributed noise.
+    """
+
+    def test_a_closed_b_closed(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_BETA.test_a_closed_b_closed()")
+
+        self.noise_model = "beta"
+        self.simulate_complex()
+        self._test_a_and_b(sparse=False, init_a="closed_form", init_b="closed_form")
+        self._test_a_and_b(sparse=True, init_a="closed_form", init_b="closed_form")
+
+    def test_a_standard_b_standard(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_BETA.test_a_standard_b_standard()")
+
+        self.noise_model = "beta"
+        self.simulate_easy()
+        self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
+        self._test_a_and_b(sparse=True, init_a="standard", init_b="standard")
+
+class Test_AccuracyAnalytic_GLM_BERN(
+    Test_AccuracyAnalytic_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for bernoulli distributed noise.
+    """
+
+    def test_a_closed_b_closed(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_BERN.test_a_closed_b_closed()")
+
+        self.noise_model = "bern"
+        self.simulate_complex()
+        self._test_a_and_b(sparse=False, init_a="closed_form", init_b="closed_form")
+        self._test_a_and_b(sparse=True, init_a="closed_form", init_b="closed_form")
+
+    def test_a_standard_b_standard(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("Test_AccuracyAnalytic_GLM_BERN.test_a_standard_b_standard()")
+
+        self.noise_model = "bern"
         self.simulate_easy()
         self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
         self._test_a_and_b(sparse=True, init_a="standard", init_b="standard")

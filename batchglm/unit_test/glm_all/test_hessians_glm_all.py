@@ -30,6 +30,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_norm import Simulator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator
+            elif self.noise_model == "bern":
+                from batchglm.api.models.glm_bern import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -53,6 +55,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_norm import Estimator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator
+            elif self.noise_model == "bern":
+                from batchglm.api.models.glm_bern import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -94,6 +98,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_norm import Simulator, InputData
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator, InputData
+            elif self.noise_model == "bern":
+                from batchglm.api.models.glm_bern import Simulator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -188,6 +194,19 @@ class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
         logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
 
         self.noise_model = "beta"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+class Test_Hessians_GLM_BERN(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_bern(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_BERN.test_compute_hessians_bern()")
+
+        self.noise_model = "bern"
         self._test_compute_hessians(sparse=False)
         #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
 
