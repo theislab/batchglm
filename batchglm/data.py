@@ -501,7 +501,7 @@ def build_equality_constraints(
 
 
 def build_equality_constraints_string(
-        dmat: xr.DataArray,
+        dmat: Union[xr.DataArray, xr.Dataset],
         constraints: List[str],
         dims: list
 ):
@@ -516,7 +516,9 @@ def build_equality_constraints_string(
         Define dimension names of xarray.
     :return: a constraint matrix
     """
-    n_par_all = dmat.data_vars['design'].values.shape[1]
+    if isinstance(dmat, xr.Dataset):
+        dmat = dmat.data_vars['design']
+    n_par_all = dmat.values.shape[1]
     n_par_free = n_par_all - len(constraints)
 
     di = patsy.DesignInfo(dmat.coords["design_params"].values)
@@ -528,9 +530,9 @@ def build_equality_constraints_string(
     ))
 
     dmat_var = xr.DataArray(
-        dims=[dmat.data_vars['design'].dims[0], "params"],
-        data=dmat.data_vars["design"][:,idx_unconstr],
-        coords={dmat.data_vars['design'].dims[0]: dmat.coords["observations"].values,
+        dims=[dmat.dims[0], "params"],
+        data=dmat[:,idx_unconstr],
+        coords={dmat.dims[0]: dmat.coords["observations"].values,
                 "params": dmat.coords["design_params"].values[idx_unconstr]}
     )
 
@@ -560,7 +562,7 @@ def build_equality_constraints_string(
 
 
 def parse_constraints(
-        dmat: xr.DataArray,
+        dmat: Union[xr.DataArray, xr.Dataset],
         constraints: np.ndarray,
         dims: list
 ):
@@ -571,10 +573,13 @@ def parse_constraints(
     :param constraints: a constraint matrix
     :return: constraint matrix in xarray format
     """
+    if isinstance(dmat, xr.Dataset):
+        dmat = dmat.data_vars['design']
+
     constraints_ar = xr.DataArray(
         dims=dims,
         data=constraints,
-        coords={dims[0]: dmat.data_vars['design'].coords["design_params"].values,
+        coords={dims[0]: dmat.coords["design_params"].values,
                 dims[1]: ["var_"+str(x) for x in range(constraints.shape[1])]}
     )
     return constraints_ar
