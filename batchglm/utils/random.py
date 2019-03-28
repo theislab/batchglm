@@ -68,7 +68,7 @@ class NegativeBinomial:
                     raise ValueError("Must pass either probs or means, but not both")
 
                 mean = variance * (1 - p)
-                r = mean / (variance - mean)
+                r = mean * mean / (variance - mean)
 
             elif mean is not None:
                 if p is not None:
@@ -144,3 +144,57 @@ class NegativeBinomial:
         # return scipy.stats.nbinom(n=r, p=1 - p).logpmf(X)
         coeff = gammaln(r + X) - gammaln(X + 1) - gammaln(r)
         return coeff + r * np.log(1 - p) + X * np.log(p)
+
+
+class Normal:
+    r"""
+    Normal distribution.
+    """
+
+    mean: np.ndarray
+    sd: np.ndarray
+
+    def __init__(self, mean, sd):
+        self.sd=sd
+        self.mean=mean
+
+    def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
+        random_data = np.random.normal(
+            loc=self.mean,
+            scale=self.sd,
+            size=size
+        )
+        return random_data
+
+
+class Beta:
+    r"""
+    Beta distribution.
+    """
+
+    p: np.ndarray
+    q: np.ndarray
+
+    def __init__(self, mean, samplesize):
+        self.p=mean*samplesize
+        self.q=(1-mean)*samplesize
+
+    def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
+        random_data = np.random.beta(
+            a=self.p,
+            b=self.q,
+            size=size
+        )
+        return random_data

@@ -1,0 +1,198 @@
+import logging
+import unittest
+import time
+import numpy as np
+import scipy.sparse
+
+import batchglm.api as glm
+import batchglm.data as data_utils
+import batchglm.pkg_constants as pkg_constants
+
+from batchglm.models.base_glm import InputData
+
+
+class Test_Hessians_GLM_ALL(unittest.TestCase):
+    noise_model: str
+
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+    def simulate(self):
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model == "nb":
+                from batchglm.api.models.glm_nb import Simulator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Simulator
+            else:
+                raise ValueError("noise_model not recognized")
+
+        num_observations = 500
+        sim = Simulator(num_observations=num_observations, num_features=4)
+        sim.generate_sample_description(num_conditions=2, num_batches=2)
+        sim.generate()
+
+        self.sim = sim
+
+    def get_hessians(
+            self,
+            input_data: InputData
+    ):
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model == "nb":
+                from batchglm.api.models.glm_nb import Estimator
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Estimator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Estimator
+            else:
+                raise ValueError("noise_model not recognized")
+
+        provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
+                              "nr": False, "nr_tr": False,
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
+
+        estimator = Estimator(
+            input_data=input_data,
+            quick_scale=False,
+            provide_optimizers=provide_optimizers,
+            provide_fim=False,
+            provide_hessian=False,
+            init_a="standard",
+            init_b="standard"
+        )
+        estimator.initialize()
+        # Do not train, evaluate at initialization!
+        estimator.train_sequence(training_strategy=[
+            {
+                "convergence_criteria": "step",
+                "stopping_criteria": 0,
+                "use_batching": False,
+                "optim_algo": "gd",
+                "train_mu": False,
+                "train_r": False
+            },
+        ])
+        estimator_store = estimator.finalize()
+        return - estimator_store.fisher_inv
+
+    def _test_compute_hessians(self, sparse):
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model=="nb":
+                from batchglm.api.models.glm_nb import Simulator, InputData
+            elif self.noise_model == "norm":
+                from batchglm.api.models.glm_norm import Simulator, InputData
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Simulator, InputData
+            else:
+                raise ValueError("noise_model not recognized")
+
+        num_observations = 500
+        num_conditions = 2
+
+        sim = Simulator(num_observations=num_observations, num_features=4)
+        sim.generate_sample_description(num_conditions=num_conditions, num_batches=2)
+        sim.generate()
+
+        sample_description = data_utils.sample_description_from_xarray(sim.data, dim="observations")
+        design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
+        design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
+
+        if sparse:
+            input_data = InputData.new(
+                data=scipy.sparse.csr_matrix(sim.X),
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
+        else:
+            input_data = InputData.new(
+                data=sim.X,
+                design_loc=design_loc,
+                design_scale=design_scale
+            )
+
+        # Compute hessian based on analytic solution.
+        pkg_constants.HESSIAN_MODE = "analytic"
+        t0_analytic = time.time()
+        h_analytic = self.get_hessians(input_data)
+        t1_analytic = time.time()
+        t_analytic = t1_analytic - t0_analytic
+
+        # Compute hessian based on tensorflow auto-differentiation.
+        pkg_constants.HESSIAN_MODE = "tf"
+        t0_tf = time.time()
+        h_tf = self.get_hessians(input_data)
+        t1_tf = time.time()
+        t_tf = t1_tf - t0_tf
+
+        logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
+        logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
+        logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((h_tf - h_analytic))))
+        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs((h_tf - h_analytic) / h_tf)))
+
+        #i = 1
+        #print(h_tf[i, :, :])
+        #print(h_analytic[i, :, :])
+        #print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
+
+        # Make sure that hessians are not all zero which might make evaluation of equality difficult.
+        assert np.sum(np.abs(h_analytic)) > 1e-10, \
+            "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
+        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf)) < 1e-12
+        assert mrad < 1e-12, mrad
+        return True
+
+
+class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_nb(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_NB.test_compute_hessians_nb()")
+
+        self.noise_model = "nb"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_norm(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
+
+        self.noise_model = "norm"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+
+class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
+
+        self.noise_model = "beta"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+
+if __name__ == '__main__':
+    unittest.main()
