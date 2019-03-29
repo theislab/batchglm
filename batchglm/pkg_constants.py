@@ -10,7 +10,7 @@ ACCURACY_MARGIN_RELATIVE_TO_LIMIT = float(os.environ.get('BATCHGLM_ACCURACY_MARG
 FIM_MODE = str(os.environ.get('FIM_MODE', "analytic"))
 HESSIAN_MODE = str(os.environ.get('HESSIAN_MODE', "analytic"))
 JACOBIAN_MODE = str(os.environ.get('JACOBIAN_MODE', "analytic"))
-CHOLESKY_LSTSQS = True
+CHOLESKY_LSTSQS = False
 CHOLESKY_LSTSQS_BATCHED = False
 EVAL_ON_BATCHED = False
 
