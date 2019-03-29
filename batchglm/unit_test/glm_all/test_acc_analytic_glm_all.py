@@ -41,8 +41,8 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
 
         batch_size = 500
         provide_optimizers = {"gd": True, "adam": True, "adagrad": True, "rmsprop": True,
-                              "nr": True, "nr_tr": True,
-                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
+                              "nr": False, "nr_tr": False,
+                              "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         if sparse:
             input_data = InputData.new(
@@ -63,6 +63,8 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             quick_scale=not train_scale,
             provide_optimizers=provide_optimizers,
             provide_batched=True,
+            provide_fim=False,
+            provide_hessian=False,
             init_a=init_a,
             init_b=init_b
         )
@@ -71,11 +73,9 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
         self.estimator.initialize()
         self.estimator.train_sequence(training_strategy=[
             {
-                "learning_rate": 1,
-                "convergence_criteria": "all_converged_ll",
-                "stopping_criteria": 1e-6,
+                "convergence_criteria": "all_converged",
                 "use_batching": False,
-                "optim_algo": "irls_gd_tr"
+                "optim_algo": "gd"
             },
         ])
 
