@@ -210,7 +210,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     self._train_loc = True
 
-                    logger.debug("Using all_zero initialization for mean")
+                    logging.getLogger("batchglm").debug("Using all_zero initialization for mean")
                 else:
                     raise ValueError("init_a string %s not recognized" % init_a)
                 logging.getLogger("batchglm").debug("Should train mean: %s", self._train_loc)
