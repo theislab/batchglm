@@ -120,6 +120,11 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
+        print("design_loc: \n", design_loc)
+        print("design_scale: \n", design_scale)
+        print("sim.a_var: \n", sim.a_var)
+        print("sim.b_var: \n", sim.b_var)
+
         if sparse:
             input_data = InputData.new(
                 data=scipy.sparse.csr_matrix(sim.X),
@@ -152,10 +157,10 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((h_tf - h_analytic))))
         logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs(h_tf - h_analytic)))
 
-        #i = 1
-        #print(h_tf[i, :, :])
-        #print(h_analytic[i, :, :])
-        #print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
+        i = 1
+        print(h_tf[i, :, :])
+        print(h_analytic[i, :, :])
+        print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
 
         # Make sure that hessians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(h_analytic)) > 1e-10, \
@@ -192,12 +197,12 @@ class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
         return True
 
 
-class Test_Hessians_GLM_beta2(Test_Hessians_GLM_ALL, unittest.TestCase):
+class Test_Hessians_GLM_BETA2(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_beta2(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logging.getLogger("batchglm").error("Test_Hessians_GLM_beta2.test_compute_hessians_beta2()")
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA2.test_compute_hessians_beta2()")
 
         self.noise_model = "beta2"
         self._test_compute_hessians(sparse=False)
@@ -205,12 +210,12 @@ class Test_Hessians_GLM_beta2(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         return True
 
-class Test_Hessians_GLM_beta(Test_Hessians_GLM_ALL, unittest.TestCase):
+class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logging.getLogger("batchglm").error("Test_Hessians_GLM_beta.test_compute_hessians_beta()")
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
 
         self.noise_model = "beta"
         self._test_compute_hessians(sparse=False)

@@ -173,7 +173,7 @@ class Normal:
         return random_data
 
 
-class beta2:
+class Beta2:
     r"""
     beta2 distribution.
     """
@@ -235,9 +235,9 @@ class Beta:
     a: np.ndarray
     b: np.ndarray
 
-    def __init__(self, a=None, b=None):
-        self.a = a
-        self.b = b
+    def __init__(self, p=None, q=None):
+        self.a = p
+        self.b = q
 
     def sample(self, size=None):
         """

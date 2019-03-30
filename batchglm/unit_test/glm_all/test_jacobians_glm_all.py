@@ -193,12 +193,12 @@ class Test_Jacobians_GLM_NORM(Test_Jacobians_GLM_ALL, unittest.TestCase):
         self._test_compute_jacobians(sparse=False)
         #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 
-class Test_Jacobians_GLM_beta2(Test_Jacobians_GLM_ALL, unittest.TestCase):
+class Test_Jacobians_GLM_BETA2(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_beta2(self):
         logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logging.getLogger("batchglm").error("Test_Jacobians_GLM_beta2.test_compute_jacobians_beta2()")
+        logging.getLogger("batchglm").error("Test_Jacobians_GLM_BETA2.test_compute_jacobians_beta2()")
 
         self.noise_model = "beta2"
         self._test_compute_jacobians(sparse=False)

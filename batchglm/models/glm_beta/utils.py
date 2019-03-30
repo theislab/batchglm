@@ -7,7 +7,7 @@ from .external import closedform_glm_mean, closedform_glm_scale
 from .external import SparseXArrayDataArray
 
 
-def closedform_beta_glm_logmu(
+def closedform_beta_glm_logp(
         X: Union[xr.DataArray, SparseXArrayDataArray],
         design_loc,
         constraints_loc,
@@ -18,7 +18,7 @@ def closedform_beta_glm_logmu(
         inv_link_fn=np.exp
 ):
     r"""
-    Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
+    Calculates a closed-form solution for the `p` parameters of beta GLMs.
 
     :param X: The sample data
     :param design_loc: design matrix for location
@@ -26,10 +26,14 @@ def closedform_beta_glm_logmu(
         Tensor that encodes how complete parameter set which includes dependent
         parameters arises from indepedent parameters: all = <constraints, indep>.
         This form of constraints is used in vector generalized linear models (VGLMs).
+    :param design_scale: design matrix for scale
+    :param constraints: some design constraints
     :param size_factors: size factors for X
+    :param link_fn: linker function for GLM
+    :param inv_link_fn: inverse linker function for GLM
     :return: tuple: (groupwise_means, mu, rmsd)
     """
-    groupwise_means, mu, rmsd1 =  closedform_glm_mean(
+    groupwise_means, m, rmsd1 =  closedform_glm_mean(
         X=X,
         dmat=design_loc,
         constraints=constraints_loc,
@@ -37,22 +41,24 @@ def closedform_beta_glm_logmu(
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
+    mean = np.exp(m)
 
-    groupwise_scale, var, rmsd2 =  closedform_glm_scale(
+    groupwise_scale, v, rmsd2 =  closedform_glm_scale(
         X=X,
         design_scale=design_scale,
         constraints=constraints,
         size_factors=size_factors,
-        groupwise_means=groupwise_means,
+        groupwise_means=None,
         link_fn=link_fn,
         compute_scales_fun=None
     )
+    var = np.exp(v)
+    p = mean / var * (mean * (1-mean) - var)
+    print("mean: \n", mean, "\n var: \n", var, "\n p: \n", p)
+    return groupwise_means, np.log(p), rmsd1
 
-    mu = mu / var * (mu * (1-mu) - var)
-    return groupwise_means, mu, rmsd1
 
-
-def closedform_beta_glm_logphi(
+def closedform_beta_glm_logq(
         X: Union[xr.DataArray, SparseXArrayDataArray],
         design_loc,
         constraints_loc,
@@ -63,7 +69,7 @@ def closedform_beta_glm_logphi(
         inv_link_fn=np.exp,
 ):
     r"""
-    Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
+    Calculates a closed-form solution for the `q` parameters of beta GLMs.
 
     :param X: The sample data
     :param design_loc: design matrix for location
@@ -71,10 +77,14 @@ def closedform_beta_glm_logphi(
         Tensor that encodes how complete parameter set which includes dependent
         parameters arises from indepedent parameters: all = <constraints, indep>.
         This form of constraints is used in vector generalized linear models (VGLMs).
+    :param design_scale: design matrix for scale
+    :param constraints: some design constraints
     :param size_factors: size factors for X
+    :param link_fn: linker function for GLM
+    :param inv_link_fn: inverse linker function for GLM
     :return: tuple: (groupwise_means, mu, rmsd)
     """
-    groupwise_means, mu, rmsd1 = closedform_glm_mean(
+    groupwise_means, m, rmsd1 = closedform_glm_mean(
         X=X,
         dmat=design_loc,
         constraints=constraints_loc,
@@ -82,16 +92,18 @@ def closedform_beta_glm_logphi(
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
+    mean = np.exp(m)
 
-    groupwise_scale, var, rmsd2 = closedform_glm_scale(
+    groupwise_scale, v, rmsd2 = closedform_glm_scale(
         X=X,
         design_scale=design_scale,
         constraints=constraints,
         size_factors=size_factors,
-        groupwise_means=groupwise_means,
+        groupwise_means=None,
         link_fn=link_fn,
-        compute_scales_fun=None,
+        compute_scales_fun=None
     )
+    var = np.exp(v)
 
-    var = (1 - mu) / var * (mu * (1 - mu) - var)
-    return groupwise_scale, var, rmsd2
+    q = (1 - mean) / var * (mean * (1 - mean) - var)
+    return groupwise_scale, np.log(q), rmsd2

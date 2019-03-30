@@ -6,7 +6,7 @@ from .external import rand_utils, _Simulator_GLM
 
 class Simulator(_Simulator_GLM, Model):
     """
-    Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
+    Simulator for Generalized Linear Models (GLMs) with beta distributed noise.
     Uses the natural logarithm as linker function.
     """
 
@@ -25,9 +25,9 @@ class Simulator(_Simulator_GLM, Model):
     def generate_params(
             self,
             rand_fn_ave=lambda shape: np.random.uniform(10, 20, shape),
-            rand_fn=lambda shape: np.abs(np.random.uniform(10, 20, shape)),
+            rand_fn=lambda shape: np.random.uniform(10, 20, shape),
             rand_fn_loc=None,
-            rand_fn_scale=None,
+            rand_fn_scale=lambda shape: np.abs(np.random.uniform(40, 80, shape)),
         ):
         self._generate_params(
             self,
@@ -43,5 +43,5 @@ class Simulator(_Simulator_GLM, Model):
         """
         self.data["X"] = (
             self.param_shapes()["X"],
-            rand_utils.Beta(a=self.mu, b=self.r).sample()
+            rand_utils.Beta(p=self.p, q=self.q).sample()
         )

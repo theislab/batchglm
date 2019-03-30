@@ -43,5 +43,5 @@ class Simulator(_Simulator_GLM, Model):
         """
         self.data["X"] = (
             self.param_shapes()["X"],
-            rand_utils.beta2(mean=self.mean, samplesize=self.samplesize).sample()
+            rand_utils.Beta2(mean=self.mean, samplesize=self.samplesize).sample()
         )

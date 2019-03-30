@@ -12,8 +12,8 @@ from .external import _Model_GLM, _Model_XArray_GLM, MODEL_PARAMS, _model_from_p
 # Define distribution parameters:
 MODEL_PARAMS = MODEL_PARAMS.copy()
 MODEL_PARAMS.update({
-    "mu": ("observations", "features"),
-    "r": ("observations", "features"),
+    "p": ("observations", "features"),
+    "q": ("observations", "features"),
 })
 
 class Model(_Model_GLM, metaclass=abc.ABCMeta):
@@ -44,17 +44,14 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
             eta = self.design_loc.dot(self.par_link_loc, dims="design_loc_params")
         else:
             eta = np.matmul(self.design_loc.values, self.par_link_loc)
-
-        if self.size_factors is not None:
-            eta += self.link_loc(np.expand_dims(self.size_factors, axis=1))
         return eta
 
     @property
-    def mu(self) -> xr.DataArray:
+    def p(self) -> xr.DataArray:
         return self.location
 
     @property
-    def r(self) -> xr.DataArray:
+    def q(self) -> xr.DataArray:
         return self.scale
 
 

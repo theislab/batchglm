@@ -32,8 +32,8 @@ class ProcessModel(ProcessModelGLM):
             "b_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "mu": np.nextafter(0, np.inf, dtype=dtype),
-            "r": np.nextafter(0, np.inf, dtype=dtype),
+            "p": np.nextafter(0, np.inf, dtype=dtype),
+            "q": np.nextafter(0, np.inf, dtype=dtype),
             "probs": dtype(0),
             "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         }
@@ -42,8 +42,8 @@ class ProcessModel(ProcessModelGLM):
             "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "mu": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-            "r": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "p": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "q": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "probs": dtype(1),
             "log_probs": dtype(0),
         }
@@ -78,9 +78,6 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         else:
             eta_loc = tf.matmul(design_loc, a_var)
 
-        if size_factors is not None:
-            eta_loc = tf.add(eta_loc, tf.log(size_factors))
-
         eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
 
         if constraints_scale is not None:
@@ -95,21 +92,22 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         model_scale = tf.exp(eta_scale)
 
         # Log-likelihood:
-        log_r_plus_mu = tf.log(model_scale + model_loc)
+        const1 = (model_loc - tf.ones_like(model_loc))
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            Xdense = tf.sparse_to_dense(X)
+            const2 = X.__mul__(const1)
             one_minus_X = - tf.sparse.add(X, -tf.ones(shape=X.dense_shape, dtype=self.dtype))
         else:
-            Xdense = X
+            const2 = X * const1
             one_minus_X = tf.ones_like(X)-X
 
         log_probs = tf.lgamma(model_loc+model_scale) - tf.lgamma(model_loc) - tf.lgamma(model_scale)\
-                    + (model_loc - tf.ones_like(model_loc)) * Xdense + (model_scale - tf.ones_like(model_scale)) * one_minus_X
+                    + const2 + (model_scale - tf.ones_like(model_scale)) * one_minus_X
 
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:
-        sigma2 = (model_loc * model_scale) / ((model_loc + model_scale)**2 * (model_loc + model_scale + tf.ones_like(model_scale)))
+        sigma2 = (model_loc * model_scale) \
+                 / ((model_loc + model_scale)**2 * (model_loc + model_scale + tf.ones_like(model_scale)))
 
         self.X = X
         self.design_loc = design_loc
@@ -125,8 +123,8 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         self.eta_scale = eta_scale
         self.model_loc = model_loc
         self.model_scale = model_scale
-        self.mu = model_loc
-        self.r = model_scale
+        self.p = model_loc
+        self.q = model_scale
 
         self.log_probs = log_probs
 

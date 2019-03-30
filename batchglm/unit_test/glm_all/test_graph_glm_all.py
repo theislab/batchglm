@@ -202,7 +202,7 @@ class Test_Graph_GLM_NORM(
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
-class Test_Graph_GLM_beta2(
+class Test_Graph_GLM_BETA2(
     Test_Graph_GLM_ALL,
     unittest.TestCase
 ):
@@ -213,7 +213,7 @@ class Test_Graph_GLM_beta2(
     def test_full_beta2(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_beta2.test_full_beta2()")
+        logger.error("Test_Graph_GLM_BETA2.test_full_beta2()")
 
         self.noise_model = "beta2"
         self._test_full(sparse=False)
@@ -222,13 +222,13 @@ class Test_Graph_GLM_beta2(
     def test_batched_beta2(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_beta2.test_batched_beta2()")
+        logger.error("Test_Graph_GLM_BETA2.test_batched_beta2()")
 
         self.noise_model = "beta2"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
-class Test_Graph_GLM_beta(
+class Test_Graph_GLM_BETA(
     Test_Graph_GLM_ALL,
     unittest.TestCase
 ):
@@ -239,7 +239,7 @@ class Test_Graph_GLM_beta(
     def test_full_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_beta.test_full_beta()")
+        logger.error("Test_Graph_GLM_BETA.test_full_beta()")
 
         self.noise_model = "beta"
         self._test_full(sparse=False)
@@ -248,7 +248,7 @@ class Test_Graph_GLM_beta(
     def test_batched_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_beta.test_batched_beta()")
+        logger.error("Test_Graph_GLM_BETA.test_batched_beta()")
 
         self.noise_model = "beta"
         self._test_batched(sparse=False)
