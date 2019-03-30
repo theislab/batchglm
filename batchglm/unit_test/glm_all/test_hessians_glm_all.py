@@ -28,6 +28,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model == "beta2":
+                from batchglm.api.models.glm_beta2 import Simulator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator
             elif self.noise_model == "bern":
@@ -53,6 +55,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Estimator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator
+            elif self.noise_model == "beta2":
+                from batchglm.api.models.glm_beta2 import Estimator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator
             elif self.noise_model == "bern":
@@ -96,6 +100,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator, InputData
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator, InputData
+            elif self.noise_model == "beta2":
+                from batchglm.api.models.glm_beta2 import Simulator, InputData
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator, InputData
             elif self.noise_model == "bern":
@@ -144,7 +150,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
         logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
         logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((h_tf - h_analytic))))
-        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs((h_tf - h_analytic) / h_tf)))
+        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs(h_tf - h_analytic)))
 
         #i = 1
         #print(h_tf[i, :, :])
@@ -154,7 +160,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         # Make sure that hessians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(h_analytic)) > 1e-10, \
             "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
-        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf)) < 1e-12
+        mrad = np.max(np.abs(h_tf - h_analytic))
         assert mrad < 1e-12, mrad
         return True
 
@@ -186,12 +192,25 @@ class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
         return True
 
 
-class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
+class Test_Hessians_GLM_beta2(Test_Hessians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_hessians_beta2(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_beta2.test_compute_hessians_beta2()")
+
+        self.noise_model = "beta2"
+        self._test_compute_hessians(sparse=False)
+        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+
+        return True
+
+class Test_Hessians_GLM_beta(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA.test_compute_hessians_beta()")
+        logging.getLogger("batchglm").error("Test_Hessians_GLM_beta.test_compute_hessians_beta()")
 
         self.noise_model = "beta"
         self._test_compute_hessians(sparse=False)
