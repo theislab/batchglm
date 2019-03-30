@@ -12,13 +12,13 @@ from .external import _Model_GLM, _Model_XArray_GLM, MODEL_PARAMS, _model_from_p
 # Define distribution parameters:
 MODEL_PARAMS = MODEL_PARAMS.copy()
 MODEL_PARAMS.update({
-    "mu": ("observations", "features"),
-    "r": ("observations", "features"),
+    "mean": ("observations", "features"),
+    "samplesize": ("observations", "features"),
 })
 
 class Model(_Model_GLM, metaclass=abc.ABCMeta):
     """
-    Generalized Linear Model (GLM) with negative binomial noise.
+    Generalized Linear Model (GLM) with beta2 distributed noise, logit link for location and log link for scale.
     """
 
     @classmethod
@@ -26,10 +26,10 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
         return MODEL_PARAMS
 
     def link_loc(self, data):
-        return np.log(data)
+        return np.log(1/(1/data-1))
 
     def inverse_link_loc(self, data):
-        return np.exp(data)
+        return 1/(1+np.exp(-data))
 
     def link_scale(self, data):
         return np.log(data)
@@ -46,15 +46,15 @@ class Model(_Model_GLM, metaclass=abc.ABCMeta):
             eta = np.matmul(self.design_loc.values, self.par_link_loc)
 
         if self.size_factors is not None:
-            eta += self.link_loc(np.expand_dims(self.size_factors, axis=1))
+            assert False, "size factors not allowed"
         return eta
 
     @property
-    def mu(self) -> xr.DataArray:
+    def mean(self) -> xr.DataArray:
         return self.location
 
     @property
-    def r(self) -> xr.DataArray:
+    def samplesize(self) -> xr.DataArray:
         return self.scale
 
 

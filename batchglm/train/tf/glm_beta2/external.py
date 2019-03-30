@@ -1,9 +1,9 @@
 import batchglm.data as data_utils
 
 from batchglm.models.base.input import SparseXArrayDataSet, SparseXArrayDataArray
-from batchglm.models.glm_beta import AbstractEstimator, EstimatorStoreXArray, InputData, Model
+from batchglm.models.glm_beta2 import AbstractEstimator, EstimatorStoreXArray, InputData, Model
 from batchglm.models.base_glm.utils import closedform_glm_mean, closedform_glm_scale
-from batchglm.models.glm_beta.utils import closedform_beta_glm_logmu, closedform_beta_glm_logphi
+from batchglm.models.glm_beta2.utils import closedform_beta2_glm_logitmean, closedform_beta2_glm_logsamplesize
 
 import batchglm.train.tf.ops as op_utils
 import batchglm.train.tf.train as train_utils

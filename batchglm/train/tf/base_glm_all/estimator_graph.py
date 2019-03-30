@@ -64,6 +64,8 @@ class FullDataModelGraph(FullDataModelGraphGLM):
             from .external_nb import ReducibleTensors
         elif noise_model == "norm":
             from .external_norm import ReducibleTensors
+        elif noise_model == "beta2":
+            from .external_beta2 import ReducibleTensors
         elif noise_model == "beta":
             from .external_beta import ReducibleTensors
         elif noise_model == "bern":
@@ -252,6 +254,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             from .external_nb import ReducibleTensors
         elif noise_model == "norm":
             from .external_norm import ReducibleTensors
+        elif noise_model == "beta2":
+            from .external_beta2 import ReducibleTensors
         elif noise_model == "beta":
             from .external_beta import ReducibleTensors
         elif noise_model == "bern":
@@ -435,6 +439,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             from .external_nb import ModelVars
         elif noise_model == "norm":
             from .external_norm import ModelVars
+        elif noise_model == "beta2":
+            from .external_beta2 import ModelVars
         elif noise_model == "beta":
             from .external_beta import ModelVars
         elif noise_model == "bern":

@@ -15,14 +15,13 @@ class Jacobians(JacobiansGLMALL):
             loc,
             scale,
     ):
-        one_minus_loc = 1 - loc
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const1 = tf.log(tf.sparse.to_dense(X)/-tf.sparse.add(X, -1))
+            const = tf.sparse.add(X, tf.digamma(loc+scale) - tf.digamma(loc))
         else:
-            const1 = tf.log(X/(1-X))
-        const2 = - tf.digamma(loc*scale) + tf.digamma(one_minus_loc*scale) + const1
-        const = const2 * scale * loc * one_minus_loc
-        return const
+            const = tf.digamma(loc+scale) - tf.digamma(loc) + X
+        const1 = const * loc
+
+        return const1
 
     def _weights_jac_b(
             self,
@@ -30,13 +29,11 @@ class Jacobians(JacobiansGLMALL):
             loc,
             scale,
     ):
+        # Pre-define sub-graphs that are used multiple times:
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            one_minus_X = - tf.sparse.add(X, -1)
-            Xdense = tf.sparse.to_dense(X)
+            const = - tf.sparse_add(X, - tf.digamma(loc+scale) + tf.digamma(scale) -tf.ones(shape=X.dense_shape, dtype=self.dtype))
         else:
-            one_minus_X = 1 - X
-            Xdense = X
-        one_minus_loc = 1 - loc
-        const = scale * (tf.digamma(scale) - tf.digamma(loc*scale)*loc - tf.digamma(one_minus_loc*scale)*one_minus_loc\
-            + loc * tf.log(Xdense) + one_minus_loc * tf.log(one_minus_X))
-        return const
+            const = tf.digamma(loc+scale) - tf.digamma(scale) + tf.ones_like(X) - X
+        const1 = const * scale
+
+        return const1

@@ -173,9 +173,9 @@ class Normal:
         return random_data
 
 
-class Beta:
+class beta2:
     r"""
-    Beta distribution.
+    beta2 distribution.
     """
 
     p: np.ndarray
@@ -220,6 +220,37 @@ class Bernoulli:
         random_data = np.random.binomial(
             n=1,
             p=self.p,
+            size=size
+        )
+        return random_data
+
+
+class Beta:
+    r"""
+    Negative binomial distribution.
+    This class supports re-parameterising, sampling and calculation of
+    probabilities of negative binomial distributed data.
+    """
+
+    a: np.ndarray
+    b: np.ndarray
+
+    def __init__(self, a=None, b=None):
+        self.a = a
+        self.b = b
+
+    def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
+        # numpy uses an alternative parametrization
+        # see also https://en.wikipedia.org/wiki/Negative_binomial_distribution#Alternative_formulations
+        random_data = np.random.beta(
+            a=self.a,
+            b=self.b,
             size=size
         )
         return random_data

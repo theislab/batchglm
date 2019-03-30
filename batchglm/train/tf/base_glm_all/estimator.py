@@ -71,6 +71,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             from .external_nb import EstimatorGraph
         elif noise_model == "norm":
             from .external_norm import EstimatorGraph
+        elif noise_model == "beta2":
+            from .external_beta2 import EstimatorGraph
         elif noise_model == "beta":
             from .external_beta import EstimatorGraph
         elif noise_model == "bern":
@@ -356,6 +358,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             from .external_nb import EstimatorStoreXArray
         elif self.noise_model == "norm":
             from .external_norm import EstimatorStoreXArray
+        elif self.noise_model == "beta2":
+            from .external_beta2 import EstimatorStoreXArray
         elif self.noise_model == "beta":
             from .external_beta import EstimatorStoreXArray
         elif self.noise_model == "bern":
