@@ -117,9 +117,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
 
-        print("init_a: \n", np.exp(init_a))
-        print("init_b: \n", np.exp(init_b))
-
         if len(optim_algos) > 0:
             if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
                 provide_hessian = True

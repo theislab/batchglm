@@ -44,8 +44,8 @@ class ProcessModel(ProcessModelGLM):
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "p": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "q": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-            "probs": dtype(1),
-            "log_probs": dtype(0),
+            "probs": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "log_probs": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
         }
         return bounds_min, bounds_max
 
@@ -92,18 +92,25 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         model_scale = tf.exp(eta_scale)
 
         # Log-likelihood:
-        const1 = (model_loc - tf.ones_like(model_loc))
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const2 = X.__mul__(const1)
+            Xdense = tf.sparse.to_dense(X)
             one_minus_X = - tf.sparse.add(X, -tf.ones(shape=X.dense_shape, dtype=self.dtype))
         else:
-            const2 = X * const1
+            Xdense = X
             one_minus_X = tf.ones_like(X)-X
+        g = tf.lgamma(model_loc+model_scale) - tf.lgamma(model_loc) - tf.lgamma(model_scale)
+        l = (model_loc - tf.ones_like(model_loc)) * tf.log(Xdense) + (model_scale - tf.ones_like(model_scale)) * tf.log(one_minus_X)
+        log_probs = g + l
 
-        log_probs = tf.lgamma(model_loc+model_scale) - tf.lgamma(model_loc) - tf.lgamma(model_scale)\
-                    + const2 + (model_scale - tf.ones_like(model_scale)) * one_minus_X
+        a = tf.print("log_probs: \n", log_probs)
 
         log_probs = self.tf_clip_param(log_probs, "log_probs")
+
+        b = tf.print("log_probs geclipt: \n", log_probs)
+        c = tf.print("model_loc: \n", model_loc)
+        d = tf.print("model_scale: \n", model_scale)
+        # e = tf.print("first part: \n", h)
+        # f = tf.print("second part: \n", i)
 
         # Variance:
         sigma2 = (model_loc * model_scale) \
@@ -126,6 +133,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         self.p = model_loc
         self.q = model_scale
 
-        self.log_probs = log_probs
+        with tf.control_dependencies([a,b,c,d]):
+            self.log_probs = log_probs
 
         self.sigma2 = sigma2

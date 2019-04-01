@@ -54,7 +54,6 @@ def closedform_beta_glm_logp(
     )
     var = np.exp(v)
     p = mean / var * (mean * (1-mean) - var)
-    print("mean: \n", mean, "\n var: \n", var, "\n p: \n", p)
     return groupwise_means, np.log(p), rmsd1
 
 

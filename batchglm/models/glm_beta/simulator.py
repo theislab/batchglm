@@ -25,16 +25,21 @@ class Simulator(_Simulator_GLM, Model):
     def generate_params(
             self,
             rand_fn_ave=lambda shape: np.random.uniform(10, 20, shape),
-            rand_fn=lambda shape: np.random.uniform(10, 20, shape),
+            rand_fn=lambda shape: np.random.uniform(1, 1, shape),
             rand_fn_loc=None,
-            rand_fn_scale=lambda shape: np.abs(np.random.uniform(40, 80, shape)),
+            rand_fn_scale=None,
         ):
+        def fn_scale(shape):
+            theta = np.ones(shape)
+            theta[0, :] = np.random.uniform(40, 80, shape[1])
+            return theta
+
         self._generate_params(
             self,
             rand_fn_ave=rand_fn_ave,
             rand_fn=rand_fn,
             rand_fn_loc=rand_fn_loc,
-            rand_fn_scale=rand_fn_scale,
+            rand_fn_scale=fn_scale,
         )
 
     def generate_data(self):

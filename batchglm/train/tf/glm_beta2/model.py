@@ -51,8 +51,8 @@ class ProcessModel(ProcessModelGLM):
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mean": one,
             "samplesize": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-            "probs": dtype(1),
-            "log_probs": dtype(0),
+            "probs": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "log_probs": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
         }
         return bounds_min, bounds_max
 
