@@ -32,8 +32,6 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
                 from batchglm.api.models.glm_norm import Estimator, InputData
             elif noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator, InputData
-            elif noise_model=="beta2":
-                from batchglm.api.models.glm_beta2 import Estimator, InputData
             elif noise_model=="bern":
                 from batchglm.api.models.glm_bern import Estimator, InputData
             else:
@@ -105,8 +103,6 @@ class Test_Graph_GLM_ALL(
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model=="norm":
                 from batchglm.api.models.glm_norm import Simulator
-            elif self.noise_model=="beta2":
-                from batchglm.api.models.glm_beta2 import Simulator
             elif self.noise_model=="beta":
                 from batchglm.api.models.glm_beta import Simulator
             elif self.noise_model=="bern":
@@ -202,31 +198,6 @@ class Test_Graph_GLM_NORM(
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
-class Test_Graph_GLM_BETA2(
-    Test_Graph_GLM_ALL,
-    unittest.TestCase
-):
-    """
-    Test whether training graphs work for beta2 distributed noise.
-    """
-
-    def test_full_beta2(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_BETA2.test_full_beta2()")
-
-        self.noise_model = "beta2"
-        self._test_full(sparse=False)
-        self._test_full(sparse=True)
-
-    def test_batched_beta2(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_BETA2.test_batched_beta2()")
-
-        self.noise_model = "beta2"
-        self._test_batched(sparse=False)
-        self._test_batched(sparse=True)
 
 class Test_Graph_GLM_BETA(
     Test_Graph_GLM_ALL,

@@ -28,8 +28,6 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
-            elif self.noise_model == "beta2":
-                from batchglm.api.models.glm_beta2 import Simulator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator
             elif self.noise_model == "bern":
@@ -55,8 +53,6 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Estimator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator
-            elif self.noise_model == "beta2":
-                from batchglm.api.models.glm_beta2 import Estimator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator
             elif self.noise_model == "bern":
@@ -100,8 +96,6 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator, InputData
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator, InputData
-            elif self.noise_model == "beta2":
-                from batchglm.api.models.glm_beta2 import Simulator, InputData
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator, InputData
             elif self.noise_model == "bern":
@@ -191,19 +185,6 @@ class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         return True
 
-
-class Test_Hessians_GLM_BETA2(Test_Hessians_GLM_ALL, unittest.TestCase):
-
-    def test_compute_hessians_beta2(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logging.getLogger("batchglm").error("Test_Hessians_GLM_BETA2.test_compute_hessians_beta2()")
-
-        self.noise_model = "beta2"
-        self._test_compute_hessians(sparse=False)
-        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
-
-        return True
 
 class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
 

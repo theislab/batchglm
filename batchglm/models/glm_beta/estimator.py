@@ -7,7 +7,7 @@ from .external import _Estimator_GLM, _EstimatorStore_XArray_GLM, ESTIMATOR_PARA
 class AbstractEstimator(Model, _Estimator_GLM, metaclass=abc.ABCMeta):
     r"""
     Estimator base class for generalized linear models (GLMs) with
-    beta distributed noise.
+    normal noise.
     """
 
     @classmethod

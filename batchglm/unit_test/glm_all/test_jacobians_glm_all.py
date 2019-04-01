@@ -28,8 +28,6 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
-            elif self.noise_model == "beta2":
-                from batchglm.api.models.glm_beta2 import Simulator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator
             elif self.noise_model == "bern":
@@ -55,8 +53,6 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import Estimator
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator
-            elif self.noise_model == "beta2":
-                from batchglm.api.models.glm_beta2 import Estimator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator
             elif self.noise_model == "bern":
@@ -104,8 +100,6 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_nb import InputData
             elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import InputData
-            elif self.noise_model == "beta2":
-                from batchglm.api.models.glm_beta2 import InputData
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import InputData
             elif self.noise_model == "bern":
@@ -193,16 +187,6 @@ class Test_Jacobians_GLM_NORM(Test_Jacobians_GLM_ALL, unittest.TestCase):
         self._test_compute_jacobians(sparse=False)
         #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 
-class Test_Jacobians_GLM_BETA2(Test_Jacobians_GLM_ALL, unittest.TestCase):
-
-    def test_compute_jacobians_beta2(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logging.getLogger("batchglm").error("Test_Jacobians_GLM_BETA2.test_compute_jacobians_beta2()")
-
-        self.noise_model = "beta2"
-        self._test_compute_jacobians(sparse=False)
-        #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 
 class Test_Jacobians_GLM_BETA(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
