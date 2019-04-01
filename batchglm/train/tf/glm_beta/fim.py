@@ -14,30 +14,40 @@ class FIM(FIMGLMALL):
             loc,
             scale
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        const = loc * (tf.digamma(loc + scale) - tf.digamma(loc) + loc * (tf.polygamma(scalar_one, loc + scale) - tf.polygamma(scalar_one, loc)))
-        const2 = const + loc * loc / (loc + scale)
-
-        return const2
+        return 0
 
     def _weight_fim_bb(
             self,
             loc,
             scale
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        const = scale * (tf.digamma(loc + scale) - tf.digamma(scale) + scale * (
-                    tf.polygamma(scalar_one, loc + scale) - tf.polygamma(scalar_one, scale)))
-        const2 = const + scale * scale / (loc + scale)
 
-        return const2
+        return 0
 
-    def _weight_fim_ab(
+    def _weight_fim(
             self,
             loc,
             scale
     ):
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        const = tf.polygamma(scalar_one, loc + scale) * loc * scale
 
-        return const
+        # aa:
+        const1 = loc * (tf.digamma(loc + scale) - tf.digamma(loc) + loc * (
+                    tf.polygamma(scalar_one, loc + scale) - tf.polygamma(scalar_one, loc)))
+        aa_part = const1 + loc * loc / (loc + scale)
+
+        # bb:
+        const2 = scale * (tf.digamma(loc + scale) - tf.digamma(scale) + scale * (
+                tf.polygamma(scalar_one, loc + scale) - tf.polygamma(scalar_one, scale)))
+        bb_part = const2 + scale * scale / (loc + scale)
+
+        # ab
+        ab_part = tf.polygamma(scalar_one, loc + scale) * loc * scale
+
+        # should be 4 dimensional object, first two dimensions are dimensions of loc/scale, third and forth should be
+        # the dimensions of the [[aa, ab], [ab, bb]] matrices per element of loc/scale
+        # (aa, ab, bb scalars)
+        # not tested yet!
+        full_fim = tf.stack([tf.stack([aa_part, ab_part], axis=2), tf.stack([ab_part, bb_part], axis=2)], axis=3)
+
+        return full_fim
