@@ -118,12 +118,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
 
         sample_description = data_utils.sample_description_from_xarray(sim.data, dim="observations")
         design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
-        design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
-
-        print("design_loc: \n", design_loc)
-        print("design_scale: \n", design_scale)
-        print("sim.a_var: \n", sim.a_var)
-        print("sim.b_var: \n", sim.b_var)
+        design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
 
         if sparse:
             input_data = InputData.new(
@@ -158,9 +153,9 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs(h_tf - h_analytic)))
 
         i = 1
-        print(h_tf[i, :, :])
-        print(h_analytic[i, :, :])
-        print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
+        print("\n h_tf: \n", h_tf[i, :, :])
+        print("\n h_analytic: \n", h_analytic[i, :, :])
+        print("\n difference: \n", (h_tf[i, :, :] - h_analytic[i, :, :]))
 
         # Make sure that hessians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(h_analytic)) > 1e-10, \

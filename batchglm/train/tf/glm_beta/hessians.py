@@ -26,15 +26,16 @@ class Hessians(HessianGLMALL):
             loc,
             scale,
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        const = loc * (tf.digamma(loc+scale) - tf.digamma(loc) + loc*(tf.polygamma(scalar_one, loc+scale) - tf.polygamma(scalar_one, loc)))
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const1 = X.__mul__(loc)
-            const2 = tf.sparse.add(const1, const)
+            Xdense = tf.sparse.to_dense(X)
         else:
-            const2 = const + X * loc
+            Xdense = X
 
-        return const2
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
+        const = loc * (tf.digamma(loc+scale) - tf.digamma(loc) + tf.log(Xdense) +
+                       loc*(tf.polygamma(scalar_one, loc+scale) - tf.polygamma(scalar_one, loc)))
+
+        return const
 
     def _weight_hessian_bb(
             self,
@@ -42,13 +43,14 @@ class Hessians(HessianGLMALL):
             loc,
             scale,
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        const = scale * (tf.digamma(loc+scale) - tf.digamma(scale) + scale*(tf.polygamma(scalar_one, loc+scale) - tf.polygamma(scalar_one, scale)))
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const1 = X.__mul__(scale)
-            const2 = tf.sparse.add(const1, const)
+            one_minus_X = - tf.sparse.add(X, -tf.ones(shape=X.dense_shape, dtype=self.dtype))
         else:
-            const2 = const + X * scale
+            one_minus_X = tf.ones_like(X) - X
 
-        return const2
+        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
+        const = scale * (tf.digamma(loc + scale) - tf.digamma(scale) + tf.log(one_minus_X) +
+                         scale * (tf.polygamma(scalar_one, loc+scale) - tf.polygamma(scalar_one, scale)))
+
+        return const
 

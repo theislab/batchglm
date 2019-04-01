@@ -16,12 +16,12 @@ class Jacobians(JacobiansGLMALL):
             scale,
     ):
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const = tf.sparse.add(X, tf.digamma(loc+scale) - tf.digamma(loc))
+            Xdense = tf.sparse.to_dense(X)
         else:
-            const = tf.digamma(loc+scale) - tf.digamma(loc) + X
-        const1 = const * loc
+            Xdense = X
+        const = (tf.digamma(loc+scale) - tf.digamma(loc) + tf.log(Xdense)) * loc
 
-        return const1
+        return const
 
     def _weights_jac_b(
             self,
@@ -29,11 +29,12 @@ class Jacobians(JacobiansGLMALL):
             loc,
             scale,
     ):
-        # Pre-define sub-graphs that are used multiple times:
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const = - tf.sparse_add(X, - tf.digamma(loc+scale) + tf.digamma(scale) -tf.ones(shape=X.dense_shape, dtype=self.dtype))
+            one_minus_X = - tf.sparse.add(X, -tf.ones(shape=X.dense_shape, dtype=self.dtype))
         else:
-            const = tf.digamma(loc+scale) - tf.digamma(scale) + tf.ones_like(X) - X
-        const1 = const * scale
+            one_minus_X = tf.ones_like(X) - X
 
-        return const1
+
+        const = (tf.digamma(loc+scale) - tf.digamma(scale) + tf.log(one_minus_X)) * scale
+
+        return const
