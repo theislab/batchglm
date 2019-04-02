@@ -77,13 +77,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
 
     def estimate(self):
         self.estimator.initialize()
-        self.estimator.train_sequence(training_strategy=[
-            {
-                "convergence_criteria": "all_converged",
-                "use_batching": False,
-                "optim_algo": "gd",
-            },
-        ])
 
     def eval_estimation_a(
             self,
@@ -110,9 +103,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 threshold_std = 1e-1
             else:
                 raise ValueError("noise_model not recognized")
-
-        print("estimation: \n", estimator_store.a)
-        print("simulator: \n", self.simulator.a)
 
         if init_a == "standard":
             mean_dev = np.mean(estimator_store.a[0, :] - self.simulator.a[0, :])
@@ -157,10 +147,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 threshold_std = 1e-1
             else:
                 raise ValueError("noise_model not recognized")
-
-        print("estimation: \n", estimator_store.b)
-        print("simulator: \n", self.simulator.b)
-
         if init_b == "standard":
             mean_dev = np.mean(estimator_store.b[0, :] - self.simulator.b[0, :])
             std_dev = np.std(estimator_store.b[0, :] - self.simulator.b[0, :])
@@ -178,8 +164,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             return True
         else:
             return False
-
-
 
 
 class Test_AccuracyAnalytic_GLM_ALL(
@@ -329,8 +313,8 @@ class Test_AccuracyAnalytic_GLM_NB(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("batchglm").setLevel(logging.DEBUG)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_closed()")
 
         self.noise_model = "nb"
