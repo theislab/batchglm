@@ -75,7 +75,9 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             {
                 "convergence_criteria": "all_converged",
                 "use_batching": False,
-                "optim_algo": "gd"
+                "optim_algo": "gd",
+                "train_loc": False,
+                "train_scale": False
             },
         ])
 
@@ -251,7 +253,7 @@ class Test_AccuracyAnalytic_GLM_NB(
 
     def test_a_closed_b_closed(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR),
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.DEBUG)
         logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_closed()")
 
         self.noise_model = "nb"

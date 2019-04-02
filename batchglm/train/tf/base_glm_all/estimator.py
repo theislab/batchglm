@@ -206,8 +206,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             learning_rate=None,
             convergence_criteria="all_converged",
             stopping_criteria=None,
-            train_mu: bool = None,
-            train_r: bool = None,
+            train_loc: bool = None,
+            train_scale: bool = None,
             use_batching=False,
             optim_algo=None,
             **kwargs
@@ -227,19 +227,19 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         :param stopping_criteria: Additional parameter for convergence criteria.
 
             See parameter `convergence_criteria` for exact meaning
-        :param train_mu: Set to True/False in order to enable/disable training of mu
-        :param train_r: Set to True/False in order to enable/disable training of r
+        :param train_loc: Set to True/False in order to enable/disable training of loc
+        :param train_scale: Set to True/False in order to enable/disable training of scale
         :param use_batching: If True, will use mini-batches with the batch size defined in the constructor.
             Otherwise, the gradient of the full dataset will be used.
         :param optim_algo: name of the requested train op.
             See :func:train_utils.MultiTrainer.train_op_by_name for further details.
         """
-        if train_mu is None:
+        if train_loc is None:
             # check if mu was initialized with MLE
             train_mu = self._train_loc
-        if train_r is None:
+        if train_scale is None:
             # check if r was initialized with MLE
-            train_r = self._train_scale
+            train_scale = self._train_scale
 
         # Check whether newton-rhapson is desired:
         require_hessian = False
@@ -290,15 +290,15 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         logging.getLogger("batchglm").debug("learning_rate " + str(learning_rate))
         logging.getLogger("batchglm").debug("convergence_criteria " + str(convergence_criteria))
         logging.getLogger("batchglm").debug("stopping_criteria " + str(stopping_criteria))
-        logging.getLogger("batchglm").debug("train_mu " + str(train_mu))
-        logging.getLogger("batchglm").debug("train_r " + str(train_r))
+        logging.getLogger("batchglm").debug("train_loc " + str(train_loc))
+        logging.getLogger("batchglm").debug("train_scale " + str(train_scale))
         logging.getLogger("batchglm").debug("use_batching " + str(use_batching))
         logging.getLogger("batchglm").debug("optim_algo " + str(optim_algo))
         if len(kwargs) > 0:
             logging.getLogger("batchglm").debug("**kwargs: ")
             logging.getLogger("batchglm").debug(kwargs)
 
-        if train_mu or train_r:
+        if train_loc or train_scale:
             if use_batching:
                 train_op = self.model.trainer_batch.train_op_by_name(optim_algo)
             else:
