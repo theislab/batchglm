@@ -65,12 +65,14 @@ class Hessians(HessianGLMALL):
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
 
         if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            const1 = tf.log(tf.sparse.to_dense(X) / -tf.sparse.add(X, -tf.ones(shape=X.dense_shape, dtype=self.dtype)))
+            one_minus_X = - tf.sparse.add(X, -tf.ones(shape=X.dense_shape, dtype=self.dtype))
+            Xdense = tf.sparse.to_dense(X)
         else:
-            const1 = tf.log(X / (tf.ones_like(X) - X))
+            one_minus_X = tf.ones_like(X) - X
+            Xdense = X
 
-        const2 = loc * (tf.log(X) - tf.digamma(loc_times_scale))\
-                 - one_minus_loc * (tf.digamma(one_minus_loc_times_scale) + tf.log(const1)) \
+        const2 = loc * (tf.log(Xdense) - tf.digamma(loc_times_scale))\
+                 - one_minus_loc * (tf.digamma(one_minus_loc_times_scale) + tf.log(one_minus_X)) \
                  + tf.digamma(scale)
         const3 = scale * (- tf.square(loc) * tf.polygamma(scalar_one, loc_times_scale)\
                           + tf.polygamma(scalar_one, scale)\

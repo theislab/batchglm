@@ -31,11 +31,9 @@ class ProcessModel(ProcessModelGLM):
 
         sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
         bounds_min = {
-            #"a_var": np.log(zero/(1-zero)) / sf,
-            "a_var": dmin,
+            "a_var": np.log(zero/(1-zero)) / sf,
             "b_var": np.log(zero) / sf,
-            #"eta_loc": np.log(zero/(1-zero)) / sf,
-            "eta_loc": dmin,
+            "eta_loc": np.log(zero/(1-zero)) / sf,
             "eta_scale": np.log(zero) / sf,
             "mean": zero,
             "samplesize": zero,
@@ -43,11 +41,9 @@ class ProcessModel(ProcessModelGLM):
             "log_probs": np.log(zero),
         }
         bounds_max = {
-            #"a_var": np.log(one/(1-one)) / sf,
-            "a_var": np.nextafter(np.log(one/(1-one)), -np.inf, dtype=dtype),
+            "a_var": np.log(one/(1-one)) / sf,
             "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            #"eta_loc": np.log(one/(1-one)) / sf,
-            "eta_loc": np.nextafter(np.log(one/(1-one)), -np.inf, dtype=dtype),
+            "eta_loc": np.log(one/(1-one)) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mean": one,
             "samplesize": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
@@ -107,18 +103,10 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             Xdense = X
 
         one_minus_loc = tf.ones_like(model_loc) - model_loc
-        log_probs = tf.lgamma(model_scale) - tf.lgamma(model_loc * model_scale)\
-                    - tf.lgamma(one_minus_loc * model_scale)\
-                    + (model_scale * model_loc - tf.ones_like(model_loc)) * tf.log(Xdense)\
+        log_probs = tf.lgamma(model_scale) - tf.lgamma(model_loc * model_scale) - tf.lgamma(one_minus_loc * model_scale) \
+                    + (model_scale * model_loc - tf.ones_like(model_loc)) * tf.log(Xdense) \
                     + (one_minus_loc * model_scale - tf.ones_like(model_loc)) * tf.log(one_minus_X)
-        a = tf.print("log_probs: \n", log_probs)
-        b = tf.print("model_loc: \n", model_loc)
-        c = tf.print("model_scale: \n", model_scale)
-        d = tf.print("X: \n", X)
-        e = tf.print("a_var: \n", a_var)
-        f = tf.print("eta_loc: \n", eta_loc)
-        with tf.control_dependencies([a, b, c, d, e, f]):
-            log_probs = self.tf_clip_param(log_probs, "log_probs")
+        log_probs = self.tf_clip_param(log_probs, "log_probs")
 
         # Variance:
         sigma2 = (model_loc * one_minus_loc) / (tf.ones_like(model_loc) + model_scale)

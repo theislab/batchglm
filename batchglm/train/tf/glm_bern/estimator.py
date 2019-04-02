@@ -108,9 +108,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         if quick_scale:
             self._train_scale = False
 
-        print("init_a: \n \n", init_a)
-        print("init_b: \n \n", init_b)
-
         if len(optim_algos) > 0:
             if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
                 provide_hessian = True

@@ -214,7 +214,7 @@ class Test_Graph_GLM_BETA(
 
         self.noise_model = "beta"
         self._test_full(sparse=False)
-        #self._test_full(sparse=True)
+        self._test_full(sparse=True)
 
     def test_batched_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -223,7 +223,7 @@ class Test_Graph_GLM_BETA(
 
         self.noise_model = "beta"
         self._test_batched(sparse=False)
-        #self._test_batched(sparse=True)
+        self._test_batched(sparse=True)
 
 
 class Test_Graph_GLM_BERN(
