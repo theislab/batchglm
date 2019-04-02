@@ -71,15 +71,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
 
     def estimate(self):
         self.estimator.initialize()
-        self.estimator.train_sequence(training_strategy=[
-            {
-                "convergence_criteria": "all_converged",
-                "use_batching": False,
-                "optim_algo": "gd",
-                "train_loc": False,
-                "train_scale": False
-            },
-        ])
 
     def eval_estimation_a(
             self,
@@ -92,7 +83,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             if self.noise_model == "nb":
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
-            elif self.noise_model=="norm":
+            elif self.noise_model == "norm":
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
             else:
@@ -150,8 +141,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             return True
         else:
             return False
-
-
 
 
 class Test_AccuracyAnalytic_GLM_ALL(
