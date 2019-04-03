@@ -52,7 +52,8 @@ class Hessians(HessianGLMALL):
         else:
             X_minus_loc = X - loc
 
-        const = - tf.multiply(scalar_two,
+        const = - tf.multiply(
+            scalar_two,
             tf.square(
                 tf.divide(
                     X_minus_loc,
