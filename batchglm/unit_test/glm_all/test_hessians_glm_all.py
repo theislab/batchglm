@@ -70,18 +70,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             init_b="standard"
         )
         estimator.initialize()
-        # Do not train, evaluate at initialization!
-        estimator.train_sequence(training_strategy=[
-            {
-                "convergence_criteria": "step",
-                "stopping_criteria": 0,
-                "use_batching": False,
-                "optim_algo": "gd",
-                "train_mu": False,
-                "train_r": False
-            },
-        ])
         estimator_store = estimator.finalize()
+
         return - estimator_store.fisher_inv
 
     def _test_compute_hessians(self, sparse):
@@ -148,8 +138,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         # Make sure that hessians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(h_analytic)) > 1e-10, \
             "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
-        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf)) < 1e-12
-        assert mrad < 1e-12, mrad
+        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf))
+        assert mrad < 1e-10, mrad
         return True
 
 
@@ -166,11 +156,12 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         return True
 
+
 class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logging.getLogger("batchglm").error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
 
         self.noise_model = "norm"
