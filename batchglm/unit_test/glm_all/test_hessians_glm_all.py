@@ -128,18 +128,17 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
         logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
         logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((h_tf - h_analytic))))
-        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs((h_tf - h_analytic) / h_tf)))
 
         #i = 1
         #print(h_tf[i, :, :])
         #print(h_analytic[i, :, :])
-        #print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
+        #print(h_tf[i, :, :] - h_analytic[i, :, :])
 
         # Make sure that hessians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(h_analytic)) > 1e-10, \
             "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
-        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf))
-        assert mrad < 1e-10, mrad
+        mad = np.max(np.abs(h_tf - h_analytic))
+        assert mad < 1e-15, mad
         return True
 
 
