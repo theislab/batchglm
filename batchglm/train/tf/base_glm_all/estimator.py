@@ -238,7 +238,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
         """
         if train_loc is None:
             # check if mu was initialized with MLE
-            train_mu = self._train_loc
+            train_loc = self._train_loc
         if train_scale is None:
             # check if r was initialized with MLE
             train_scale = self._train_scale
