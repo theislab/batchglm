@@ -30,6 +30,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_norm import Simulator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator
+            elif self.noise_model == "bern":
+                from batchglm.api.models.glm_bern import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -53,6 +55,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_norm import Estimator
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator
+            elif self.noise_model == "bern":
+                from batchglm.api.models.glm_bern import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -98,6 +102,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
                 from batchglm.api.models.glm_norm import InputData
             elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import InputData
+            elif self.noise_model == "bern":
+                from batchglm.api.models.glm_bern import InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -132,6 +138,10 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         t1_tf = time.time()
         t_tf = t1_tf - t0_tf
 
+
+        # print("J_analytic: ", J_analytic)
+        # print("J_tf: ", J_tf)
+
         # Make sure that jacobians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(J_analytic)) > 1e-10, \
             "jacobians too small to perform test: %f" % np.sum(np.abs(J_analytic))
@@ -145,7 +155,8 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         #print(J_analytic)
         #print((J_tf - J_analytic) / J_tf)
 
-        mrad = np.max(np.abs((J_tf - J_analytic) / J_tf))
+        # mrad = np.max(np.abs((J_tf - J_analytic) / J_tf))
+        mrad = np.max(np.abs(J_tf - J_analytic))
         assert mrad < 1e-12, mrad
         return True
 
@@ -177,6 +188,7 @@ class Test_Jacobians_GLM_NORM(Test_Jacobians_GLM_ALL, unittest.TestCase):
         self._test_compute_jacobians(sparse=False)
         #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 
+
 class Test_Jacobians_GLM_BETA(Test_Jacobians_GLM_ALL, unittest.TestCase):
 
     def test_compute_jacobians_beta(self):
@@ -185,6 +197,18 @@ class Test_Jacobians_GLM_BETA(Test_Jacobians_GLM_ALL, unittest.TestCase):
         logging.getLogger("batchglm").error("Test_Jacobians_GLM_BETA.test_compute_jacobians_beta()")
 
         self.noise_model = "beta"
+        self._test_compute_jacobians(sparse=False)
+        #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
+
+
+class Test_Jacobians_GLM_BERN(Test_Jacobians_GLM_ALL, unittest.TestCase):
+
+    def test_compute_jacobians_bern(self):
+        logging.getLogger("tensorflow").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").error("Test_Jacobians_GLM_BERN.test_compute_jacobians_bern()")
+
+        self.noise_model = "bern"
         self._test_compute_jacobians(sparse=False)
         #self._test_compute_jacobians(sparse=True)  #TODO automatic differentiation does not seem to work here yet.
 

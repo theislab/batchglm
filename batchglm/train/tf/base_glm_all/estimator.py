@@ -73,6 +73,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             from .external_norm import EstimatorGraph
         elif noise_model == "beta":
             from .external_beta import EstimatorGraph
+        elif noise_model == "bern":
+            from .external_bern import EstimatorGraph
         else:
             raise ValueError("noise model %s was not recognized" % noise_model)
         self.noise_model = noise_model
@@ -356,6 +358,8 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             from .external_norm import EstimatorStoreXArray
         elif self.noise_model == "beta":
             from .external_beta import EstimatorStoreXArray
+        elif self.noise_model == "bern":
+            from .external_bern import EstimatorStoreXArray
         else:
             raise ValueError("noise model not recognized")
 

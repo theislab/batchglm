@@ -35,7 +35,6 @@ def closedform_beta_glm_logitmean(
         dmat=design_loc,
         constraints=constraints_loc,
         size_factors=size_factors,
-        weights=None,
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )

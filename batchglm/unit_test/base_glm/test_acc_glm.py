@@ -38,7 +38,7 @@ class _Test_Accuracy_GLM_Estim():
         self.estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": lr,
-                "convergence_criteria": "all_converged_ll",
+                "convergence_criteria": "all_converged",
                 "stopping_criteria": acc,
                 "use_batching": batched,
                 "optim_algo": algo,

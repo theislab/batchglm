@@ -175,7 +175,7 @@ class Normal:
 
 class Beta:
     r"""
-    Beta distribution.
+    beta distribution.
     """
 
     p: np.ndarray
@@ -195,6 +195,31 @@ class Beta:
         random_data = np.random.beta(
             a=self.p,
             b=self.q,
+            size=size
+        )
+        return random_data
+
+
+class Bernoulli:
+    r"""
+    Bernoulli distribution.
+    """
+
+    p: np.ndarray
+
+    def __init__(self, mean):
+        self.p=mean
+
+    def sample(self, size=None):
+        """
+        Sample from all distributions data of size `size`.
+        :param size: The size
+        :return: numpy array containing sampled data
+
+        """
+        random_data = np.random.binomial(
+            n=1,
+            p=self.p,
             size=size
         )
         return random_data

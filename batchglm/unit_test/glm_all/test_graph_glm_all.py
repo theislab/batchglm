@@ -30,8 +30,10 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
                 from batchglm.api.models.glm_nb import Estimator, InputData
             elif noise_model=="norm":
                 from batchglm.api.models.glm_norm import Estimator, InputData
-            elif noise_model=="beta":
+            elif noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator, InputData
+            elif noise_model=="bern":
+                from batchglm.api.models.glm_bern import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -103,6 +105,8 @@ class Test_Graph_GLM_ALL(
                 from batchglm.api.models.glm_norm import Simulator
             elif self.noise_model=="beta":
                 from batchglm.api.models.glm_beta import Simulator
+            elif self.noise_model=="bern":
+                from batchglm.api.models.glm_bern import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -194,6 +198,7 @@ class Test_Graph_GLM_NORM(
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
+
 class Test_Graph_GLM_BETA(
     Test_Graph_GLM_ALL,
     unittest.TestCase
@@ -217,6 +222,33 @@ class Test_Graph_GLM_BETA(
         logger.error("Test_Graph_GLM_BETA.test_batched_beta()")
 
         self.noise_model = "beta"
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
+
+
+class Test_Graph_GLM_BERN(
+    Test_Graph_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether training graphs work for bernoulli noise.
+    """
+
+    def test_full_bern(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_BERN.test_full_bern()")
+
+        self.noise_model = "bern"
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
+
+    def test_batched_bern(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Graph_GLM_BERN.test_batched_bern()")
+
+        self.noise_model = "bern"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 

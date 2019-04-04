@@ -29,6 +29,10 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
                 from batchglm.api.models.glm_nb import Estimator, InputData
             elif noise_model=="norm":
                 from batchglm.api.models.glm_norm import Estimator, InputData
+            elif noise_model=="beta":
+                from batchglm.api.models.glm_beta import Estimator, InputData
+            elif noise_model=="bern":
+                from batchglm.api.models.glm_bern import Estimator, InputData
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -57,7 +61,9 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             provide_optimizers=provide_optimizers,
             provide_batched=True,
             init_a="standard",
-            init_b="standard"
+            init_b="standard",
+            provide_fim = True,
+            provide_hessian = True,
         )
         super().__init__(
             estimator=estimator,
@@ -102,6 +108,10 @@ class Test_Accuracy_GLM_ALL(
                 from batchglm.api.models.glm_nb import Simulator
             elif self.noise_model=="norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model=="beta":
+                from batchglm.api.models.glm_beta import Simulator
+            elif self.noise_model=="bern":
+                from batchglm.api.models.glm_bern import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -177,7 +187,7 @@ class Test_Accuracy_GLM_NORM(
     def test_full_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Accuracy_GLM_NB.test_full_norm()")
+        logger.error("Test_Accuracy_GLM_NORM.test_full_norm()")
 
         self.noise_model = "norm"
         self.simulate()
@@ -187,9 +197,66 @@ class Test_Accuracy_GLM_NORM(
     def test_batched_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Accuracy_GLM_NB.test_batched_norm()")
+        logger.error("Test_Accuracy_GLM_NORM.test_batched_norm()")
 
         self.noise_model = "norm"
+        self.simulate()
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
+
+class Test_Accuracy_GLM_BETA(
+    Test_Accuracy_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for negative binomial noise.
+    """
+
+    def test_full_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Accuracy_GLM_BETA.test_full_beta()")
+
+        self.noise_model = "beta"
+        self.simulate()
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
+
+    def test_batched_beta(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Accuracy_GLM_BETA.test_batched_beta()")
+
+        self.noise_model = "beta"
+        self.simulate()
+        self._test_batched(sparse=False)
+        self._test_batched(sparse=True)
+
+
+class Test_Accuracy_GLM_BERN(
+    Test_Accuracy_GLM_ALL,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for negative binomial noise.
+    """
+
+    def test_full_bern(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Accuracy_GLM_BERN.test_full_bern()")
+
+        self.noise_model = "bern"
+        self.simulate()
+        self._test_full(sparse=False)
+        self._test_full(sparse=True)
+
+    def test_batched_bern(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
+        logger.error("Test_Accuracy_GLM_BERN.test_batched_bern()")
+
+        self.noise_model = "bern"
         self.simulate()
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)

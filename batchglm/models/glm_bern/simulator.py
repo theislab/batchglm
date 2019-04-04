@@ -6,8 +6,8 @@ from .external import rand_utils, _Simulator_GLM
 
 class Simulator(_Simulator_GLM, Model):
     """
-    Simulator for Generalized Linear Models (GLMs) with beta distributed noise.
-    Uses a logit-linker function for loc and a log-linker function for scale.
+    Simulator for Generalized Linear Models (GLMs) with bernoulli noise.
+    Uses logit linker function.
     """
 
     def __init__(
@@ -24,10 +24,10 @@ class Simulator(_Simulator_GLM, Model):
 
     def generate_params(
             self,
-            rand_fn_ave=lambda shape: np.random.uniform(0.2, 0.3, shape),
+            rand_fn_ave=lambda shape: np.random.uniform(0.3, 0.4, shape),
             rand_fn=None,
-            rand_fn_loc=lambda shape: np.random.uniform(0.5, 0.6, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1e2, 2e3, shape),
+            rand_fn_loc=lambda shape: np.random.uniform(0.4, 0.6, shape),
+            rand_fn_scale=lambda shape: np.zeros(shape),
         ):
         self._generate_params(
             self,
@@ -39,9 +39,9 @@ class Simulator(_Simulator_GLM, Model):
 
     def generate_data(self):
         """
-        Sample random data based on beta distribution and parameters.
+        Sample random data based on bernoulli distribution and parameters.
         """
         self.data["X"] = (
             self.param_shapes()["X"],
-            rand_utils.Beta(mean=self.mean, samplesize=self.samplesize).sample()
+            rand_utils.Bernoulli(mean=self.mu).sample()
         )
