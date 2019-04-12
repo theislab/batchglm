@@ -118,14 +118,17 @@ def xarray_from_data(
 
 
 def design_matrix(
-        sample_description: pd.DataFrame,
-        formula: str,
+        sample_description: Union[pd.DataFrame, None] = None,
+        formula: Union[str, None] = None,
         as_categorical: Union[bool, list] = True,
+        dmat: Union[pd.DataFrame, None] = None,
         return_type: str = "xarray",
 ) -> Union[patsy.design_info.DesignMatrix, xr.Dataset, pd.DataFrame]:
     """
     Create a design matrix from some sample description.
-    
+
+    This function defaults to perform formatting if dmat is directly supplied as a pd.DataFrame.
+
     :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
     :param formula: model formula as string, describing the relations of the explanatory variables.
     
@@ -138,39 +141,58 @@ def design_matrix(
         is True.
         
         Set to false, if columns should not be changed.
+    :param dmat: a model design matrix as a pd.DataFrame
     :param return_type: type of the returned value.
 
-        - "matrix": return plain patsy.design_info.DesignMatrix object
+        - "patsy": return plain patsy.design_info.DesignMatrix object
         - "dataframe": return pd.DataFrame with observations as rows and params as columns
         - "xarray": return xr.Dataset with design matrix as ds["design"] and the sample description embedded as
             one variable per column
     :return: a model design matrix
     """
-    sample_description: pd.DataFrame = sample_description.copy()
+    if (dmat is None and sample_description is None) or \
+            (dmat is not None and sample_description is not None):
+        raise ValueError("supply either dmat or sample_description")
 
-    if type(as_categorical) is not bool or as_categorical:
-        if type(as_categorical) is bool and as_categorical:
-            as_categorical = np.repeat(True, sample_description.columns.size)
+    if dmat is None:
+        sample_description: pd.DataFrame = sample_description.copy()
 
-        for to_cat, col in zip(as_categorical, sample_description):
-            if to_cat:
-                sample_description[col] = sample_description[col].astype("category")
+        if type(as_categorical) is not bool or as_categorical:
+            if type(as_categorical) is bool and as_categorical:
+                as_categorical = np.repeat(True, sample_description.columns.size)
 
-    dmat = patsy.dmatrix(formula, sample_description)
+            for to_cat, col in zip(as_categorical, sample_description):
+                if to_cat:
+                    sample_description[col] = sample_description[col].astype("category")
 
-    if return_type == "dataframe":
-        df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
-        df = pd.concat([df, sample_description], axis=1)
-        df.set_index(list(sample_description.columns), inplace=True)
+        dmat = patsy.dmatrix(formula, sample_description)
 
-        return df
-    elif return_type == "xarray":
-        ar = xr.DataArray(dmat, dims=("observations", "design_params"))
-        ar.coords["design_params"] = dmat.design_info.column_names
+        if return_type == "dataframe":
+            df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
+            df = pd.concat([df, sample_description], axis=1)
+            df.set_index(list(sample_description.columns), inplace=True)
 
-        return ar
+            return df
+        elif return_type == "xarray":
+            ar = xr.DataArray(dmat, dims=("observations", "design_params"))
+            ar.coords["design_params"] = dmat.design_info.column_names
+
+            return ar
+        elif return_type == "patsy":
+            return dmat
+        else:
+            raise ValueError("return type %s not recognized" % return_type)
     else:
-        return dmat
+        if return_type == "dataframe":
+            return dmat
+        elif return_type == "xarray":
+            ar = xr.DataArray(dmat, dims=("observations", "design_params"))
+            ar.coords["design_params"] = dmat.columns
+            return ar
+        elif return_type == "patsy":
+            raise ValueError("return type 'patsy' not supported for input (dmat is not None)")
+        else:
+            raise ValueError("return type %s not recognized" % return_type)
 
 
 def view_coef_names(
@@ -196,10 +218,42 @@ def view_coef_names(
         raise ValueError("dmat type %s not recognized" % type(dmat))
 
 
+def preview_coef_names(
+        sample_description: pd.DataFrame,
+        formula: str,
+        as_categorical: Union[bool, list] = True
+) -> np.ndarray:
+    """
+    Return coefficient names of model.
+
+    Use this to preview what the model would look like.
+
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param formula: model formula as string, describing the relations of the explanatory variables.
+
+        E.g. '~ 1 + batch + confounder'
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
+    :return: A list of coefficient names.
+    """
+    return view_coef_names(dmat=design_matrix(
+        sample_description=sample_description,
+        formula=formula,
+        as_categorical=as_categorical,
+        return_type="patsy"
+    ))
+
+
 def sample_description_from_xarray(
         dataset: xr.Dataset,
         dim: str,
-):
+) -> pd.DataFrame:
     """
     Create a design matrix from a given xarray.Dataset and model formula.
 
@@ -226,7 +280,7 @@ def design_matrix_from_xarray(
         formula=None,
         formula_key="formula",
         as_categorical=True,
-        return_type="matrix",
+        return_type="patsy",
 ):
     """
     Create a design matrix from a given xarray.Dataset and model formula.
@@ -275,7 +329,7 @@ def design_matrix_from_xarray(
     return dmat
 
 
-def sample_description_from_anndata(dataset: anndata.AnnData):
+def sample_description_from_anndata(dataset: anndata.AnnData) -> pd.DataFrame:
     """
     Create a design matrix from a given xarray.Dataset and model formula.
 
@@ -292,7 +346,7 @@ def design_matrix_from_anndata(
         formula=None,
         formula_key="formula",
         as_categorical=True,
-        return_type="matrix",
+        return_type="patsy",
 ):
     r"""
     Create a design matrix from a given xarray.Dataset and model formula.
@@ -470,7 +524,7 @@ def setup_constrained(
         sample_description: pd.DataFrame,
         formula: str,
         as_numeric: Union[List[str], Tuple[str], str] = (),
-        constraints: Union[Tuple[str], List[str]] = (),
+        constraints: dict = {},
         dims: Union[Tuple[str], List[str]] = ()
 ) -> Tuple:
     """
@@ -486,8 +540,8 @@ def setup_constrained(
         not as categorical. This yields columns in the design matrix
         which do not correspond to one-hot encoded discrete factors.
     :param constraints: Grouped factors to enfore equality constraints on. Every element of
-        the iteratable corresponds to one set of equality constraints. Each set has to be
-        a dictionary of the form {x: y} where x is the factor to be constrained and y is
+        the dictionary corresponds to one set of equality constraints. Each set has to be
+        be an entry of the form {..., x: y, ...} where x is the factor to be constrained and y is
         a factor by which levels of x are grouped and then constrained. Set y="1" to constrain
         all levels of x to sum to one, a single equality constraint.
 
