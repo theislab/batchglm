@@ -415,7 +415,7 @@ def load_mtx_to_adata(path, cache=True):
                 delim = "\t"
 
             fpath = os.path.join(path, file)
-            logger.info("Reading %s as gene annotation...", fpath)
+            logging.getLogger("batchglm").info("Reading %s as gene annotation...", fpath)
             tbl = pd.read_csv(fpath, header=None, sep=delim)
             tbl.columns = np.vectorize(lambda x: "col_%d" % x)(tbl.columns)
 
@@ -427,7 +427,7 @@ def load_mtx_to_adata(path, cache=True):
                 delim = "\t"
 
             fpath = os.path.join(path, file)
-            logger.info("Reading %s as barcode file...", fpath)
+            logging.getLogger("batchglm").info("Reading %s as barcode file...", fpath)
             tbl = pd.read_csv(fpath, header=None, sep=delim)
             tbl.columns = np.vectorize(lambda x: "col_%d" % x)(tbl.columns)
 
@@ -507,10 +507,10 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
         for file in files:
             if file == "matrix.mtx":
                 if target_format.lower() == "xarray":
-                    logger.info("Reading %s as xarray...", root)
+                    logging.getLogger("batchglm").info("Reading %s as xarray...", root)
                     ad = load_mtx_to_xarray(root)
                 elif target_format.lower() == "adata" or target_format.lower() == "anndata":
-                    logger.info("Reading %s as AnnData...", root)
+                    logging.getLogger("batchglm").info("Reading %s as AnnData...", root)
                     ad = load_mtx_to_adata(root, cache=cache)
                 else:
                     raise RuntimeError("Unknown target format %s" % target_format)
@@ -520,12 +520,124 @@ def load_recursive_mtx(dir_or_zipfile, target_format="xarray", cache=True) -> Di
     return adatas
 
 
-def setup_constrained(
+def constraint_system_from_star(
+        dmat: Union[None, np.ndarray, xr.DataArray, xr.Dataset] = None,
+        sample_description: Union[None, pd.DataFrame] = None,
+        formula: Union[None, str] = None,
+        as_categorical: Union[bool, list] = True,
+        constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
+        dims: Union[Tuple[str, str], List[str]] = (),
+        return_type: str = "xarray",
+) -> Tuple:
+    """
+    Wrap different constraint matrix building formats with building of design matrix.
+
+    :param dmat: Pre-built model design matrix.
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param formula: model formula as string, describing the relations of the explanatory variables.
+
+        E.g. '~ 1 + batch + confounder'
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
+    :param constraints: Constraints for model. Can be one of the following:
+
+        - np.ndarray:
+            Array with constraints in rows and model parameters in columns.
+            Each constraint contains non-zero entries for the a of parameters that
+            has to sum to zero. This constraint is enforced by binding one parameter
+            to the negative sum of the other parameters, effectively representing that
+            parameter as a function of the other parameters. This dependent
+            parameter is indicated by a -1 in this array, the independent parameters
+            of that constraint (which may be dependent at an earlier constraint)
+            are indicated by a 1. You should only use this option
+            together with prebuilt design matrix for the scale model, dmat_scale,
+            for example via de.utils.setup_constrained().
+        - dict:
+            Every element of the dictionary corresponds to one set of equality constraints.
+            Each set has to be be an entry of the form {..., x: y, ...}
+            where x is the factor to be constrained and y is a factor by which levels of x are grouped
+            and then constrained. Set y="1" to constrain all levels of x to sum to one,
+            a single equality constraint.
+
+                E.g.: {"batch": "condition"} Batch levels within each condition are constrained to sum to
+                    zero. This is applicable if repeats of a an experiment within each condition
+                    are independent so that the set-up ~1+condition+batch is perfectly confounded.
+
+            Can only group by non-constrained effects right now, use constraint_matrix_from_string
+            for other cases.
+        - list of strings or tuple of strings:
+            String encoded equality constraints.
+
+                E.g. ["batch1 + batch2 + batch3 = 0"]
+        - None:
+            No constraints are used, this is equivalent to using an identity matrix as a
+            constraint matrix.
+    :param dims: Dimension names of xarray.
+
+        E.g.: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
+    :param return_type: type of the returned value.
+
+        - "patsy": return plain patsy.design_info.DesignMatrix object
+        - "dataframe": return pd.DataFrame with observations as rows and params as columns
+        - "xarray": return xr.Dataset with design matrix as ds["design"] and the sample description embedded as
+            one variable per column
+        This option is overridden if constraints are supplied as dict.
+    :return: a model design matrix and a constraint matrix formatted as xr.DataArray
+    """
+    if sample_description is None and dmat is None:
+        raise ValueError("supply either sample_description or dmat")
+
+    if dmat is None and not isinstance(constraints, dict):
+       dmat = design_matrix(
+            sample_description=sample_description,
+            formula=formula,
+            as_categorical=as_categorical,
+            dmat=None,
+            return_type=return_type
+        )
+    elif dmat is not None and isinstance(constraints, dict):
+        raise ValueError("dmat was supplied even though constraints were given as dict")
+
+    if isinstance(constraints, dict):
+        dmat, cmat = constraint_matrix_from_dict(
+            sample_description=sample_description,
+            formula=formula,
+            as_categorical=as_categorical,
+            constraints=constraints,
+            dims=dims
+        )
+    elif isinstance(constraints, tuple) or isinstance(constraints, list):
+        cmat = constraint_matrix_from_string(
+            dmat=dmat,
+            constraints=constraints,
+            dims=dims
+        )
+    elif isinstance(constraints, np.ndarray) or isinstance(constraints, xr.DataArray):
+        cmat = parse_constraints(
+            dmat=dmat,
+            constraints=constraints,
+            dims=dims
+        )
+    elif constraints is None:
+        cmat = None
+    else:
+        raise ValueError("constraint format %s not recognized" % type(constraints))
+
+    return dmat, cmat
+
+
+def constraint_matrix_from_dict(
         sample_description: pd.DataFrame,
         formula: str,
-        as_numeric: Union[List[str], Tuple[str], str] = (),
+        as_categorical: Union[bool, list] = True,
         constraints: dict = {},
-        dims: Union[Tuple[str], List[str]] = ()
+        dims: Union[Tuple[str, str], List[str]] = ()
 ) -> Tuple:
     """
     Create a design matrix from some sample description and a constraint matrix
@@ -535,10 +647,14 @@ def setup_constrained(
     :param formula: model formula as string, describing the relations of the explanatory variables.
 
         E.g. '~ 1 + batch + confounder'
-    :param as_numeric:
-        Which columns of sample_description to treat as numeric and
-        not as categorical. This yields columns in the design matrix
-        which do not correspond to one-hot encoded discrete factors.
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
     :param constraints: Grouped factors to enfore equality constraints on. Every element of
         the dictionary corresponds to one set of equality constraints. Each set has to be
         be an entry of the form {..., x: y, ...} where x is the factor to be constrained and y is
@@ -551,17 +667,15 @@ def setup_constrained(
 
         Can only group by non-constrained effects right now, use constraint_matrix_from_string
         for other cases.
-    :param dims: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
-        Dimension names of xarray.
+    :param dims: Dimension names of xarray.
+
+        E.g.: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
     :return: a model design matrix
     """
     assert len(constraints) > 0, "supply constraints"
     assert len(dims) == 2, "supply 2 dimension names in dim"
     sample_description: pd.DataFrame = sample_description.copy()
 
-    if isinstance(as_numeric, str):
-        as_numeric = [as_numeric]
-    as_categorical = [False if x in as_numeric else True for x in sample_description.columns.values]
     if type(as_categorical) is not bool or as_categorical:
         if type(as_categorical) is bool and as_categorical:
             as_categorical = np.repeat(True, sample_description.columns.size)
@@ -579,29 +693,15 @@ def setup_constrained(
     dmat = patsy.dmatrix(formula_unconstrained, sample_description)
     coef_names = dmat.design_info.column_names
 
-    constraints_ls = []
+    constraints_ls = string_constraints_from_dict(
+        sample_description=sample_description,
+        constraints=constraints
+    )
     for i, x in enumerate(constraints.keys()):
         assert isinstance(x, str), "constrained should contain strings"
         dmat_constrained_temp = patsy.highlevel.dmatrix("0+" + x, sample_description)
         dmat = np.hstack([dmat, dmat_constrained_temp])
         coef_names.extend(dmat_constrained_temp.design_info.column_names)
-
-        # Build slices by group.
-        dmat_grouping_temp = patsy.highlevel.dmatrix("0+" + list(constraints.values())[i], sample_description)
-        for j in range(dmat_grouping_temp.shape[1]):
-            grouping = dmat_grouping_temp[:, j]
-            idx_constrained_group = np.where(np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0)[0]
-            # Assert that required grouping is nested.
-            assert np.all(np.logical_xor(
-                np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0,
-                np.sum(dmat_constrained_temp[grouping == 0, :], axis=0) > 0
-            )), "proposed grouping of constraints is not nested, read docstrings"
-            # Add new string-encoded equality constraint.
-            constraints_ls.append(
-                "+".join(list(np.asarray(dmat_constrained_temp.design_info.column_names)[idx_constrained_group]))+"=0"
-            )
-
-    logging.getLogger("batchglm").warning("Built constraints: "+", ".join(constraints_ls))
 
     # Parse design matrix to xarray.
     ar = xr.DataArray(dmat, dims=("observations", "design_params"))
@@ -617,9 +717,60 @@ def setup_constrained(
     return ar, constraints_ar
 
 
+def string_constraints_from_dict(
+        sample_description: pd.DataFrame,
+        constraints: Union[None, dict] = {}
+):
+    r"""
+    Create string-encoded constraints from dictionary encoded constraints and sample description.
+
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param constraints: Grouped factors to enfore equality constraints on. Every element of
+        the dictionary corresponds to one set of equality constraints. Each set has to be
+        be an entry of the form {..., x: y, ...} where x is the factor to be constrained and y is
+        a factor by which levels of x are grouped and then constrained. Set y="1" to constrain
+        all levels of x to sum to one, a single equality constraint.
+
+            E.g.: {"batch": "condition"} Batch levels within each condition are constrained to sum to
+                zero. This is applicable if repeats of a an experiment within each condition
+                are independent so that the set-up ~1+condition+batch is perfectly confounded.
+
+        Can only group by non-constrained effects right now, use constraint_matrix_from_string
+        for other cases.
+    :return: List of constraints as strings.
+
+        E.g. ["batch1 + batch2 + batch3 = 0"]
+    """
+    if constraints is not None:
+        constraints_ls = []
+        for i, x in enumerate(constraints.keys()):
+            assert isinstance(x, str), "constrained should contain strings"
+            dmat_constrained_temp = patsy.highlevel.dmatrix("0+" + x, sample_description)
+
+            dmat_grouping_temp = patsy.highlevel.dmatrix("0+" + list(constraints.values())[i], sample_description)
+            for j in range(dmat_grouping_temp.shape[1]):
+                grouping = dmat_grouping_temp[:, j]
+                idx_constrained_group = np.where(np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0)[0]
+                # Assert that required grouping is nested.
+                assert np.all(np.logical_xor(
+                    np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0,
+                    np.sum(dmat_constrained_temp[grouping == 0, :], axis=0) > 0
+                )), "proposed grouping of constraints is not nested, read docstrings"
+                # Add new string-encoded equality constraint.
+                constraints_ls.append(
+                    "+".join(list(np.asarray(dmat_constrained_temp.design_info.column_names)[idx_constrained_group])) + "=0"
+                )
+
+        logging.getLogger("batchglm").warning("Built constraints: " + ", ".join(constraints_ls))
+    else:
+        constraints_ls = None
+
+    return constraints_ls
+
+
 def constraint_matrix_from_string(
         dmat: Union[xr.DataArray, xr.Dataset],
-        constraints: Union[Tuple[str], List[str]],
+        constraints: Union[Tuple[str, str], List[str]],
         dims: list
 ):
     r"""
@@ -629,8 +780,9 @@ def constraint_matrix_from_string(
     :param constraints: List of constraints as strings.
 
         E.g. ["batch1 + batch2 + batch3 = 0"]
-    :param dims: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
-        Dimension names of xarray.
+    :param dims: Dimension names of xarray.
+
+        E.g.: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
     :return: a constraint matrix
     """
     assert len(constraints) > 0, "supply constraints"
@@ -666,14 +818,13 @@ def constraint_matrix_from_string(
         dims=dims
     )
 
-    # Test reduced design matrix for full rank before returning constraints:
+    # Test unconstrained subset design matrix for being full rank before returning constraints:
     dmat_var = xr.DataArray(
         dims=[dmat.dims[0], "params"],
         data=dmat[:, idx_unconstr],
         coords={dmat.dims[0]: dmat.coords["observations"].values,
                 "params": dmat.coords["design_params"].values[idx_unconstr]}
     )
-
     if np.linalg.matrix_rank(dmat_var) != np.linalg.matrix_rank(dmat_var.T):
         logging.getLogger("batchglm").error("constrained design matrix is not full rank")
 
@@ -682,7 +833,7 @@ def constraint_matrix_from_string(
 
 def parse_constraints(
         dmat: Union[xr.DataArray, xr.Dataset],
-        constraints: np.ndarray,
+        constraints: Union[np.ndarray, xr.DataArray],
         dims: list
 ):
     r"""
@@ -690,33 +841,21 @@ def parse_constraints(
 
     :param dmat: Design matrix.
     :param constraints: a constraint matrix.
-    :param dims: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
-        Dimension names of xarray
+    :param dims: Dimension names of xarray.
+
+        E.g.: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
     :return: constraint matrix in xarray format
     """
     if isinstance(dmat, xr.Dataset):
         dmat = dmat.data_vars['design']
 
-    constraints_ar = xr.DataArray(
-        dims=dims,
-        data=constraints,
-        coords={dims[0]: dmat.coords["design_params"].values,
-                dims[1]: ["var_"+str(x) for x in range(constraints.shape[1])]}
-    )
-    return constraints_ar
-
-
-class ChDir:
-    """
-    Context manager to temporarily change the working directory
-    """
-
-    def __init__(self, path):
-        self.cwd = os.getcwd()
-        self.other_wd = path
-
-    def __enter__(self):
-        os.chdir(self.other_wd)
-
-    def __exit__(self, *args):
-        os.chdir(self.cwd)
+    if isinstance(constraints, xr.DataArray):
+        return constraints
+    else:
+        constraints_ar = xr.DataArray(
+            dims=dims,
+            data=constraints,
+            coords={dims[0]: dmat.coords["design_params"].values,
+                    dims[1]: ["var_"+str(x) for x in range(constraints.shape[1])]}
+        )
+        return constraints_ar
