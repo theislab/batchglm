@@ -555,12 +555,12 @@ def setup_constrained(
 
     # Build constraint matrix.
     constraints_ar = constraint_matrix_from_string(
-        dmat=ds,
+        dmat=ar,
         constraints=constraints_ls,
         dims=dims
     )
 
-    return ds, constraints_ar
+    return ar, constraints_ar
 
 
 def constraint_matrix_from_string(
