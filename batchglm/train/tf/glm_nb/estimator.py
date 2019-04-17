@@ -183,7 +183,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 init_a_str = init_a.lower()
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
-                    init_a = "closed_form"
+                    init_a = "standard"
 
                 if init_a.lower() == "closed_form":
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
