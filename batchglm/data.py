@@ -20,6 +20,11 @@ try:
 except ImportError:
     anndata = None
 
+try:
+    from anndata.base import Raw
+except ImportError:
+    from anndata import Raw
+
 
 def _sparse_to_xarray(data, dims):
     num_observations, num_features = data.shape
@@ -54,7 +59,7 @@ def _sparse_to_xarray(data, dims):
 
 
 def xarray_from_data(
-        data: Union[anndata.AnnData, anndata.base.Raw, xr.DataArray, xr.Dataset, np.ndarray, scipy.sparse.csr_matrix],
+        data: Union[anndata.AnnData, Raw, xr.DataArray, xr.Dataset, np.ndarray, scipy.sparse.csr_matrix],
         dims: Union[Tuple, List] = ("observations", "features")
 ):
     """
@@ -65,7 +70,7 @@ def xarray_from_data(
     :param dims: tuple or list with two strings. Specifies the names of the xarray dimensions.
     :return: xr.DataArray of shape `dims`
     """
-    if anndata is not None and (isinstance(data, anndata.AnnData) or isinstance(data, anndata.base.Raw)):
+    if anndata is not None and (isinstance(data, anndata.AnnData) or isinstance(data, Raw)):
         # Anndata.raw does not have obs_names.
         if isinstance(data, anndata.AnnData):
             obs_names = np.asarray(data.obs_names)
