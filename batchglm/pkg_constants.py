@@ -22,20 +22,20 @@ TF_CONFIG_PROTO.log_device_placement = False
 TF_CONFIG_PROTO.gpu_options.allow_growth = True
 TF_CONFIG_PROTO.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
 
-TF_CONFIG_PROTO.inter_op_parallelism_threads = 0 if TF_NUM_THREADS == 0 else 1
+TF_CONFIG_PROTO.inter_op_parallelism_threads = TF_NUM_THREADS
 TF_CONFIG_PROTO.intra_op_parallelism_threads = TF_NUM_THREADS
 
 if TF_NUM_THREADS == 0:
     TF_NUM_THREADS = multiprocessing.cpu_count()
 
 # Trust region hyper parameters:
-TRUST_REGION_RADIUS_INIT = 4.
+TRUST_REGION_RADIUS_INIT = 100.
 TRUST_REGION_ETA0 = 0.
 TRUST_REGION_ETA1 = 0.25
 TRUST_REGION_ETA2 = 0.25  # Allow expansion if not shrinking.
-TRUST_REGION_T1 = 0.1  # Fast collapse to avoid trailing.
-TRUST_REGION_T2 = 2.  # Very conservative expansion to run updates once valid region is reached.
-TRUST_REGION_UPPER_BOUND = 1e4  # Low upper limit so that collapse to valid region does not cause feature to trail.
+TRUST_REGION_T1 = 0.01  # Fast collapse to avoid trailing.
+TRUST_REGION_T2 = 10.
+TRUST_REGION_UPPER_BOUND = 1e5
 
 # Convergence hyper-parameters:
 LLTOL_BY_FEATURE = 1e-10

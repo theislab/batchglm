@@ -145,6 +145,7 @@ class _EstimatorStore_XArray_Base:
         :param ncols: Number of columns in plot grid if multiple genes are plotted.
         :param row_gap: Vertical gap between panel rows relative to panel height.
         :param col_gap: Horizontal gap between panel columns relative to panel width.
+        :param title: Plot title.
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
@@ -196,8 +197,8 @@ class _EstimatorStore_XArray_Base:
                 legend=False
             )
             sns.lineplot(
-                x=np.array([np.min([np.min(x), np.min(y), np.max([np.max(x), np.max(y)])])]),
-                y=np.array([np.min([np.min(x), np.min(y), np.max([np.max(x), np.max(y)])])]),
+                x=np.array([np.min([np.min(x), np.min(y)]), np.max([np.max(x), np.max(y)])]),
+                y=np.array([np.min([np.min(x), np.min(y)]), np.max([np.max(x), np.max(y)])]),
                 ax=ax
             )
 

@@ -1,6 +1,5 @@
 import batchglm.data as data_utils
 
-from batchglm.models.base.input import SparseXArrayDataSet, SparseXArrayDataArray
 from batchglm.models.glm_nb import AbstractEstimator, EstimatorStoreXArray, InputData, Model
 from batchglm.models.base_glm.utils import closedform_glm_mean, closedform_glm_scale
 from batchglm.models.glm_nb.utils import closedform_nb_glm_logmu, closedform_nb_glm_logphi
@@ -17,4 +16,5 @@ from batchglm.train.tf.base_glm_all import EstimatorAll, EstimatorGraphAll, FIMG
 
 import batchglm.utils.random as rand_utils
 from batchglm.utils.linalg import groupwise_solve_lm
+from batchglm.xarray_sparse.base import SparseXArrayDataSet, SparseXArrayDataArray
 from batchglm import pkg_constants

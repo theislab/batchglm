@@ -246,15 +246,15 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     # Calculated variance via E(x)^2 or directly depending on whether `mu` was specified.
                     if isinstance(input_data.X, SparseXArrayDataArray):
                         variance = input_data.X.var(input_data.X.dims[0])
-                        variance = np.expand_dims(variance, axis=0)
                     else:
-                        expect_xsq = input_data.X.mean(input_data.X.dims[0])
+                        expect_xsq = np.square(input_data.X).mean(input_data.X.dims[0])
                         mean_model = np.matmul(
                             np.matmul(input_data.design_loc.values, input_data.constraints_loc.values),
                             init_a
                         )
-                        expect_x_sq = np.square(mean_model).mean(input_data.X.dims[0])
-                        variance = expect_xsq - expect_x_sq
+                        expect_x_sq = np.mean(np.square(mean_model), axis=0)  # for xr compatibility input_data.X.dims[0])
+                        variance = (expect_xsq - expect_x_sq).values
+                    variance = np.expand_dims(variance, axis=0)
                     init_b = np.log(np.sqrt(variance))
 
                     self._train_scale = False

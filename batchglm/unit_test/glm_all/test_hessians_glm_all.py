@@ -70,18 +70,8 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             init_b="standard"
         )
         estimator.initialize()
-        # Do not train, evaluate at initialization!
-        estimator.train_sequence(training_strategy=[
-            {
-                "convergence_criteria": "step",
-                "stopping_criteria": 0,
-                "use_batching": False,
-                "optim_algo": "gd",
-                "train_mu": False,
-                "train_r": False
-            },
-        ])
         estimator_store = estimator.finalize()
+
         return - estimator_store.fisher_inv
 
     def _test_compute_hessians(self, sparse):
@@ -138,18 +128,17 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         logging.getLogger("batchglm").info("run time observation batch-wise analytic solution: %f" % t_analytic)
         logging.getLogger("batchglm").info("run time tensorflow solution: %f" % t_tf)
         logging.getLogger("batchglm").info("MAD: %f" % np.max(np.abs((h_tf - h_analytic))))
-        logging.getLogger("batchglm").info("MRAD: %f" % np.max(np.abs((h_tf - h_analytic) / h_tf)))
 
         #i = 1
         #print(h_tf[i, :, :])
         #print(h_analytic[i, :, :])
-        #print((h_tf[i, :, :] - h_analytic[i, :, :]) / h_tf[i, :, :])
+        #print(h_tf[i, :, :] - h_analytic[i, :, :])
 
         # Make sure that hessians are not all zero which might make evaluation of equality difficult.
         assert np.sum(np.abs(h_analytic)) > 1e-10, \
             "hessians too small to perform test: %f" % np.sum(np.abs(h_analytic))
-        mrad = np.max(np.abs((h_tf - h_analytic) / h_tf)) < 1e-12
-        assert mrad < 1e-12, mrad
+        mad = np.max(np.abs(h_tf - h_analytic))
+        assert mad < 1e-15, mad
         return True
 
 
@@ -166,11 +155,12 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         return True
 
+
 class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
 
     def test_compute_hessians_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logging.getLogger("batchglm").error("Test_Hessians_GLM_NORM.test_compute_hessians_norm()")
 
         self.noise_model = "norm"

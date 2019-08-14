@@ -11,8 +11,6 @@ from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
-logger = logging.getLogger("batchglm")
-
 
 class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
     """
@@ -185,7 +183,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 init_a_str = init_a.lower()
                 # Chose option if auto was chosen
                 if init_a.lower() == "auto":
-                    init_a = "closed_form"
+                    init_a = "standard"
 
                 if init_a.lower() == "closed_form":
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
@@ -203,8 +201,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         if np.any(input_data.size_factors != 1):
                             self._train_loc = True
 
-                    logger.debug("Using closed-form MLE initialization for mean")
-                    logger.debug("Should train mu: %s", self._train_loc)
+                    logging.getLogger("batchglm").debug("Using closed-form MLE initialization for mean")
+                    logging.getLogger("batchglm").debug("Should train mu: %s", self._train_loc)
                 elif init_a.lower() == "standard":
                     if isinstance(input_data.X, SparseXArrayDataArray):
                         overall_means = input_data.X.mean(dim="observations")
@@ -216,14 +214,14 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_a[0, :] = np.log(overall_means)
                     self._train_loc = True
 
-                    logger.debug("Using standard initialization for mean")
-                    logger.debug("Should train mu: %s", self._train_loc)
+                    logging.getLogger("batchglm").debug("Using standard initialization for mean")
+                    logging.getLogger("batchglm").debug("Should train mu: %s", self._train_loc)
                 elif init_a.lower() == "all_zero":
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     self._train_loc = True
 
-                    logger.debug("Using all_zero initialization for mean")
-                    logger.debug("Should train mu: %s", self._train_loc)
+                    logging.getLogger("batchglm").debug("Using all_zero initialization for mean")
+                    logging.getLogger("batchglm").debug("Should train mu: %s", self._train_loc)
                 else:
                     raise ValueError("init_a string %s not recognized" % init_a)
 
@@ -243,8 +241,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
                     init_b[0, :] = init_b_intercept
 
-                    logger.debug("Using standard-form MME initialization for dispersion")
-                    logger.debug("Should train r: %s", self._train_scale)
+                    logging.getLogger("batchglm").debug("Using standard-form MME initialization for dispersion")
+                    logging.getLogger("batchglm").debug("Should train r: %s", self._train_scale)
                 elif init_b.lower() == "closed_form":
                     dmats_unequal = False
                     if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
@@ -269,13 +267,13 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
 
-                    logger.debug("Using closed-form MME initialization for dispersion")
-                    logger.debug("Should train r: %s", self._train_scale)
+                    logging.getLogger("batchglm").debug("Using closed-form MME initialization for dispersion")
+                    logging.getLogger("batchglm").debug("Should train r: %s", self._train_scale)
                 elif init_b.lower() == "all_zero":
                     init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
 
-                    logger.debug("Using standard initialization for dispersion")
-                    logger.debug("Should train r: %s", self._train_scale)
+                    logging.getLogger("batchglm").debug("Using standard initialization for dispersion")
+                    logging.getLogger("batchglm").debug("Should train r: %s", self._train_scale)
                 else:
                     raise ValueError("init_b string %s not recognized" % init_b)
         else:
@@ -291,7 +289,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_loc[my_idx] = init_model.a_var[init_idx]
 
                 init_a = init_loc
-                logger.debug("Using initialization based on input model for mean")
+                logging.getLogger("batchglm").debug("Using initialization based on input model for mean")
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
@@ -305,7 +303,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     init_scale[my_idx] = init_model.b_var[init_idx]
 
                 init_b = init_scale
-                logger.debug("Using initialization based on input model for dispersion")
+                logging.getLogger("batchglm").debug("Using initialization based on input model for dispersion")
 
         return init_a, init_b
 
