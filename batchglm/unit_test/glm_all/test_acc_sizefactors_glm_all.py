@@ -3,7 +3,7 @@ import unittest
 import logging
 import scipy.sparse
 
-from batchglm.models.base_glm import _Estimator_GLM
+from batchglm.models.base_glm import _EstimatorGLM
 
 from .external import Test_AccuracySizeFactors_GLM, _Test_AccuracySizeFactors_GLM_Estim
 
@@ -67,7 +67,7 @@ class Test_AccuracySizeFactors_GLM_ALL(
     unittest.TestCase
 ):
     noise_model: str
-    _estims: List[_Estimator_GLM]
+    _estims: List[_EstimatorGLM]
 
     def get_simulator(self):
         if self.noise_model is None:

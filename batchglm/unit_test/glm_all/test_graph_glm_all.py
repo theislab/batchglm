@@ -4,7 +4,7 @@ import logging
 import scipy.sparse
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM
+from batchglm.models.base_glm import _EstimatorGLM
 
 from .external import Test_Graph_GLM, _Test_Graph_GLM_Estim
 
@@ -42,14 +42,14 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
         provide_optimizers[algo.lower()] = True
 
         if sparse:
-            input_data = InputData.new(
-                data=scipy.sparse.csr_matrix(simulator.input_data.X),
+            input_data = InputData(
+                data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
         else:
-            input_data = InputData.new(
-                data=simulator.input_data.X,
+            input_data = InputData(
+                data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
@@ -91,7 +91,7 @@ class Test_Graph_GLM_ALL(
         - train b model only: test_batched_global_b_only()
     """
     noise_model: str
-    _estims: List[_Estimator_GLM]
+    _estims: List[_EstimatorGLM]
 
     def get_simulator(self):
         if self.noise_model is None:

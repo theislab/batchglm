@@ -4,7 +4,7 @@ from typing import List
 import unittest
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _EstimatorGLM, _SimulatorGLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger("batchglm")
@@ -14,8 +14,8 @@ class _Test_Graph_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM,
-            simulator: _Simulator_GLM,
+            estimator: _EstimatorGLM,
+            simulator: _SimulatorGLM,
             algo: str
     ):
         self.estimator = estimator

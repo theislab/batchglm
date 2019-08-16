@@ -15,7 +15,7 @@ class Jacobians(JacobiansGLMALL):
             loc,
             scale,
     ):
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             const = tf.multiply(
                 tf.sparse.add(X, scale),
                 tf.divide(
@@ -43,7 +43,7 @@ class Jacobians(JacobiansGLMALL):
     ):
         # Pre-define sub-graphs that are used multiple times:
         scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             scale_plus_x = tf.sparse.add(X, scale)
         else:
             scale_plus_x = scale + X
@@ -57,8 +57,8 @@ class Jacobians(JacobiansGLMALL):
         )
         const2 = tf.negative(scale_plus_x / r_plus_mu)
         const3 = tf.add(
-            tf.log(scale),
-            scalar_one - tf.log(r_plus_mu)
+            tf.math.log(scale),
+            scalar_one - tf.math.log(r_plus_mu)
         )
         const = tf.add_n([const1, const2, const3])  # [observations, features]
         const = scale * const

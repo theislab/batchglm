@@ -1,4 +1,4 @@
-from .estimator import EstimatorAll
+from .estimator import TFEstimatorGLM
 from .estimator_graph import EstimatorGraphAll
 from .fim import FIMGLMALL
 from .jacobians import JacobiansGLMALL

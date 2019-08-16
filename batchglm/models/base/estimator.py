@@ -9,21 +9,37 @@ try:
 except ImportError:
     anndata = None
 
-from .model import _Model_Base
+from .model import _ModelBase
 
 logger = logging.getLogger(__name__)
 
 
-class _Estimator_Base(_Model_Base, metaclass=abc.ABCMeta):
+class _EstimatorBase(metaclass=abc.ABCMeta):
     r"""
     Estimator base class
     """
+    model: _ModelBase
+    _loss: np.ndarray
+    _jacobian: np.ndarray
 
     class TrainingStrategy(Enum):
         AUTO = None
 
-    def validate_data(self, **kwargs):
-        raise NotImplementedError()
+    def __init__(
+            self,
+            model: _ModelBase
+    ):
+        self.model = model
+        self._loss = None
+        self._jacobian = None
+
+    @property
+    def loss(self):
+        return self._loss
+
+    @property
+    def jacobian(self):
+        return self._jacobian
 
     @abc.abstractmethod
     def initialize(self, **kwargs):
@@ -36,6 +52,15 @@ class _Estimator_Base(_Model_Base, metaclass=abc.ABCMeta):
     def train(self, learning_rate=None, **kwargs):
         """
         Starts the training routine
+        """
+        pass
+
+    @abc.abstractmethod
+    def finalize(self, **kwargs):
+        """
+        Clean up, free resources
+
+        :return: some Estimator containing all necessary data
         """
         pass
 
@@ -59,65 +84,10 @@ class _Estimator_Base(_Model_Base, metaclass=abc.ABCMeta):
         if training_strategy is None:
             training_strategy = self.TrainingStrategy.DEFAULT.value
 
-        logger.info("training strategy: %s", str(training_strategy))
-
         for idx, d in enumerate(training_strategy):
             logger.info("Beginning with training sequence #%d", idx + 1)
             self.train(**d)
             logger.info("Training sequence #%d complete", idx + 1)
-
-    @abc.abstractmethod
-    def finalize(self, **kwargs):
-        """
-        Clean up, free resources
-
-        :return: some Estimator containing all necessary data
-        """
-        pass
-
-    @property
-    @abc.abstractmethod
-    def loss(self):
-        pass
-
-    @property
-    @abc.abstractmethod
-    def gradients(self):
-        pass
-
-
-class _EstimatorStore_XArray_Base:
-
-    def __init__(self):
-        pass
-
-    def initialize(self, **kwargs):
-        raise NotImplementedError("This object only stores estimated values")
-
-    def train(self, **kwargs):
-        raise NotImplementedError("This object only stores estimated values")
-
-    def finalize(self, **kwargs):
-        return self
-
-    def validate_data(self, **kwargs):
-        raise NotImplementedError("This object only stores estimated values")
-
-    @property
-    def input_data(self):
-        return self._input_data
-
-    @property
-    def X(self):
-        return self.input_data.X
-
-    @property
-    def features(self):
-        return self.input_data.features
-
-    @property
-    def loss(self):
-        return self.params["loss"]
 
     def _plot_coef_vs_ref(
             self,

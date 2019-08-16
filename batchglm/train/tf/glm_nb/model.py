@@ -79,7 +79,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
             eta_loc = tf.matmul(design_loc, a_var)
 
         if size_factors is not None:
-            eta_loc = tf.add(eta_loc, tf.log(size_factors))
+            eta_loc = tf.add(eta_loc, tf.math.log(size_factors))
 
         eta_loc = self.tf_clip_param(eta_loc, "eta_loc")
 
@@ -91,12 +91,12 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         eta_scale = self.tf_clip_param(eta_scale, "eta_scale")
         
         # Inverse linker functions:
-        model_loc = tf.exp(eta_loc)
-        model_scale = tf.exp(eta_scale)
+        model_loc = tf.math.exp(eta_loc)
+        model_scale = tf.math.exp(eta_scale)
 
         # Log-likelihood:
-        log_r_plus_mu = tf.log(model_scale + model_loc)
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        log_r_plus_mu = tf.math.log(model_scale + model_loc)
+        if isinstance(X, tf.SparseTensor):
             log_probs_sparse = X.__mul__(eta_loc - log_r_plus_mu)
             log_probs_dense = tf.math.lgamma(tf.sparse.add(X, model_scale)) - \
                               tf.math.lgamma(tf.sparse.add(X, tf.ones(shape=X.dense_shape, dtype=dtype))) - \

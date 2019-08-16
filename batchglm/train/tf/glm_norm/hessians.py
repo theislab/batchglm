@@ -16,7 +16,7 @@ class Hessians(HessianGLMALL):
             scale,
     ):
         scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             X_minus_loc = tf.sparse.add(X, -loc)
         else:
             X_minus_loc = X - loc
@@ -47,14 +47,14 @@ class Hessians(HessianGLMALL):
             scale,
     ):
         scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             X_minus_loc = tf.sparse.add(X, -loc)
         else:
             X_minus_loc = X - loc
 
         const = - tf.multiply(
             scalar_two,
-            tf.square(
+            tf.math.square(
                 tf.divide(
                     X_minus_loc,
                     scale

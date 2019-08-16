@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _EstimatorGLM, _SimulatorGLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -15,8 +15,8 @@ class _Test_Accuracy_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM,
-            simulator: _Simulator_GLM
+            estimator: _EstimatorGLM,
+            simulator: _SimulatorGLM
     ):
         self.estimator = estimator
         self.sim = simulator

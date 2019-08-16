@@ -298,11 +298,11 @@ class ReducableTensorsGLM:
         self.neg_ll = tf.negative(self.ll) if self.ll is not None else None
 
         # Setting operation:
-        jac_set = tf.assign(self.jac, jac)
-        hessian_set = tf.assign(self.hessian, hessian)
-        fim_a_set = tf.assign(self.fim_a, fim_a)
-        fim_b_set = tf.assign(self.fim_b, fim_b)
-        ll_set = tf.assign(self.ll, ll)
+        jac_set = tf.compat.v1.assign(self.jac, jac)
+        hessian_set = tf.compat.v1.assign(self.hessian, hessian)
+        fim_a_set = tf.compat.v1.assign(self.fim_a, fim_a)
+        fim_b_set = tf.compat.v1.assign(self.fim_b, fim_b)
+        ll_set = tf.compat.v1.assign(self.ll, ll)
 
         self.set = tf.group(
             set_op,

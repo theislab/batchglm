@@ -276,11 +276,11 @@ def pinv(matrix, threshold=1e-5):
     :return: the pseudo-inverse of `matrix`
     """
 
-    s, u, v = tf.svd(matrix)  # , full_matrices=True, compute_uv=True)
+    s, u, v = tf.linalg.svd(matrix)  # , full_matrices=True, compute_uv=True)
 
     adj_threshold = tf.reduce_max(s, axis=-1, keepdims=True) * threshold
-    s_inv = tf.where(s > tf.broadcast_to(adj_threshold, s.shape), tf.reciprocal(s), tf.zeros_like(s))
-    s_inv = tf.matrix_diag(s_inv)
+    s_inv = tf.where(s > tf.broadcast_to(adj_threshold, s.shape), tf.math.reciprocal(s), tf.zeros_like(s))
+    s_inv = tf.linalg.diag(s_inv)
 
     return v @ (s_inv @ swap_dims(u, axis0=-1, axis1=-2))
 

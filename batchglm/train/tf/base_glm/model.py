@@ -5,18 +5,9 @@ from typing import Union
 import tensorflow as tf
 import numpy as np
 
-from .external import AbstractEstimator, ProcessModelBase
+from .external import ProcessModelBase
 
 logger = logging.getLogger(__name__)
-
-ESTIMATOR_PARAMS = AbstractEstimator.param_shapes().copy()
-ESTIMATOR_PARAMS.update({
-    "batch_probs": ("batch_observations", "features"),
-    "batch_log_probs": ("batch_observations", "features"),
-    "batch_log_likelihood": (),
-    "full_loss": (),
-    "full_gradient": ("features",),
-})
 
 
 class ProcessModelGLM(ProcessModelBase):
@@ -115,8 +106,8 @@ class ModelVarsGLM(ProcessModelGLM):
         # Properties to follow gene-wise convergence.
         self.updated = tf.Variable(np.repeat(a=True, repeats=self.params.shape[1]))  # Initialise to is updated.
         self.converged = tf.Variable(np.repeat(a=False, repeats=self.params.shape[1]))  # Initialise to non-converged.
-        self.convergence_status = tf.placeholder(shape=[self.params.shape[1]], dtype=tf.bool)
-        self.convergence_update = tf.assign(self.converged, self.convergence_status)
+        self.convergence_status = tf.compat.v1.placeholder(shape=[self.params.shape[1]], dtype=tf.bool)
+        self.convergence_update = tf.compat.v1.assign(self.converged, self.convergence_status)
         #self.params_by_gene = params_by_gene
         #self.a_by_gene = a_by_gene
         #self.b_by_gene = b_by_gene

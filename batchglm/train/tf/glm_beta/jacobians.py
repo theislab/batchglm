@@ -16,7 +16,7 @@ class Jacobians(JacobiansGLMALL):
             scale,
     ):
         one_minus_loc = 1 - loc
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             const1 = tf.log(tf.sparse.to_dense(X)/-tf.sparse.add(X, -1))
         else:
             const1 = tf.log(X/(1-X))
@@ -30,7 +30,7 @@ class Jacobians(JacobiansGLMALL):
             loc,
             scale,
     ):
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             one_minus_X = - tf.sparse.add(X, -1)
             Xdense = tf.sparse.to_dense(X)
         else:

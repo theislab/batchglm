@@ -6,14 +6,12 @@ import threading
 from typing import Union, Dict, Callable, List
 
 import tensorflow as tf
-import tensorflow_probability as tfp
 import numpy as np
-
-from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
 
-class TimedRunHook(tf.train.SessionRunHook):
+
+class TimedRunHook(tf.estimator.SessionRunHook):
     """Runs ops or functions every N steps or seconds."""
 
     _time_measures: list
@@ -99,7 +97,7 @@ class TimedRunHook(tf.train.SessionRunHook):
 
         return tf.train.SessionRunArgs(requests)
 
-    def after_run(self, run_context: tf.train.SessionRunContext, run_values: tf.train.SessionRunValues):
+    def after_run(self, run_context: tf.estimator.SessionRunContext, run_values: tf.estimator.SessionRunValues):
         time_delta = time.time() - self._start_time
 
         global_step = run_values.results["global_step"]
@@ -142,7 +140,7 @@ class TimedRunHook(tf.train.SessionRunHook):
             i.join()
 
 
-class StopAtLossHook(tf.train.SessionRunHook):
+class StopAtLossHook(tf.estimator.SessionRunHook):
     _global_step_tensor: tf.Tensor
 
     def __init__(self,
@@ -348,8 +346,8 @@ class MultiTrainer:
 
                 theta_new_nr = variables - newton_delta
                 train_op_nr = tf.group(
-                    tf.assign(variables, theta_new_nr),
-                    tf.assign_add(global_step, 1)
+                    tf.compat.v1.assign(variables, theta_new_nr),
+                    tf.compat.v1.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
                     train_op_nr = apply_train_ops(train_op_nr)
@@ -363,8 +361,8 @@ class MultiTrainer:
 
                 theta_new_irls = variables - irls_delta
                 train_op_irls = tf.group(
-                    tf.assign(variables, theta_new_irls),
-                    tf.assign_add(global_step, 1)
+                    tf.compat.v1.assign(variables, theta_new_irls),
+                    tf.compat.v1.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
                     train_op_irls = apply_train_ops(train_op_irls)
@@ -378,8 +376,8 @@ class MultiTrainer:
 
                 theta_new_irls_gd = variables - irls_gd_delta
                 train_op_irls_gd = tf.group(
-                    tf.assign(variables, theta_new_irls_gd),
-                    tf.assign_add(global_step, 1)
+                    tf.compat.v1.assign(variables, theta_new_irls_gd),
+                    tf.compat.v1.assign_add(global_step, 1)
                 )
                 if apply_train_ops is not None:
                     train_op_irls_gd = apply_train_ops(train_op_irls_gd)
@@ -391,7 +389,7 @@ class MultiTrainer:
                 logger.debug(" *** Building optimizer: NR_TR")
                 train_op_nr_tr = {"trial_op": train_ops_nr_tr["trial_op"],
                                   "update_op": tf.group(train_ops_nr_tr["update_op"],
-                                                        tf.assign_add(global_step, 1))}
+                                                        tf.compat.v1.assign_add(global_step, 1))}
                 update_op_nr_tr = train_ops_nr_tr["update"]
             else:
                 train_op_nr_tr = None
@@ -401,7 +399,7 @@ class MultiTrainer:
                 logger.debug(" *** Building optimizer: IRLS_TR")
                 train_op_irls_tr = {"trial_op": train_ops_irls_tr["trial_op"],
                                     "update_op": tf.group(train_ops_irls_tr["update_op"],
-                                                          tf.assign_add(global_step, 1))}
+                                                          tf.compat.v1.assign_add(global_step, 1))}
                 update_op_irls_tr = train_ops_irls_tr["update"]
             else:
                 train_op_irls_tr = None
@@ -411,7 +409,7 @@ class MultiTrainer:
                 logger.debug(" *** Building optimizer: IRLS_GD_TR")
                 train_op_irls_gd_tr = {"trial_op": train_ops_irls_gd_tr["trial_op"],
                                     "update_op": tf.group(train_ops_irls_gd_tr["update_op"],
-                                                          tf.assign_add(global_step, 1))}
+                                                          tf.compat.v1.assign_add(global_step, 1))}
                 update_op_irls_gd_tr = train_ops_irls_gd_tr["update"]
             else:
                 train_op_irls_gd_tr = None

@@ -36,7 +36,7 @@ class Hessians(HessianGLMALL):
             loc,
             scale,
     ):
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             X_by_scale_plus_one = tf.sparse.add(X.__div__(scale), tf.ones_like(scale))
         else:
             X_by_scale_plus_one = X / scale + tf.ones_like(scale)
@@ -57,7 +57,7 @@ class Hessians(HessianGLMALL):
             loc,
             scale,
     ):
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             scale_plus_x = tf.sparse.add(X, scale)
         else:
             scale_plus_x = X + scale
@@ -80,11 +80,11 @@ class Hessians(HessianGLMALL):
                 loc * scale_plus_x,
                 scalar_two * scale * scale_plus_loc
             ),
-            tf.square(scale_plus_loc)
+            tf.math.square(scale_plus_loc)
         ))
         const4 = tf.add(
-            tf.log(scale),
-            scalar_two - tf.log(scale_plus_loc)
+            tf.math.log(scale),
+            scalar_two - tf.math.log(scale_plus_loc)
         )
         const = tf.add_n([const1, const2, const3, const4])
         const = tf.multiply(scale, const)

@@ -5,10 +5,8 @@ import numpy as np
 import tensorflow as tf
 import xarray as xr
 
-from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
-from .external import data_utils
+from .external import TFEstimatorGLM, InputData, Model
 from .external import closedform_norm_glm_mean, closedform_norm_glm_logsd
-from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
@@ -16,7 +14,7 @@ from .training_strategies import TrainingStrategies
 logger = logging.getLogger("batchglm")
 
 
-class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
+class Estimator(TFEstimatorGLM, ProcessModel):
     """
     Estimator for Generalized Linear Models (GLMs) with normal distributed noise.
     Uses the identity function as linker function for loc and a log-linker function for scale.
@@ -128,7 +126,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             if np.any([x.lower() in ["irls", "irls_tr"] for x in optim_algos]):
                 provide_fim = True
 
-        EstimatorAll.__init__(
+        TFEstimatorGLM.__init__(
             self=self,
             input_data=input_data,
             batch_size=batch_size,
@@ -344,6 +342,3 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
         return init_a, init_b
 
-    @property
-    def input_data(self) -> InputData:
-        return self._input_data

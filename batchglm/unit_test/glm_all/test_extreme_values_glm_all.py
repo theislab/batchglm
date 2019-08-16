@@ -3,7 +3,7 @@ import unittest
 import logging
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _EstimatorGLM, _SimulatorGLM
 
 from .external import Test_ExtremValues_GLM, _Test_ExtremValues_GLM_Estim
 
@@ -59,8 +59,8 @@ class Test_ExtremValues_GLM_ALL(Test_ExtremValues_GLM, unittest.TestCase):
         - Sparse X in anndata: test_anndata_sparse()
     """
     noise_model: str
-    sim: _Simulator_GLM
-    _estims: List[_Estimator_GLM]
+    sim: _SimulatorGLM
+    _estims: List[_EstimatorGLM]
 
     def get_simulator(self):
         if self.noise_model is None:

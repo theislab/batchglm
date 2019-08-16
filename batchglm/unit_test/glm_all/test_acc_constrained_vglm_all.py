@@ -4,7 +4,7 @@ from typing import List
 import unittest
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM
+from batchglm.models.base_glm import _EstimatorGLM
 
 
 class _Test_AccuracyConstrained_VGLM_ALL_Estim:
@@ -95,7 +95,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
 
 class Test_AccuracyConstrained_VGLM_ALL(unittest.TestCase):
     noise_model: str
-    _estims: List[_Estimator_GLM]
+    _estims: List[_EstimatorGLM]
 
     def simulate(self):
         self.simulate1()
@@ -105,7 +105,7 @@ class Test_AccuracyConstrained_VGLM_ALL(unittest.TestCase):
         sim = self.get_simulator()
         sim.generate_sample_description(num_batches=num_batches, num_conditions=2)
         sim.generate_params()
-        sim.size_factors = np.random.uniform(0.1, 2, size=sim.num_observations)
+        sim.size_factors = np.random.uniform(0.1, 2, size=sim.nobs)
         sim.generate_data()
         logging.getLogger("batchglm").debug("Size factor standard deviation % f" %
                                             np.std(sim.size_factors.data))

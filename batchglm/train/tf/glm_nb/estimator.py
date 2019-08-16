@@ -4,15 +4,14 @@ from typing import Union
 import numpy as np
 import tensorflow as tf
 
-from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
+from .external import TFEstimatorGLM, InputData, Model
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
-from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
 
-class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
+class Estimator(TFEstimatorGLM, ProcessModel):
     """
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
@@ -123,7 +122,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             if np.any([x.lower() in ["irls", "irls_tr", "irls_gd", "irls_gd_tr"] for x in optim_algos]):
                 provide_fim = True
 
-        EstimatorAll.__init__(
+        TFEstimatorGLM.__init__(
             self=self,
             input_data=input_data,
             batch_size=batch_size,
@@ -139,10 +138,6 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             noise_model="nb",
             dtype=dtype
         )
-
-    @classmethod
-    def param_shapes(cls) -> dict:
-        return ESTIMATOR_PARAMS
 
     def init_par(
             self,
@@ -187,7 +182,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                 if init_a.lower() == "closed_form":
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
-                        X=input_data.X,
+                        x=input_data.X,
                         design_loc=input_data.design_loc,
                         constraints_loc=input_data.constraints_loc.values,
                         size_factors=size_factors_init,
@@ -231,7 +226,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                 if init_b.lower() == "standard":
                     groupwise_scales, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
-                        X=input_data.X,
+                        x=input_data.X,
                         design_scale=input_data.design_scale[:, [0]],
                         constraints=input_data.constraints_scale[[0], [0]].values,
                         size_factors=size_factors_init,
@@ -259,7 +254,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                                          "if scale model differs from loc model")
 
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
-                        X=input_data.X,
+                        x=input_data.X,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale.values,
                         size_factors=size_factors_init,
@@ -306,7 +301,3 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                 logging.getLogger("batchglm").debug("Using initialization based on input model for dispersion")
 
         return init_a, init_b
-
-    @property
-    def input_data(self) -> InputData:
-        return self._input_data

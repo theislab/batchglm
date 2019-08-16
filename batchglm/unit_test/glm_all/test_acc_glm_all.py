@@ -5,7 +5,7 @@ import logging
 import scipy.sparse
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM
+from batchglm.models.base_glm import _EstimatorGLM
 
 from .external import Test_Accuracy_GLM, _Test_Accuracy_GLM_Estim
 
@@ -92,7 +92,7 @@ class Test_Accuracy_GLM_ALL(
     should be discovered here.
     """
     noise_model: str
-    _estims: List[_Estimator_GLM]
+    _estims: List[_EstimatorGLM]
 
     def get_simulator(self):
         if self.noise_model is None:

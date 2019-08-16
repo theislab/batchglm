@@ -3,14 +3,14 @@ from typing import List
 import unittest
 import scipy.sparse
 
-from batchglm.models.base_glm import _Estimator_GLM, InputData, _Simulator_GLM
+from batchglm.models.base_glm import _EstimatorGLM, InputData, _SimulatorGLM
 
 
 class _Test_DataTypes_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM,
+            estimator: _EstimatorGLM,
             algo: str
     ):
         self.estimator = estimator
@@ -44,7 +44,7 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
         - Dense X in anndata: test_anndata_dense()
         - Sparse X in anndata: test_anndata_sparse()
     """
-    sim: _Simulator_GLM
+    sim: _SimulatorGLM
 
     @abc.abstractmethod
     def get_simulator(self):

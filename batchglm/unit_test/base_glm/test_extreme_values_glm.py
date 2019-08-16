@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM, InputData
+from batchglm.models.base_glm import _EstimatorGLM, InputData
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ class _Test_ExtremValues_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM,
+            estimator: _EstimatorGLM,
             algo
     ):
         self.estimator = estimator

@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _EstimatorGLM, _SimulatorGLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 class _Test_AccuracyAnalytic_GLM_ALL_Estim():
 
-    estimator: _Estimator_GLM
-    simulator: _Simulator_GLM
+    estimator: _EstimatorGLM
+    simulator: _SimulatorGLM
     noise_model: str
 
     def __init__(
@@ -147,7 +147,7 @@ class Test_AccuracyAnalytic_GLM_ALL(
     unittest.TestCase
 ):
     noise_model: str
-    _estims: List[_Estimator_GLM]
+    _estims: List[_EstimatorGLM]
 
     def get_simulator(self):
         if self.noise_model is None:

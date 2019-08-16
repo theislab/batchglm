@@ -4,15 +4,15 @@ from typing import List
 import unittest
 import numpy as np
 
-from batchglm.models.base_glm import _Estimator_GLM, _Simulator_GLM
+from batchglm.models.base_glm import _EstimatorGLM, _SimulatorGLM
 
 
 class _Test_AccuracySizeFactors_GLM_Estim():
 
     def __init__(
             self,
-            estimator: _Estimator_GLM,
-            simulator: _Simulator_GLM
+            estimator: _EstimatorGLM,
+            simulator: _SimulatorGLM
     ):
         self.estimator = estimator
         self.sim = simulator

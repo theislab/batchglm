@@ -1,10 +1,10 @@
 import numpy as np
 
 from .model import Model
-from .external import rand_utils, _Simulator_GLM
+from .external import rand_utils, _SimulatorGLM
 
 
-class Simulator(_Simulator_GLM, Model):
+class Simulator(_SimulatorGLM, Model):
     """
     Simulator for Generalized Linear Models (GLMs) with normal noise.
     Uses the identity as linker function for loc and a log-linker function for scale.
@@ -16,7 +16,7 @@ class Simulator(_Simulator_GLM, Model):
             num_features=100
     ):
         Model.__init__(self)
-        _Simulator_GLM.__init__(
+        _SimulatorGLM.__init__(
             self,
             num_observations=num_observations,
             num_features=num_features

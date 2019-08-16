@@ -4,16 +4,14 @@ from typing import Union
 import numpy as np
 import tensorflow as tf
 
-from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
+from .external import TFEstimatorGLM, InputData, Model
 from .external import closedform_beta_glm_logitmean, closedform_beta_glm_logsamplesize
-from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
 
-
-class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
+class Estimator(TFEstimatorGLM, ProcessModel):
     """
     Estimator for Generalized Linear Models (GLMs) with beta distributed noise.
     Uses a logit linker function for loc and log linker function for scale.
@@ -122,7 +120,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             if np.any([x.lower() in ["irls", "irls_tr"] for x in optim_algos]):
                 provide_fim = True
 
-        EstimatorAll.__init__(
+        TFEstimatorGLM.__init__(
             self=self,
             input_data=input_data,
             batch_size=batch_size,

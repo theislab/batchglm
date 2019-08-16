@@ -11,7 +11,7 @@ import numpy as np
 import xarray as xr
 import tensorflow as tf
 
-from .external import _Estimator_Base, pkg_constants
+from .external import _EstimatorBase, pkg_constants
 from batchglm.train.tf.train import StopAtLossHook, TimedRunHook
 
 logger = logging.getLogger("batchglm")
@@ -30,10 +30,10 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
         self.graph = graph
 
 
-class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
+class TFEstimator(_EstimatorBase, metaclass=abc.ABCMeta):
 
     model: TFEstimatorGraph
-    session: tf.Session
+    session: tf.compat.v1.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
 
     _param_decorators: Dict[str, callable]
@@ -170,7 +170,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             )
             ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
 
-        tf.logging.info(
+        tf.compat.v1.logging.info(
             "Step: 0 loss: %f models converged 0",
             np.sum(ll_current)
         )
@@ -242,7 +242,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             t_f = time.time()
 
             if trustregion_mode:
-                tf.logging.debug(
+                tf.compat.v1.logging.debug(
                     "### run time break-down: reduce op. %s, trial %s, ll %s, update %s, eval %s",
                     str(np.round(t_b - t_a, 3)),
                     str(np.round(t_c - t_b, 3)),
@@ -251,7 +251,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
                     str(np.round(t_f - t_e, 3))
                 )
             else:
-                tf.logging.debug(
+                tf.compat.v1.logging.debug(
                     "### run time break-down: reduce op. %s, update %s, eval %s",
                     str(np.round(t_b - t_a, 3)),
                     str(np.round(t_c - t_b, 3)),
@@ -277,7 +277,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
             if not pkg_constants.EVAL_ON_BATCHED or not is_batched:
                 if np.any(ll_current > ll_prev + 1e-12):
-                    tf.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
+                    tf.compat.v1.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
 
             converged_current = np.logical_or(
                 converged_prev,
@@ -339,7 +339,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
             self.session.run((self.model.model_vars.convergence_update), feed_dict={
                 self.model.model_vars.convergence_status: converged_current
             })
-            tf.logging.info(
+            tf.compat.v1.logging.info(
                 "Step: %d loss: %f, converged %i in %s sec., updated %i, {f: %i, g: %i, x: %i}",
                 train_step,
                 np.sum(ll_current),
@@ -351,7 +351,7 @@ class TFEstimator(_Estimator_Base, metaclass=abc.ABCMeta):
 
 
 class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
-    session: tf.train.MonitoredSession
+    session: tf.compat.v1.train.MonitoredSession
     working_dir: str
 
     def __init__(self, tf_estimator_graph: TFEstimatorGraph):
@@ -363,13 +363,13 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
         if feed_dict is None:
             feed_dict = self.feed_dict
 
-        if isinstance(self.session, tf.train.MonitoredSession):
+        if isinstance(self.session, tf.compat.v1.train.MonitoredSession):
             return self.session._tf_sess().run(tensor, feed_dict=feed_dict)
         else:
             return self.session.run(tensor, feed_dict=feed_dict)
 
     @abc.abstractmethod
-    def _scaffold(self) -> tf.train.Scaffold:
+    def _scaffold(self) -> tf.compat.v1.train.Scaffold:
         """
         Should create a training scaffold for this Estimator's model
         
@@ -443,7 +443,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             # set up session parameters
             scaffold = self._scaffold()
 
-            hooks = [tf.train.NanTensorHook(self.model.loss), ]
+            hooks = [tf.estimator.NanTensorHook(self.model.loss), ]
             if export_secs is not None or export_steps is not None:
                 hooks.append(TimedRunHook(
                     run_steps=export_steps if export_steps is not None else None,
@@ -463,7 +463,7 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
 
             # create session
             if use_monitored_session:
-                self.session = tf.train.MonitoredTrainingSession(
+                self.session = tf.compat.v1.train.MonitoredTrainingSession(
                     config=pkg_constants.TF_CONFIG_PROTO,
                     checkpoint_dir=self.working_dir,
                     scaffold=scaffold,
@@ -506,11 +506,11 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
             encoding = {var: opts for var in xarray.data_vars if xarray[var].shape != ()}
 
         path = os.path.join(self.working_dir, "estimation-%d.h5" % step)
-        tf.logging.info("Exporting data to %s" % path)
+        tf.compat.v1.logging.info("Exporting data to %s" % path)
         xarray.to_netcdf(path=path,
                          engine=pkg_constants.XARRAY_NETCDF_ENGINE,
                          encoding=encoding)
-        tf.logging.info("Exporting to %s finished" % path)
+        tf.compat.v1.logging.info("Exporting to %s finished" % path)
 
     def train(self, *args,
               use_stop_hooks=False,
@@ -531,6 +531,6 @@ class MonitoredTFEstimator(TFEstimator, metaclass=abc.ABCMeta):
                     feed_dict=kwargs.get("feed_dict", None)
                 )
 
-                tf.logging.info("Step: %d\tloss: %f" % (train_step, loss_res))
+                tf.compat.v1.logging.info("Step: %d\tloss: %f" % (train_step, loss_res))
         else:
             super().train(*args, **kwargs)

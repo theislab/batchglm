@@ -22,7 +22,7 @@ setup(
         'numpy==1.16.4',
         'scipy>=1.2.1',
         'pandas',
-        'xarray',
+        'xarray>0.12.3',
         'dask',
         # HDF5 / NetCDF support
         'h5netcdf',

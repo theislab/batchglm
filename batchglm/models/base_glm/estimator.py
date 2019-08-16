@@ -6,43 +6,40 @@ try:
 except ImportError:
     anndata = None
 
-from .model import MODEL_PARAMS
-from .external import _Estimator_Base, _EstimatorStore_XArray_Base
+from .external import _EstimatorBase
 
-ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
-ESTIMATOR_PARAMS.update({
-    "loss": (),
-    "log_likelihood": ("features",),
-    "gradients": ("features",),
-    "hessians": ("features", "delta_var0", "delta_var1"),
-    "fisher_inv": ("features", "delta_var0", "delta_var1"),
-})
 
-class _Estimator_GLM(_Estimator_Base, metaclass=abc.ABCMeta):
+class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
     r"""
     Estimator base class for generalized linear models (GLMs).
     """
-
-class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
+    _hessian: np.ndarray
+    _fim: np.ndarray
+    _a_var: np.ndarray
+    _b_var: np.ndarray
 
     def __init__(self):
-        super(_EstimatorStore_XArray_Base, self).__init__()
+        super(_EstimatorBase, self).__init__()
+        self._hessian = None
+        self._fim = None
+        self._a_var = None
+        self._b_var = None
 
     @property
-    def log_likelihood(self):
-        return self.params["log_likelihood"]
+    def hessian(self):
+        return self._hessian
 
     @property
-    def gradients(self):
-        return self.params["gradients"]
+    def fim(self):
+        return self._fim
 
     @property
-    def hessians(self):
-        return self.params["hessians"]
+    def a_var(self):
+        return self._a_var
 
     @property
-    def fisher_inv(self):
-        return self.params["fisher_inv"]
+    def b_var(self):
+        return self._b_var
 
     def plot_coef_a_vs_ref(
             self,
