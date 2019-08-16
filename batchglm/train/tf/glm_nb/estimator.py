@@ -182,9 +182,9 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
                 if init_a.lower() == "closed_form":
                     groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
-                        x=input_data.X,
+                        x=input_data.x,
                         design_loc=input_data.design_loc,
-                        constraints_loc=input_data.constraints_loc.values,
+                        constraints_loc=input_data.constraints_loc,
                         size_factors=size_factors_init,
                         link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
                     )
@@ -199,13 +199,10 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     logging.getLogger("batchglm").debug("Using closed-form MLE initialization for mean")
                     logging.getLogger("batchglm").debug("Should train mu: %s", self._train_loc)
                 elif init_a.lower() == "standard":
-                    if isinstance(input_data.X, SparseXArrayDataArray):
-                        overall_means = input_data.X.mean(dim="observations")
-                    else:
-                        overall_means = input_data.X.mean(dim="observations").values  # directly calculate the mean
+                    overall_means = np.mean(input_data.x, axis=0)  # directly calculate the mean
                     overall_means = self.np_clip_param(overall_means, "mu")
 
-                    init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
+                    init_a = np.zeros([input_data.constraints_loc.shape[1], input_data.num_features])
                     init_a[0, :] = np.log(overall_means)
                     self._train_loc = True
 
@@ -226,14 +223,14 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
                 if init_b.lower() == "standard":
                     groupwise_scales, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
-                        x=input_data.X,
+                        x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
-                        constraints=input_data.constraints_scale[[0], [0]].values,
+                        constraints=input_data.constraints_scale[[0], :][:, [0]],
                         size_factors=size_factors_init,
                         groupwise_means=None,
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b = np.zeros([input_data.constraints_scale.shape[1], input_data.num_features])
                     init_b[0, :] = init_b_intercept
 
                     logging.getLogger("batchglm").debug("Using standard-form MME initialization for dispersion")
@@ -241,7 +238,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                 elif init_b.lower() == "closed_form":
                     dmats_unequal = False
                     if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
-                        if np.any(input_data.design_loc.values != input_data.design_scale.values):
+                        if np.any(input_data.design_loc != input_data.design_scale):
                             dmats_unequal = True
 
                     inits_unequal = False
@@ -256,7 +253,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
                         x=input_data.X,
                         design_scale=input_data.design_scale,
-                        constraints=input_data.constraints_scale.values,
+                        constraints=input_data.constraints_scale,
                         size_factors=size_factors_init,
                         groupwise_means=groupwise_means,
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))

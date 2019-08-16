@@ -39,13 +39,13 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
 
         if sparse:
             input_data = InputData.new(
-                data=scipy.sparse.csr_matrix(simulator.input_data.X),
+                data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
         else:
             input_data = InputData.new(
-                data=simulator.input_data.X,
+                data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )

@@ -43,22 +43,22 @@ class _InputDataBase:
         self.observations = observation_names
         self.features = feature_names
         if isinstance(data, np.ndarray):
-            self.X = data
+            self.x = data
         elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
-            self.X = data.X
+            self.x = data.X
 
         if cast_dtype is not None:
-            self.X = self.X.astype(cast_dtype)
+            self.x = self.x.astype(cast_dtype)
 
-        self._feature_allzero = np.sum(self.X, axis=0) == 0
+        self._feature_allzero = np.sum(self.x, axis=0) == 0
 
     @property
     def num_observations(self):
-        return len(self.observations)
+        return self.x.shape[0]
 
     @property
     def num_features(self):
-        return len(self.features)
+        return self.x.shape[1]
 
     @property
     def feature_isnonzero(self):
@@ -69,12 +69,12 @@ class _InputDataBase:
         return self._feature_allzero
 
     def fetch_X_dense(self, idx):
-        return self.X[idx].values
+        return self.x[idx].values
 
     def fetch_X_sparse(self, idx):
-        assert isinstance(self.X.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
+        assert isinstance(self.x.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
 
-        data = self.X[idx]
+        data = self.x[idx]
 
         data_idx = np.asarray(np.vstack(data.nonzero()).T, np.int64)
         data_val = np.asarray(data.data, np.float64)

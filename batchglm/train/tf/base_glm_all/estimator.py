@@ -100,7 +100,7 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            if isinstance(input_data.X, scipy.sparse.csr_matrix):
+            if isinstance(input_data.x, scipy.sparse.csr_matrix):
                 X_tensor_idx, X_tensor_val, X_shape = tf.py_function(
                     func=input_data.fetch_X_sparse,
                     inp=[idx],
@@ -115,7 +115,7 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
                 X_tensor = tf.py_function(
                     func=input_data.fetch_X_dense,
                     inp=[idx],
-                    Tout=input_data.X.dtype
+                    Tout=input_data.x.dtype
                 )
                 X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
                 X_tensor = (tf.cast(X_tensor, dtype=dtype),)

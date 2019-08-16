@@ -46,7 +46,7 @@ class Simulator(_SimulatorGLM, Model):
             p=1 - self.mu / (self.phi + self.mu),
             size=None
         )
-        input_data = InputData(
+        self.input_data = InputData(
             data=data_matrix,
             design_loc=self.sim_design_loc,
             design_scale=self.sim_design_scale,

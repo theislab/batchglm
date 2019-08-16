@@ -114,8 +114,7 @@ class InputData(_InputDataBase):
         self.loc_names = loc_names
         self.scale_names = scale_names
 
-        if size_factors is not None:
-            self.size_factors = size_factors
+        self.size_factors = size_factors
 
     def fetch_design_loc(self, idx):
         return self.design_loc[idx]

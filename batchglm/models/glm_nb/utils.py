@@ -68,6 +68,6 @@ def closedform_nb_glm_logphi(
         size_factors=size_factors,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
-        invlink_fn=invlink_fn,
+        inv_link_fn=invlink_fn,
         compute_scales_fun=compute_scales_fun
     )
