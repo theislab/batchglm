@@ -33,13 +33,13 @@ class _Test_AccuracySizeFactors_GLM_ALL_Estim(_Test_AccuracySizeFactors_GLM_Esti
                               "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         if sparse:
-            input_data = InputDataGLM.new(
+            input_data = InputDataGLM(
                 data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
         else:
-            input_data = InputDataGLM.new(
+            input_data = InputDataGLM(
                 data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale

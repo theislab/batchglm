@@ -3,7 +3,6 @@ import numpy as np
 from typing import List
 import unittest
 
-import batchglm.api as glm
 from batchglm.models.base_glm import _EstimatorGLM
 
 
@@ -38,8 +37,8 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
             np.expand_dims(input_data.design_loc.values[:, 0]-input_data.design_loc.values[:, -1], axis=-1)
         ])
         design_scale = design_loc.copy()
-        input_data = InputDataGLM.new(
-            data=simulator.X,
+        input_data = InputDataGLM(
+            data=input_data.x,
             design_loc=design_loc,
             design_scale=design_scale,
             constraints_loc=constraints_loc,
@@ -61,7 +60,6 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
 
     def eval_estimation(
             self,
-            estimator_store,
             batched
     ):
         if batched:
@@ -75,10 +73,10 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
             threshold_std_a = 1
             threshold_std_b = 2
 
-        mean_dev_a = np.mean(estimator_store.a_var.values - self.sim.a_var.values)
-        std_dev_a = np.std(estimator_store.a_var.values - self.sim.a_var.values)
-        mean_dev_b = np.mean(estimator_store.b_var.values - self.sim.b_var.values)
-        std_dev_b = np.std(estimator_store.b_var.values - self.sim.b_var.values)
+        mean_dev_a = np.mean(self.estimator.a_var - self.sim.a_var)
+        std_dev_a = np.std(self.estimator.a_var - self.sim.a_var)
+        mean_dev_b = np.mean(self.estimator.b_var - self.sim.b_var)
+        std_dev_b = np.std(self.estimator.b_var - self.sim.b_var)
 
         logging.getLogger("batchglm").info("mean_dev_a %f" % mean_dev_a)
         logging.getLogger("batchglm").info("std_dev_a %f" % std_dev_a)
@@ -92,6 +90,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
             return True
         else:
             return False
+
 
 class Test_AccuracyConstrained_VGLM_ALL(unittest.TestCase):
     noise_model: str
@@ -158,9 +157,8 @@ class Test_AccuracyConstrained_VGLM_ALL(unittest.TestCase):
             )
             estimator.estimator.initialize()
             estimator.estimator.train_sequence(training_strategy=ts)
-            estimator_store = estimator.estimator.finalize()
+            estimator.estimator.finalize()
             success = estimator.eval_estimation(
-                estimator_store=estimator_store,
                 batched=batched
             )
             assert success, "%s did not yield exact results" % x
@@ -221,7 +219,6 @@ class Test_AccuracyConstrained_VGLM_ALL(unittest.TestCase):
                 raise ValueError("noise_model not recognized")
 
         return Simulator(num_observations=10000, num_features=10)
-
 
     def _test_full(self):
         self.simulate()

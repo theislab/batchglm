@@ -251,7 +251,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                                          "if scale model differs from loc model")
 
                     groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
-                        x=input_data.X,
+                        x=input_data.x,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale,
                         size_factors=size_factors_init,

@@ -106,13 +106,13 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         design_scale = data_utils.design_matrix(sample_description, formula=design)
 
         if sparse:
-            input_data = InputDataGLM.new(
+            input_data = InputDataGLM(
                 data=scipy.sparse.csr_matrix(self.sim.X),
                 design_loc=design_loc,
                 design_scale=design_scale
             )
         else:
-            input_data = InputDataGLM.new(
+            input_data = InputDataGLM(
                 data=self.sim.X,
                 design_loc=design_loc,
                 design_scale=design_scale

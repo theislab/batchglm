@@ -86,7 +86,7 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        return InputDataGLM.new(
+        return InputDataGLM(
             data=data,
             design_loc=design_loc,
             design_scale=design_scale,

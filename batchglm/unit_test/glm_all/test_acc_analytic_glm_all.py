@@ -45,14 +45,14 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                               "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False}
 
         if sparse:
-            input_data = InputDataGLM.new(
-                data=scipy.sparse.csr_matrix(simulator.input_data.X),
+            input_data = InputDataGLM(
+                data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
         else:
-            input_data = InputDataGLM.new(
-                data=simulator.input_data.X,
+            input_data = InputDataGLM(
+                data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
@@ -74,7 +74,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
 
     def eval_estimation_a(
             self,
-            estimator_store,
             init_a,
     ):
         if self.noise_model is None:
@@ -90,11 +89,11 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 raise ValueError("noise_model not recognized")
 
         if init_a == "standard":
-            mean_dev = np.mean(estimator_store.a[0, :] - self.simulator.a[0, :])
-            std_dev = np.std(estimator_store.a[0, :] - self.simulator.a[0, :])
+            mean_dev = np.mean(self.estimator.a_var[0, :] - self.simulator.a[0, :])
+            std_dev = np.std(self.estimator.a_var[0, :] - self.simulator.a[0, :])
         elif init_a == "closed_form":
-            mean_dev = np.mean(estimator_store.a - self.simulator.a)
-            std_dev = np.std(estimator_store.a - self.simulator.a)
+            mean_dev = np.mean(self.estimator.a_var - self.simulator.a)
+            std_dev = np.std(self.estimator.a_var - self.simulator.a)
         else:
             assert False
 
@@ -109,7 +108,6 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
 
     def eval_estimation_b(
             self,
-            estimator_store,
             init_b
     ):
         if self.noise_model is None:
@@ -125,11 +123,11 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
                 raise ValueError("noise_model not recognized")
 
         if init_b == "standard":
-            mean_dev = np.mean(estimator_store.b[0, :] - self.simulator.b[0, :])
-            std_dev = np.std(estimator_store.b[0, :] - self.simulator.b[0, :])
+            mean_dev = np.mean(self.estimator.b_var[0, :] - self.simulator.b[0, :])
+            std_dev = np.std(self.estimator.b_var[0, :] - self.simulator.b[0, :])
         elif init_b == "closed_form":
-            mean_dev = np.mean(estimator_store.b - self.simulator.b)
-            std_dev = np.std(estimator_store.b - self.simulator.b)
+            mean_dev = np.mean(self.estimator.b_var - self.simulator.b)
+            std_dev = np.std(self.estimator.b_var - self.simulator.b)
         else:
             assert False
 
@@ -216,16 +214,13 @@ class Test_AccuracyAnalytic_GLM_ALL(
             init_b=init_b
         )
         estimator.estimate()
-        estimator_store = estimator.estimator.finalize()
+        estimator.estimator.finalize()
         self._estims.append(estimator)
         success = estimator.eval_estimation_a(
-            estimator_store=estimator_store,
             init_a=init_a,
-
         )
         assert success, "estimation for a_model was inaccurate"
         success = estimator.eval_estimation_b(
-            estimator_store=estimator_store,
             init_b=init_b
         )
         assert success, "estimation for b_model was inaccurate"

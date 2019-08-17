@@ -99,13 +99,13 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
 
         if sparse:
-            input_data = InputDataGLM.new(
+            input_data = InputDataGLM(
                 data=scipy.sparse.csr_matrix(sim.X),
                 design_loc=design_loc,
                 design_scale=design_scale
             )
         else:
-            input_data = InputDataGLM.new(
+            input_data = InputDataGLM(
                 data=sim.X,
                 design_loc=design_loc,
                 design_scale=design_scale

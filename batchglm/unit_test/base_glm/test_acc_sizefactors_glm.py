@@ -43,7 +43,6 @@ class _Test_AccuracySizeFactors_GLM_Estim():
 
     def eval_estimation(
             self,
-            estimator_store,
             batched
     ):
         if batched:
@@ -57,10 +56,10 @@ class _Test_AccuracySizeFactors_GLM_Estim():
             threshold_std_a = 1
             threshold_std_b = 2
 
-        mean_dev_a = np.mean(estimator_store.a_var - self.sim.a_var.values)
-        std_dev_a = np.std(estimator_store.a_var - self.sim.a_var.values)
-        mean_dev_b = np.mean(estimator_store.b_var - self.sim.b_var.values)
-        std_dev_b = np.std(estimator_store.b_var - self.sim.b_var.values)
+        mean_dev_a = np.mean(self.estimator.a_var - self.sim.a_var)
+        std_dev_a = np.std(self.estimator.a_var - self.sim.a_var)
+        mean_dev_b = np.mean(self.estimator.b_var - self.sim.b_var)
+        std_dev_b = np.std(self.estimator.b_var - self.sim.b_var)
 
         logging.getLogger("batchglm").info("mean_dev_a %f" % mean_dev_a)
         logging.getLogger("batchglm").info("std_dev_a %f" % std_dev_a)

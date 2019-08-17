@@ -150,7 +150,7 @@ def closedform_glm_scale(
 
         # calculated variance via E(x)^2 or directly depending on whether `mu` was specified
         if isinstance(x, scipy.sparse.csr_matrix):
-            expect_xsq = np.vstack([np.asarray(np.mean(x[np.where(grouping == g)[0], :].power(2), axis=0).to_dense())
+            expect_xsq = np.vstack([np.asarray(np.mean(x[np.where(grouping == g)[0], :].power(2), axis=0))
                                     for g in np.unique(grouping)])
         else:
             expect_xsq = np.vstack([np.mean(np.square(x[np.where(grouping == g)[0], :]), axis=0)
