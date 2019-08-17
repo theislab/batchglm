@@ -1,9 +1,8 @@
 import logging
-from typing import Union
-
 import numpy as np
+import scipy.sparse
 import tensorflow as tf
-import xarray as xr
+from typing import Union
 
 from .external import TFEstimatorGLM, InputDataGLM, Model
 from .external import closedform_norm_glm_mean, closedform_norm_glm_logsd
@@ -143,10 +142,6 @@ class Estimator(TFEstimatorGLM, ProcessModel):
             dtype=dtype
         )
 
-    @classmethod
-    def param_shapes(cls) -> dict:
-        return ESTIMATOR_PARAMS
-
     def init_par(
             self,
             input_data,
@@ -198,28 +193,19 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     init_a = "closed_form"
 
                 if init_a.lower() == "closed_form" or init_a.lower() == "standard":
-                    design_constr = np.matmul(input_data.design_loc.values, input_data.constraints_loc.values)
+                    design_constr = np.matmul(input_data.design_loc, input_data.constraints_loc)
                     # Iterate over genes if X is sparse to avoid large sparse tensor.
                     # If X is dense, the least square problem can be vectorised easily.
-                    if isinstance(input_data.X, SparseXArrayDataArray):
-                        init_a = np.zeros([design_constr.shape[1], input_data.X.shape[1]])
-                        for j in range(input_data.X.shape[1]):
-                            X = np.asarray(input_data.X.X[:, [j]].todense())
-                            init_a_j, _, _, _ = np.linalg.lstsq(
-                                np.matmul(design_constr.T, design_constr),
-                                np.matmul(design_constr.T, X),
-                                rcond=None
-                            )
-                            init_a[:, j] = init_a_j[:, 0]
-                    else:
-                        if isinstance(input_data.X, xr.DataArray):
-                            X = input_data.X.values
-                        else:
-                            X = input_data.X
-
+                    if isinstance(input_data.x, scipy.sparse.csr_matrix):
                         init_a, rmsd_a, _, _ = np.linalg.lstsq(
                             np.matmul(design_constr.T, design_constr),
-                            np.matmul(design_constr.T, X),
+                            input_data.x.T.dot(design_constr).T,  # need double .T because of dot product on sparse.
+                            rcond=None
+                        )
+                    else:
+                        init_a, rmsd_a, _, _ = np.linalg.lstsq(
+                            np.matmul(design_constr.T, design_constr),
+                            np.matmul(design_constr.T, input_data.x),
                             rcond=None
                         )
                     groupwise_means = None
@@ -242,26 +228,25 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
                 if is_ols_model:
                     # Calculated variance via E(x)^2 or directly depending on whether `mu` was specified.
-                    if isinstance(input_data.X, SparseXArrayDataArray):
-                        variance = input_data.X.var(input_data.X.dims[0])
+                    if isinstance(input_data.x, scipy.sparse.csr_matrix):
+                        expect_xsq = np.mean(input_data.x.power(2), axis=0)
                     else:
-                        expect_xsq = np.square(input_data.X).mean(input_data.X.dims[0])
-                        mean_model = np.matmul(
-                            np.matmul(input_data.design_loc.values, input_data.constraints_loc.values),
-                            init_a
-                        )
-                        expect_x_sq = np.mean(np.square(mean_model), axis=0)  # for xr compatibility input_data.X.dims[0])
-                        variance = (expect_xsq - expect_x_sq).values
+                        expect_xsq = np.mean(np.square(input_data.x), axis=0)
+                    mean_model = np.matmul(
+                        np.matmul(input_data.design_loc, input_data.constraints_loc),
+                        init_a
+                    )
+                    expect_x_sq = np.mean(np.square(mean_model), axis=0)
+                    variance = (expect_xsq - expect_x_sq)
                     variance = np.expand_dims(variance, axis=0)
                     init_b = np.log(np.sqrt(variance))
-
                     self._train_scale = False
 
                     logger.debug("Using residuals from OLS estimate for variance estimate")
                 elif init_b.lower() == "closed_form":
                     dmats_unequal = False
                     if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
-                        if np.any(input_data.design_loc.values != input_data.design_scale.values):
+                        if np.any(input_data.design_loc != input_data.design_scale):
                             dmats_unequal = True
 
                     inits_unequal = False
@@ -275,9 +260,9 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                                          "if scale model differs from loc model")
 
                     groupwise_scales, init_b, rmsd_b = closedform_norm_glm_logsd(
-                        X=input_data.X,
+                        x=input_data.x,
                         design_scale=input_data.design_scale,
-                        constraints=input_data.constraints_scale.values,
+                        constraints=input_data.constraints_scale,
                         size_factors=size_factors_init,
                         groupwise_means=groupwise_means,
                         link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
@@ -289,14 +274,14 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     logger.debug("Using closed-form MME initialization for standard deviation")
                 elif init_b.lower() == "standard":
                     groupwise_scales, init_b_intercept, rmsd_b = closedform_norm_glm_logsd(
-                        X=input_data.X,
+                        x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
-                        constraints=input_data.constraints_scale[[0], [0]].values,
+                        constraints=input_data.constraints_scale[[0], :][:, [0]],
                         size_factors=size_factors_init,
                         groupwise_means=None,
                         link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
                     )
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                     init_b[0, :] = init_b_intercept
 
                     # train scale, if the closed-form solution is inaccurate
@@ -305,7 +290,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     logger.debug("Using closed-form MME initialization for standard deviation")
                     logger.debug("Should train sd: %s", self._train_scale)
                 elif init_b.lower() == "all_zero":
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
 
                     logger.debug("Using standard initialization for standard deviation")
                 else:
@@ -314,8 +299,8 @@ class Estimator(TFEstimatorGLM, ProcessModel):
         else:
             # Locations model:
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
-                my_loc_names = set(input_data.loc_names.values)
-                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names.values))
+                my_loc_names = set(input_data.loc_names)
+                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names))
 
                 init_loc = np.zeros([input_data.num_loc_params, input_data.num_features])
                 for parm in my_loc_names:
@@ -328,8 +313,8 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
-                my_scale_names = set(input_data.scale_names.values)
-                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names.values)
+                my_scale_names = set(input_data.scale_names)
+                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names)
 
                 init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
                 for parm in my_scale_names:

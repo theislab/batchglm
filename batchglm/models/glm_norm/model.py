@@ -32,6 +32,8 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             eta *= np.expand_dims(self.size_factors, axis=1)
         return eta
 
+    # Re-parameterizations:
+    
     @property
     def mean(self) -> np.ndarray:
         return self.location

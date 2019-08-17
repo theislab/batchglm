@@ -14,15 +14,6 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     Generalized Linear Model (GLM) with negative binomial noise.
     """
 
-    def __init__(
-            self,
-            input_data
-    ):
-        super(_ModelGLM).__init__(
-            self=self,
-            input_data=input_data
-        )
-
     def link_loc(self, data):
         return np.log(data)
 
@@ -41,6 +32,8 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         if self.size_factors is not None:
             eta += np.expand_dims(self.size_factors, axis=1)
         return eta
+
+    # Re-parameterizations:
 
     @property
     def mu(self) -> xr.DataArray:

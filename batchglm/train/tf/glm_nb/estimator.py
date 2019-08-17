@@ -202,7 +202,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     overall_means = np.mean(input_data.x, axis=0)  # directly calculate the mean
                     overall_means = self.np_clip_param(overall_means, "mu")
 
-                    init_a = np.zeros([input_data.constraints_loc.shape[1], input_data.num_features])
+                    init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     init_a[0, :] = np.log(overall_means)
                     self._train_loc = True
 
@@ -230,7 +230,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                         groupwise_means=None,
                         link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
                     )
-                    init_b = np.zeros([input_data.constraints_scale.shape[1], input_data.num_features])
+                    init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                     init_b[0, :] = init_b_intercept
 
                     logging.getLogger("batchglm").debug("Using standard-form MME initialization for dispersion")

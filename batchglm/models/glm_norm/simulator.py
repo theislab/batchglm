@@ -1,7 +1,7 @@
 import numpy as np
 
 from .model import Model
-from .external import rand_utils, _SimulatorGLM
+from .external import InputDataGLM, _SimulatorGLM
 
 
 class Simulator(_SimulatorGLM, Model):
@@ -15,9 +15,9 @@ class Simulator(_SimulatorGLM, Model):
             num_observations=1000,
             num_features=100
     ):
-        Model.__init__(self)
         _SimulatorGLM.__init__(
-            self,
+            self=self,
+            model=None,
             num_observations=num_observations,
             num_features=num_features
         )
@@ -41,7 +41,15 @@ class Simulator(_SimulatorGLM, Model):
         """
         Sample random data based on normal distribution and parameters.
         """
-        self.data["X"] = (
-            self.param_shapes()["X"],
-            rand_utils.Normal(mean=self.mean, sd=self.sd).sample()
+        data_matrix = np.random.normal(
+            loc=self.mean,
+            scale=self.sd,
+            size=None
+        )
+        self.input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=self.sim_design_loc,
+            design_scale=self.sim_design_scale,
+            design_loc_names=None,
+            design_scale_names=None
         )

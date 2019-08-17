@@ -30,7 +30,6 @@ def closedform_beta_glm_logitmean(
         dmat=design_loc,
         constraints=constraints_loc,
         size_factors=size_factors,
-        weights=None,
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
@@ -42,7 +41,8 @@ def closedform_beta_glm_logsamplesize(
         constraints=None,
         size_factors=None,
         groupwise_means=None,
-        link_fn=np.log
+        link_fn=np.log,
+        invlink_fn=np.exp
 ):
     r"""
     Calculates a closed-form solution for the log-scale parameters of beta GLMs.
@@ -66,5 +66,6 @@ def closedform_beta_glm_logsamplesize(
         size_factors=size_factors,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
+        inv_link_fn=invlink_fn,
         compute_scales_fun=compute_scales_fun
     )

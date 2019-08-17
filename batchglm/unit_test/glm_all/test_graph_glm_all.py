@@ -168,6 +168,7 @@ class Test_Graph_GLM_NB(
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
+
 class Test_Graph_GLM_NORM(
     Test_Graph_GLM_ALL,
     unittest.TestCase
@@ -193,6 +194,7 @@ class Test_Graph_GLM_NORM(
         self.noise_model = "norm"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
+
 
 class Test_Graph_GLM_BETA(
     Test_Graph_GLM_ALL,

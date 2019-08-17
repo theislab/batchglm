@@ -32,6 +32,8 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             assert False, "size factors not allowed"
         return eta
 
+    # Re-parameterizations:
+
     @property
     def mean(self) -> np.ndarray:
         return self.location
@@ -39,3 +41,11 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     @property
     def samplesize(self) -> np.ndarray:
         return self.scale
+
+    @property
+    def p(self) -> np.ndarray:
+        return self.mean * self.samplesize
+
+    @property
+    def q(self) -> np.ndarray:
+        return (1 - self.mean) * self.samplesize
