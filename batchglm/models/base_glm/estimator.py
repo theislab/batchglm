@@ -33,7 +33,7 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
             input_data=input_data
         )
         self._hessian = None
-        self._fim = None
+        self._fisher_inv = None
         self._a_var = None
         self._b_var = None
 
@@ -42,8 +42,8 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         return self._hessian
 
     @property
-    def fim(self):
-        return self._fim
+    def fisher_inv(self):
+        return self._fisher_inv
 
     @property
     def a_var(self):

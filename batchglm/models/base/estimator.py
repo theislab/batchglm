@@ -34,11 +34,16 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         self.model = model
         self.input_data = input_data
         self._loss = None
+        self._log_likelihood = None
         self._jacobian = None
 
     @property
     def loss(self):
         return self._loss
+
+    @property
+    def log_likelihood(self):
+        return self._log_likelihood
 
     @property
     def jacobian(self):
@@ -61,9 +66,8 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def finalize(self, **kwargs):
         """
-        Clean up, free resources
-
-        :return: some Estimator containing all necessary data
+        Evaluate all tensors that need to be exported from session and save these as class attributes
+        and close session.
         """
         pass
 

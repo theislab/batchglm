@@ -142,12 +142,18 @@ def closedform_glm_scale(
     def apply_fun(grouping):
         # Calculate group-wise means if not supplied. These are required for variance and MME computation.
         if provided_groupwise_means is None:
-            gw_means = np.vstack([np.mean(x[np.where(grouping == g)[0], :]) for g in np.unique(grouping)])
+            gw_means = np.vstack([np.mean(x[np.where(grouping == g)[0], :], axis=0)
+                                  for g in np.unique(grouping)])
         else:
             gw_means = provided_groupwise_means
 
         # calculated variance via E(x)^2 or directly depending on whether `mu` was specified
-        expect_xsq = np.vstack([np.mean(np.square(x[np.where(grouping == g)[0], :])) for g in np.unique(grouping)])
+        if isinstance(x, scipy.sparse.csr_matrix):
+            expect_xsq = np.vstack([np.mean(x[np.where(grouping == g)[0], :].power(2), axis=0)
+                                    for g in np.unique(grouping)])
+        else:
+            expect_xsq = np.vstack([np.mean(np.square(x[np.where(grouping == g)[0], :]), axis=0)
+                                    for g in np.unique(grouping)])
         expect_x_sq = np.square(gw_means)
         variance = expect_xsq - expect_x_sq
 

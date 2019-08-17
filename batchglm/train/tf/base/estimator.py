@@ -1,18 +1,13 @@
 import abc
 from enum import Enum
 import logging
-from typing import Dict, Any, Union, List, Iterable
-import pprint
-import os
-import time
-import datetime
-
 import numpy as np
-import xarray as xr
+import pprint
 import tensorflow as tf
+import time
+from typing import Dict, Any, Union, Iterable
 
 from .external import _EstimatorBase, pkg_constants
-from batchglm.train.tf.train import StopAtLossHook, TimedRunHook
 
 logger = logging.getLogger("batchglm")
 
@@ -30,20 +25,17 @@ class TFEstimatorGraph(metaclass=abc.ABCMeta):
         self.graph = graph
 
 
-class TFEstimator(_EstimatorBase, metaclass=abc.ABCMeta):
+class _TFEstimator(metaclass=abc.ABCMeta):
 
-    model: TFEstimatorGraph
     session: tf.compat.v1.Session
     feed_dict: Dict[Union[Union[tf.Tensor, tf.Operation], Any], Any]
-
     _param_decorators: Dict[str, callable]
 
     def __init__(
-            self,
-            model
+            self
     ):
-        self.model = model
         self.session = None
+        self.feed_dict = {}
         self._param_decorators = dict()
 
     def initialize(self):
@@ -70,11 +62,11 @@ class TFEstimator(_EstimatorBase, metaclass=abc.ABCMeta):
         return self.session.run(tensor, feed_dict=feed_dict)
 
     @abc.abstractmethod
-    def _scaffold(self) -> tf.train.Scaffold:
+    def _scaffold(self) -> tf.compat.v1.train.Scaffold:
         """
         Should create a training scaffold for this Estimator's model
 
-        :return: tf.train.Scaffold object
+        :return: tf.compat.v1.train.Scaffold object
         """
         pass
 

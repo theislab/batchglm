@@ -7,10 +7,10 @@ import tensorflow as tf
 from typing import Union
 
 from .estimator_graph import EstimatorGraphAll
-from .external import TFEstimator, InputDataGLM, _EstimatorGLM
+from .external import _TFEstimator, InputDataGLM, _EstimatorGLM
 
 
-class TFEstimatorGLM(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
+class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs).
     """
@@ -154,6 +154,9 @@ class TFEstimatorGLM(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
+        _TFEstimator.__init__(
+            self=self
+        )
         with graph.as_default():
             # create model
             model = EstimatorGraph(
@@ -181,17 +184,12 @@ class TFEstimatorGLM(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 noise_model=self.noise_model,
                 dtype=dtype
             )
-
+        model.session = self.session
         _EstimatorGLM.__init__(
             self=self,
             model=model,
             input_data=input_data
         )
-        TFEstimator.__init__(
-            self=self,
-            model=model
-        )
-        model.session = self.session
 
     def _scaffold(self):
         with self.model.graph.as_default():
@@ -320,7 +318,18 @@ class TFEstimatorGLM(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             )
 
     def finalize(self):
+        """
+        Evaluate all tensors that need to be exported from session and save these as class attributes
+        and close session.
+        """
         self.session.run(self.model.full_data_model.final_set)
+        self._a_var = self.session.run(self.model.a_var)
+        self._b_var = self.session.run(self.model.b_var)
+        self._fisher_inv = self.session.run(self.model.fisher_inv)
+        self._hessians = self.session.run(self.model.hessians)
+        self._jacobian = self.session.run(self.model.gradients)
+        self._log_likelihood = self.session.run(self.model.log_likelihood)
+        self._loss = self.session.run(self.model.loss)
         logging.getLogger("batchglm").debug("Closing session")
         self.close_session()
 
