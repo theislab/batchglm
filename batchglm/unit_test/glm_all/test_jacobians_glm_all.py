@@ -8,7 +8,7 @@ import batchglm.api as glm
 import batchglm.data as data_utils
 import batchglm.pkg_constants as pkg_constants
 
-from batchglm.models.base_glm import InputData
+from batchglm.models.base_glm import InputDataGLM
 
 
 class Test_Jacobians_GLM_ALL(unittest.TestCase):
@@ -42,7 +42,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
 
     def get_jacs(
             self,
-            input_data: InputData
+            input_data: InputDataGLM
     ):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
@@ -93,11 +93,11 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.glm_nb import InputData
+                from batchglm.api.models.glm_nb import InputDataGLM
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import InputData
+                from batchglm.api.models.glm_norm import InputDataGLM
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import InputData
+                from batchglm.api.models.glm_beta import InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -106,13 +106,13 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         design_scale = data_utils.design_matrix(sample_description, formula=design)
 
         if sparse:
-            input_data = InputData.new(
+            input_data = InputDataGLM.new(
                 data=scipy.sparse.csr_matrix(self.sim.X),
                 design_loc=design_loc,
                 design_scale=design_scale
             )
         else:
-            input_data = InputData.new(
+            input_data = InputDataGLM.new(
                 data=self.sim.X,
                 design_loc=design_loc,
                 design_scale=design_scale

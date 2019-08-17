@@ -82,11 +82,11 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.glm_nb import InputData
+                from batchglm.api.models.glm_nb import InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
-        return InputData.new(
+        return InputDataGLM.new(
             data=data,
             design_loc=design_loc,
             design_scale=design_scale,

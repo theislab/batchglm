@@ -1,7 +1,7 @@
 import numpy as np
 
 from .model import Model
-from .external import _SimulatorGLM, InputData
+from .external import _SimulatorGLM, InputDataGLM
 
 
 class Simulator(_SimulatorGLM, Model):
@@ -46,7 +46,7 @@ class Simulator(_SimulatorGLM, Model):
             p=1 - self.mu / (self.phi + self.mu),
             size=None
         )
-        self.input_data = InputData(
+        self.input_data = InputDataGLM(
             data=data_matrix,
             design_loc=self.sim_design_loc,
             design_scale=self.sim_design_scale,

@@ -9,6 +9,7 @@ try:
 except ImportError:
     anndata = None
 
+from .input import _InputDataBase
 from .model import _ModelBase
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,11 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            model: _ModelBase
+            model: _ModelBase,
+            input_data: _InputDataBase
     ):
         self.model = model
+        self.input_data = input_data
         self._loss = None
         self._jacobian = None
 

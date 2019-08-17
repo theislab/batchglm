@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-import scipy
 import scipy.sparse
 from typing import List
 
@@ -42,10 +41,12 @@ class _InputDataBase:
         """
         self.observations = observation_names
         self.features = feature_names
-        if isinstance(data, np.ndarray):
+        if isinstance(data, np.ndarray) or isinstance(data, scipy.sparse.csr_matrix):
             self.x = data
         elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
             self.x = data.X
+        else:
+            raise ValueError("type of data %s not recognized" % type(data))
 
         if cast_dtype is not None:
             self.x = self.x.astype(cast_dtype)
@@ -68,11 +69,11 @@ class _InputDataBase:
     def feature_isallzero(self):
         return self._feature_allzero
 
-    def fetch_X_dense(self, idx):
-        return self.x[idx].values
+    def fetch_x_dense(self, idx):
+        return self.x[idx]
 
-    def fetch_X_sparse(self, idx):
-        assert isinstance(self.x.X, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
+    def fetch_x_sparse(self, idx):
+        assert isinstance(self.x, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
 
         data = self.x[idx]
 

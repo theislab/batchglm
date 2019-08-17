@@ -26,9 +26,9 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.glm_nb import Estimator, InputData
+                from batchglm.api.models.glm_nb import Estimator, InputDataGLM
             elif noise_model=="norm":
-                from batchglm.api.models.glm_norm import Estimator, InputData
+                from batchglm.api.models.glm_norm import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -38,13 +38,13 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
                               "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
 
         if sparse:
-            input_data = InputData.new(
+            input_data = InputDataGLM.new(
                 data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale
             )
         else:
-            input_data = InputData.new(
+            input_data = InputDataGLM.new(
                 data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale

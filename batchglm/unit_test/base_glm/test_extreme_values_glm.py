@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _EstimatorGLM, InputData
+from batchglm.models.base_glm import _EstimatorGLM, InputDataGLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -83,14 +83,14 @@ class Test_ExtremValues_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_estimator(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             quick_scale
     ) -> _Test_ExtremValues_GLM_Estim:
         pass
 
     def _basic_test(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             quick_scale
     ):
         """

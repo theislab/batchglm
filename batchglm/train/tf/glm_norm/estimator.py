@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import xarray as xr
 
-from .external import TFEstimatorGLM, InputData, Model
+from .external import TFEstimatorGLM, InputDataGLM, Model
 from .external import closedform_norm_glm_mean, closedform_norm_glm_logsd
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
@@ -22,7 +22,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             batch_size: int = 500,
             graph: tf.Graph = None,
             init_model: Model = None,

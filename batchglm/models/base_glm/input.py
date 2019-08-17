@@ -13,7 +13,7 @@ from .utils import parse_constraints, parse_design
 from .external import _InputDataBase
 
 
-class InputData(_InputDataBase):
+class InputDataGLM(_InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
     """
@@ -115,6 +115,22 @@ class InputData(_InputDataBase):
         self.scale_names = scale_names
 
         self.size_factors = size_factors
+
+    @property
+    def num_design_loc_params(self):
+        return self.design_loc.shape[1]
+
+    @property
+    def num_design_scale_params(self):
+        return self.design_scale.shape[1]
+
+    @property
+    def num_loc_params(self):
+        return self.constraints_loc.shape[1]
+
+    @property
+    def num_scale_params(self):
+        return self.constraints_scale.shape[1]
 
     def fetch_design_loc(self, idx):
         return self.design_loc[idx]

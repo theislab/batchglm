@@ -3,7 +3,7 @@ from typing import List
 import unittest
 import scipy.sparse
 
-from batchglm.models.base_glm import _EstimatorGLM, InputData, _SimulatorGLM
+from batchglm.models.base_glm import _EstimatorGLM, InputDataGLM, _SimulatorGLM
 
 
 class _Test_DataTypes_GLM_Estim():
@@ -61,13 +61,13 @@ class Test_DataTypes_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             data,
             design_loc,
             design_scale
-    ) -> InputData:
+    ) -> InputDataGLM:
         pass
 
     @abc.abstractmethod
     def get_estimator(
             self,
-            input_data: InputData
+            input_data: InputDataGLM
     ) -> _Test_DataTypes_GLM_Estim:
         pass
 

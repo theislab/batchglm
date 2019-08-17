@@ -7,10 +7,10 @@ import tensorflow as tf
 from typing import Union
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, InputData, _EstimatorGLM
+from .external import TFEstimator, InputDataGLM, _EstimatorGLM
 
 
-class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
+class TFEstimatorGLM(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs).
     """
@@ -24,7 +24,7 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             batch_size: int,
             graph: tf.Graph,
             init_a: Union[np.ndarray],
@@ -102,7 +102,7 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
 
             if isinstance(input_data.x, scipy.sparse.csr_matrix):
                 X_tensor_idx, X_tensor_val, X_shape = tf.py_function(
-                    func=input_data.fetch_X_sparse,
+                    func=input_data.fetch_x_sparse,
                     inp=[idx],
                     Tout=[np.int64, np.float64, np.int64]
                 )
@@ -113,7 +113,7 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
                 X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
             else:
                 X_tensor = tf.py_function(
-                    func=input_data.fetch_X_dense,
+                    func=input_data.fetch_x_dense,
                     inp=[idx],
                     Tout=input_data.x.dtype
                 )
@@ -158,19 +158,19 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
             # create model
             model = EstimatorGraph(
                 fetch_fn=fetch_fn,
-                feature_isnonzero=self.input_data.feature_isnonzero,
-                num_observations=self.input_data.num_observations,
-                num_features=self.input_data.num_features,
-                num_design_loc_params=self.input_data.num_design_loc_params,
-                num_design_scale_params=self.input_data.num_design_scale_params,
-                num_loc_params=self.input_data.num_loc_params,
-                num_scale_params=self.input_data.num_scale_params,
+                feature_isnonzero=input_data.feature_isnonzero,
+                num_observations=input_data.num_observations,
+                num_features=input_data.num_features,
+                num_design_loc_params=input_data.num_design_loc_params,
+                num_design_scale_params=input_data.num_design_scale_params,
+                num_loc_params=input_data.num_loc_params,
+                num_scale_params=input_data.num_scale_params,
                 batch_size=batch_size,
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                constraints_loc=self.input_data.constraints_loc,
-                constraints_scale=self.input_data.constraints_scale,
+                constraints_loc=input_data.constraints_loc,
+                constraints_scale=input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
                 provide_batched=provide_batched,
                 provide_fim=provide_fim,
@@ -182,7 +182,15 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
                 dtype=dtype
             )
 
-        MonitoredTFEstimator.__init__(self, model)
+        _EstimatorGLM.__init__(
+            self=self,
+            model=model,
+            input_data=input_data
+        )
+        TFEstimator.__init__(
+            self=self,
+            model=model
+        )
         model.session = self.session
 
     def _scaffold(self):
@@ -312,20 +320,9 @@ class TFEstimatorGLM(MonitoredTFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta)
             )
 
     def finalize(self):
-        if self.noise_model == "nb":
-            from .external_nb import EstimatorStoreXArray
-        elif self.noise_model == "norm":
-            from .external_norm import EstimatorStoreXArray
-        elif self.noise_model == "beta":
-            from .external_beta import EstimatorStoreXArray
-        else:
-            raise ValueError("noise model not recognized")
-
         self.session.run(self.model.full_data_model.final_set)
-        store = EstimatorStoreXArray(self)
         logging.getLogger("batchglm").debug("Closing session")
         self.close_session()
-        return store
 
     @abc.abstractmethod
     def init_par(

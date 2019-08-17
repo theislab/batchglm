@@ -21,9 +21,9 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
             raise ValueError("noise_model is None")
         else:
             if noise_model=="nb":
-                from batchglm.api.models.glm_nb import Estimator, InputData
+                from batchglm.api.models.glm_nb import Estimator, InputDataGLM
             elif noise_model=="norm":
-                from batchglm.api.models.glm_norm import Estimator, InputData
+                from batchglm.api.models.glm_norm import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -38,7 +38,7 @@ class _Test_AccuracyConstrained_VGLM_ALL_Estim:
             np.expand_dims(input_data.design_loc.values[:, 0]-input_data.design_loc.values[:, -1], axis=-1)
         ])
         design_scale = design_loc.copy()
-        input_data = InputData.new(
+        input_data = InputDataGLM.new(
             data=simulator.X,
             design_loc=design_loc,
             design_scale=design_scale,

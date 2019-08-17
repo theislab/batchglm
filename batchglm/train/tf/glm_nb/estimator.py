@@ -4,7 +4,7 @@ from typing import Union
 import numpy as np
 import tensorflow as tf
 
-from .external import TFEstimatorGLM, InputData, Model
+from .external import TFEstimatorGLM, InputDataGLM, Model
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
@@ -19,7 +19,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             batch_size: int = 500,
             graph: tf.Graph = None,
             init_model: Model = None,

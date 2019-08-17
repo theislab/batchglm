@@ -1,12 +1,12 @@
 import batchglm.data as data_utils
 
-from batchglm.models.glm_norm import _EstimatorGLM, InputData, Model
+from batchglm.models.glm_norm import _EstimatorGLM, InputDataGLM, Model
 from batchglm.models.base_glm.utils import closedform_glm_mean, closedform_glm_scale
 from batchglm.models.glm_norm.utils import closedform_norm_glm_mean, closedform_norm_glm_logsd
 
 import batchglm.train.tf.ops as op_utils
 import batchglm.train.tf.train as train_utils
-from batchglm.train.tf.base import TFEstimatorGraph, MonitoredTFEstimator
+from batchglm.train.tf.base import TFEstimatorGraph
 
 from batchglm.train.tf.base_glm import GradientGraphGLM, NewtonGraphGLM, TrainerGraphGLM, EstimatorGraphGLM, FullDataModelGraphGLM, BasicModelGraphGLM
 from batchglm.train.tf.base_glm import ProcessModelGLM, ModelVarsGLM

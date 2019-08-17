@@ -7,19 +7,31 @@ except ImportError:
     anndata = None
 
 from .external import _EstimatorBase
+from .input import InputDataGLM
+from .model import _ModelGLM
 
 
 class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
     r"""
     Estimator base class for generalized linear models (GLMs).
     """
+    model: _ModelGLM
+    input_data: InputDataGLM
     _hessian: np.ndarray
     _fim: np.ndarray
     _a_var: np.ndarray
     _b_var: np.ndarray
 
-    def __init__(self):
-        super(_EstimatorBase, self).__init__()
+    def __init__(
+            self,
+            model: _ModelGLM,
+            input_data: InputDataGLM
+    ):
+        _EstimatorBase.__init__(
+            self=self,
+            model=model,
+            input_data=input_data
+        )
         self._hessian = None
         self._fim = None
         self._a_var = None
