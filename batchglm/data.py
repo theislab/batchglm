@@ -1,16 +1,11 @@
-from typing import Union, Dict, Tuple, List
-
-import os
-import tempfile
-import zipfile as zf
+import dask
+import dask.array
 import logging
-
 import patsy
 import pandas as pd
 import numpy as np
 import scipy.sparse
-import dask
-import dask.array
+from typing import Union, Dict, Tuple, List
 
 try:
     import anndata
