@@ -190,7 +190,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
                     logging.getLogger("batchglm").debug("Using closed-form MME initialization for mean")
                 elif init_a.lower() == "standard":
-                    overall_means = np.mean(input_data, axis=0)
+                    overall_means = np.mean(input_data.x, axis=0)
                     overall_means = self.np_clip_param(overall_means, "mean")
 
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])

@@ -34,8 +34,10 @@ class _TestAccuracyAnalyticGlmAllEstim():
         else:
             if noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator, InputDataGLM
-            elif noise_model=="norm":
+            elif noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator, InputDataGLM
+            elif noise_model == "beta":
+                from batchglm.api.models.glm_beta import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -85,6 +87,9 @@ class _TestAccuracyAnalyticGlmAllEstim():
             elif self.noise_model == "norm":
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
+            elif self.noise_model == "beta":
+                threshold_dev = 1e-2
+                threshold_std = 1e-1
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -119,6 +124,9 @@ class _TestAccuracyAnalyticGlmAllEstim():
             elif self.noise_model == "norm":
                 threshold_dev = 1e-2
                 threshold_std = 1e-1
+            elif self.noise_model == "beta":
+                threshold_dev = 1e-2
+                threshold_std = 1e-1
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -151,15 +159,17 @@ class TestAccuracyAnalyticGlmAll(
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
+            if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
-            elif self.noise_model=="norm":
+            elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
+            elif self.noise_model == "beta":
+                from batchglm.api.models.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
         return Simulator(
-            num_observations=10000,
+            num_observations=100000,
             num_features=3
         )
 
@@ -232,7 +242,7 @@ class TestAccuracyAnalyticGlmNb(
     unittest.TestCase
 ):
     """
-    Test whether optimizers yield exact results for negative binomial noise.
+    Test whether optimizers yield exact results for negative binomial data.
     """
 
     def test_a_closed_b_closed(self):
@@ -261,7 +271,7 @@ class TestAccuracyAnalyticGlmNorm(
     unittest.TestCase
 ):
     """
-    Test whether optimizers yield exact results for normally distributed noise.
+    Test whether optimizers yield exact results for normally distributed data.
     """
 
     def test_a_closed_b_closed(self):
@@ -280,6 +290,35 @@ class TestAccuracyAnalyticGlmNorm(
         logger.error("TestAccuracyAnalyticGlmNorm.test_a_standard_b_standard()")
 
         self.noise_model = "norm"
+        self.simulate_easy()
+        self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
+        self._test_a_and_b(sparse=True, init_a="standard", init_b="standard")
+
+
+class TestAccuracyAnalyticGlmBeta(
+    TestAccuracyAnalyticGlmAll,
+    unittest.TestCase
+):
+    """
+    Test whether optimizers yield exact results for beta distributed data.
+    """
+
+    def test_a_closed_b_closed(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("TestAccuracyAnalyticGlmBeta.test_a_closed_b_closed()")
+
+        self.noise_model = "beta"
+        self.simulate_complex()
+        self._test_a_and_b(sparse=False, init_a="closed_form", init_b="closed_form")
+        self._test_a_and_b(sparse=True, init_a="closed_form", init_b="closed_form")
+
+    def test_a_standard_b_standard(self):
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
+        logger.error("TestAccuracyAnalyticGlmBeta.test_a_standard_b_standard()")
+
+        self.noise_model = "beta"
         self.simulate_easy()
         self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
         self._test_a_and_b(sparse=True, init_a="standard", init_b="standard")

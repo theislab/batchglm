@@ -92,6 +92,8 @@ def groupwise_solve_lm(
     # <X, <theta, H> = means -> <X, theta>, H> = means -> lstsqs for theta
     # (This is faster and more accurate than using matrix inversion.)
     logger.debug(" ** Solve lstsq problem")
+    if np.any(np.isnan(params)):
+        raise Warning("entries of params were nan which will throw error in lstsq")
     x_prime, rmsd, rank, s = np.linalg.lstsq(
         np.matmul(unique_design, constraints),
         params,

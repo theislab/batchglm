@@ -79,12 +79,13 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             num_batches=4,
             **kwargs
     ):
-        return generate_sample_description(
+        self.sim_design_loc = generate_sample_description(
             self.nobs,
             num_conditions=num_conditions,
             num_batches=num_batches,
             **kwargs
         )
+        self.sim_design_scale = self.sim_design_loc
 
     def _generate_params(
             self,
