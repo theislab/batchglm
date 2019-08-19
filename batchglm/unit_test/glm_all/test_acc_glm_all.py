@@ -7,13 +7,13 @@ import scipy.sparse
 import batchglm.api as glm
 from batchglm.models.base_glm import _EstimatorGLM
 
-from .external import Test_Accuracy_GLM, _Test_Accuracy_GLM_Estim
+from .external import TestAccuracyGlm, _TestAccuracyGlmEstim
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
+class _TestAccuracyGlmAllEstim(_TestAccuracyGlmEstim):
 
     def __init__(
             self,
@@ -64,8 +64,8 @@ class _Test_Accuracy_GLM_ALL_Estim(_Test_Accuracy_GLM_Estim):
             simulator=simulator
         )
 
-class Test_Accuracy_GLM_ALL(
-    Test_Accuracy_GLM,
+class TestAccuracyGlmAll(
+    TestAccuracyGlm,
     unittest.TestCase
 ):
     """
@@ -115,7 +115,7 @@ class Test_Accuracy_GLM_ALL(
             sparse
     ):
         algos = ["ADAM", "NR_TR", "IRLS_GD_TR"]
-        estimator = _Test_Accuracy_GLM_ALL_Estim(
+        estimator = _TestAccuracyGlmAllEstim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             noise_model=self.noise_model,
@@ -138,8 +138,8 @@ class Test_Accuracy_GLM_ALL(
         super()._test_batched_b_only(sparse=sparse)
 
 
-class Test_Accuracy_GLM_NB(
-    Test_Accuracy_GLM_ALL,
+class TestAccuracyGlmNb(
+    TestAccuracyGlmAll,
     unittest.TestCase
 ):
     """
@@ -166,8 +166,9 @@ class Test_Accuracy_GLM_NB(
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
-class Test_Accuracy_GLM_NORM(
-    Test_Accuracy_GLM_ALL,
+
+class TestAccuracyGlmNorm(
+    TestAccuracyGlmAll,
     unittest.TestCase
 ):
     """

@@ -11,7 +11,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_Accuracy_GLM_Estim():
+class _TestAccuracyGlmEstim():
 
     def __init__(
             self,
@@ -79,8 +79,8 @@ class _Test_Accuracy_GLM_Estim():
             return False
 
 
-class Test_Accuracy_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
-    _estims: List[_Test_Accuracy_GLM_Estim]
+class TestAccuracyGlm(unittest.TestCase, metaclass=abc.ABCMeta):
+    _estims: List[_TestAccuracyGlmEstim]
 
     def setUp(self):
         self._estims = []

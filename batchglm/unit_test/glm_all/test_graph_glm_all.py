@@ -6,13 +6,13 @@ import scipy.sparse
 import batchglm.api as glm
 from batchglm.models.base_glm import _EstimatorGLM
 
-from .external import Test_Graph_GLM, _Test_Graph_GLM_Estim
+from .external import Test_Graph_GLM, _TestGraphGLMEstim
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
+class _TestGraphGlmAllEstim(_TestGraphGLMEstim):
 
     def __init__(
             self,
@@ -26,11 +26,11 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
         if noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if noise_model=="nb":
+            if noise_model == "nb":
                 from batchglm.api.models.glm_nb import Estimator, InputDataGLM
-            elif noise_model=="norm":
+            elif noise_model == "norm":
                 from batchglm.api.models.glm_norm import Estimator, InputDataGLM
-            elif noise_model=="beta":
+            elif noise_model == "beta":
                 from batchglm.api.models.glm_beta import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
@@ -68,7 +68,8 @@ class _Test_Graph_GLM_ALL_Estim(_Test_Graph_GLM_Estim):
             algo=algo
         )
 
-class Test_Graph_GLM_ALL(
+
+class TestGraphGlmAll(
     Test_Graph_GLM,
     unittest.TestCase
 ):
@@ -99,9 +100,9 @@ class Test_Graph_GLM_ALL(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.glm_nb import Simulator
-            elif self.noise_model=="norm":
+            elif self.noise_model == "norm":
                 from batchglm.api.models.glm_norm import Simulator
-            elif self.noise_model=="beta":
+            elif self.noise_model == "beta":
                 from batchglm.api.models.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
@@ -116,7 +117,7 @@ class Test_Graph_GLM_ALL(
             algo,
             sparse
     ):
-        estimator = _Test_Graph_GLM_ALL_Estim(
+        estimator = _TestGraphGlmAllEstim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             algo=algo,
@@ -142,8 +143,8 @@ class Test_Graph_GLM_ALL(
         super()._test_batched_b_only(sparse=sparse)
 
 
-class Test_Graph_GLM_NB(
-    Test_Graph_GLM_ALL,
+class TestGraphGlmNb(
+    TestGraphGlmAll,
     unittest.TestCase
 ):
     """
@@ -153,7 +154,7 @@ class Test_Graph_GLM_NB(
     def test_full_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NB.test_full_nb()")
+        logger.error("TestGraphGlmNb.test_full_nb()")
 
         self.noise_model = "nb"
         self._test_full(sparse=False)
@@ -162,15 +163,15 @@ class Test_Graph_GLM_NB(
     def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NB.test_batched_nb()")
+        logger.error("TestGraphGlmNb.test_batched_nb()")
 
         self.noise_model = "nb"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
 
-class Test_Graph_GLM_NORM(
-    Test_Graph_GLM_ALL,
+class TestGraphGlmNorm(
+    TestGraphGlmAll,
     unittest.TestCase
 ):
     """
@@ -180,7 +181,7 @@ class Test_Graph_GLM_NORM(
     def test_full_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NORM.test_full_norm()")
+        logger.error("TestGraphGlmNorm.test_full_norm()")
 
         self.noise_model = "norm"
         self._test_full(sparse=False)
@@ -189,15 +190,15 @@ class Test_Graph_GLM_NORM(
     def test_batched_norm(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_NORM.test_batched_norm()")
+        logger.error("TestGraphGlmNorm.test_batched_norm()")
 
         self.noise_model = "norm"
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
 
 
-class Test_Graph_GLM_BETA(
-    Test_Graph_GLM_ALL,
+class TestGraphGlmBeta(
+    TestGraphGlmAll,
     unittest.TestCase
 ):
     """
@@ -206,17 +207,17 @@ class Test_Graph_GLM_BETA(
 
     def test_full_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_BETA.test_full_beta()")
+        logging.getLogger("batchglm").setLevel(logging.ERROR)
+        logger.error("TestGraphGlmBeta.test_full_beta()")
 
         self.noise_model = "beta"
-        self._test_full(sparse=False)
+        #self._test_full(sparse=False)
         self._test_full(sparse=True)
 
     def test_batched_beta(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
-        logger.error("Test_Graph_GLM_BETA.test_batched_beta()")
+        logger.error("TestGraphGlmBeta.test_batched_beta()")
 
         self.noise_model = "beta"
         self._test_batched(sparse=False)

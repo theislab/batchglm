@@ -11,7 +11,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_AccuracyAnalytic_GLM_ALL_Estim():
+class _TestAccuracyAnalyticGlmAllEstim():
 
     estimator: _EstimatorGLM
     simulator: _SimulatorGLM
@@ -141,7 +141,7 @@ class _Test_AccuracyAnalytic_GLM_ALL_Estim():
             return False
 
 
-class Test_AccuracyAnalytic_GLM_ALL(
+class TestAccuracyAnalyticGlmAll(
     unittest.TestCase
 ):
     noise_model: str
@@ -164,7 +164,7 @@ class Test_AccuracyAnalytic_GLM_ALL(
         )
 
     def get_estimator(self, train_scale, sparse, init_a, init_b):
-        return _Test_AccuracyAnalytic_GLM_ALL_Estim(
+        return _TestAccuracyAnalyticGlmAllEstim(
             simulator=self.sim,
             train_scale=train_scale,
             noise_model=self.noise_model,
@@ -227,8 +227,8 @@ class Test_AccuracyAnalytic_GLM_ALL(
         return True
 
 
-class Test_AccuracyAnalytic_GLM_NB(
-    Test_AccuracyAnalytic_GLM_ALL,
+class TestAccuracyAnalyticGlmNb(
+    TestAccuracyAnalyticGlmAll,
     unittest.TestCase
 ):
     """
@@ -238,7 +238,7 @@ class Test_AccuracyAnalytic_GLM_NB(
     def test_a_closed_b_closed(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR),
         logging.getLogger("batchglm").setLevel(logging.DEBUG)
-        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_closed_b_closed()")
+        logger.error("TestAccuracyAnalyticGlmNb.test_a_closed_b_closed()")
 
         self.noise_model = "nb"
         self.simulate_complex()
@@ -248,7 +248,7 @@ class Test_AccuracyAnalytic_GLM_NB(
     def test_a_standard_b_standard(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_AccuracyAnalytic_GLM_NB.test_a_standard_b_standard()")
+        logger.error("TestAccuracyAnalyticGlmNb.test_a_standard_b_standard()")
 
         self.noise_model = "nb"
         self.simulate_easy()
@@ -256,8 +256,8 @@ class Test_AccuracyAnalytic_GLM_NB(
         self._test_a_and_b(sparse=True, init_a="standard", init_b="standard")
 
 
-class Test_AccuracyAnalytic_GLM_NORM(
-    Test_AccuracyAnalytic_GLM_ALL,
+class TestAccuracyAnalyticGlmNorm(
+    TestAccuracyAnalyticGlmAll,
     unittest.TestCase
 ):
     """
@@ -267,7 +267,7 @@ class Test_AccuracyAnalytic_GLM_NORM(
     def test_a_closed_b_closed(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR),
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_closed_b_closed()")
+        logger.error("TestAccuracyAnalyticGlmNorm.test_a_closed_b_closed()")
 
         self.noise_model = "norm"
         self.simulate_complex()
@@ -277,7 +277,7 @@ class Test_AccuracyAnalytic_GLM_NORM(
     def test_a_standard_b_standard(self):
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("Test_AccuracyAnalytic_GLM_NORM.test_a_standard_b_standard()")
+        logger.error("TestAccuracyAnalyticGlmNorm.test_a_standard_b_standard()")
 
         self.noise_model = "norm"
         self.simulate_easy()

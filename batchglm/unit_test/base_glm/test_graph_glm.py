@@ -10,7 +10,7 @@ glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger("batchglm")
 
 
-class _Test_Graph_GLM_Estim():
+class _TestGraphGLMEstim():
 
     def __init__(
             self,
@@ -31,8 +31,8 @@ class _Test_Graph_GLM_Estim():
         self.estimator.train_sequence(training_strategy=[
             {
                 "learning_rate": 1,
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": 1e1,
+                "convergence_criteria": "step",
+                "stopping_criteria": 1,
                 "use_batching": batched,
                 "optim_algo": self.algo,
             },
@@ -40,7 +40,7 @@ class _Test_Graph_GLM_Estim():
 
 
 class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
-    _estims: List[_Test_Graph_GLM_Estim]
+    _estims: List[_TestGraphGLMEstim]
 
     def setUp(self):
         self._estims = []
@@ -161,6 +161,7 @@ class Test_Graph_GLM(unittest.TestCase, metaclass=abc.ABCMeta):
             train_scale=True,
             sparse=sparse
         )
+
 
 if __name__ == '__main__':
     unittest.main()
