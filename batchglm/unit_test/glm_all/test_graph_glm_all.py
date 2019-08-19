@@ -211,7 +211,7 @@ class TestGraphGlmBeta(
         logger.error("TestGraphGlmBeta.test_full_beta()")
 
         self.noise_model = "beta"
-        #self._test_full(sparse=False)
+        self._test_full(sparse=False)
         self._test_full(sparse=True)
 
     def test_batched_beta(self):
