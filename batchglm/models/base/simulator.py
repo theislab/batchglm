@@ -61,7 +61,3 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         Should generate all necessary parameters.
         """
         pass
-
-    @property
-    def sample_description(self):
-        return self.data[[k for k, v in self.data.variables.items() if v.dims == ('observations',)]].to_dataframe()

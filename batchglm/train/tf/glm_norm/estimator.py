@@ -229,16 +229,15 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                 if is_ols_model:
                     # Calculated variance via E(x)^2 or directly depending on whether `mu` was specified.
                     if isinstance(input_data.x, scipy.sparse.csr_matrix):
-                        expect_xsq = np.mean(input_data.x.power(2), axis=0)
+                        expect_xsq = np.asarray(np.mean(input_data.x.power(2), axis=0))
                     else:
-                        expect_xsq = np.mean(np.square(input_data.x), axis=0)
+                        expect_xsq = np.expand_dims(np.mean(np.square(input_data.x), axis=0), axis=0)
                     mean_model = np.matmul(
                         np.matmul(input_data.design_loc, input_data.constraints_loc),
                         init_a
                     )
                     expect_x_sq = np.mean(np.square(mean_model), axis=0)
                     variance = (expect_xsq - expect_x_sq)
-                    variance = np.expand_dims(variance, axis=0)
                     init_b = np.log(np.sqrt(variance))
                     self._train_scale = False
 

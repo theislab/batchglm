@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class _TestAccuracyAnalyticGlmAllEstim():
 
     estimator: _EstimatorGLM
-    simulator: _SimulatorGLM
+    sim: _SimulatorGLM
     noise_model: str
 
     def __init__(
@@ -26,7 +26,7 @@ class _TestAccuracyAnalyticGlmAllEstim():
             init_a,
             init_b
     ):
-        self.simulator = simulator
+        self.sim = simulator
         self.noise_model = noise_model
 
         if noise_model is None:
@@ -71,9 +71,6 @@ class _TestAccuracyAnalyticGlmAllEstim():
             init_b=init_b
         )
 
-    def estimate(self):
-        self.estimator.initialize()
-
     def eval_estimation_a(
             self,
             init_a,
@@ -94,11 +91,11 @@ class _TestAccuracyAnalyticGlmAllEstim():
                 raise ValueError("noise_model not recognized")
 
         if init_a == "standard":
-            mean_dev = np.mean(self.estimator.a_var[0, :] - self.simulator.a[0, :])
-            std_dev = np.std(self.estimator.a_var[0, :] - self.simulator.a[0, :])
+            mean_dev = np.mean(self.estimator.a_var[0, :] - self.sim.a_var[0, :])
+            std_dev = np.std(self.estimator.a_var[0, :] - self.sim.a_var[0, :])
         elif init_a == "closed_form":
-            mean_dev = np.mean(self.estimator.a_var - self.simulator.a)
-            std_dev = np.std(self.estimator.a_var - self.simulator.a)
+            mean_dev = np.mean(self.estimator.a_var - self.sim.a_var)
+            std_dev = np.std(self.estimator.a_var - self.sim.a_var)
         else:
             assert False
 
@@ -131,11 +128,11 @@ class _TestAccuracyAnalyticGlmAllEstim():
                 raise ValueError("noise_model not recognized")
 
         if init_b == "standard":
-            mean_dev = np.mean(self.estimator.b_var[0, :] - self.simulator.b[0, :])
-            std_dev = np.std(self.estimator.b_var[0, :] - self.simulator.b[0, :])
+            mean_dev = np.mean(self.estimator.b_var[0, :] - self.sim.b[0, :])
+            std_dev = np.std(self.estimator.b_var[0, :] - self.sim.b[0, :])
         elif init_b == "closed_form":
-            mean_dev = np.mean(self.estimator.b_var - self.simulator.b)
-            std_dev = np.std(self.estimator.b_var - self.simulator.b)
+            mean_dev = np.mean(self.estimator.b_var - self.sim.b)
+            std_dev = np.std(self.estimator.b_var - self.sim.b)
         else:
             assert False
 
@@ -153,7 +150,6 @@ class TestAccuracyAnalyticGlmAll(
     unittest.TestCase
 ):
     noise_model: str
-    _estims: List[_EstimatorGLM]
 
     def get_simulator(self):
         if self.noise_model is None:
@@ -186,35 +182,80 @@ class TestAccuracyAnalyticGlmAll(
     def simulate_complex(self):
         self.sim = self.get_simulator()
         self.sim.generate_sample_description(num_batches=1, num_conditions=2)
+
+        def rand_fn_ave(shape):
+            if self.noise_model in ["nb", "norm"]:
+                theta = np.random.uniform(10, 1000, shape)
+            elif self.noise_model in ["beta"]:
+                theta = np.random.uniform(0.1, 0.7, shape)
+            else:
+                raise ValueError("noise model not recognized")
+            return theta
+
+        def rand_fn_loc(shape):
+            if self.noise_model in ["nb", "norm"]:
+                theta = np.random.uniform(1, 3, shape)
+            elif self.noise_model in ["beta"]:
+                theta = np.random.uniform(0, 0.15, shape)
+            else:
+                raise ValueError("noise model not recognized")
+            return theta
+
+        def rand_fn_scale(shape):
+            theta = np.zeros(shape)
+            if self.noise_model in ["nb"]:
+                theta[0, :] = np.random.uniform(1, 3, shape[1])
+            elif self.noise_model in ["norm"]:
+                theta[0, :] = np.random.uniform(1, 2, shape[1])
+            elif self.noise_model in ["beta"]:
+                theta[0, :] = np.random.uniform(0.2, 0.4, shape[1])
+            else:
+                raise ValueError("noise model not recognized")
+            return theta
+
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.random.uniform(1, 3, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1, 3, shape)
+            rand_fn_ave=lambda shape: rand_fn_ave(shape),
+            rand_fn_loc=lambda shape: rand_fn_loc(shape),
+            rand_fn_scale=lambda shape: rand_fn_scale(shape)
         )
         self.sim.generate_data()
 
     def simulate_easy(self):
         self.sim = self.get_simulator()
-        self.sim.generate_sample_description(num_batches=1, num_conditions=2)
+        self.sim.generate_sample_description(num_batches=1, num_conditions=1)
 
-        def rand_fn_standard(shape):
-            theta = np.ones(shape)
-            theta[0, :] = np.random.uniform(5, 20, shape[1])
+        def rand_fn_ave(shape):
+            if self.noise_model in ["nb", "norm"]:
+                theta = np.random.uniform(10, 1000, shape)
+            elif self.noise_model in ["beta"]:
+                theta = np.random.uniform(0.1, 0.9, shape)
+            else:
+                raise ValueError("noise model not recognized")
+            return theta
+
+        def rand_fn_loc(shape):
+            return np.ones(shape)
+
+        def rand_fn_scale(shape):
+            theta = np.zeros(shape)
+            if self.noise_model in ["nb"]:
+                theta[0, :] = np.random.uniform(1, 3, shape[1])
+            elif self.noise_model in ["norm"]:
+                theta[0, :] = np.random.uniform(1, 2, shape[1])
+            elif self.noise_model in ["beta"]:
+                theta[0, :] = np.random.uniform(0.2, 0.4, shape[1])
+            else:
+                raise ValueError("noise model not recognized")
             return theta
 
         self.sim.generate_params(
-            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn_loc=lambda shape: np.ones(shape),
-            rand_fn_scale=lambda shape: rand_fn_standard(shape)
+            rand_fn_ave=lambda shape: rand_fn_ave(shape),
+            rand_fn_loc=lambda shape: rand_fn_loc(shape),
+            rand_fn_scale=lambda shape: rand_fn_scale(shape)
         )
         self.sim.generate_data()
-
-    def setUp(self):
-        self._estims = []
-
-    def tearDown(self):
-        for e in self._estims:
-            e.estimator.close_session()
+        assert self.sim.input_data.design_loc.shape[1] == 1, "confounders include in intercept-only simulation"
+        assert self.sim.input_data.design_scale.shape[1] == 1, "confounders include in intercept-only simulation"
 
     def _test_a_and_b(self, sparse, init_a, init_b):
         estimator = self.get_estimator(
@@ -223,9 +264,8 @@ class TestAccuracyAnalyticGlmAll(
             init_a=init_a,
             init_b=init_b
         )
-        estimator.estimate()
+        estimator.estimator.initialize()
         estimator.estimator.finalize()
-        self._estims.append(estimator)
         success = estimator.eval_estimation_a(
             init_a=init_a,
         )
@@ -246,10 +286,11 @@ class TestAccuracyAnalyticGlmNb(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR),
-        logging.getLogger("batchglm").setLevel(logging.DEBUG)
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
+        logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyAnalyticGlmNb.test_a_closed_b_closed()")
 
+        np.random.seed(1)
         self.noise_model = "nb"
         self.simulate_complex()
         self._test_a_and_b(sparse=False, init_a="closed_form", init_b="closed_form")
@@ -260,6 +301,7 @@ class TestAccuracyAnalyticGlmNb(
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyAnalyticGlmNb.test_a_standard_b_standard()")
 
+        np.random.seed(1)
         self.noise_model = "nb"
         self.simulate_easy()
         self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
@@ -275,10 +317,11 @@ class TestAccuracyAnalyticGlmNorm(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyAnalyticGlmNorm.test_a_closed_b_closed()")
 
+        np.random.seed(1)
         self.noise_model = "norm"
         self.simulate_complex()
         self._test_a_and_b(sparse=False, init_a="closed_form", init_b="closed_form")
@@ -289,6 +332,7 @@ class TestAccuracyAnalyticGlmNorm(
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyAnalyticGlmNorm.test_a_standard_b_standard()")
 
+        np.random.seed(1)
         self.noise_model = "norm"
         self.simulate_easy()
         self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")
@@ -304,10 +348,11 @@ class TestAccuracyAnalyticGlmBeta(
     """
 
     def test_a_closed_b_closed(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR),
+        logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyAnalyticGlmBeta.test_a_closed_b_closed()")
 
+        np.random.seed(1)
         self.noise_model = "beta"
         self.simulate_complex()
         self._test_a_and_b(sparse=False, init_a="closed_form", init_b="closed_form")
@@ -318,6 +363,7 @@ class TestAccuracyAnalyticGlmBeta(
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyAnalyticGlmBeta.test_a_standard_b_standard()")
 
+        np.random.seed(1)
         self.noise_model = "beta"
         self.simulate_easy()
         self._test_a_and_b(sparse=False, init_a="standard", init_b="standard")

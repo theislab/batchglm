@@ -24,10 +24,10 @@ class Simulator(_SimulatorGLM, Model):
 
     def generate_params(
             self,
-            rand_fn_ave=lambda shape: np.random.uniform(1e5, 2 * 1e5, shape),
-            rand_fn=lambda shape: np.random.uniform(1.5, 10, shape),
-            rand_fn_loc=lambda shape: np.random.uniform(100, 200, shape),
-            rand_fn_scale=None,
+            rand_fn_ave=lambda shape: np.random.uniform(10, 1000, shape),
+            rand_fn=None,
+            rand_fn_loc=lambda shape: np.random.uniform(50, 100, shape),
+            rand_fn_scale=lambda shape: np.random.uniform(1.5, 10, shape),
         ):
         self._generate_params(
             self,

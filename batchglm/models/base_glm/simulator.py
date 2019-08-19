@@ -126,23 +126,17 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             rand_fn_scale = rand_fn
 
         if self.sim_design_loc is None:
-            self.sim_design_loc = self.generate_sample_description()
+            self.generate_sample_description()
         if self.sim_design_scale is None:
             self.sim_design_scale = self.sim_design_loc
 
-        self.sim_a_var = self.link_loc(
-            np.concatenate([
-                np.expand_dims(rand_fn_ave([self.nfeatures]), axis=0),  # intercept
-                np.maximum(rand_fn_loc((self.sim_design_loc.shape[1] - 1, self.nfeatures)),
-                           np.zeros([self.sim_design_loc.shape[1] - 1, self.nfeatures]) + 1e-08)
-            ], axis=0)
-        )
-        self.sim_b_var = self.link_scale(
-            np.concatenate([
-                np.maximum(rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures)),
-                           np.zeros([self.sim_design_scale.shape[1], self.nfeatures]) + 1e-08)
-            ], axis=0)
-        )
+        self.sim_a_var = np.concatenate([
+            self.link_loc(np.expand_dims(rand_fn_ave([self.nfeatures]), axis=0)),  # intercept
+            rand_fn_loc((self.sim_design_loc.shape[1] - 1, self.nfeatures))
+        ], axis=0)
+        self.sim_b_var = np.concatenate([
+            rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))
+        ], axis=0)
 
     @property
     def a_var(self):
