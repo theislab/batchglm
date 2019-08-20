@@ -1,50 +1,21 @@
-from typing import List
-import unittest
+import anndata
+try:
+    from anndata.base import Raw
+except ImportError:
+    from anndata import Raw
 import logging
+import numpy as np
+import unittest
+import scipy.sparse
 
 import batchglm.api as glm
-from batchglm.models.base_glm import _EstimatorGLM, _SimulatorGLM
-
-from .external import Test_DataTypes_GLM, _Test_DataTypes_GLM_Estim
+from batchglm.unit_test.test_graph_glm_all import _TestGraphGlmAll
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
 
-class _Test_DataTypes_GLM_ALL_Estim(_Test_DataTypes_GLM_Estim):
-
-    def __init__(
-            self,
-            input_data,
-            noise_model
-    ):
-        if noise_model is None:
-            raise ValueError("noise_model is None")
-        else:
-            if noise_model=="nb":
-                from batchglm.api.models.glm_nb import Estimator
-            else:
-                raise ValueError("noise_model not recognized")
-
-        batch_size = 10
-        provide_optimizers = {"gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-                              "nr": True, "nr_tr": True,
-                              "irls": True, "irls_gd": True, "irls_tr": True, "irls_gd_tr": True}
-
-        estimator = Estimator(
-            input_data=input_data,
-            batch_size=batch_size,
-            quick_scale=True,
-            provide_optimizers=provide_optimizers,
-            provide_batched=True
-        )
-        super().__init__(
-            estimator=estimator,
-            algo="IRLS_GD_TR"
-        )
-
-
-class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
+class _TestDataTypesGlmAll(_TestGraphGlmAll):
     """
     Test various input data types including outlier features.
 
@@ -58,19 +29,6 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
         - Sparse X in anndata: test_anndata_sparse()
     """
     noise_model: str
-    sim: _SimulatorGLM
-    _estims: List[_EstimatorGLM]
-
-    def get_simulator(self):
-        if self.noise_model is None:
-            raise ValueError("noise_model is None")
-        else:
-            if self.noise_model=="nb":
-                from batchglm.api.models.glm_nb import Simulator
-            else:
-                raise ValueError("noise_model not recognized")
-
-        return Simulator(num_observations=50, num_features=2)
 
     def input_data(
             self,
@@ -92,18 +50,58 @@ class Test_DataTypes_GLM_ALL(Test_DataTypes_GLM, unittest.TestCase):
             design_scale=design_scale,
         )
 
-    def get_estimator(
-            self,
-            input_data
-    ):
-        return _Test_DataTypes_GLM_ALL_Estim(
-            input_data=input_data,
-            noise_model=self.noise_model
+    def simulator(self, train_loc):
+        return self.sim1
+
+    def _test_numpy(self, sparse):
+        self.simulate1()
+        x = self.sim1.input_data.x
+        if sparse:
+            x = scipy.sparse.csr_matrix(x)
+        self.sim1.input_data.x = x
+
+        return self.basic_test_one_algo(
+            batched=False,
+            train_loc=True,
+            train_scale=True,
+            algo="ADAM",
+            sparse=False
+        )
+
+    def _test_anndata(self, sparse):
+        self.simulate1()
+        x = self.sim1.input_data.x
+        if sparse:
+            x = scipy.sparse.csr_matrix(x)
+        self.sim1.input_data.x = anndata.AnnData(X=x)
+
+        return self.basic_test_one_algo(
+            batched=False,
+            train_loc=True,
+            train_scale=True,
+            algo="ADAM",
+            sparse=False
+        )
+
+    def _test_anndata_raw(self, sparse):
+        self.simulate1()
+        x = self.sim1.input_data.x
+        if sparse:
+            x = scipy.sparse.csr_matrix(x)
+        self.sim1.input_data.x = anndata.AnnData(X=x)
+        self.sim1.input_data.x = Raw(self.sim1.input_data.x)
+
+        return self.basic_test_one_algo(
+            batched=False,
+            train_loc=True,
+            train_scale=True,
+            algo="ADAM",
+            sparse=False
         )
 
 
 class Test_DataTypes_GLM_NB(
-    Test_DataTypes_GLM_ALL,
+    _TestDataTypesGlmAll,
     unittest.TestCase
 ):
     """
@@ -116,7 +114,7 @@ class Test_DataTypes_GLM_NB(
         logger.error("Test_DataTypes_GLM_NB.test_standard_nb()")
 
         self.noise_model = "nb"
-        self.simulate()
+        np.random.seed(1)
         self._test_numpy(sparse=False)
         self._test_numpy(sparse=True)
 
@@ -128,13 +126,14 @@ class Test_DataTypes_GLM_NB(
         logger.error("Test_DataTypes_GLM_NB.test_anndata_nb()")
 
         self.noise_model = "nb"
-        self.simulate()
+        np.random.seed(1)
         self._test_anndata(sparse=False)
         self._test_anndata(sparse=True)
         self._test_anndata_raw(sparse=False)
         self._test_anndata_raw(sparse=True)
 
         return True
+
 
 if __name__ == '__main__':
     unittest.main()
