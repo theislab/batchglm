@@ -5,7 +5,6 @@ import unittest
 
 import batchglm.api as glm
 
-
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
@@ -50,13 +49,19 @@ class _TestAccuracyGlmAllEstim:
             input_data = InputDataGLM(
                 data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
-                design_scale=simulator.input_data.design_scale
+                design_scale=simulator.input_data.design_scale,
+                constraints_loc=simulator.input_data.constraints_loc,
+                constraints_scale=simulator.input_data.constraints_scale,
+                size_factors=simulator.input_data.size_factors
             )
         else:
             input_data = InputDataGLM(
                 data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
-                design_scale=simulator.input_data.design_scale
+                design_scale=simulator.input_data.design_scale,
+                constraints_loc=simulator.input_data.constraints_loc,
+                constraints_scale=simulator.input_data.constraints_scale,
+                size_factors=simulator.input_data.size_factors
             )
 
         self.estimator = Estimator(
@@ -300,6 +305,7 @@ class _TestAccuracyGlmAll(
                 lr = {"ADAM": 0.05, "IRLS_GD_TR": 1}
         else:
             raise ValueError("noise model %s not recognized" % self.noise_model)
+
         estimator = _TestAccuracyGlmAllEstim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
