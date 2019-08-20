@@ -96,7 +96,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
 
         # Log-likelihood:
         const = tf.constant(-0.5 * np.log(2 * np.pi), shape=(), dtype=dtype)
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             log_probs = const - \
                         eta_scale - \
                         0.5 * tf.math.square(tf.divide(

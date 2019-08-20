@@ -68,7 +68,7 @@ class MultiTrainer:
             # Standard tensorflow optimizers.
             if provide_optimizers["gd"]:
                 logger.debug(" *** Building optimizer: GD")
-                optim_GD = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+                optim_GD = tf.compat.v1.train.GradientDescentOptimizer(learning_rate=learning_rate)
                 train_op_GD = optim_GD.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_GD = apply_train_ops(train_op_GD)
@@ -80,7 +80,7 @@ class MultiTrainer:
 
             if provide_optimizers["adam"]:
                 logger.debug(" *** Building optimizer: ADAM")
-                optim_Adam = tf.train.AdamOptimizer(learning_rate=learning_rate)
+                optim_Adam = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
                 train_op_Adam = optim_Adam.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adam = apply_train_ops(train_op_Adam)
@@ -92,7 +92,7 @@ class MultiTrainer:
 
             if provide_optimizers["adagrad"]:
                 logger.debug(" *** Building optimizer: ADAGRAD")
-                optim_Adagrad = tf.train.AdagradOptimizer(learning_rate=learning_rate)
+                optim_Adagrad = tf.compat.v1.train.AdagradOptimizer(learning_rate=learning_rate)
                 train_op_Adagrad = optim_Adagrad.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_Adagrad = apply_train_ops(train_op_Adagrad)
@@ -104,7 +104,7 @@ class MultiTrainer:
 
             if provide_optimizers["rmsprop"]:
                 logger.debug(" *** Building optimizer: RMSPROP")
-                optim_RMSProp = tf.train.RMSPropOptimizer(learning_rate=learning_rate)
+                optim_RMSProp = tf.compat.v1.train.RMSPropOptimizer(learning_rate=learning_rate)
                 train_op_RMSProp = optim_RMSProp.apply_gradients(gradients_vars, global_step=global_step)
                 if apply_train_ops is not None:
                     train_op_RMSProp = apply_train_ops(train_op_RMSProp)
@@ -113,24 +113,6 @@ class MultiTrainer:
                 optim_RMSProp = None
                 train_op_RMSProp = None
                 update_op_RMSProp = None
-
-            # TFP optimizers:
-            #optim_bfgs = None
-            #if provide_optimizers["bfgs"]:
-            #    logger.debug(" **** Building optimizer: BFGS")
-            #    train_op_bfgs = tfp.optimizer.bfgs_minimize(
-            #        value_and_gradients_function = (gradients[0], fn),
-            #        initial_position,  # TODO: use init here
-            #        tolerance=1e-08,
-            #        x_tolerance=0,
-            #        f_relative_tolerance=0,
-            #        initial_inverse_hessian_estimate=None,
-            #        max_iterations=50,
-            #        parallel_iterations=1
-            #    )
-            #    # Writes results as namedtuple into train_op_bfgs.
-            #else:
-            #    train_op_bfgs = None
 
             # Custom optimizers.
             if provide_optimizers["nr"] and newton_delta is not None:

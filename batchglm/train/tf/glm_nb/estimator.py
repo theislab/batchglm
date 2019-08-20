@@ -262,7 +262,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     logging.getLogger("batchglm").debug("Using closed-form MME initialization for dispersion")
                     logging.getLogger("batchglm").debug("Should train r: %s", self._train_scale)
                 elif init_b.lower() == "all_zero":
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b = np.zeros([input_data.num_scale_params, input_data.x.shape[1]])
 
                     logging.getLogger("batchglm").debug("Using standard initialization for dispersion")
                     logging.getLogger("batchglm").debug("Should train r: %s", self._train_scale)

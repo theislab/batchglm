@@ -43,7 +43,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
         self.feed_dict = {}
         with self.model.graph.as_default():
             # set up session parameters
-            self.session = tf.Session(config=pkg_constants.TF_CONFIG_PROTO)
+            self.session = tf.compat.v1.Session(config=pkg_constants.TF_CONFIG_PROTO)
             self.session.run(self._scaffold().init_op, feed_dict=self.feed_dict)
 
     def close_session(self):
