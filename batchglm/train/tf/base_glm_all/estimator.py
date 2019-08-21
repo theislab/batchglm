@@ -338,11 +338,11 @@ class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model = self.get_model_container(self.input_data)
         self.model._a_var = a_var
         self.model._b_var = b_var
-        self.model._fisher_inv = fisher_inv
-        self.model._hessians = hessians
-        self.model._jacobian = jacobian
-        self.model._log_likelihood = log_likelihood
-        self.model._loss = loss
+        self._fisher_inv = fisher_inv
+        self._hessians = hessians
+        self._jacobian = jacobian
+        self._log_likelihood = log_likelihood
+        self._loss = loss
 
     @abc.abstractmethod
     def get_model_container(

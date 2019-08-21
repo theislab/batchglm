@@ -17,10 +17,6 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
     """
     model: _ModelGLM
     input_data: InputDataGLM
-    _hessian: np.ndarray
-    _fim: np.ndarray
-    _a_var: np.ndarray
-    _b_var: np.ndarray
 
     def __init__(
             self,

@@ -65,6 +65,14 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
     def x(self) -> np.ndarray:
         return self.input_data.x
 
+    @property
+    def a_var(self):
+        return self.model.a_var
+
+    @property
+    def b_var(self) -> np.ndarray:
+        return self.model.b_var
+
     @abc.abstractmethod
     def initialize(self, **kwargs):
         """
