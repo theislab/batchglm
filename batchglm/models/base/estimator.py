@@ -42,6 +42,14 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         self._niter = None
 
     @property
+    def error_codes(self):
+        return self._error_codes
+
+    @property
+    def niter(self):
+        return self._niter
+
+    @property
     def loss(self):
         return self._loss
 
