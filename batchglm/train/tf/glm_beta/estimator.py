@@ -4,16 +4,14 @@ from typing import Union
 import numpy as np
 import tensorflow as tf
 
-from .external import AbstractEstimator, EstimatorAll, ESTIMATOR_PARAMS, InputData, Model
+from .external import TFEstimatorGLM, InputDataGLM, Model
 from .external import closedform_beta_glm_logitmean, closedform_beta_glm_logsamplesize
-from .external import SparseXArrayDataArray
 from .estimator_graph import EstimatorGraph
 from .model import ProcessModel
 from .training_strategies import TrainingStrategies
 
 
-
-class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
+class Estimator(TFEstimatorGLM, ProcessModel):
     """
     Estimator for Generalized Linear Models (GLMs) with beta distributed noise.
     Uses a logit linker function for loc and log linker function for scale.
@@ -21,7 +19,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             batch_size: int = 500,
             graph: tf.Graph = None,
             init_model: Model = None,
@@ -105,7 +103,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
         self._input_data = input_data
         self._train_loc = True
-        self._train_scale = not quick_scale
+        self._train_scale = True
 
         (init_a, init_b) = self.init_par(
             input_data=input_data,
@@ -115,14 +113,16 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         )
         init_a = init_a.astype(dtype)
         init_b = init_b.astype(dtype)
+        if quick_scale:
+            self._train_scale = False
 
         if len(optim_algos) > 0:
             if np.any([x.lower() in ["nr", "nr_tr"] for x in optim_algos]):
                 provide_hessian = True
-            if np.any([x.lower() in ["irls", "irls_tr"] for x in optim_algos]):
+            if np.any([x.lower() in ["irls", "irls_tr", "irls_gd", "irls_gd_tr"] for x in optim_algos]):
                 provide_fim = True
 
-        EstimatorAll.__init__(
+        TFEstimatorGLM.__init__(
             self=self,
             input_data=input_data,
             batch_size=batch_size,
@@ -139,9 +139,11 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
             dtype=dtype
         )
 
-    @classmethod
-    def param_shapes(cls) -> dict:
-        return ESTIMATOR_PARAMS
+    def get_model_container(
+            self,
+            input_data
+    ):
+        return Model(input_data=input_data)
 
     def init_par(
             self,
@@ -180,9 +182,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                 if init_a.lower() == "closed_form":
                     groupwise_means, init_a, rmsd_a = closedform_beta_glm_logitmean(
-                        X=input_data.X,
+                        x=input_data.x,
                         design_loc=input_data.design_loc,
-                        constraints_loc=input_data.constraints_loc.values,
+                        constraints_loc=input_data.constraints_loc,
                         size_factors=size_factors_init,
                         link_fn=lambda mean: np.log(
                             1/(1/self.np_clip_param(mean, "mean")-1)
@@ -192,13 +194,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                     # train mu, if the closed-form solution is inaccurate
                     self._train_loc = not (np.all(rmsd_a == 0) or rmsd_a.size == 0)
 
-
                     logging.getLogger("batchglm").debug("Using closed-form MME initialization for mean")
                 elif init_a.lower() == "standard":
-                    if isinstance(input_data.X, SparseXArrayDataArray):
-                        overall_means = input_data.X.mean(dim="observations")
-                    else:
-                        overall_means = input_data.X.mean(dim="observations").values  # directly calculate the mean
+                    overall_means = np.mean(input_data.x, axis=0)
                     overall_means = self.np_clip_param(overall_means, "mean")
 
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
@@ -220,21 +218,21 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                 if init_b.lower() == "standard":
                     groupwise_scales, init_b_intercept, rmsd_b = closedform_beta_glm_logsamplesize(
-                        X=input_data.X,
+                        x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
-                        constraints=input_data.constraints_scale[[0], [0]].values,
+                        constraints=input_data.constraints_scale[[0], :][:, [0]],
                         size_factors=size_factors_init,
-                        groupwise_means=groupwise_means,
+                        groupwise_means=None,
                         link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
                     )
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                     init_b[0, :] = init_b_intercept
 
                     logging.getLogger("batchglm").debug("Using standard-form MME initialization for dispersion")
                 elif init_b.lower() == "closed_form":
                     dmats_unequal = False
-                    if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
-                        if np.any(input_data.design_loc.values != input_data.design_scale.values):
+                    if input_data.num_design_loc_params == input_data.num_design_scale_params:
+                        if np.any(input_data.design_loc != input_data.design_scale):
                             dmats_unequal = True
 
                     inits_unequal = False
@@ -247,9 +245,9 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
                                          "if scale model differs from loc model")
 
                     groupwise_scales, init_b, rmsd_b = closedform_beta_glm_logsamplesize(
-                        X=input_data.X,
+                        x=input_data.x,
                         design_scale=input_data.design_scale,
-                        constraints=input_data.constraints_scale.values,
+                        constraints=input_data.constraints_scale,
                         size_factors=size_factors_init,
                         groupwise_means=groupwise_means,
                         link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
@@ -257,7 +255,7 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
                     logging.getLogger("batchglm").debug("Using closed-form MME initialization for dispersion")
                 elif init_b.lower() == "all_zero":
-                    init_b = np.zeros([input_data.num_scale_params, input_data.X.shape[1]])
+                    init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
 
                     logging.getLogger("batchglm").debug("Using standard initialization for dispersion")
                 else:
@@ -266,8 +264,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
         else:
             # Locations model:
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
-                my_loc_names = set(input_data.loc_names.values)
-                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names.values))
+                my_loc_names = set(input_data.loc_names)
+                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names))
 
                 init_loc = np.zeros([input_data.num_loc_params, input_data.num_features])
                 for parm in my_loc_names:
@@ -280,8 +278,8 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
-                my_scale_names = set(input_data.scale_names.values)
-                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names.values)
+                my_scale_names = set(input_data.scale_names)
+                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names)
 
                 init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
                 for parm in my_scale_names:
@@ -294,6 +292,3 @@ class Estimator(EstimatorAll, AbstractEstimator, ProcessModel):
 
         return init_a, init_b
 
-    @property
-    def input_data(self) -> InputData:
-        return self._input_data

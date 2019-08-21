@@ -95,18 +95,16 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         model_scale = tf.exp(eta_scale)
 
         # Log-likelihood:
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
-            one_minus_X = -tf.sparse.add(X, -1)
-            Xdense = tf.sparse.to_dense(X)
+        if isinstance(X, tf.SparseTensor):
+            one_minus_X = -tf.sparse.add(X, -tf.ones_like(model_loc))
         else:
             one_minus_X = 1 - X
-            Xdense = X
 
         one_minus_loc = 1 - model_loc
-        log_probs = tf.lgamma(model_scale) - tf.lgamma(model_loc * model_scale)\
-                    - tf.lgamma(one_minus_loc * model_scale)\
-                    + (model_scale * model_loc - 1) * tf.log(Xdense)\
-                    + (one_minus_loc * model_scale - 1) * tf.log(one_minus_X)
+        log_probs = tf.math.lgamma(model_scale) - tf.math.lgamma(model_loc * model_scale)\
+                    - tf.math.lgamma(one_minus_loc * model_scale)\
+                    + (model_scale * model_loc - 1) * tf.math.log(one_minus_X)\
+                    + (one_minus_loc * model_scale - 1) * tf.math.log(one_minus_X)
 
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 

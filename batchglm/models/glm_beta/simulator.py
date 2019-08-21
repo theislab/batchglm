@@ -1,10 +1,10 @@
 import numpy as np
 
 from .model import Model
-from .external import rand_utils, _Simulator_GLM
+from .external import InputDataGLM, _SimulatorGLM
 
 
-class Simulator(_Simulator_GLM, Model):
+class Simulator(_SimulatorGLM, Model):
     """
     Simulator for Generalized Linear Models (GLMs) with beta distributed noise.
     Uses a logit-linker function for loc and a log-linker function for scale.
@@ -15,9 +15,9 @@ class Simulator(_Simulator_GLM, Model):
             num_observations=1000,
             num_features=100
     ):
-        Model.__init__(self)
-        _Simulator_GLM.__init__(
-            self,
+        _SimulatorGLM.__init__(
+            self=self,
+            model=None,
             num_observations=num_observations,
             num_features=num_features
         )
@@ -27,7 +27,7 @@ class Simulator(_Simulator_GLM, Model):
             rand_fn_ave=lambda shape: np.random.uniform(0.2, 0.8, shape),
             rand_fn=None,
             rand_fn_loc=lambda shape: np.random.uniform(0.05, 0.15, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1e5, 2*1e5, shape),
+            rand_fn_scale=lambda shape: np.random.uniform(0.2, 0.5, shape),
         ):
         self._generate_params(
             self,
@@ -41,7 +41,15 @@ class Simulator(_Simulator_GLM, Model):
         """
         Sample random data based on beta distribution and parameters.
         """
-        self.data["X"] = (
-            self.param_shapes()["X"],
-            rand_utils.Beta(mean=self.mean, samplesize=self.samplesize).sample()
+        data_matrix = np.random.beta(
+            a=self.p,
+            b=self.q,
+            size=None
+        )
+        self.input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=self.sim_design_loc,
+            design_scale=self.sim_design_scale,
+            design_loc_names=None,
+            design_scale_names=None
         )

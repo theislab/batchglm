@@ -886,7 +886,7 @@ class NewtonGraphGLM:
             rhs,
             psd
     ):
-        delta_t = tf.squeeze(tf.matrix_solve_ls(
+        delta_t = tf.squeeze(tf.linalg.lstsq(
             lhs,
             tf.expand_dims(rhs, axis=-1),
             fast=psd and pkg_constants.CHOLESKY_LSTSQS
@@ -1022,14 +1022,14 @@ class NewtonGraphGLM:
         # Phase I: Perform a trial update.
         # Propose parameter update:
         train_op_nr_tr_prev = tf.group(
-            tf.assign(likelihood_container, self.full_data_model.norm_neg_log_likelihood_eval1)
+            tf.compat.v1.assign(likelihood_container, self.full_data_model.norm_neg_log_likelihood_eval1)
         )
         train_op_x_step = tf.group(
-            tf.assign(proposed_vector_container, proposed_vector),
-            tf.assign(proposed_gain_container, proposed_gain)
+            tf.compat.v1.assign(proposed_vector_container, proposed_vector),
+            tf.compat.v1.assign(proposed_gain_container, proposed_gain)
         )
         train_op_trial_update = tf.group(
-            tf.assign(self.model_vars.params, self.model_vars.params - proposed_vector)
+            tf.compat.v1.assign(self.model_vars.params, self.model_vars.params - proposed_vector)
         )
 
         # Phase II: Evaluate success of trial update and complete update cycle.
@@ -1046,8 +1046,8 @@ class NewtonGraphGLM:
             tf.multiply(self.model_vars.params, update_theta_numeric)  # new values
         )
 
-        train_op_update_params = tf.assign(self.model_vars.params, theta_new_nr_tr)
-        train_op_update_status = tf.assign(self.model_vars.updated, update_theta)
+        train_op_update_params = tf.compat.v1.assign(self.model_vars.params, theta_new_nr_tr)
+        train_op_update_status = tf.compat.v1.assign(self.model_vars.updated, update_theta)
 
         # Update trusted region accordingly:
         decrease_radius = tf.logical_or(
@@ -1066,7 +1066,7 @@ class NewtonGraphGLM:
             tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, dtype))
         ])
         radius_new = tf.minimum(tf.multiply(radius_container, radius_update), upper_bound)
-        train_op_update_radius = tf.assign(radius_container, radius_new)
+        train_op_update_radius = tf.compat.v1.assign(radius_container, radius_new)
 
         train_ops = {
             "update": proposed_vector_container,
@@ -1124,7 +1124,7 @@ class TrainerGraphGLM:
     num_scale_params: int
     batch_size: int
 
-    session: tf.Session
+    session: tf.compat.v1.Session
     graph: tf.Graph
 
     def __init__(
@@ -1135,7 +1135,7 @@ class TrainerGraphGLM:
             dtype
     ):
         with tf.name_scope("training_graphs"):
-            global_step = tf.train.get_or_create_global_step()
+            global_step = tf.compat.v1.train.get_or_create_global_step()
 
             if (train_loc or train_scale) and self.batched_data_model is not None:
                 logger.debug(" ** building batched trainers")
@@ -1150,7 +1150,7 @@ class TrainerGraphGLM:
                     train_ops_irls_gd_tr=self.train_ops_irls_gd_tr_batched,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    apply_gradients=lambda grad: tf.where(tf.math.is_nan(grad), tf.zeros_like(grad), grad),
                     provide_optimizers=provide_optimizers,
                     name="batch_data_trainers"
                 )
@@ -1173,7 +1173,7 @@ class TrainerGraphGLM:
                     train_ops_irls_gd_tr=self.train_ops_irls_gd_tr_full,
                     learning_rate=self.learning_rate,
                     global_step=global_step,
-                    apply_gradients=lambda grad: tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad),
+                    apply_gradients=lambda grad: tf.where(tf.math.is_nan(grad), tf.zeros_like(grad), grad),
                     provide_optimizers=provide_optimizers,
                     name="full_data_trainers"
                 )
@@ -1297,7 +1297,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             dtype=dtype
         )
 
-        self.learning_rate = tf.placeholder(dtype, shape=(), name="learning_rate")
+        self.learning_rate = tf.compat.v1.placeholder(dtype, shape=(), name="learning_rate")
 
     def _run_trainer_init(
             self,
@@ -1336,7 +1336,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
         )
 
         with tf.name_scope("init_op"):
-            self.init_op = tf.global_variables_initializer()
+            self.init_op = tf.compat.v1.global_variables_initializer()
             self.init_ops = []
 
     def _set_out_var(

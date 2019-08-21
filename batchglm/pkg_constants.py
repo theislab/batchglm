@@ -16,11 +16,11 @@ EVAL_ON_BATCHED = False
 
 XARRAY_NETCDF_ENGINE = "h5netcdf"
 
-TF_CONFIG_PROTO = tf.ConfigProto()
+TF_CONFIG_PROTO = tf.compat.v1.ConfigProto()
 TF_CONFIG_PROTO.allow_soft_placement = True
 TF_CONFIG_PROTO.log_device_placement = False
 TF_CONFIG_PROTO.gpu_options.allow_growth = True
-TF_CONFIG_PROTO.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+TF_CONFIG_PROTO.graph_options.optimizer_options.global_jit_level = tf.compat.v1.OptimizerOptions.ON_1
 
 TF_CONFIG_PROTO.inter_op_parallelism_threads = TF_NUM_THREADS
 TF_CONFIG_PROTO.intra_op_parallelism_threads = TF_NUM_THREADS
@@ -32,9 +32,9 @@ if TF_NUM_THREADS == 0:
 TRUST_REGION_RADIUS_INIT = 100.
 TRUST_REGION_ETA0 = 0.
 TRUST_REGION_ETA1 = 0.25
-TRUST_REGION_ETA2 = 0.25  # Allow expansion if not shrinking.
-TRUST_REGION_T1 = 0.01  # Fast collapse to avoid trailing.
-TRUST_REGION_T2 = 10.
+TRUST_REGION_ETA2 = 0.25
+TRUST_REGION_T1 = 0.5  # Fast collapse to avoid trailing.
+TRUST_REGION_T2 = 1.5  # Allow expansion if not shrinking.
 TRUST_REGION_UPPER_BOUND = 1e5
 
 # Convergence hyper-parameters:

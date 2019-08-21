@@ -260,7 +260,8 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
             data_set = tf.data.Dataset.from_tensor_slices((
                 tf.range(num_observations, name="sample_index")
             ))
-            data_set = data_set.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=2 * batch_size))
+            data_set = data_set.shuffle(buffer_size=2 * batch_size)
+            data_set = data_set.repeat()
             data_set = data_set.batch(batch_size, drop_remainder=True)
             data_set = data_set.map(tf.contrib.framework.sort)  # sort indices - TODO why?
             data_set = data_set.map(fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
@@ -276,7 +277,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
                 return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
             data_set = data_set.map(map_sparse, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
-            iterator = data_set.make_one_shot_iterator()  # tf.compat.v1.data.make_one_shot_iterator(data_set) TODO: replace with tf>=v1.13
+            iterator = tf.compat.v1.data.make_one_shot_iterator(data_set)
 
             batch_sample_index, batch_data = iterator.get_next()
 
@@ -492,7 +493,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             with tf.name_scope("full_data"):
                 logger.debug("building full data model")
                 # ### alternative definitions for custom observations:
-                sample_selection = tf.placeholder_with_default(
+                sample_selection = tf.compat.v1.placeholder_with_default(
                     tf.range(num_observations),
                     shape=(None,),
                     name="sample_selection"
@@ -529,8 +530,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             )
             self.loss = self.full_data_model.loss_final
             self.log_likelihood = self.full_data_model.log_likelihood_final
-            self.hessians = self.full_data_model.hessians_final
-            self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians_final)  # TODO switch for fim?
+            self.hessian = self.full_data_model.hessians_final
+            self.fisher_inv = tf.linalg.inv(-self.full_data_model.hessians_final)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
             self.gradients = tf.reduce_sum(tf.abs(self.full_data_model.neg_jac_final / num_observations), axis=1)
 
@@ -541,5 +542,5 @@ class EstimatorGraphAll(EstimatorGraphGLM):
                 tf.summary.scalar('loss', self.full_data_model.loss)
                 tf.summary.scalar('learning_rate', self.learning_rate)
 
-        self.saver = tf.train.Saver()
-        self.merged_summary = tf.summary.merge_all()
+        self.saver = tf.compat.v1.train.Saver()
+        self.merged_summary = tf.compat.v1.summary.merge_all()

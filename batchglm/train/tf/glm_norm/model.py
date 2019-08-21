@@ -92,14 +92,14 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         
         # Inverse linker functions:
         model_loc = eta_loc
-        model_scale = tf.exp(eta_scale)
+        model_scale = tf.math.exp(eta_scale)
 
         # Log-likelihood:
         const = tf.constant(-0.5 * np.log(2 * np.pi), shape=(), dtype=dtype)
-        if isinstance(X, tf.SparseTensor) or isinstance(X, tf.SparseTensorValue):
+        if isinstance(X, tf.SparseTensor):
             log_probs = const - \
                         eta_scale - \
-                        0.5 * tf.square(tf.divide(
+                        0.5 * tf.math.square(tf.divide(
                             tf.sparse.add(X, - model_loc),
                             model_scale
                         ))
@@ -107,7 +107,7 @@ class BasicModelGraph(ProcessModel, BasicModelGraphGLM):
         else:
             log_probs = const - \
                         eta_scale - \
-                        0.5 * tf.square(tf.divide(
+                        0.5 * tf.math.square(tf.divide(
                             X - model_loc,
                             model_scale
                         ))

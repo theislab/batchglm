@@ -14,8 +14,7 @@ class FIM(FIMGLMALL):
             loc,
             scale
     ):
-        scalar_one = tf.constant(1, shape=(), dtype=self.dtype)
-        W = tf.square(tf.divide(scalar_one, scale))
+        W = tf.square(tf.divide(tf.ones_like(scale), scale))
 
         return W
 
@@ -24,7 +23,6 @@ class FIM(FIMGLMALL):
             loc,
             scale
     ):
-        scalar_two = tf.constant(2, shape=(), dtype=self.dtype)
-        W = scalar_two * tf.ones_like(loc)
+        W = tf.constant(2, shape=loc.shape, dtype=self.dtype)
 
         return W

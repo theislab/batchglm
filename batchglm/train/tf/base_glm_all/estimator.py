@@ -1,17 +1,16 @@
 import abc
-from typing import Union
-import logging
 from enum import Enum
-
-import tensorflow as tf
-
+import logging
 import numpy as np
+import scipy.sparse
+import tensorflow as tf
+from typing import Union
 
 from .estimator_graph import EstimatorGraphAll
-from .external import MonitoredTFEstimator, InputData, SparseXArrayDataArray
+from .external import _TFEstimator, InputDataGLM, _EstimatorGLM
 
 
-class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
+class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs).
     """
@@ -25,7 +24,7 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            input_data: InputData,
+            input_data: InputDataGLM,
             batch_size: int,
             graph: tf.Graph,
             init_a: Union[np.ndarray],
@@ -101,12 +100,11 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             if len(idx.shape) == 0:
                 idx = tf.expand_dims(idx, axis=0)
 
-            if isinstance(input_data.X, SparseXArrayDataArray):
-                X_tensor_idx, X_tensor_val, X_shape = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
-                    func=input_data.fetch_X_sparse,
+            if isinstance(input_data.x, scipy.sparse.csr_matrix):
+                X_tensor_idx, X_tensor_val, X_shape = tf.py_function(
+                    func=input_data.fetch_x_sparse,
                     inp=[idx],
-                    Tout=[np.int64, np.float64, np.int64],
-                    stateful=False  #  TODO: remove with tf>=v1.13
+                    Tout=[np.int64, np.float64, np.int64]
                 )
                 # Note on Tout: np.float64 for val seems to be required to avoid crashing v1.12.
                 X_tensor_idx = tf.cast(X_tensor_idx, dtype=tf.int64)
@@ -114,39 +112,35 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 X_tensor_val = tf.cast(X_tensor_val, dtype=dtype)
                 X_tensor = (X_tensor_idx, X_tensor_val, X_shape)
             else:
-                X_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
-                    func=input_data.fetch_X_dense,
+                X_tensor = tf.py_function(
+                    func=input_data.fetch_x_dense,
                     inp=[idx],
-                    Tout=input_data.X.dtype,
-                    stateful=False  #  TODO: remove with tf>=v1.13
+                    Tout=input_data.x.dtype
                 )
                 X_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_features])
                 X_tensor = (tf.cast(X_tensor, dtype=dtype),)
 
-            design_loc_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+            design_loc_tensor = tf.py_function(
                 func=input_data.fetch_design_loc,
                 inp=[idx],
-                Tout=input_data.design_loc.dtype,
-                stateful=False  #  TODO: remove with tf>=v1.13
+                Tout=input_data.design_loc.dtype
             )
             design_loc_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_loc_params])
             design_loc_tensor = tf.cast(design_loc_tensor, dtype=dtype)
 
-            design_scale_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+            design_scale_tensor = tf.py_function(
                 func=input_data.fetch_design_scale,
                 inp=[idx],
-                Tout=input_data.design_scale.dtype,
-                stateful=False  #  TODO: remove with tf>=v1.13
+                Tout=input_data.design_scale.dtype
             )
             design_scale_tensor.set_shape(idx.get_shape().as_list() + [input_data.num_design_scale_params])
             design_scale_tensor = tf.cast(design_scale_tensor, dtype=dtype)
 
             if input_data.size_factors is not None and noise_model in ["nb", "norm"]:
-                size_factors_tensor = tf.py_func(  #tf.py_function( TODO: replace with tf>=v1.13
+                size_factors_tensor = tf.py_function(
                     func=input_data.fetch_size_factors,
                     inp=[idx],
-                    Tout=input_data.size_factors.dtype,
-                    stateful=False  #  TODO: remove with tf>=v1.13
+                    Tout=input_data.size_factors.dtype
                 )
                 size_factors_tensor.set_shape(idx.get_shape())
                 size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
@@ -160,23 +154,26 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
             # return idx, data
             return idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
+        _TFEstimator.__init__(
+            self=self
+        )
         with graph.as_default():
             # create model
             model = EstimatorGraph(
                 fetch_fn=fetch_fn,
-                feature_isnonzero=self.input_data.feature_isnonzero,
-                num_observations=self.input_data.num_observations,
-                num_features=self.input_data.num_features,
-                num_design_loc_params=self.input_data.num_design_loc_params,
-                num_design_scale_params=self.input_data.num_design_scale_params,
-                num_loc_params=self.input_data.num_loc_params,
-                num_scale_params=self.input_data.num_scale_params,
-                batch_size=batch_size,
+                feature_isnonzero=input_data.feature_isnonzero,
+                num_observations=input_data.num_observations,
+                num_features=input_data.num_features,
+                num_design_loc_params=input_data.num_design_loc_params,
+                num_design_scale_params=input_data.num_design_scale_params,
+                num_loc_params=input_data.num_loc_params,
+                num_scale_params=input_data.num_scale_params,
+                batch_size=np.min([batch_size, input_data.x.shape[0]]),
                 graph=graph,
                 init_a=init_a,
                 init_b=init_b,
-                constraints_loc=self.input_data.constraints_loc,
-                constraints_scale=self.input_data.constraints_scale,
+                constraints_loc=input_data.constraints_loc,
+                constraints_scale=input_data.constraints_scale,
                 provide_optimizers=provide_optimizers,
                 provide_batched=provide_batched,
                 provide_fim=provide_fim,
@@ -187,13 +184,16 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 noise_model=self.noise_model,
                 dtype=dtype
             )
-
-        MonitoredTFEstimator.__init__(self, model)
         model.session = self.session
+        _EstimatorGLM.__init__(
+            self=self,
+            model=model,
+            input_data=input_data
+        )
 
     def _scaffold(self):
         with self.model.graph.as_default():
-            scaffold = tf.train.Scaffold(
+            scaffold = tf.compat.v1.train.Scaffold(
                 init_op=self.model.init_op,
                 summary_op=self.model.merged_summary,
                 saver=self.model.saver,
@@ -317,53 +317,39 @@ class EstimatorAll(MonitoredTFEstimator, metaclass=abc.ABCMeta):
                 **kwargs
             )
 
-    @property
-    def input_data(self):
-        return self._input_data
-
-    @property
-    def a_var(self):
-        return self.to_xarray("a_var", coords=self.input_data.data.coords)
-
-    @property
-    def b_var(self):
-        return self.to_xarray("b_var", coords=self.input_data.data.coords)
-
-    @property
-    def loss(self):
-        return self.to_xarray("loss")
-
-    @property
-    def log_likelihood(self):
-        return self.to_xarray("log_likelihood", coords=self.input_data.data.coords)
-
-    @property
-    def gradients(self):
-        return self.to_xarray("gradients", coords=self.input_data.data.coords)
-
-    @property
-    def hessians(self):
-        return self.to_xarray("hessians", coords=self.input_data.data.coords)
-
-    @property
-    def fisher_inv(self):
-        return self.to_xarray("fisher_inv", coords=self.input_data.data.coords)
-
     def finalize(self):
-        if self.noise_model == "nb":
-            from .external_nb import EstimatorStoreXArray
-        elif self.noise_model == "norm":
-            from .external_norm import EstimatorStoreXArray
-        elif self.noise_model == "beta":
-            from .external_beta import EstimatorStoreXArray
-        else:
-            raise ValueError("noise model not recognized")
+        """
+        Evaluate all tensors that need to be exported from session and save these as class attributes
+        and close session.
 
+        Changes .model entry from tf-based EstimatorGraph to numpy based Model instance and
+        transfers relevant attributes.
+        """
         self.session.run(self.model.full_data_model.final_set)
-        store = EstimatorStoreXArray(self)
+        a_var = self.session.run(self.model.a_var)
+        b_var = self.session.run(self.model.b_var)
+        fisher_inv = self.session.run(self.model.fisher_inv)
+        hessian = self.session.run(self.model.hessian)
+        jacobian = self.session.run(self.model.gradients)
+        log_likelihood = self.session.run(self.model.log_likelihood)
+        loss = self.session.run(self.model.loss)
         logging.getLogger("batchglm").debug("Closing session")
         self.close_session()
-        return store
+        self.model = self.get_model_container(self.input_data)
+        self.model._a_var = a_var
+        self.model._b_var = b_var
+        self._fisher_inv = fisher_inv
+        self._hessian = hessian
+        self._jacobian = jacobian
+        self._log_likelihood = log_likelihood
+        self._loss = loss
+
+    @abc.abstractmethod
+    def get_model_container(
+            self,
+            input_data
+    ):
+        pass
 
     @abc.abstractmethod
     def init_par(

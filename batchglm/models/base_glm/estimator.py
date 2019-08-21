@@ -6,43 +6,28 @@ try:
 except ImportError:
     anndata = None
 
-from .model import MODEL_PARAMS
-from .external import _Estimator_Base, _EstimatorStore_XArray_Base
+from .external import _EstimatorBase
+from .input import InputDataGLM
+from .model import _ModelGLM
 
-ESTIMATOR_PARAMS = MODEL_PARAMS.copy()
-ESTIMATOR_PARAMS.update({
-    "loss": (),
-    "log_likelihood": ("features",),
-    "gradients": ("features",),
-    "hessians": ("features", "delta_var0", "delta_var1"),
-    "fisher_inv": ("features", "delta_var0", "delta_var1"),
-})
 
-class _Estimator_GLM(_Estimator_Base, metaclass=abc.ABCMeta):
+class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
     r"""
     Estimator base class for generalized linear models (GLMs).
     """
+    model: _ModelGLM
+    input_data: InputDataGLM
 
-class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
-
-    def __init__(self):
-        super(_EstimatorStore_XArray_Base, self).__init__()
-
-    @property
-    def log_likelihood(self):
-        return self.params["log_likelihood"]
-
-    @property
-    def gradients(self):
-        return self.params["gradients"]
-
-    @property
-    def hessians(self):
-        return self.params["hessians"]
-
-    @property
-    def fisher_inv(self):
-        return self.params["fisher_inv"]
+    def __init__(
+            self,
+            model: _ModelGLM,
+            input_data: InputDataGLM
+    ):
+        _EstimatorBase.__init__(
+            self=self,
+            model=model,
+            input_data=input_data
+        )
 
     def plot_coef_a_vs_ref(
             self,
@@ -70,12 +55,14 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.a_var.shape), "true_values must have same dimensions as self.a_var"
-        assert np.all(true_values.shape == self.a_var.shape), "true_values must have same dimensions as self.a_var"
+        assert len(true_values.shape) == len(self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
+        assert np.all(true_values.shape == self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.a_var,
+            estim_values=self.model.a_var,
             size=size,
             log=log,
             save=save,
@@ -113,12 +100,14 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.b_var.shape), "true_values must have same dimensions as self.b_var"
-        assert np.all(true_values.shape == self.b_var.shape), "true_values must have same dimensions as self.b_var"
+        assert len(true_values.shape) == len(self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
+        assert np.all(true_values.shape == self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.b_var,
+            estim_values=self.model.b_var,
             size=size,
             log=log,
             save=save,
@@ -148,12 +137,14 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.a_var.shape), "true_values must have same dimensions as self.a_var"
-        assert np.all(true_values.shape == self.a_var.shape), "true_values must have same dimensions as self.a_var"
+        assert len(true_values.shape) == len(self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
+        assert np.all(true_values.shape == self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
 
         return self._plot_deviation(
             true_values=true_values,
-            estim_values=self.a_var,
+            estim_values=self.model.a_var,
             save=save,
             show=show,
             title="location_model",
@@ -178,12 +169,14 @@ class _EstimatorStore_XArray_GLM(_EstimatorStore_XArray_Base):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.b_var.shape), "true_values must have same dimensions as self.b_var"
-        assert np.all(true_values.shape == self.b_var.shape), "true_values must have same dimensions as self.b_var"
+        assert len(true_values.shape) == len(self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
+        assert np.all(true_values.shape == self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
 
         return self._plot_deviation(
             true_values=true_values,
-            estim_values=self.b_var,
+            estim_values=self.model.b_var,
             save=save,
             show=show,
             title="scale_model",

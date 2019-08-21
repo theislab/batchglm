@@ -1,10 +1,10 @@
 import numpy as np
 
 from .model import Model
-from .external import rand_utils, _Simulator_GLM
+from .external import _SimulatorGLM, InputDataGLM
 
 
-class Simulator(_Simulator_GLM, Model):
+class Simulator(_SimulatorGLM, Model):
     """
     Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
@@ -15,9 +15,9 @@ class Simulator(_Simulator_GLM, Model):
             num_observations=1000,
             num_features=100
     ):
-        Model.__init__(self)
-        _Simulator_GLM.__init__(
-            self,
+        _SimulatorGLM.__init__(
+            self=self,
+            model=None,
             num_observations=num_observations,
             num_features=num_features
         )
@@ -41,7 +41,15 @@ class Simulator(_Simulator_GLM, Model):
         """
         Sample random data based on negative binomial distribution and parameters.
         """
-        self.data["X"] = (
-            self.param_shapes()["X"],
-            rand_utils.NegativeBinomial(mean=self.mu, r=self.r).sample()
+        data_matrix = np.random.negative_binomial(
+            n=self.phi,
+            p=1 - self.mu / (self.phi + self.mu),
+            size=None
+        )
+        self.input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=self.sim_design_loc,
+            design_scale=self.sim_design_scale,
+            design_loc_names=None,
+            design_scale_names=None
         )

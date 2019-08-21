@@ -1,18 +1,13 @@
-from copy import copy, deepcopy
-from typing import Union
-
 import numpy as np
 import scipy.sparse
-import xarray as xr
+from typing import Union
 
 from .external import closedform_glm_mean, closedform_glm_scale
-from .external import weighted_mean
-from .external import SparseXArrayDataArray
 
 
 def closedform_beta_glm_logitmean(
-        X: Union[xr.DataArray, SparseXArrayDataArray],
-        design_loc,
+        x: Union[np.ndarray, scipy.sparse.csr_matrix],
+        design_loc: np.ndarray,
         constraints_loc,
         size_factors=None,
         link_fn=lambda x: np.log(1/(1/x-1)),
@@ -21,7 +16,7 @@ def closedform_beta_glm_logitmean(
     r"""
     Calculates a closed-form solution for the `mean` parameters of beta GLMs.
 
-    :param X: The sample data
+    :param x: The sample data
     :param design_loc: design matrix for location
     :param constraints: tensor (all parameters x dependent parameters)
         Tensor that encodes how complete parameter set which includes dependent
@@ -31,28 +26,28 @@ def closedform_beta_glm_logitmean(
     :return: tuple: (groupwise_means, mean, rmsd)
     """
     return closedform_glm_mean(
-        X=X,
+        x=x,
         dmat=design_loc,
         constraints=constraints_loc,
         size_factors=size_factors,
-        weights=None,
         link_fn=link_fn,
         inv_link_fn=inv_link_fn
     )
 
 
 def closedform_beta_glm_logsamplesize(
-        X: Union[xr.DataArray, SparseXArrayDataArray],
-        design_scale: xr.DataArray,
+        x: Union[np.ndarray, scipy.sparse.csr_matrix],
+        design_scale: np.ndarray,
         constraints=None,
         size_factors=None,
         groupwise_means=None,
-        link_fn=np.log
+        link_fn=np.log,
+        invlink_fn=np.exp
 ):
     r"""
     Calculates a closed-form solution for the log-scale parameters of beta GLMs.
 
-    :param X: The sample data
+    :param x: The sample data
     :param design_scale: design matrix for scale
     :param constraints: some design constraints
     :param size_factors: size factors for X
@@ -65,11 +60,12 @@ def closedform_beta_glm_logsamplesize(
         return groupwise_scales
 
     return closedform_glm_scale(
-        X=X,
+        x=x,
         design_scale=design_scale,
         constraints=constraints,
         size_factors=size_factors,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
+        inv_link_fn=invlink_fn,
         compute_scales_fun=compute_scales_fun
     )

@@ -17,18 +17,13 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=[
-        'tensorflow>=1.10.0',
-        'tensorflow-probability',
-        'numpy>=1.14.0',
-        'scipy',
+        'tensorflow==1.14.0',
+        'tensorflow-probability>=0.7',
+        'numpy==1.16.4',
+        'scipy>=1.2.1',
         'pandas',
-        'xarray',
         'dask',
-        # HDF5 / NetCDF support
-        'h5netcdf',
-        'netcdf4',  # currently needed for 'xr.open_mfdataset'
         'toolz',
-        # design matrix generation
         'patsy',
     ],
     extras_require={
@@ -36,23 +31,13 @@ setup(
             "scanpy",
             "anndata"
         ],
-        # 'plotting_deps': [
-        #     "matplotlib",
-        #     "plotnine",
-        #     "seaborn"
-        # ],
+        'plotting_deps': [
+             "matplotlib",
+             "seaborn"
+        ],
         'tensorflow_gpu': [
             "tensorflow-gpu",
             "tensorflow-probability-gpu",
-        ],
-        'benchmarks': [
-            'PyYAML',
-            "plotnine",
-            "matplotlib",
-        ],
-        'tutorials': [
-            'sklearn',
-            'mlxtend',
         ],
         'docs': [
             'sphinx',
