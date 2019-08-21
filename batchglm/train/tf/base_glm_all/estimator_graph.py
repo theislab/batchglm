@@ -530,8 +530,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             )
             self.loss = self.full_data_model.loss_final
             self.log_likelihood = self.full_data_model.log_likelihood_final
-            self.hessians = self.full_data_model.hessians_final
-            self.fisher_inv = op_utils.pinv(-self.full_data_model.hessians_final)  # TODO switch for fim?
+            self.hessian = self.full_data_model.hessians_final
+            self.fisher_inv = tf.linalg.inv(-self.full_data_model.hessians_final)  # TODO switch for fim?
             # Summary statistics on feature-wise model gradients:
             self.gradients = tf.reduce_sum(tf.abs(self.full_data_model.neg_jac_final / num_observations), axis=1)
 

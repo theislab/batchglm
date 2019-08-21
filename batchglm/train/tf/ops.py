@@ -33,26 +33,6 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
         return perm1
 
 
-def pinv(matrix, threshold=1e-5):
-    """
-    Calculate the Moore-Penrose pseudo-inverse of the last two dimensions of some matrix.
-
-    E.g. if `matrix` has some shape [..., K, L, M, N], this method will inverse each [M, N] matrix.
-
-    :param matrix: The matrix to invert
-    :param threshold: threshold value
-    :return: the pseudo-inverse of `matrix`
-    """
-
-    s, u, v = tf.linalg.svd(matrix)  # , full_matrices=True, compute_uv=True)
-
-    adj_threshold = tf.reduce_max(s, axis=-1, keepdims=True) * threshold
-    s_inv = tf.where(s > tf.broadcast_to(adj_threshold, s.shape), tf.math.reciprocal(s), tf.zeros_like(s))
-    s_inv = tf.linalg.diag(s_inv)
-
-    return v @ (s_inv @ swap_dims(u, axis0=-1, axis1=-2))
-
-
 def stacked_lstsq(L, b, rcond=1e-10, name="stacked_lstsq"):
     r"""
     Solve `Lx = b`, via SVD least squares cutting of small singular values

@@ -34,7 +34,7 @@ TRUST_REGION_ETA0 = 0.
 TRUST_REGION_ETA1 = 0.25
 TRUST_REGION_ETA2 = 0.25
 TRUST_REGION_T1 = 0.5  # Fast collapse to avoid trailing.
-TRUST_REGION_T2 = 2.  # Allow expansion if not shrinking.
+TRUST_REGION_T2 = 1.5  # Allow expansion if not shrinking.
 TRUST_REGION_UPPER_BOUND = 1e5
 
 # Convergence hyper-parameters:
