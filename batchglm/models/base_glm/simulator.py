@@ -45,7 +45,7 @@ def generate_sample_description(
             observations=np.random.permutation(sample_description.observations.values)
         )
 
-    return np.asarray(patsy.dmatrix("~1+condition+batch", sample_description))
+    return np.asarray(patsy.dmatrix("~1+condition+batch", sample_description)), sample_description
 
 
 class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
@@ -54,7 +54,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     """
     design_loc: patsy.design_info.DesignMatrix
     design_scale: patsy.design_info.DesignMatrix
-    x: np.ndarray
+    sample_description: pandas.DataFrame
 
     def __init__(
             self,
@@ -70,6 +70,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         )
         self.sim_design_loc = None
         self.sim_design_scale = None
+        self.sample_description = None
         self.sim_a_var = None
         self.sim_b_var = None
 
@@ -79,7 +80,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             num_batches=4,
             **kwargs
     ):
-        self.sim_design_loc = generate_sample_description(
+        self.sim_design_loc, self.sample_description = generate_sample_description(
             self.nobs,
             num_conditions=num_conditions,
             num_batches=num_batches,

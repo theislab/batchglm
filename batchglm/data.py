@@ -142,7 +142,6 @@ def constraint_system_from_star(
         formula: Union[None, str] = None,
         as_categorical: Union[bool, list] = True,
         constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
-        dims: Union[Tuple[str, str], List[str]] = (),
         return_type: str = "xarray",
 ) -> Tuple:
     """
@@ -194,9 +193,6 @@ def constraint_system_from_star(
         - None:
             No constraints are used, this is equivalent to using an identity matrix as a
             constraint matrix.
-    :param dims: Dimension names of xarray.
-
-        E.g.: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
     :param return_type: type of the returned value.
 
         - "patsy": return plain patsy.design_info.DesignMatrix object
@@ -224,14 +220,12 @@ def constraint_system_from_star(
             sample_description=sample_description,
             formula=formula,
             as_categorical=as_categorical,
-            constraints=constraints,
-            dims=dims
+            constraints=constraints
         )
     elif isinstance(constraints, tuple) or isinstance(constraints, list):
         cmat = constraint_matrix_from_string(
             dmat=dmat,
-            constraints=constraints,
-            dims=dims
+            constraints=constraints
         )
     elif isinstance(constraints, np.ndarray):
         cmat = parse_constraints
@@ -247,8 +241,7 @@ def constraint_matrix_from_dict(
         sample_description: pd.DataFrame,
         formula: str,
         as_categorical: Union[bool, list] = True,
-        constraints: dict = {},
-        dims: Union[Tuple[str, str], List[str]] = ()
+        constraints: dict = {}
 ) -> Tuple:
     """
     Create a design matrix from some sample description and a constraint matrix
@@ -278,13 +271,9 @@ def constraint_matrix_from_dict(
 
         Can only group by non-constrained effects right now, use constraint_matrix_from_string
         for other cases.
-    :param dims: Dimension names of xarray.
-
-        E.g.: ["design_loc_params", "loc_params"] or ["design_scale_params", "scale_params"]
     :return: a model design matrix
     """
     assert len(constraints) > 0, "supply constraints"
-    assert len(dims) == 2, "supply 2 dimension names in dim"
     sample_description: pd.DataFrame = sample_description.copy()
 
     if type(as_categorical) is not bool or as_categorical:

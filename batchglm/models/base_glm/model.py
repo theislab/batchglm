@@ -32,6 +32,8 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
             self=self,
             input_data=input_data
         )
+        self._a_var = None
+        self._b_var = None
 
     @property
     def design_loc(self) -> np.ndarray:
@@ -85,14 +87,12 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
             return self.input_data.size_factors
 
     @property
-    @abc.abstractmethod
     def a_var(self) -> np.ndarray:
-        pass
+        return self._a_var
 
     @property
-    @abc.abstractmethod
     def b_var(self) -> np.ndarray:
-        pass
+        return self._b_var
 
     @property
     def a(self) -> np.ndarray:

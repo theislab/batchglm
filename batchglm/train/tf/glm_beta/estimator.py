@@ -139,6 +139,12 @@ class Estimator(TFEstimatorGLM, ProcessModel):
             dtype=dtype
         )
 
+    def get_model_container(
+            self,
+            input_data
+    ):
+        return Model(input_data=input_data)
+
     def init_par(
             self,
             input_data,

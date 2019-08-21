@@ -139,6 +139,12 @@ class Estimator(TFEstimatorGLM, ProcessModel):
             dtype=dtype
         )
 
+    def get_model_container(
+            self,
+            input_data
+    ):
+        return Model(input_data=input_data)
+
     def init_par(
             self,
             input_data,
@@ -271,8 +277,8 @@ class Estimator(TFEstimatorGLM, ProcessModel):
         else:
             # Locations model:
             if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
-                my_loc_names = set(input_data.loc_names.values)
-                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names.values))
+                my_loc_names = set(input_data.loc_names)
+                my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names))
 
                 init_loc = np.zeros([input_data.num_loc_params, input_data.num_features])
                 for parm in my_loc_names:
@@ -285,8 +291,8 @@ class Estimator(TFEstimatorGLM, ProcessModel):
 
             # Scale model:
             if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
-                my_scale_names = set(input_data.scale_names.values)
-                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names.values)
+                my_scale_names = set(input_data.scale_names)
+                my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names)
 
                 init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
                 for parm in my_scale_names:

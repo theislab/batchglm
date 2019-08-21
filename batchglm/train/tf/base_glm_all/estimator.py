@@ -321,17 +321,35 @@ class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         """
         Evaluate all tensors that need to be exported from session and save these as class attributes
         and close session.
+
+        Changes .model entry from tf-based EstimatorGraph to numpy based Model instance and
+        transfers relevant attributes.
         """
         self.session.run(self.model.full_data_model.final_set)
-        self._a_var = self.session.run(self.model.a_var)
-        self._b_var = self.session.run(self.model.b_var)
-        self._fisher_inv = self.session.run(self.model.fisher_inv)
-        self._hessians = self.session.run(self.model.hessians)
-        self._jacobian = self.session.run(self.model.gradients)
-        self._log_likelihood = self.session.run(self.model.log_likelihood)
-        self._loss = self.session.run(self.model.loss)
+        a_var = self.session.run(self.model.a_var)
+        b_var = self.session.run(self.model.b_var)
+        fisher_inv = self.session.run(self.model.fisher_inv)
+        hessians = self.session.run(self.model.hessians)
+        jacobian = self.session.run(self.model.gradients)
+        log_likelihood = self.session.run(self.model.log_likelihood)
+        loss = self.session.run(self.model.loss)
         logging.getLogger("batchglm").debug("Closing session")
         self.close_session()
+        self.model = self.get_model_container(self.input_data)
+        self.model._a_var = a_var
+        self.model._b_var = b_var
+        self.model._fisher_inv = fisher_inv
+        self.model._hessians = hessians
+        self.model._jacobian = jacobian
+        self.model._log_likelihood = log_likelihood
+        self.model._loss = loss
+
+    @abc.abstractmethod
+    def get_model_container(
+            self,
+            input_data
+    ):
+        pass
 
     @abc.abstractmethod
     def init_par(

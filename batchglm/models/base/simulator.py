@@ -61,3 +61,8 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         Should generate all necessary parameters.
         """
         pass
+
+    @property
+    def x(self) -> np.ndarray:
+        return self.input_data.x
+

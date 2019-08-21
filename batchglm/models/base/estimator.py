@@ -36,6 +36,10 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         self._loss = None
         self._log_likelihood = None
         self._jacobian = None
+        self._hessian = None
+        self._fisher_inv = None
+        self._error_codes = None
+        self._niter = None
 
     @property
     def loss(self):
@@ -48,6 +52,18 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
     @property
     def jacobian(self):
         return self._jacobian
+
+    @property
+    def hessian(self):
+        return self._hessian
+
+    @property
+    def fisher_inv(self):
+        return self._fisher_inv
+
+    @property
+    def x(self) -> np.ndarray:
+        return self.input_data.x
 
     @abc.abstractmethod
     def initialize(self, **kwargs):

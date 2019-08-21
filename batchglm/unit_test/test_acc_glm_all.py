@@ -114,8 +114,8 @@ class _TestAccuracyGlmAllEstim:
 
         success = True
         if train_loc:
-            mean_rel_dev_a = np.mean((self.estimator.a_var - self.sim.a_var) / self.sim.a_var)
-            std_rel_dev_a = np.std((self.estimator.a_var - self.sim.a_var) / self.sim.a_var)
+            mean_rel_dev_a = np.mean((self.estimator.model.a_var - self.sim.a_var) / self.sim.a_var)
+            std_rel_dev_a = np.std((self.estimator.model.a_var - self.sim.a_var) / self.sim.a_var)
 
             logging.getLogger("batchglm").info("mean_rel_dev_a %f" % mean_rel_dev_a)
             logging.getLogger("batchglm").info("std_rel_dev_a %f" % std_rel_dev_a)
@@ -123,8 +123,8 @@ class _TestAccuracyGlmAllEstim:
             if np.abs(mean_rel_dev_a) > threshold_dev_a or std_rel_dev_a > threshold_std_a:
                 success = False
         if train_scale:
-            mean_rel_dev_b = np.mean((self.estimator.b_var - self.sim.b_var) / self.sim.b_var)
-            std_rel_dev_b = np.std((self.estimator.b_var - self.sim.b_var) / self.sim.b_var)
+            mean_rel_dev_b = np.mean((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
+            std_rel_dev_b = np.std((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
 
             logging.getLogger("batchglm").info("mean_rel_dev_b %f" % mean_rel_dev_b)
             logging.getLogger("batchglm").info("std_rel_dev_b %f" % std_rel_dev_b)

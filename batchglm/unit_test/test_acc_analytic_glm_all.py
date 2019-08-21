@@ -91,11 +91,11 @@ class _TestAccuracyAnalyticGlmAllEstim():
                 raise ValueError("noise_model not recognized")
 
         if init_a == "standard":
-            mean_dev = np.mean(self.estimator.a_var[0, :] - self.sim.a_var[0, :])
-            std_dev = np.std(self.estimator.a_var[0, :] - self.sim.a_var[0, :])
+            mean_dev = np.mean(self.estimator.model.a_var[0, :] - self.sim.a_var[0, :])
+            std_dev = np.std(self.estimator.model.a_var[0, :] - self.sim.a_var[0, :])
         elif init_a == "closed_form":
-            mean_dev = np.mean(self.estimator.a_var - self.sim.a_var)
-            std_dev = np.std(self.estimator.a_var - self.sim.a_var)
+            mean_dev = np.mean(self.estimator.model.a_var - self.sim.a_var)
+            std_dev = np.std(self.estimator.model.a_var - self.sim.a_var)
         else:
             assert False
 

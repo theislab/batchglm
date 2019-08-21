@@ -45,6 +45,8 @@ class _InputDataBase:
             self.x = data
         elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
             self.x = data.X
+        elif isinstance(data, _InputDataBase):
+            self.x = data.x
         else:
             raise ValueError("type of data %s not recognized" % type(data))
 

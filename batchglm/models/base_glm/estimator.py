@@ -32,26 +32,6 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
             model=model,
             input_data=input_data
         )
-        self._hessian = None
-        self._fisher_inv = None
-        self._a_var = None
-        self._b_var = None
-
-    @property
-    def hessian(self):
-        return self._hessian
-
-    @property
-    def fisher_inv(self):
-        return self._fisher_inv
-
-    @property
-    def a_var(self):
-        return self._a_var
-
-    @property
-    def b_var(self):
-        return self._b_var
 
     def plot_coef_a_vs_ref(
             self,
@@ -79,12 +59,14 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.a_var.shape), "true_values must have same dimensions as self.a_var"
-        assert np.all(true_values.shape == self.a_var.shape), "true_values must have same dimensions as self.a_var"
+        assert len(true_values.shape) == len(self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
+        assert np.all(true_values.shape == self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.a_var,
+            estim_values=self.model.a_var,
             size=size,
             log=log,
             save=save,
@@ -122,12 +104,14 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.b_var.shape), "true_values must have same dimensions as self.b_var"
-        assert np.all(true_values.shape == self.b_var.shape), "true_values must have same dimensions as self.b_var"
+        assert len(true_values.shape) == len(self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
+        assert np.all(true_values.shape == self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.b_var,
+            estim_values=self.model.b_var,
             size=size,
             log=log,
             save=save,
@@ -157,12 +141,14 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.a_var.shape), "true_values must have same dimensions as self.a_var"
-        assert np.all(true_values.shape == self.a_var.shape), "true_values must have same dimensions as self.a_var"
+        assert len(true_values.shape) == len(self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
+        assert np.all(true_values.shape == self.model.a_var.shape), \
+            "true_values must have same dimensions as self.a_var"
 
         return self._plot_deviation(
             true_values=true_values,
-            estim_values=self.a_var,
+            estim_values=self.model.a_var,
             save=save,
             show=show,
             title="location_model",
@@ -187,12 +173,14 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        assert len(true_values.shape) == len(self.b_var.shape), "true_values must have same dimensions as self.b_var"
-        assert np.all(true_values.shape == self.b_var.shape), "true_values must have same dimensions as self.b_var"
+        assert len(true_values.shape) == len(self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
+        assert np.all(true_values.shape == self.model.b_var.shape), \
+            "true_values must have same dimensions as self.b_var"
 
         return self._plot_deviation(
             true_values=true_values,
-            estim_values=self.b_var,
+            estim_values=self.model.b_var,
             save=save,
             show=show,
             title="scale_model",
