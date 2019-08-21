@@ -72,12 +72,14 @@ class _InputDataBase:
         return self._feature_allzero
 
     def fetch_x_dense(self, idx):
-        return self.x[idx]
+        assert isinstance(self.x, np.ndarray), "tried to fetch dense from non ndarray"
+
+        return self.x[idx, :]
 
     def fetch_x_sparse(self, idx):
-        assert isinstance(self.x, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr matrix"
+        assert isinstance(self.x, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr_matrix"
 
-        data = self.x[idx]
+        data = self.x[idx, :]
 
         data_idx = np.asarray(np.vstack(data.nonzero()).T, np.int64)
         data_val = np.asarray(data.data, np.float64)

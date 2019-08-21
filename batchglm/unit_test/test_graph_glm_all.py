@@ -34,7 +34,7 @@ class _TestGraphGlmAllEstim:
             else:
                 raise ValueError("noise_model not recognized")
 
-        batch_size = 100
+        batch_size = 200
         provide_optimizers = {
             "gd": False, "adam": False, "adagrad": False, "rmsprop": False,
             "nr": False, "nr_tr": False,

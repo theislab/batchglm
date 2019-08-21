@@ -133,10 +133,10 @@ class InputDataGLM(_InputDataBase):
         return self.constraints_scale.shape[1]
 
     def fetch_design_loc(self, idx):
-        return self.design_loc[idx]
+        return self.design_loc[idx, :]
 
     def fetch_design_scale(self, idx):
-        return self.design_scale[idx]
+        return self.design_scale[idx, :]
 
     def fetch_size_factors(self, idx):
         return self.size_factors[idx]
