@@ -17,6 +17,10 @@ class InputDataGLM(_InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
     """
+    loc_names: list
+    design_loc_names: list
+    scale_names: list
+    design_scale_names: list
 
     def __init__(
             self,
@@ -94,8 +98,8 @@ class InputDataGLM(_InputDataBase):
 
         self.design_loc = design_loc
         self.design_scale = design_scale
-        self.design_loc_names = design_loc_names
-        self.design_scale_names = design_scale_names
+        self._design_loc_names = design_loc_names
+        self._design_scale_names = design_scale_names
 
         constraints_loc, loc_names = parse_constraints(
             dmat=design_loc,
@@ -111,10 +115,26 @@ class InputDataGLM(_InputDataBase):
         )
         self.constraints_loc = constraints_loc
         self.constraints_scale = constraints_scale
-        self.loc_names = loc_names
-        self.scale_names = scale_names
+        self._loc_names = loc_names
+        self._scale_names = scale_names
 
         self.size_factors = size_factors
+
+    @property
+    def design_loc_names(self):
+        return self._design_loc_names
+
+    @property
+    def design_scale_names(self):
+        return self._design_scale_names
+
+    @property
+    def loc_names(self):
+        return self._loc_names
+
+    @property
+    def scale_names(self):
+        return self._scale_names
 
     @property
     def num_design_loc_params(self):

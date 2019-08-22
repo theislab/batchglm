@@ -7,6 +7,7 @@ except ImportError:
     anndata = None
 
 from .external import _ModelBase
+from .input import InputDataGLM
 
 
 class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
@@ -26,7 +27,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            input_data
+            input_data: InputDataGLM
     ):
         _ModelBase.__init__(
             self=self,
@@ -62,6 +63,34 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
             return None
         else:
             return self.input_data.constraints_scale
+
+    @property
+    def design_loc_names(self) -> list:
+        if self.input_data is None:
+            return None
+        else:
+            return self.input_data.design_loc_names
+
+    @property
+    def design_scale_names(self) -> list:
+        if self.input_data is None:
+            return None
+        else:
+            return self.input_data.design_scale_names
+
+    @property
+    def loc_names(self) -> list:
+        if self.input_data is None:
+            return None
+        else:
+            return self.input_data.loc_names
+
+    @property
+    def scale_names(self) -> list:
+        if self.input_data is None:
+            return None
+        else:
+            return self.input_data.scale_names
 
     @abc.abstractmethod
     def eta_loc(self) -> np.ndarray:
