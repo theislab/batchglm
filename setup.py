@@ -17,9 +17,9 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=[
-        'tensorflow==1.14.0',
+        'tensorflow>=1.14.0',
         'tensorflow-probability>=0.7',
-        'numpy==1.16.4',
+        'numpy>=1.16.4',
         'scipy>=1.2.1',
         'pandas',
         'dask',

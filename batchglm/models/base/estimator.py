@@ -291,3 +291,9 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         else:
             return
 
+
+class EstimatorBaseTyping(_EstimatorBase):
+    r"""
+    Estimator base class used for typing in other packages.
+    """
+

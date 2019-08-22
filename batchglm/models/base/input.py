@@ -90,3 +90,8 @@ class _InputDataBase:
             data_idx = np.squeeze(data_idx, axis=0)
 
         return data_idx, data_val, data_shape
+
+class InputDataBaseTyping:
+    """
+    Input data base class  used for typing in other packages.
+    """
