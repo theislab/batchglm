@@ -1,5 +1,5 @@
 from batchglm.models.base import _EstimatorBase
-from batchglm.models.base import _InputDataBase
+from batchglm.models.base import InputDataBase
 from batchglm.models.base import _ModelBase
 from batchglm.models.base import _SimulatorBase
 

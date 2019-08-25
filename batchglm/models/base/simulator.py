@@ -8,7 +8,7 @@ try:
 except ImportError:
     anndata = None
 
-from .input import _InputDataBase
+from .input import InputDataBase
 from .model import _ModelBase
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
     nobs: int
     nfeatures: int
 
-    input_data: _InputDataBase
+    input_data: InputDataBase
     model: _ModelBase
 
     def __init__(

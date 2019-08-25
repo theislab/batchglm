@@ -11,7 +11,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class _InputDataBase:
+class InputDataBase:
     """
     Base class for all input data types.
     """
@@ -45,7 +45,7 @@ class _InputDataBase:
             self.x = data
         elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
             self.x = data.X
-        elif isinstance(data, _InputDataBase):
+        elif isinstance(data, InputDataBase):
             self.x = data.x
         else:
             raise ValueError("type of data %s not recognized" % type(data))
@@ -90,8 +90,3 @@ class _InputDataBase:
             data_idx = np.squeeze(data_idx, axis=0)
 
         return data_idx, data_val, data_shape
-
-class InputDataBaseTyping:
-    """
-    Input data base class  used for typing in other packages.
-    """
