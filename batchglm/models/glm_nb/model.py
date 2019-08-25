@@ -3,7 +3,6 @@ try:
     import anndata
 except ImportError:
     anndata = None
-import xarray as xr
 import numpy as np
 
 from .external import _ModelGLM
@@ -27,7 +26,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         return np.exp(data)
 
     @property
-    def eta_loc(self) -> xr.DataArray:
+    def eta_loc(self) -> np.ndarray:
         eta = np.matmul(self.design_loc, self.a)
         if self.size_factors is not None:
             eta += np.expand_dims(self.size_factors, axis=1)
@@ -36,9 +35,9 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     # Re-parameterizations:
 
     @property
-    def mu(self) -> xr.DataArray:
+    def mu(self) -> np.ndarray:
         return self.location
 
     @property
-    def phi(self) -> xr.DataArray:
+    def phi(self) -> np.ndarray:
         return self.scale

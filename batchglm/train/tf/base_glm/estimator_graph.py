@@ -4,7 +4,6 @@ from typing import Union
 
 import numpy as np
 import tensorflow as tf
-import xarray as xr
 
 try:
     import anndata
@@ -1243,8 +1242,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             num_scale_params: int,
             graph: tf.Graph,
             batch_size: int,
-            constraints_loc: xr.DataArray,
-            constraints_scale: xr.DataArray,
+            constraints_loc: np.ndarray,
+            constraints_scale: np.ndarray,
             dtype: str
     ):
         """

@@ -1,8 +1,6 @@
 import logging
-
-import tensorflow as tf
-
 import numpy as np
+import tensorflow as tf
 
 from .external import ProcessModelGLM, ModelVarsGLM, BasicModelGraphGLM
 from .external import pkg_constants
