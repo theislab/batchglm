@@ -10,10 +10,10 @@ import scipy.sparse
 from typing import Union
 
 from .utils import parse_constraints, parse_design
-from .external import _InputDataBase
+from .external import InputDataBase
 
 
-class InputDataGLM(_InputDataBase):
+class InputDataGLM(InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
     """
@@ -76,7 +76,7 @@ class InputDataGLM(_InputDataBase):
             If this option is set, all provided data will be casted to this data type.
         :return: InputData object
         """
-        _InputDataBase.__init__(
+        InputDataBase.__init__(
             self=self,
             data=data,
             observation_names=observation_names,

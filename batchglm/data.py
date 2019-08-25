@@ -1,11 +1,8 @@
-import dask
-import dask.array
 import logging
 import patsy
 import pandas as pd
 import numpy as np
-import scipy.sparse
-from typing import Union, Dict, Tuple, List
+from typing import Union, Tuple, List
 
 try:
     import anndata
@@ -23,7 +20,7 @@ def design_matrix(
         formula: Union[str, None] = None,
         as_categorical: Union[bool, list] = True,
         dmat: Union[pd.DataFrame, None] = None,
-        return_type: str = "xarray",
+        return_type: str = "patsy",
 ) -> Union[patsy.design_info.DesignMatrix, pd.DataFrame]:
     """
     Create a design matrix from some sample description.
@@ -142,7 +139,7 @@ def constraint_system_from_star(
         formula: Union[None, str] = None,
         as_categorical: Union[bool, list] = True,
         constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
-        return_type: str = "xarray",
+        return_type: str = "patsy",
 ) -> Tuple:
     """
     Wrap different constraint matrix building formats with building of design matrix.

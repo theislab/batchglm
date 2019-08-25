@@ -22,7 +22,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
     def __init__(
             self,
             input_data: InputDataGLM,
-            batch_size: int = 500,
+            batch_size: int = 512,
             graph: tf.Graph = None,
             init_model: Model = None,
             init_a: Union[np.ndarray, str] = "AUTO",
