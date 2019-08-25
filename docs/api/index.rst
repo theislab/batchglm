@@ -20,14 +20,6 @@ Preprocessing
    :toctree: .
 
    data.design_matrix
-   data.design_matrix_from_xarray
-   data.design_matrix_from_anndata
-   data.sample_description_from_xarray
-   data.sample_description_from_anndata
-   data.load_mtx_to_adata
-   data.load_mtx_to_xarray
-   data.load_recursive_mtx
-   data.xarray_from_data
 
 
 Fitting models

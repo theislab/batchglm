@@ -1,12 +1,9 @@
-from typing import Union
 import logging
-
-import tensorflow as tf
 import numpy as np
-import xarray as xr
+import tensorflow as tf
+from typing import Union
 
 from .external import EstimatorGraphGLM, FullDataModelGraphGLM, BatchedDataModelGraphGLM, ModelVarsGLM
-from .external import op_utils
 from .external import pkg_constants
 
 logger = logging.getLogger(__name__)
@@ -372,8 +369,8 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             num_design_scale_params,
             num_loc_params,
             num_scale_params,
-            constraints_loc: xr.DataArray,
-            constraints_scale: xr.DataArray,
+            constraints_loc: np.ndarray,
+            constraints_scale: np.ndarray,
             graph: tf.Graph,
             batch_size: int,
             init_a,
