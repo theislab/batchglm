@@ -137,7 +137,7 @@ def closedform_glm_scale(
     :return: tuple (groupwise_scales, logphi, rmsd)
     """
     if size_factors is not None:
-        x = np.divide(x, size_factors)
+        x = x / size_factors
 
     # to circumvent nonlocal error
     provided_groupwise_means = groupwise_means

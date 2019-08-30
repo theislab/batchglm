@@ -306,13 +306,6 @@ class _TestAccuracyGlmAll(
         else:
             raise ValueError("noise model %s not recognized" % self.noise_model)
 
-        estimator = _TestAccuracyGlmAllEstim(
-            simulator=self.simulator(train_loc=train_loc),
-            quick_scale=False if train_scale else True,
-            noise_model=self.noise_model,
-            sparse=sparse,
-            init_mode=init_mode
-        )
         for algo in algos:
             logger.info("algorithm: %s" % algo)
             if algo in ["ADAM", "RMSPROP", "GD"]:
@@ -348,6 +341,13 @@ class _TestAccuracyGlmAll(
                 glm.pkg_constants.JACOBIAN_MODE = "analytic"
             else:
                 return ValueError("algo %s not recognized" % algo)
+            estimator = _TestAccuracyGlmAllEstim(
+                simulator=self.simulator(train_loc=train_loc),
+                quick_scale=False if train_scale else True,
+                noise_model=self.noise_model,
+                sparse=sparse,
+                init_mode=init_mode
+            )
             estimator.estimate(
                 algo=algo,
                 batched=batched,

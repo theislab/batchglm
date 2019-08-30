@@ -217,7 +217,8 @@ def constraint_system_from_star(
             sample_description=sample_description,
             formula=formula,
             as_categorical=as_categorical,
-            constraints=constraints
+            constraints=constraints,
+            return_type="dataframe"
         )
     elif isinstance(constraints, tuple) or isinstance(constraints, list):
         cmat = constraint_matrix_from_string(
@@ -225,7 +226,7 @@ def constraint_system_from_star(
             constraints=constraints
         )
     elif isinstance(constraints, np.ndarray):
-        cmat = parse_constraints
+        cmat = constraints
     elif constraints is None:
         cmat = None
     else:
@@ -238,7 +239,8 @@ def constraint_matrix_from_dict(
         sample_description: pd.DataFrame,
         formula: str,
         as_categorical: Union[bool, list] = True,
-        constraints: dict = {}
+        constraints: dict = {},
+        return_type: str = "dataframe"
 ) -> Tuple:
     """
     Create a design matrix from some sample description and a constraint matrix
@@ -303,8 +305,13 @@ def constraint_matrix_from_dict(
     # Build constraint matrix.
     constraints_ar = constraint_matrix_from_string(
         dmat=dmat,
+        coef_names=coef_names,
         constraints=constraints_ls
     )
+
+    # Format return type
+    if return_type == "dataframe":
+        dmat = pd.DataFrame(dmat, columns=coef_names)
 
     return dmat, constraints_ar
 
@@ -362,6 +369,7 @@ def string_constraints_from_dict(
 
 def constraint_matrix_from_string(
         dmat: np.ndarray,
+        coef_names: list,
         constraints: Union[Tuple[str, str], List[str]]
 ):
     r"""
@@ -375,10 +383,10 @@ def constraint_matrix_from_string(
     """
     assert len(constraints) > 0, "supply constraints"
 
-    n_par_all = dmat.values.shape[1]
+    n_par_all = dmat.shape[1]
     n_par_free = n_par_all - len(constraints)
 
-    di = patsy.DesignInfo(dmat.coords["design_params"].values)
+    di = patsy.DesignInfo(coef_names)
     constraint_ls = [di.linear_constraint(x).coefs[0] for x in constraints]
     idx_constr = np.asarray([np.where(x == 1)[0][0] for x in constraint_ls])
     idx_depending = [np.where(x == 1)[0][1:] for x in constraint_ls]
