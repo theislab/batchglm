@@ -37,8 +37,8 @@ def parse_design(
         assert False
 
     if param_names is not None:
-        if params is not None:
-            assert len(param_names) == len(params)
+        if params is None:
+            assert len(param_names) == dmat.shape[1]
             params = param_names
 
     return dmat, params
@@ -62,8 +62,11 @@ def parse_constraints(
         constraints = np.identity(n=dmat.shape[1])
         constraint_params = dmat_par_names
     else:
-        # Cannot use given parameter names if constraint matrix is not identity: Make up new ones.
-        constraint_params = ["var_"+str(x) for x in range(constraints.shape[1])]
+        # Cannot use all parameter names if constraint matrix is not identity: Make up new ones.
+        # Use variable names that can be mapped (unconstrained).
+        constraint_params = ["var_"+str(i) if np.sum(constraints[:, i] != 0) > 1
+                             else dmat_par_names[np.where(constraints[:, i] != 0)[0][0]]
+                             for i in range(constraints.shape[1])]
         assert constraints.shape[0] == dmat.shape[1], "constraint dimension mismatch"
 
     if constraint_par_names is not None:

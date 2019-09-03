@@ -15,6 +15,10 @@ class Simulator(_SimulatorGLM, Model):
             num_observations=1000,
             num_features=100
     ):
+        Model.__init__(
+            self=self,
+            input_data=None
+        )
         _SimulatorGLM.__init__(
             self=self,
             model=None,
@@ -53,3 +57,4 @@ class Simulator(_SimulatorGLM, Model):
             design_loc_names=None,
             design_scale_names=None
         )
+
