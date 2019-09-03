@@ -106,7 +106,7 @@ def preview_coef_names(
         sample_description: pd.DataFrame,
         formula: str,
         as_categorical: Union[bool, list] = True
-) -> np.ndarray:
+) -> List[str]:
     """
     Return coefficient names of model.
 
@@ -126,21 +126,22 @@ def preview_coef_names(
         Set to false, if columns should not be changed.
     :return: A list of coefficient names.
     """
-    return view_coef_names(dmat=design_matrix(
+    _, coef_names = design_matrix(
         sample_description=sample_description,
         formula=formula,
         as_categorical=as_categorical,
         return_type="patsy"
-    ))
+    )
+    return coef_names
 
 
 def constraint_system_from_star(
-        dmat: Union[None, patsy.design_info.DesignMatrix] = None,
+        dmat: Union[None, patsy.design_info.DesignMatrix, pd.DataFrame] = None,
         sample_description: Union[None, pd.DataFrame] = None,
         formula: Union[None, str] = None,
         as_categorical: Union[bool, list] = True,
         constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
-        return_type: str = "patsy",
+        return_type: str = "patsy"
 ) -> Tuple:
     """
     Wrap different constraint matrix building formats with building of design matrix.
@@ -231,11 +232,31 @@ def constraint_system_from_star(
     elif isinstance(constraints, np.ndarray):
         cmat = constraints
         term_names = None
+        if isinstance(dmat, pd.DataFrame):
+            coef_names = dmat.columns
+            dmat = dmat.values
     elif constraints is None:
         cmat = None
         term_names = None
+        if isinstance(dmat, pd.DataFrame):
+            coef_names = dmat.columns
+            dmat = dmat.values
     else:
         raise ValueError("constraint format %s not recognized" % type(constraints))
+
+    # Test full design matrix for being full rank before returning:
+    if cmat is None:
+        if np.linalg.matrix_rank(dmat) != dmat.shape[1]:
+            raise ValueError(
+                "constrained design matrix is not full rank: %i %i" %
+                (np.linalg.matrix_rank(dmat), dmat.shape[1])
+            )
+    else:
+        if np.linalg.matrix_rank(np.matmul(dmat, cmat)) != cmat.shape[1]:
+            raise ValueError(
+                "constrained design matrix is not full rank: %i %i" %
+                (np.linalg.matrix_rank(np.matmul(dmat, cmat)), cmat.shape[1])
+            )
 
     return dmat, coef_names, cmat, term_names
 
@@ -402,6 +423,10 @@ def constraint_matrix_from_string(
 
     di = patsy.DesignInfo(coef_names)
     constraint_ls = [di.linear_constraint(x).coefs[0] for x in constraints]
+    # Check that constraints are sensible:
+    for constraint_i in constraint_ls:
+        if np.sum(constraint_i != 0) == 1:
+            raise ValueError("a zero-equality constraint only involved one parameter: remove this parameter")
     idx_constr = np.asarray([np.where(x == 1)[0][0] for x in constraint_ls])
     idx_depending = [np.where(x == 1)[0][1:] for x in constraint_ls]
     idx_unconstr = np.asarray(list(
@@ -421,8 +446,10 @@ def constraint_matrix_from_string(
             constraint_mat[i, idx_unconstr_i] = 1
 
     # Test unconstrained subset design matrix for being full rank before returning constraints:
-    dmat_var = dmat[:, idx_unconstr]
-    if np.linalg.matrix_rank(dmat_var) != np.linalg.matrix_rank(dmat_var.T):
-        logging.getLogger("batchglm").error("constrained design matrix is not full rank")
+    if np.linalg.matrix_rank(dmat[:, idx_unconstr]) != np.linalg.matrix_rank(dmat[:, idx_unconstr].T):
+        raise ValueError(
+            "unconstrained sub-design matrix is not full rank" %
+            np.linalg.matrix_rank(dmat[:, idx_unconstr]), np.linalg.matrix_rank(dmat[:, idx_unconstr].T)
+        )
 
     return constraint_mat
