@@ -50,6 +50,8 @@ class _TestAccuracyGlmAllEstim:
                 data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale,
+                design_loc_names=simulator.input_data.design_loc_names,
+                design_scale_names=simulator.input_data.design_scale_names,
                 constraints_loc=simulator.input_data.constraints_loc,
                 constraints_scale=simulator.input_data.constraints_scale,
                 size_factors=simulator.input_data.size_factors
@@ -59,6 +61,8 @@ class _TestAccuracyGlmAllEstim:
                 data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale,
+                design_loc_names=simulator.input_data.design_loc_names,
+                design_scale_names=simulator.input_data.design_scale_names,
                 constraints_loc=simulator.input_data.constraints_loc,
                 constraints_scale=simulator.input_data.constraints_scale,
                 size_factors=simulator.input_data.size_factors
