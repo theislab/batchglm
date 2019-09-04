@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pandas
 import patsy
-from typing import Union
+from typing import Union, Tuple
 
 from .model import _ModelGLM
 from .external import _SimulatorBase
@@ -14,7 +14,7 @@ def generate_sample_description(
         num_conditions: int = 2,
         num_batches: int = 4,
         shuffle_assignments=False
-) -> np.ndarray:
+) -> Tuple[patsy.DesignMatrix, pandas.DataFrame]:
     """ Build a sample description.
 
     :param num_observations: Number of observations to simulate.
@@ -45,7 +45,7 @@ def generate_sample_description(
             observations=np.random.permutation(sample_description.observations.values)
         )
 
-    return np.asarray(patsy.dmatrix("~1+condition+batch", sample_description)), sample_description
+    return patsy.dmatrix("~1+condition+batch", sample_description), sample_description
 
 
 class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
@@ -73,6 +73,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         self.sample_description = None
         self.sim_a_var = None
         self.sim_b_var = None
+        self._size_factors = None
 
     def generate_sample_description(
             self,
@@ -138,6 +139,10 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         self.sim_b_var = np.concatenate([
             rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))
         ], axis=0)
+
+    @property
+    def size_factors(self):
+        return self._size_factors
 
     @property
     def a_var(self):

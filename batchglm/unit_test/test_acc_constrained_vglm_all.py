@@ -24,8 +24,11 @@ class _TestAccuracyVglmAll(_TestAccuracyGlmAll):
         constraints[1, 1] = 1
         constraints[2, 2] = 1
         constraints[3, 2] = -1
+        new_coef_names = ['Intercept', 'condition[T.1]', 'batch[1]', 'batch[2]']
         self.sim1.input_data.design_loc = dmat
         self.sim1.input_data.design_scale = dmat
+        self.sim1.input_data._design_loc_names = new_coef_names
+        self.sim1.input_data._design_scale_names = new_coef_names
         self.sim1.input_data.constraints_loc = constraints
         self.sim1.input_data.constraints_scale = constraints
 

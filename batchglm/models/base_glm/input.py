@@ -88,7 +88,7 @@ class InputDataGLM(InputDataBase):
             design_matrix=design_loc,
             param_names=design_loc_names
         )
-        design_scale, design_scale_names =  parse_design(
+        design_scale, design_scale_names = parse_design(
             design_matrix=design_scale,
             param_names=design_scale_names
         )
