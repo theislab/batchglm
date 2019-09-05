@@ -89,7 +89,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def train(self, learning_rate=None, **kwargs):
+    def train(self, **kwargs):
         """
         Starts the training routine
         """

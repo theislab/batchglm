@@ -1,3 +1,2 @@
-from . import glm_nb
-from . import glm_norm
-from . import glm_beta
+from . import tf1
+from . import numpy

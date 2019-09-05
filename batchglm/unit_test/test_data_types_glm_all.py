@@ -40,7 +40,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.glm_nb import InputDataGLM
+                from batchglm.api.models.tf1.glm_nb import InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 

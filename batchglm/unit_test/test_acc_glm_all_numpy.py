@@ -23,27 +23,9 @@ class _TestAccuracyGlmAllEstim:
             raise ValueError("noise_model is None")
         else:
             if noise_model == "nb":
-                from batchglm.api.models.tf1.glm_nb import Estimator, InputDataGLM
-            elif noise_model == "norm":
-                from batchglm.api.models import Estimator, InputDataGLM
-            elif noise_model == "beta":
-                from batchglm.api.models.tf1.glm_beta import Estimator, InputDataGLM
+                from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
-
-        batch_size = 2000
-        provide_optimizers = {
-            "gd": True,
-            "adam": True,
-            "adagrad": True,
-            "rmsprop": True,
-            "nr": True,
-            "nr_tr": True,
-            "irls": noise_model in ["nb", "norm"],
-            "irls_gd": noise_model in ["nb", "norm"],
-            "irls_tr": noise_model in ["nb", "norm"],
-            "irls_gd_tr": noise_model in ["nb", "norm"]
-        }
 
         if sparse:
             input_data = InputDataGLM(
@@ -70,51 +52,27 @@ class _TestAccuracyGlmAllEstim:
 
         self.estimator = Estimator(
             input_data=input_data,
-            batch_size=batch_size,
             quick_scale=quick_scale,
-            provide_optimizers=provide_optimizers,
-            provide_batched=True,
-            provide_fim=noise_model in ["nb", "norm"],
-            provide_hessian=True,
             init_a=init_mode,
             init_b=init_mode
         )
         self.sim = simulator
 
     def estimate(
-            self,
-            algo,
-            batched,
-            acc,
-            lr
+            self
     ):
         self.estimator.initialize()
-        self.estimator.train_sequence(training_strategy=[
-            {
-                "learning_rate": lr,
-                "convergence_criteria": "all_converged",
-                "stopping_criteria": acc,
-                "use_batching": batched,
-                "optim_algo": algo,
-            },
-        ])
+        self.estimator.train(max_steps=100)
 
     def eval_estimation(
             self,
-            batched,
             train_loc,
             train_scale
     ):
-        if batched:
-            threshold_dev_a = 0.4
-            threshold_dev_b = 0.4
-            threshold_std_a = 2
-            threshold_std_b = 2
-        else:
-            threshold_dev_a = 0.2
-            threshold_dev_b = 0.2
-            threshold_std_a = 1
-            threshold_std_b = 1
+        threshold_dev_a = 0.2
+        threshold_dev_b = 0.2
+        threshold_std_a = 1
+        threshold_std_b = 1
 
         success = True
         if train_loc:
@@ -285,66 +243,22 @@ class _TestAccuracyGlmAll(
             sparse
     ):
         self.optims_tested = {
-            "nb": ["ADAM", "IRLS_GD_TR"],
-            "beta": ["NR_TR"],
-            "norm": ["IRLS_TR"]
+            "nb": ["IRLS"],
+            "beta": ["IRLS"],
+            "norm": ["IRLS"]
         }
-        if self.noise_model in ["norm"]:
-            algos = self.optims_tested["norm"]
-            init_mode = "all_zero"
-            lr = {"ADAM": 1e-3, "NR_TR": 1, "IRLS_TR": 1}
-        elif self.noise_model in ["beta"]:
-            algos = self.optims_tested["beta"]
-            init_mode = "all_zero"
-            if batched:
-                lr = {"ADAM": 0.1, "NR_TR": 1}
-            else:
-                lr = {"ADAM": 1e-5, "NR_TR": 1}
-        elif self.noise_model in ["nb"]:
-            algos = self.optims_tested["nb"]
-            init_mode = "standard"
-            if batched:
-                lr = {"ADAM": 0.1, "IRLS_GD_TR": 1}
-            else:
-                lr = {"ADAM": 0.05, "IRLS_GD_TR": 1}
-        else:
-            raise ValueError("noise model %s not recognized" % self.noise_model)
+        init_mode = "all_zero"
 
-        for algo in algos:
+        for algo in self.optims_tested[self.noise_model]:
             logger.info("algorithm: %s" % algo)
-            if algo in ["ADAM", "RMSPROP", "GD"]:
-                if batched:
-                    acc = 1e-4
-                else:
-                    acc = 1e-6
-                glm.pkg_constants.JACOBIAN_MODE = "analytic"
-            elif algo in ["NR", "NR_TR"]:
-                if batched:
-                    acc = 1e-12
-                else:
-                    acc = 1e-14
-                if self.noise_model in ["beta"]:
-                    glm.pkg_constants.TRUST_REGION_RADIUS_INIT = 1
-                else:
-                    glm.pkg_constants.TRUST_REGION_RADIUS_INIT = 100
-                glm.pkg_constants.TRUST_REGION_T1 = 0.5
-                glm.pkg_constants.TRUST_REGION_T2 = 1.5
-                glm.pkg_constants.CHOLESKY_LSTSQS = True
-                glm.pkg_constants.CHOLESKY_LSTSQS_BATCHED = True
-                glm.pkg_constants.JACOBIAN_MODE = "analytic"
-                glm.pkg_constants.HESSIAN_MODE = "analytic"
-            elif algo in ["IRLS", "IRLS_TR", "IRLS_GD", "IRLS_GD_TR"]:
-                if batched:
-                    acc = 1e-12
-                else:
-                    acc = 1e-14
-                glm.pkg_constants.TRUST_REGION_T1 = 0.5
-                glm.pkg_constants.TRUST_REGION_T2 = 1.5
-                glm.pkg_constants.CHOLESKY_LSTSQS = True
-                glm.pkg_constants.CHOLESKY_LSTSQS_BATCHED = True
-                glm.pkg_constants.JACOBIAN_MODE = "analytic"
-            else:
-                return ValueError("algo %s not recognized" % algo)
+
+            acc = 1e-14
+            glm.pkg_constants.TRUST_REGION_T1 = 0.5
+            glm.pkg_constants.TRUST_REGION_T2 = 1.5
+            glm.pkg_constants.CHOLESKY_LSTSQS = True
+            glm.pkg_constants.CHOLESKY_LSTSQS_BATCHED = True
+            glm.pkg_constants.JACOBIAN_MODE = "analytic"
+
             estimator = _TestAccuracyGlmAllEstim(
                 simulator=self.simulator(train_loc=train_loc),
                 quick_scale=False if train_scale else True,
@@ -352,15 +266,9 @@ class _TestAccuracyGlmAll(
                 sparse=sparse,
                 init_mode=init_mode
             )
-            estimator.estimate(
-                algo=algo,
-                batched=batched,
-                acc=acc,
-                lr=lr[algo]
-            )
+            estimator.estimate()
             estimator.estimator.finalize()
             success = estimator.eval_estimation(
-                batched=batched,
                 train_loc=train_loc,
                 train_scale=train_scale,
             )
@@ -453,70 +361,6 @@ class TestAccuracyGlmNb(
 
         np.random.seed(1)
         self.noise_model = "nb"
-        self.simulate()
-        self._test_batched(sparse=False)
-        self._test_batched(sparse=True)
-
-
-class TestAccuracyGlmNorm(
-    _TestAccuracyGlmAll,
-    unittest.TestCase
-):
-    """
-    Test whether optimizers yield exact results for normal distributed data.
-    """
-
-    def test_full_norm(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("TestAccuracyGlmNorm.test_full_norm()")
-
-        np.random.seed(1)
-        self.noise_model = "norm"
-        self.simulate()
-        self._test_full(sparse=False)
-        self._test_full(sparse=True)
-
-    def test_batched_norm(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("TestAccuracyGlmNorm.test_batched_norm()")
-        # TODO not working yet.
-
-        np.random.seed(1)
-        self.noise_model = "norm"
-        self.simulate()
-        self._test_batched(sparse=False)
-        self._test_batched(sparse=True)
-
-
-class TestAccuracyGlmBeta(
-    _TestAccuracyGlmAll,
-    unittest.TestCase
-):
-    """
-    Test whether optimizers yield exact results for beta distributed data.
-    TODO not working yet.
-    """
-
-    def test_full_beta(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("TestAccuracyGlmBeta.test_full_beta()")
-
-        np.random.seed(1)
-        self.noise_model = "beta"
-        self.simulate()
-        self._test_full(sparse=False)
-        self._test_full(sparse=True)
-
-    def test_batched_beta(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("TestAccuracyGlmBeta.test_batched_beta()")
-
-        np.random.seed(1)
-        self.noise_model = "beta"
         self.simulate()
         self._test_batched(sparse=False)
         self._test_batched(sparse=True)
