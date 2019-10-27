@@ -37,23 +37,45 @@ class ModelIwls:
         pass
 
     @property
-    def fim(self):
-        w = np.diag(self.fim_weight)
-        return np.matmul(
-            np.matmul(
-                np.matmul(self.design_loc.T, self.contraints_loc),
-                w
-            ),
-            np.matmul(self.design_loc, self.constraints_loc)
+    def ll_byfeature(self) -> np.ndarray:
+        return np.sum(self.ll, axis=0)
+
+    @abc.abstractmethod
+    def fim_weight(self) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def ybar(self) -> np.ndarray:
+        pass
+
+    @property
+    def fim(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.fim_weight  # (observations x features)
+        # constraints: (observed param x inferred param)
+        # design: (observations x observed param)
+        # w: (observations x features)
+        # fim: (features x inferred param x inferred param)
+        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
+        return np.einsum(
+            'fob,ob->fbb',
+            np.einsum('ob,of->fob', xh, w),
+            xh
         )
 
-    def jac(self):
-        w = np.diag(self.fim_weight)
-        y_bar = (self.x - self.mu) / self.mu
-        return np.matmul(
-                np.matmul(
-                    np.matmul(self.design_loc.T, self. constraints_loc.T),
-                    w
-                ),
-            y_bar
+    def jac(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.fim_weight  # (observations x features)
+        ybar = self.model.ybar  # (observations x features)
+        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
+        return np.einsum(
+            'fob,of->fb',
+            np.einsum('ob,of->fob', xh, w),
+            ybar
         )

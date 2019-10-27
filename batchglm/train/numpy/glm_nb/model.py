@@ -23,8 +23,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         self.compute_mu = compute_mu
         self.compute_r = compute_r
 
-        Model.__init__(
-            self=self,
+        super(Model, self).__init__(
             input_data=input_data
         )
         ModelIwls.__init__(
@@ -34,17 +33,33 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
     @property
     def fim_weight(self):
+        """
+
+        :return: observations x features
+        """
         return np.multiply(
             self.location,
             np.divide(self.scale, self.scale + self.location)
         )
 
     @property
+    def ybar(self) -> np.ndarray:
+        """
+
+        :return: observations x features
+        """
+        return (self.model.x - self.model.location) / self.model.location
+
+    @property
     def ll(self):
         log_r_plus_mu = np.log(self.scale + self.location)
-        ll = np.math.lgamma(self.scale + self.x) - \
-            np.math.lgamma(self.x + np.ones_like(self.x)) - \
-            np.math.lgamma(self.scale) + \
+        # TODO: fix
+        #np.math.lgamma(self.scale + self.x) - \
+        #np.math.lgamma(self.x + np.ones_like(self.x)) - \
+        #np.math.lgamma(self.scale) + \
+        ll = np.ones_like(self.x) - \
+            np.ones_like(self.x) - \
+            np.ones_like(self.x) - \
             np.multiply(self.x, self.eta_loc - log_r_plus_mu) + \
             np.multiply(self.scale, self.eta_scale - log_r_plus_mu)
         return self.np_clip_param(ll, "ll")
