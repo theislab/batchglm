@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 
-from .external import Model, ModelGlm
+from .external import Model, ModelGlm, InputDataGLM
 from .processModel import ProcessModel
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ class ModelIwls(ModelGlm, Model, ProcessModel):
 
     def __init__(
             self,
+            input_data: InputDataGLM,
             model_vars,
             compute_mu,
             compute_r,
@@ -22,6 +23,10 @@ class ModelIwls(ModelGlm, Model, ProcessModel):
         self.compute_mu = compute_mu
         self.compute_r = compute_r
 
+        Model.__init__(
+            self=self,
+            input_data=input_data
+        )
         ModelGlm.__init__(
             self=self,
             model_vars=model_vars

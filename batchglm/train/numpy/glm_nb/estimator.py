@@ -77,6 +77,7 @@ class Estimator(EstimatorGlm):
             dtype=dtype
         )
         model = ModelIwls(
+            input_data=input_data,
             model_vars=self.model_vars,
             compute_mu=self._train_loc,
             compute_r=not self._train_scale,

@@ -21,11 +21,11 @@ class ModelGlm:
         )
 
     @abc.abstractmethod
-    def fim_weight(self):
+    def fim_weight(self) -> np.ndarray:
         pass
 
     @abc.abstractmethod
-    def ll(self):
+    def ll(self) -> np.ndarray:
         pass
 
     @property
