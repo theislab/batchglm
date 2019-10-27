@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger("batchglm")
 
 
-class ModelGlm:
+class ModelIwls:
 
     def __init__(
             self,

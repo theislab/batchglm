@@ -6,7 +6,7 @@ from .external import InputDataGLM, Model, EstimatorGlm
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
 
 from .vars import ModelVars
-from .model import ModelIwls
+from .model import ModelIwlsNb
 
 
 class Estimator(EstimatorGlm):
@@ -14,7 +14,7 @@ class Estimator(EstimatorGlm):
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
     """
-    model: ModelIwls
+    model: ModelIwlsNb
 
     def __init__(
             self,
@@ -76,7 +76,7 @@ class Estimator(EstimatorGlm):
             constraints_scale=input_data.constraints_scale,
             dtype=dtype
         )
-        model = ModelIwls(
+        model = ModelIwlsNb(
             input_data=input_data,
             model_vars=self.model_vars,
             compute_mu=self._train_loc,

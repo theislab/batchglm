@@ -8,4 +8,4 @@ from batchglm.utils.linalg import groupwise_solve_lm
 from batchglm import pkg_constants
 
 # import necessary base_glm layers
-from batchglm.train.numpy.base_glm import EstimatorGlm, ModelGlm, ModelVarsGlm, ProcessModelGlm
+from batchglm.train.numpy.base_glm import EstimatorGlm, ModelIwls, ModelVarsGlm, ProcessModelGlm

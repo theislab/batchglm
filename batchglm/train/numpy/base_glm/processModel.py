@@ -1,6 +1,7 @@
 import abc
 import numpy as np
 
+
 class ProcessModelGlm:
 
     @abc.abstractmethod
