@@ -42,9 +42,9 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
     @property
     def ll(self):
         log_r_plus_mu = np.log(self.scale + self.location)
-        ll = np.lgamma(self.scale + self.x) - \
-            np.lgamma(self.x + 1.) - \
-            np.lgamma(self.scale) + \
-            np.multiply(X, self.eta_loc - log_r_plus_mu) + \
+        ll = np.math.lgamma(self.scale + self.x) - \
+            np.math.lgamma(self.x + np.ones_like(self.x)) - \
+            np.math.lgamma(self.scale) + \
+            np.multiply(self.x, self.eta_loc - log_r_plus_mu) + \
             np.multiply(self.scale, self.eta_scale - log_r_plus_mu)
         return self.np_clip_param(ll, "ll")

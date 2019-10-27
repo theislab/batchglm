@@ -12,13 +12,21 @@ class ModelIwls:
             model_vars
     ):
         self.model_vars = model_vars
-        self.params = np.concatenate(
-            [
-                model_vars.init_a_clipped,
-                model_vars.init_b_clipped,
-            ],
-            axis=0
-        )
+        #self.params = np.concatenate(
+        #    [
+        #        model_vars.init_a_clipped,
+        #        model_vars.init_b_clipped,
+        #    ],
+        #    axis=0
+        #)
+
+    @property
+    def a_var(self):
+        return self.model_vars.a_var
+
+    @property
+    def b_var(self):
+        return self.model_vars.b_var
 
     @abc.abstractmethod
     def fim_weight(self) -> np.ndarray:

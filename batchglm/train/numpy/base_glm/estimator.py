@@ -40,7 +40,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         converged_current = np.repeat(False, repeats=self.model.model_vars.n_features)
 
         ll_current = -np.inf
-        while np.any(converged_current) and train_step < max_steps:
+        print("iter %i: ll=%f" % (0, self.model.ll))
+        while np.any(np.logical_not(converged_current)) and train_step < max_steps:
             ll_previous = ll_current
             self.a_var = self.a_var + self.iwls_step()
             ll_current = self.model.ll
@@ -48,6 +49,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             ll_converged = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
             converged_f = np.logical_and(np.logical_not(converged_current), ll_converged)
             train_step += 1
+            print("iter %i: ll=%f" % (train_step, ll_current))
             self.lls.append(ll_current)
 
     def iwls_step(self):
