@@ -43,7 +43,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         print("iter %i: ll=%f" % (0, np.sum(self.model.ll_byfeature)))
         while np.any(np.logical_not(converged_current)) and train_step < max_steps:
             ll_previous = ll_current
-            self.a_var = self.a_var + self.iwls_step()
+            self.model.a_var = self.model.a_var + self.iwls_step()
             ll_current = self.model.ll_byfeature
             #features_updated = self.model.model_vars.updated
             ll_converged = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
@@ -55,7 +55,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def iwls_step(self) -> np.ndarray:
         """
 
-        :return: (features x inferred param)
+        :return: (inferred param x features)
         """
         w = self.model.fim_weight  # (observations x features)
         ybar = self.model.ybar  # (observations x features)
@@ -64,14 +64,21 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         # a=X^T*W*X: ([features] x inferred param)
         # x=theta: ([features] x inferred param)
         # b=X^T*W*Ybar: ([features] x inferred param)
-        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
-        xhw = np.einsum('ob,of->fob', xh, w)  # (features x observations x inferred param)
-        a = np.einsum('fob,ob->fbb', xhw, xh),
-        b = np.einsum('fob,of->fb', xhw, ybar),
+        xhw = np.einsum(
+            'bo,of->fob',
+            np.matmul(self.model.constraints_loc.T, self.model.design_loc.T),
+            w
+        )  # (features x observations x inferred param)
+        a = np.einsum(
+            'fob,oc->fbc',
+            xhw,
+            np.matmul(self.model.design_loc, self.model.constraints_loc)
+        )
+        b = np.einsum('fob,of->fb', xhw, ybar)
         delta_theta = np.concatenate([
-            np.expand_dims(np.linalg.lstsq(a[i], b[i]), axis=0)
+            np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
             for i in range(a.shape[0])
-        ], axis=0)
+        ], axis=-1)
         return delta_theta
 
     def finalize(self):

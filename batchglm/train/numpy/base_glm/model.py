@@ -24,9 +24,17 @@ class ModelIwls:
     def a_var(self):
         return self.model_vars.a_var
 
+    @a_var.setter
+    def a_var(self, value):
+        self.model_vars.a_var = value
+
     @property
     def b_var(self):
         return self.model_vars.b_var
+
+    @a_var.setter
+    def b_var(self, value):
+        self.model_vars.b_var = value
 
     @abc.abstractmethod
     def fim_weight(self) -> np.ndarray:
@@ -59,11 +67,10 @@ class ModelIwls:
         # design: (observations x observed param)
         # w: (observations x features)
         # fim: (features x inferred param x inferred param)
-        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
         return np.einsum(
-            'fob,ob->fbb',
-            np.einsum('ob,of->fob', xh, w),
-            xh
+            'fob,oc->fbc',
+            np.einsum('bo,of->fob', np.matmul(self.constraints_loc.T, self.design_loc.T), w),
+            np.matmul(self.design_loc, self.constraints_loc)
         )
 
     def jac(self) -> np.ndarray:

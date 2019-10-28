@@ -60,12 +60,6 @@ class ModelVarsGlm:
             axis=0
         )
 
-        a_var = self.params[0:init_a.shape[0]]
-        b_var = self.params[init_a.shape[0]:]
-
-        self.a_var = self.np_clip_param(a_var, "a_var")
-        self.b_var = self.np_clip_param(b_var, "b_var")
-
         # Properties to follow gene-wise convergence.
         self.updated = np.repeat(a=True, repeats=self.params.shape[1])  # Initialise to is updated.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
@@ -73,7 +67,25 @@ class ModelVarsGlm:
         self.dtype = dtype
         self.n_features = self.params.shape[1]
         self.idx_train_loc = np.arange(0, init_a.shape[0])
-        self.idx_train_scale = np.arange(init_a.shape[0], init_a.shape[0]+init_b.shape[0])
+        self.idx_train_scale = np.arange(init_a.shape[0], init_a.shape[0] + init_b.shape[0])
+
+    @property
+    def a_var(self):
+        a_var = self.params[0:self.init_a.shape[0]]
+        return self.np_clip_param(a_var, "a_var")
+
+    @a_var.setter
+    def a_var(self, value):
+        self.params[0:self.init_a.shape[0]] = value
+
+    @property
+    def b_var(self):
+        b_var = self.params[self.init_a.shape[0]:]
+        return self.np_clip_param(b_var, "b_var")
+
+    @b_var.setter
+    def b_var(self, value):
+        self.params[self.init_a.shape[0]:] = value
 
     @abc.abstractmethod
     def param_bounds(self, dtype):

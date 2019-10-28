@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import scipy.special
 
 from .external import Model, ModelIwls, InputDataGLM
 from .processModel import ProcessModel
@@ -48,18 +49,14 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: observations x features
         """
-        return (self.model.x - self.model.location) / self.model.location
+        return (self.x - self.location) / self.location
 
     @property
     def ll(self):
         log_r_plus_mu = np.log(self.scale + self.location)
-        # TODO: fix
-        #np.math.lgamma(self.scale + self.x) - \
-        #np.math.lgamma(self.x + np.ones_like(self.x)) - \
-        #np.math.lgamma(self.scale) + \
-        ll = np.ones_like(self.x) - \
-            np.ones_like(self.x) - \
-            np.ones_like(self.x) - \
+        ll = scipy.special.gammaln(self.scale + self.x) - \
+            scipy.special.gammaln(self.x + np.ones_like(self.x)) - \
+            scipy.special.gammaln(self.scale) + \
             np.multiply(self.x, self.eta_loc - log_r_plus_mu) + \
             np.multiply(self.scale, self.eta_scale - log_r_plus_mu)
         return self.np_clip_param(ll, "ll")
