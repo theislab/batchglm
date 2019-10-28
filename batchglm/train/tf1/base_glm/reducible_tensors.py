@@ -3,7 +3,7 @@ from typing import Union
 
 import tensorflow as tf
 
-from batchglm.train.tf.base_glm.model import ModelVarsGLM
+from batchglm.train.tf1.base_glm.model import ModelVarsGLM
 
 logger = logging.getLogger("batchglm")
 
