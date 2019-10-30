@@ -33,7 +33,10 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         return eta
 
     def eta_loc_j(self, j) -> np.ndarray:
-        eta = np.matmul(self.design_loc, self.a[:, [j]])
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        eta = np.matmul(self.design_loc, self.a[:, j])
         if self.size_factors is not None:
             eta += np.expand_dims(self.size_factors, axis=1)
         return eta

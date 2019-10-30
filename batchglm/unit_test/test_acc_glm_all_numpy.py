@@ -87,8 +87,6 @@ class _TestAccuracyGlmAllEstim:
         if train_scale:
             mean_rel_dev_b = np.mean((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
             std_rel_dev_b = np.std((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
-            print(self.estimator.model.b_var)
-            print(self.sim.b_var)
 
             logging.getLogger("batchglm").info("mean_rel_dev_b %f" % mean_rel_dev_b)
             logging.getLogger("batchglm").info("std_rel_dev_b %f" % std_rel_dev_b)
@@ -346,7 +344,6 @@ class TestAccuracyGlmNb(
     """
 
     def test_full_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
         logging.getLogger("batchglm").setLevel(logging.INFO)
         logger.error("TestAccuracyGlmNb.test_full_nb()")
 
@@ -355,17 +352,6 @@ class TestAccuracyGlmNb(
         self.simulate()
         self._test_full(sparse=False)
         self._test_full(sparse=True)
-
-    def test_batched_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.INFO)
-        logging.getLogger("batchglm").setLevel(logging.INFO)
-        logger.error("TestAccuracyGlmNb.test_batched_nb()")
-
-        np.random.seed(1)
-        self.noise_model = "nb"
-        self.simulate()
-        self._test_batched(sparse=False)
-        self._test_batched(sparse=True)
 
 
 if __name__ == '__main__':

@@ -21,6 +21,18 @@ class ModelIwls:
         #)
 
     @property
+    def converged(self):
+        return self.model_vars.converged
+
+    @property
+    def idx_not_converged(self):
+        return self.model_vars.idx_not_converged
+
+    @converged.setter
+    def converged(self, value):
+        self.model_vars.converged = value
+
+    @property
     def a_var(self):
         return self.model_vars.a_var
 
@@ -121,6 +133,9 @@ class ModelIwls:
 
         :return: (features x inferred param)
         """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
         w = self.fim_weight_j(j=j)  # (observations x features)
         ybar = self.ybar_j(j=j)  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
@@ -149,6 +164,9 @@ class ModelIwls:
 
         :return: (features x inferred param)
         """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
         w = self.jac_weight_b_j(j=j)  # (observations x features)
         xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
         return np.einsum(

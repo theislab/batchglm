@@ -113,7 +113,10 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         pass
 
     def eta_scale_j(self, j) -> np.ndarray:
-        return np.matmul(self.design_scale, self.b[:, [j]])
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        return np.matmul(self.design_scale, self.b[:, j])
 
     def location_j(self, j):
         return self.inverse_link_loc(self.eta_loc_j(j=j))

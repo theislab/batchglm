@@ -60,7 +60,10 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: observations x features
         """
-        return np.asarray(self.x[:, [j]] - self.location_j(j=j)) / self.location_j(j=j)
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
 
     @property
     def jac_weight_b(self):
@@ -84,9 +87,12 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: observations x features
         """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
         scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
-        scale_plus_x = np.asarray(scale + self.x[:, [j]])
+        scale_plus_x = np.asarray(scale + self.x[:, j])
         r_plus_mu = scale + loc
 
         # Define graphs for individual terms of constant term of hessian:
@@ -115,14 +121,17 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return self.np_clip_param(np.asarray(ll), "ll")
 
     def ll_j(self, j):
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
         scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
         log_r_plus_mu = np.log(scale + loc)
         if isinstance(self.x, np.ndarray):
-            ll = scipy.special.gammaln(scale + self.x[:, [j]]) - \
+            ll = scipy.special.gammaln(scale + self.x[:, j]) - \
                  scipy.special.gammaln(self.x + np.ones_like(scale)) - \
                  scipy.special.gammaln(scale) + \
-                 self.x[:, [j]] * (self.eta_loc_j(j=j) - log_r_plus_mu) + \
+                 self.x[:, j] * (self.eta_loc_j(j=j) - log_r_plus_mu) + \
                  np.multiply(scale, self.eta_scale_j(j=j) - log_r_plus_mu)
         else:
             ll = scipy.special.gammaln(np.asarray(scale + self.x[:, j])) - \

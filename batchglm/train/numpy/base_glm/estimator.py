@@ -37,44 +37,36 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     ):
         # Iterate until conditions are fulfilled.
         train_step = 0
-
-        # Set all to convergence status = False, this is needed if multiple
-        # training strategies are run:
-        converged_current = np.repeat(False, repeats=self.model.model_vars.n_features)
+        delayed_b_converged = np.tile(False, self.model.model_vars.n_features)
 
         ll_current = - self.model.ll_byfeature
         print("iter %i: ll=%f" % (0, np.sum(ll_current)))
-        while np.any(np.logical_not(converged_current)) and train_step < max_steps:
-            ll_previous = ll_current
+        while (np.any(np.logical_not(self.model.converged)) or np.any(np.logical_not(delayed_b_converged))) and \
+                train_step < max_steps:
+            # Update parameters:
             # Line search step for scale model:
             if train_step % update_b_freq == 0 and train_step > 0:
-                self.model.b_var = self.b_step()
-                ll_current = - self.model.ll_byfeature
-                print("iter %i: ll=%f, converged: %i" % (train_step, np.sum(ll_current), np.sum(converged_current)))
+                self.model.b_var = self.b_step(idx=np.where(np.logical_not(delayed_b_converged))[0])
+                delayed_b_converged = self.model.converged.copy()
             # IWLS step for location model:
-            delta_a = np.zeros_like(self.model.a_var)
-            delta_a[:, np.logical_not(converged_current)] += self.iwls_step()[:, np.logical_not(converged_current)]
-            self.model.a_var = self.model.a_var + delta_a
+            self.model.a_var = self.model.a_var + self.iwls_step()
+
+            # Evaluate convergence
+            ll_previous = ll_current
             ll_current = - self.model.ll_byfeature
-            #features_updated = self.model.model_vars.updated
-            ll_converged = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
-            converged_f = np.logical_and(np.logical_not(converged_current), ll_converged)
+            converged_f = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
+            self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
-            converged_current = np.logical_or(converged_current, ll_converged)
-            print("iter %i: ll=%f, converged: %i" % (train_step, np.sum(ll_current), np.sum(converged_current)))
+            print("iter %i: ll=%f, converged: %i" % (train_step, np.sum(ll_current), np.sum(self.model.converged)))
             self.lls.append(ll_current)
-        # Line search step for scale model:
-        self.model.b_var = self.b_step()
-        ll_current = - self.model.ll_byfeature
-        print("iter %i: ll=%f, converged: %i" % (train_step, np.sum(ll_current), np.sum(converged_current)))
 
     def iwls_step(self) -> np.ndarray:
         """
 
         :return: (inferred param x features)
         """
-        w = self.model.fim_weight  # (observations x features)
-        ybar = self.model.ybar  # (observations x features)
+        w = self.model.fim_weight_j(j=self.model.idx_not_converged)  # (observations x features)
+        ybar = self.model.ybar_j(j=self.model.idx_not_converged)  # (observations x features)
         # Translate to problem of form ax = b for each feature:
         # (in the following, X=design and Y=counts)
         # a=X^T*W*X: ([features] x inferred param)
@@ -85,21 +77,23 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         a = np.einsum('fob,oc->fbc', xhw, xh)
         b = np.einsum('fob,of->fb', xhw, ybar)
         # Via np.linalg.solve:
-        delta_theta = np.linalg.solve(a, b).T
+        delta_theta = np.zeros_like(self.model.a_var)
+        delta_theta[:, self.model.idx_not_converged] = np.linalg.solve(a, b).T
         # Via np.linalg.lsts:
-        #delta_theta = np.concatenate([
+        #delta_theta[:, self.idx_not_converged] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
-        #    for i in range(a.shape[0])
+        #    for i in self.idx_not_converged)
         #], axis=-1)
         # Via np.linalg.inv:
-        # #delta_theta = np.concatenate([
+        # #delta_theta[:, self.idx_not_converged] = np.concatenate([
         #    np.expand_dims(np.matmul(np.linalg.inv(a[i, :, :]), b[i, :]), axis=-1)
-        #    for i in range(a.shape[0])
+        #    for i in self.idx_not_converged)
         #], axis=-1)
         return delta_theta
 
     def b_step(
             self,
+            idx: np.ndarray,
             linesearch: bool = False
     ) -> np.ndarray:
         """
@@ -117,7 +111,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             return - self.model.jac_b_j(j=j)
 
         b_var_new = np.zeros_like(self.model.b_var)
-        for j in range(self.model.b_var.shape[1]):
+        for j in idx:
             if linesearch:
                 ls_result = scipy.optimize.line_search(
                     f=cost_b_var,
