@@ -142,7 +142,7 @@ class Estimator(EstimatorGlm):
                         design_loc=input_data.design_loc,
                         constraints_loc=input_data.constraints_loc,
                         size_factors=size_factors_init,
-                        link_fn=lambda mu: np.log(self.np_clip_param(mu, "mu"))
+                        link_fn=lambda mu: np.log(mu)
                     )
 
                     # train mu, if the closed-form solution is inaccurate
@@ -156,7 +156,6 @@ class Estimator(EstimatorGlm):
                     logging.getLogger("batchglm").debug("Should train mu: %s", self._train_loc)
                 elif init_a.lower() == "standard":
                     overall_means = np.mean(input_data.x, axis=0)  # directly calculate the mean
-                    overall_means = self.np_clip_param(overall_means, "mu")
 
                     init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
                     init_a[0, :] = np.log(overall_means)
@@ -184,7 +183,7 @@ class Estimator(EstimatorGlm):
                         constraints=input_data.constraints_scale[[0], :][:, [0]],
                         size_factors=size_factors_init,
                         groupwise_means=None,
-                        link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
+                        link_fn=lambda r: np.log(r)
                     )
                     init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                     init_b[0, :] = init_b_intercept
@@ -212,7 +211,7 @@ class Estimator(EstimatorGlm):
                         constraints=input_data.constraints_scale,
                         size_factors=size_factors_init,
                         groupwise_means=groupwise_means,
-                        link_fn=lambda r: np.log(self.np_clip_param(r, "r"))
+                        link_fn=lambda r: np.log(r)
                     )
 
                     logging.getLogger("batchglm").debug("Using closed-form MME initialization for dispersion")

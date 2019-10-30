@@ -87,6 +87,8 @@ class _TestAccuracyGlmAllEstim:
         if train_scale:
             mean_rel_dev_b = np.mean((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
             std_rel_dev_b = np.std((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
+            print(self.estimator.model.b_var)
+            print(self.sim.b_var)
 
             logging.getLogger("batchglm").info("mean_rel_dev_b %f" % mean_rel_dev_b)
             logging.getLogger("batchglm").info("std_rel_dev_b %f" % std_rel_dev_b)
@@ -151,7 +153,7 @@ class _TestAccuracyGlmAll(
 
     def simulate1(self):
         self.sim1 = self.get_simulator()
-        self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
+        self.sim1.generate_sample_description(num_batches=2, num_conditions=2, intercept_scale=True)
 
         def rand_fn_ave(shape):
             if self.noise_model in ["nb", "norm"]:
@@ -191,7 +193,7 @@ class _TestAccuracyGlmAll(
 
     def simulate2(self):
         self.sim2 = self.get_simulator()
-        self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
+        self.sim2.generate_sample_description(num_batches=0, num_conditions=2, intercept_scale=True)
 
         def rand_fn_ave(shape):
             if self.noise_model in ["nb", "norm"]:
@@ -247,7 +249,7 @@ class _TestAccuracyGlmAll(
             "beta": ["IRLS"],
             "norm": ["IRLS"]
         }
-        init_mode = "all_zero"
+        init_mode = "standard"
 
         for algo in self.optims_tested[self.noise_model]:
             logger.info("algorithm: %s" % algo)

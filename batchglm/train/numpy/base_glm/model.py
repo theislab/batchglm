@@ -32,9 +32,12 @@ class ModelIwls:
     def b_var(self):
         return self.model_vars.b_var
 
-    @a_var.setter
+    @b_var.setter
     def b_var(self, value):
         self.model_vars.b_var = value
+
+    def b_var_j_setter(self, value, j):
+        self.model_vars.b_var_j_setter(value=value, j=j)
 
     @abc.abstractmethod
     def fim_weight(self) -> np.ndarray:
@@ -42,6 +45,10 @@ class ModelIwls:
 
     @abc.abstractmethod
     def ll(self) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def ll_j(self, j) -> np.ndarray:
         pass
 
     @property
@@ -56,6 +63,22 @@ class ModelIwls:
     def ybar(self) -> np.ndarray:
         pass
 
+    @abc.abstractmethod
+    def fim_weight_j(self, j) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def jac_weight(self) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def jac_weight_j(self, j) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def ybar_j(self, j) -> np.ndarray:
+        pass
+
     @property
     def fim(self) -> np.ndarray:
         """
@@ -67,22 +90,69 @@ class ModelIwls:
         # design: (observations x observed param)
         # w: (observations x features)
         # fim: (features x inferred param x inferred param)
+        xh = np.matmul(self.design_loc, self.constraints_loc)
         return np.einsum(
             'fob,oc->fbc',
-            np.einsum('bo,of->fob', np.matmul(self.constraints_loc.T, self.design_loc.T), w),
-            np.matmul(self.design_loc, self.constraints_loc)
+            np.einsum('ob,of->fob', xh, w),
+            xh
         )
 
+    @property
     def jac(self) -> np.ndarray:
+        return np.concatenate([self.jac_a, self.jac_b], axis=-1)
+
+    @property
+    def jac_a(self) -> np.ndarray:
         """
 
         :return: (features x inferred param)
         """
         w = self.fim_weight  # (observations x features)
-        ybar = self.model.ybar  # (observations x features)
+        ybar = self.ybar  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
         return np.einsum(
             'fob,of->fb',
             np.einsum('ob,of->fob', xh, w),
             ybar
+        )
+
+    def jac_a_j(self, j) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.fim_weight_j(j=j)  # (observations x features)
+        ybar = self.ybar_j(j=j)  # (observations x features)
+        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
+        return np.einsum(
+            'fob,of->fb',
+            np.einsum('ob,of->fob', xh, w),
+            ybar
+        )
+
+    @property
+    def jac_b(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.jac_weight_b  # (observations x features)
+        xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
+        return np.einsum(
+            'fob,of->fb',
+            np.einsum('ob,of->fob', xh, w),
+            xh
+        )
+
+    def jac_b_j(self, j) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.jac_weight_b_j(j=j)  # (observations x features)
+        xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
+        return np.einsum(
+            'fob,of->fb',
+            np.einsum('ob,of->fob', xh, w),
+            xh
         )

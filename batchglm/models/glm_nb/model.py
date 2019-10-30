@@ -32,6 +32,12 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             eta += np.expand_dims(self.size_factors, axis=1)
         return eta
 
+    def eta_loc_j(self, j) -> np.ndarray:
+        eta = np.matmul(self.design_loc, self.a[:, [j]])
+        if self.size_factors is not None:
+            eta += np.expand_dims(self.size_factors, axis=1)
+        return eta
+
     # Re-parameterizations:
 
     @property

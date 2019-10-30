@@ -108,6 +108,19 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     def scale(self):
         return self.inverse_link_scale(self.eta_scale)
 
+    @abc.abstractmethod
+    def eta_loc_j(self, j) -> np.ndarray:
+        pass
+
+    def eta_scale_j(self, j) -> np.ndarray:
+        return np.matmul(self.design_scale, self.b[:, [j]])
+
+    def location_j(self, j):
+        return self.inverse_link_loc(self.eta_loc_j(j=j))
+
+    def scale_j(self, j):
+        return self.inverse_link_scale(self.eta_scale_j(j=j))
+
     @property
     def size_factors(self) -> Union[np.ndarray, None]:
         if self.input_data is None:

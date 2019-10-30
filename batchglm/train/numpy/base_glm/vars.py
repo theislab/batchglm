@@ -87,6 +87,9 @@ class ModelVarsGlm:
     def b_var(self, value):
         self.params[self.init_a.shape[0]:] = value
 
+    def b_var_j_setter(self, value, j):
+        self.params[self.init_a.shape[0]:, j] = value
+
     @abc.abstractmethod
     def param_bounds(self, dtype):
         pass
