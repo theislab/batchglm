@@ -25,13 +25,13 @@ class JacobiansGLMALL(JacobiansGLM):
             """
             Compute the mean model block of the jacobian.
 
-            :param X: tf.tensor observations x features
+            :param X: tf1.tensor observations x features
                 Observation by observation and feature.
-            :param model_loc: tf.tensor observations x features
+            :param model_loc: tf1.tensor observations x features
                 Value of mean model by observation and feature.
-            :param model_scale: tf.tensor observations x features
+            :param model_scale: tf1.tensor observations x features
                 Value of dispersion model by observation and feature.
-            :return Jblock: tf.tensor features x coefficients
+            :return Jblock: tf1.tensor features x coefficients
                 Block of jacobian.
             """
             W = self._weights_jac_a(X=X, loc=loc, scale=scale)  # [observations, features]

@@ -53,7 +53,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
             The input data
         :param batch_size: int
             Size of mini-batches used.
-        :param graph: (optional) tf.Graph
+        :param graph: (optional) tf1.Graph
         :param init_model: (optional)
             If provided, this model will be used to initialize this Estimator.
         :param init_a: (Optional)

@@ -22,13 +22,13 @@ class ReducableTensorsGLMALL(ReducableTensorsGLM):
         :param idx: Indices of observations.
         :param data: tuple
             Containing the following parameters:
-            - X: tf.tensor observations x features
+            - X: tf1.tensor observations x features
                 Observation by observation and feature.
-            - size_factors: tf.tensor observations x features
+            - size_factors: tf1.tensor observations x features
                 Model size factors by observation and feature.
-            - params: tf.tensor features x coefficients
+            - params: tf1.tensor features x coefficients
                 Estimated model variables.
-        :return J: tf.tensor features x coefficients
+        :return J: tf1.tensor features x coefficients
             Jacobian evaluated on a single observation, provided in data.
         """
         if self.noise_model == "nb":
@@ -58,7 +58,7 @@ class ReducableTensorsGLMALL(ReducableTensorsGLM):
         if self.compute_jac:
             if self.mode_jac == "analytic":
                 jac = self.jac_analytic(model=model)
-            elif self.mode_jac == "tf":
+            elif self.mode_jac == "tf1":
                 jac = self.jac_tf(model=model)
             else:
                 raise ValueError("mode_jac %s not recognized" % self.mode_jac)
@@ -68,7 +68,7 @@ class ReducableTensorsGLMALL(ReducableTensorsGLM):
         if self.compute_hessian:
             if self.mode_hessian == "analytic":
                 hessian = self.hessian_analytic(model=model)
-            elif self.mode_hessian == "tf":
+            elif self.mode_hessian == "tf1":
                 hessian = self.hessian_tf(model=model)
             else:
                 raise ValueError("mode_hessian %s not recognized" % self.mode_hessian)

@@ -61,7 +61,7 @@ class ReducableTensorsGLM:
         """ Return computational graph for jacobian based on mode choice.
 
         :param batched_data:
-            Dataset iterator over mini-batches of data (used for training) or tf.Tensor of mini-batch.
+            Dataset iterator over mini-batches of data (used for training) or tf1.Tensor of mini-batch.
         :param sample_indices: Indices of samples to be used.
         :param constraints_loc: np.ndarray (constraints on mean model x mean model parameters)
             Constraints for location model.
@@ -86,7 +86,7 @@ class ReducableTensorsGLM:
         :param mode: str
             Mode by with which hessian is to be evaluated,
             "analytic" uses a closed form solution of the jacobian,
-            "tf" allows for evaluation of the jacobian via the tf.gradients function.
+            "tf1" allows for evaluation of the jacobian via the tf1.gradients function.
         :param iterator: bool
             Whether an iterator or a tensor (single yield of an iterator) is given
             in.
@@ -189,7 +189,7 @@ class ReducableTensorsGLM:
 
         p_shape_a = self.model_vars.a_var.shape[0]  # This has to be _var to work with constraints.
 
-        # With relay across tf.Variable:
+        # With relay across tf1.Variable:
         # Containers and specific slices and transforms:
         if self.compute_a and self.compute_b:
             if self.compute_jac:

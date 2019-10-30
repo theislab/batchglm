@@ -31,11 +31,11 @@ class FIMGLMALL(FIMGLM):
             closed form hessian of base_glm_all model by observation across features
             for a batch of observations.
 
-            :param X: tf.tensor observations x features
+            :param X: tf1.tensor observations x features
                 Observation by observation and feature.
-            :param model_loc: tf.tensor observations x features
+            :param model_loc: tf1.tensor observations x features
                 Value of mean model by observation and feature.
-            :param model_scale: tf.tensor observations x features
+            :param model_scale: tf1.tensor observations x features
                 Value of dispersion model by observation and feature.
             """
             W = self._weight_fim_aa(  # [observations x features]

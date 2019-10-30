@@ -1183,16 +1183,16 @@ class TrainerGraphGLM:
                 full_gradient = None
 
         # # ### BFGS implementation using SciPy L-BFGS
-        # with tf.name_scope("bfgs"):
-        #     feature_idx = tf.placeholder(dtype="int64", shape=())
+        # with tf1.name_scope("bfgs"):
+        #     feature_idx = tf1.placeholder(dtype="int64", shape=())
         #
-        #     X_s = tf.gather(X, feature_idx, axis=1)
-        #     a_s = tf.gather(a, feature_idx, axis=1)
-        #     b_s = tf.gather(b, feature_idx, axis=1)
+        #     X_s = tf1.gather(X, feature_idx, axis=1)
+        #     a_s = tf1.gather(a, feature_idx, axis=1)
+        #     b_s = tf1.gather(b, feature_idx, axis=1)
         #
         #     model = BasicModelGraph(X_s, design_loc, design_scale, a_s, b_s, size_factors=size_factors)
         #
-        #     trainer = tf.contrib.opt.ScipyOptimizerInterface(
+        #     trainer = tf1.contrib.opt.ScipyOptimizerInterface(
         #         model.loss,
         #         method='L-BFGS-B',
         #         options={'maxiter': maxiter})
@@ -1256,7 +1256,7 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
             Number of parameters per feature in mean model.
         :param num_design_scale_params: int
             Number of parameters per feature in scale model.
-        :param graph: tf.Graph
+        :param graph: tf1.Graph
         :param constraints_loc: tensor (all parameters x dependent parameters) or None
             Tensor that encodes how complete parameter set which includes dependent
             parameters arises from indepedent parameters: all = <constraints, indep>.
@@ -1376,8 +1376,8 @@ class EstimatorGraphGLM(TFEstimatorGraph, NewtonGraphGLM, TrainerGraphGLM):
     ):
         if constraints is None:
             return None
-            #return tf.eye(
-            #    num_rows=tf.constant(num_design_params, shape=(), dtype="int32"),
+            #return tf1.eye(
+            #    num_rows=tf1.constant(num_design_params, shape=(), dtype="int32"),
             #    dtype=dtype
             #)
         else:

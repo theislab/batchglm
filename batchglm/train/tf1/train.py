@@ -36,7 +36,7 @@ class MultiTrainer:
             If gradients is not given, gradients are computed via tensorflow based on the given loss.
         :param apply_gradients: callable(s) appliable to the gradients.
             Can be either a single callable which will be applied to all gradients or a dict of
-            {tf.Variable: callable} mappings.
+            {tf1.Variable: callable} mappings.
         :param newton_delta: tensor Precomputed custom newton-rhapson parameter update to apply.
         :param irls_delta: tensor Precomputed custom IRLS parameter update to apply.
         :param global_step: global step counter

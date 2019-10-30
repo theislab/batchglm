@@ -45,7 +45,7 @@ class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             The input data
         :param batch_size: int
             Size of mini-batches used.
-        :param graph: (optional) tf.Graph
+        :param graph: (optional) tf1.Graph
         :param init_model: (optional)
             If provided, this model will be used to initialize this Estimator.
         :param init_a: np.ndarray
@@ -91,7 +91,7 @@ class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         def fetch_fn(idx):
             r"""
             Documentation of tensorflow coding style in this function:
-            tf.py_func defines a python function (the getters of the InputData object slots)
+            tf1.py_func defines a python function (the getters of the InputData object slots)
             as a tensorflow operation. Here, the shape of the tensor is lost and
             has to be set with set_shape. For size factors, we use explicit broadcasting
             as explained below.
@@ -322,7 +322,7 @@ class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         Evaluate all tensors that need to be exported from session and save these as class attributes
         and close session.
 
-        Changes .model entry from tf-based EstimatorGraph to numpy based Model instance and
+        Changes .model entry from tf1-based EstimatorGraph to numpy based Model instance and
         transfers relevant attributes.
         """
         self.session.run(self.model.full_data_model.final_set)

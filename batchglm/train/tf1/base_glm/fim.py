@@ -33,12 +33,12 @@ class FIMGLM:
         """
         Compute for mean model IWLS update for a GLM.
 
-        :param loc: tf.tensor observations x features
+        :param loc: tf1.tensor observations x features
            Value of mean model by observation and feature.
-        :param scale: tf.tensor observations x features
+        :param scale: tf1.tensor observations x features
            Value of dispersion model by observation and feature.
 
-        :return tuple of tf.tensors
+        :return tuple of tf1.tensors
            Constants with respect to coefficient index for
            Fisher information matrix and score function computation.
         """
@@ -53,14 +53,14 @@ class FIMGLM:
         """
         Compute for dispersion model IWLS update for a GLM.
 
-        :param X: tf.tensor observations x features
+        :param X: tf1.tensor observations x features
             Observation by observation and feature.
-        :param loc: tf.tensor observations x features
+        :param loc: tf1.tensor observations x features
             Value of mean model by observation and feature.
-        :param scale: tf.tensor observations x features
+        :param scale: tf1.tensor observations x features
             Value of dispersion model by observation and feature.
 
-        :return tuple of tf.tensors
+        :return tuple of tf1.tensors
             Constants with respect to coefficient index for
             Fisher information matrix and score function computation.
         """

@@ -22,7 +22,7 @@ class Hessians(HessianGLMALL):
         if isinstance(X, tf.SparseTensor):
             # Using the dense matrix  of the location model to serve the correct shapes for the sparse X.
             const1 = tf.sparse_add(tf.zeros_like(loc), X).__div__(-tf.sparse.add(X, -tf.ones_like(loc)))
-            # Adding tf.zeros_like(loc) is a hack to avoid bug thrown by log on sparse matrix below,
+            # Adding tf1.zeros_like(loc) is a hack to avoid bug thrown by log on sparse matrix below,
             # to_dense does not work.
         else:
             const1 = tf.log(X / (tf.ones_like(X) - X))
@@ -46,7 +46,7 @@ class Hessians(HessianGLMALL):
         if isinstance(X, tf.SparseTensor):
             # Using the dense matrix  of the location model to serve the correct shapes for the sparse X.
             const1 = tf.sparse_add(tf.zeros_like(loc), X).__div__(-tf.sparse.add(X, -tf.ones_like(loc)))
-            # Adding tf.zeros_like(loc) is a hack to avoid bug thrown by log on sparse matrix below,
+            # Adding tf1.zeros_like(loc) is a hack to avoid bug thrown by log on sparse matrix below,
             # to_dense does not work.
         else:
             const1 = tf.log(X / (1 - X))
@@ -72,7 +72,7 @@ class Hessians(HessianGLMALL):
         if isinstance(X, tf.SparseTensor):
             # Using the dense matrix  of the location model to serve the correct shapes for the sparse X.
             const1 = tf.sparse_add(tf.zeros_like(loc), X).__div__(-tf.sparse.add(X, -tf.ones_like(loc)))
-            # Adding tf.zeros_like(loc) is a hack to avoid bug thrown by log on sparse matrix below,
+            # Adding tf1.zeros_like(loc) is a hack to avoid bug thrown by log on sparse matrix below,
             # to_dense does not work.
             const2 = loc * (tf.log(tf.sparse_add(tf.zeros_like(loc), X)) - tf.digamma(loc_times_scale)) \
                      - one_minus_loc * (tf.digamma(one_minus_loc_times_scale) + tf.log(const1)) \

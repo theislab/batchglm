@@ -4,7 +4,6 @@ import time
 import numpy as np
 import scipy.sparse
 
-import batchglm.api as glm
 import batchglm.data as data_utils
 import batchglm.pkg_constants as pkg_constants
 
@@ -25,11 +24,11 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.glm_nb import Simulator
+                from batchglm.api.models.tf1.glm_nb import Simulator
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import Simulator
+                from batchglm.api.models import Simulator
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import Simulator
+                from batchglm.api.models.tf1.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -48,11 +47,11 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.glm_nb import Estimator
+                from batchglm.api.models.tf1.glm_nb import Estimator
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import Estimator
+                from batchglm.api.models import Estimator
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import Estimator
+                from batchglm.api.models.tf1.glm_beta import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -79,11 +78,11 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.glm_nb import Simulator, InputDataGLM
+                from batchglm.api.models.tf1.glm_nb import Simulator, InputDataGLM
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import Simulator, InputDataGLM
+                from batchglm.api.models import Simulator, InputDataGLM
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import Simulator, InputDataGLM
+                from batchglm.api.models.tf1.glm_beta import Simulator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -119,7 +118,7 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         t_analytic = t1_analytic - t0_analytic
 
         # Compute hessian based on tensorflow auto-differentiation.
-        pkg_constants.HESSIAN_MODE = "tf"
+        pkg_constants.HESSIAN_MODE = "tf1"
         t0_tf = time.time()
         h_tf = self.get_hessians(input_data)
         t1_tf = time.time()
@@ -151,7 +150,7 @@ class Test_Hessians_GLM_NB(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         self.noise_model = "nb"
         self._test_compute_hessians(sparse=False)
-        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+        #self._test_compute_hessians(sparse=False)  # TODO tf1>=1.13 waiting for tf1.sparse.expand_dims to work
 
         return True
 
@@ -165,7 +164,7 @@ class Test_Hessians_GLM_NORM(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         self.noise_model = "norm"
         self._test_compute_hessians(sparse=False)
-        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+        #self._test_compute_hessians(sparse=False)  # TODO tf1>=1.13 waiting for tf1.sparse.expand_dims to work
 
         return True
 
@@ -179,7 +178,7 @@ class Test_Hessians_GLM_BETA(Test_Hessians_GLM_ALL, unittest.TestCase):
 
         self.noise_model = "beta"
         self._test_compute_hessians(sparse=False)
-        #self._test_compute_hessians(sparse=False)  # TODO tf>=1.13 waiting for tf.sparse.expand_dims to work
+        #self._test_compute_hessians(sparse=False)  # TODO tf1>=1.13 waiting for tf1.sparse.expand_dims to work
 
         return True
 

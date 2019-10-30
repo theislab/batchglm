@@ -79,6 +79,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             self,
             num_conditions=2,
             num_batches=4,
+            intercept_scale: bool = False,
             **kwargs
     ):
         self.sim_design_loc, self.sample_description = generate_sample_description(
@@ -87,7 +88,10 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             num_batches=num_batches,
             **kwargs
         )
-        self.sim_design_scale = self.sim_design_loc
+        if intercept_scale:
+            self.sim_design_scale = patsy.dmatrix("~1", self.sample_description)
+        else:
+            self.sim_design_scale = self.sim_design_loc
 
     def _generate_params(
             self,

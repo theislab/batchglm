@@ -34,14 +34,14 @@ class JacobiansGLM:
         Compute the coefficient index invariant part of the
         mean model gradient.
 
-        :param X: tf.tensor observations x features
+        :param X: tf1.tensor observations x features
             Observation by observation and feature.
-        :param loc: tf.tensor observations x features
+        :param loc: tf1.tensor observations x features
             Value of mean model by observation and feature.
-        :param scale: tf.tensor observations x features
+        :param scale: tf1.tensor observations x features
             Value of dispersion model by observation and feature.
 
-        :return const: tf.tensor observations x features
+        :return const: tf1.tensor observations x features
             Coefficient invariant terms of hessian of
             given observations and features.
         """
@@ -58,14 +58,14 @@ class JacobiansGLM:
         Compute the coefficient index invariant part of the
         dispersion model gradient.
 
-        :param X: tf.tensor observations x features
+        :param X: tf1.tensor observations x features
             Observation by observation and feature.
-        :param loc: tf.tensor observations x features
+        :param loc: tf1.tensor observations x features
             Value of mean model by observation and feature.
-        :param scale: tf.tensor observations x features
+        :param scale: tf1.tensor observations x features
             Value of dispersion model by observation and feature.
 
-        :return const: tf.tensor observations x features
+        :return const: tf1.tensor observations x features
             Coefficient invariant terms of hessian of
             given observations and features.
         """

@@ -10,7 +10,7 @@ def swap_dims(tensor, axis0, axis1, exec_transpose=True, return_perm=False, name
     :param axis0: The first axis which should be swapped with `axis1`
     :param axis1: The second axis which should be swapped with `axis0`
     :param exec_transpose: Should the transpose operation be applied?
-    :param return_perm: Should the permutation argument for `tf.transpose` be returned?
+    :param return_perm: Should the permutation argument for `tf1.transpose` be returned?
         Autmoatically true, if `exec_transpose` is False
     :param name: The name scope of this op
     :return: either retval, (retval, permutation) or permutation

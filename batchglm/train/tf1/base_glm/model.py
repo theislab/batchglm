@@ -18,9 +18,9 @@ class ProcessModelGLM(ProcessModelBase):
 
 
 class ModelVarsGLM(ProcessModelGLM):
-    """ Build tf.Variables to be optimzed and their constraints.
+    """ Build tf1.Variables to be optimzed and their constraints.
 
-    a_var and b_var slices of the tf.Variable params which contains
+    a_var and b_var slices of the tf1.Variable params which contains
     all parameters to be optimized during model estimation.
     Params is defined across both location and scale model so that 
     the hessian can be computed for the entire model.
@@ -68,7 +68,7 @@ class ModelVarsGLM(ProcessModelGLM):
         init_a_clipped = self.tf_clip_param(self.init_a, "a_var")
         init_b_clipped = self.tf_clip_param(self.init_b, "b_var")
 
-        # Param is the only tf.Variable in the graph.
+        # Param is the only tf1.Variable in the graph.
         # a_var and b_var have to be slices of params.
         self.params = tf.Variable(tf.concat(
             [
@@ -79,14 +79,14 @@ class ModelVarsGLM(ProcessModelGLM):
         ), name="params")
 
         # Feature batching code for future:
-        #idx_featurebatch = tf.random_uniform([100], minval=0, maxval=self.params.shape[1]-1, dtype=tf.int32)
-        #params_featurebatch = tf.gather(self.params, indi [:,idx_featurebatch]
+        #idx_featurebatch = tf1.random_uniform([100], minval=0, maxval=self.params.shape[1]-1, dtype=tf1.int32)
+        #params_featurebatch = tf1.gather(self.params, indi [:,idx_featurebatch]
 
-        #params_by_gene = [tf.expand_dims(params[:, i], axis=-1) for i in range(params.shape[1])]
+        #params_by_gene = [tf1.expand_dims(params[:, i], axis=-1) for i in range(params.shape[1])]
         #a_by_gene = [x[0:init_a.shape[0],:] for x in params_by_gene]
         #b_by_gene = [x[init_a.shape[0]:, :] for x in params_by_gene]
-        #a_var = tf.concat(a_by_gene, axis=1)
-        #b_var = tf.concat(b_by_gene, axis=1)
+        #a_var = tf1.concat(a_by_gene, axis=1)
+        #b_var = tf1.concat(b_by_gene, axis=1)
         a_var = self.params[0:init_a.shape[0]]
         b_var = self.params[init_a.shape[0]:]
 

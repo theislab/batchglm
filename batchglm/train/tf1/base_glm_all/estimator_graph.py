@@ -40,7 +40,7 @@ class FullDataModelGraph(FullDataModelGraphGLM):
         :param batch_size: int
             Size of mini-batches used.
         :param model_vars: ModelVars
-            Variables of model. Contains tf.Variables which are optimized.
+            Variables of model. Contains tf1.Variables which are optimized.
         :param constraints_loc: tensor (all parameters x dependent parameters)
             Tensor that encodes how complete parameter set which includes dependent
             parameters arises from indepedent parameters: all = <constraints, indep>.
@@ -230,7 +230,7 @@ class BatchedDataModelGraph(BatchedDataModelGraphGLM):
         :param batch_size: int
             Size of mini-batches used.
         :param model_vars: ModelVars
-            Variables of model. Contains tf.Variables which are optimized.
+            Variables of model. Contains tf1.Variables which are optimized.
         :param constraints_loc: tensor (all parameters x dependent parameters)
             Tensor that encodes how complete parameter set which includes dependent
             parameters arises from indepedent parameters: all = <constraints, indep>.
@@ -400,7 +400,7 @@ class EstimatorGraphAll(EstimatorGraphGLM):
             Number of parameters per feature in mean model.
         :param num_design_scale_params: int
             Number of parameters per feature in scale model.
-        :param graph: tf.Graph
+        :param graph: tf1.Graph
         :param batch_size: int
             Size of mini-batches used.
         :param init_a: nd.array (mean model size x features)

@@ -56,7 +56,7 @@ class SomeEstimator(AbstractEstimator, MonitoredTFEstimator, metaclass=abc.ABCMe
     
     # The scaffold provides some information about the model graph to the training session.
     #   It is possible to add additional capabilities like a summary_op which writes summaries for TensorBoard 
-    #   and a tf.train.Saver() object, which allows to create checkpoints during training.
+    tf1
     def _scaffold(self):
         with self.model.graph.as_default():
             scaffold = tf.train.Scaffold(

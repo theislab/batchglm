@@ -66,7 +66,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
         """
         Should create a training scaffold for this Estimator's model
 
-        :return: tf.compat.v1.train.Scaffold object
+        :return: tf1.compat.v1.train.Scaffold object
         """
         pass
 

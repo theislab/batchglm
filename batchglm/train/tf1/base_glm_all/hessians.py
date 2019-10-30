@@ -137,7 +137,7 @@ class HessianGLMALL(HessiansGLM):
             model
     ) -> tf.Tensor:
         """
-        Compute hessians via tf.gradients for all gene-wise in parallel.
+        Compute hessians via tf1.gradients for all gene-wise in parallel.
         """
         if self.compute_a and self.compute_b:
             var_shape = tf.shape(self.model_vars.params)
@@ -162,7 +162,7 @@ class HessianGLMALL(HessiansGLM):
                     dtype=var.dtype,
                     size=var_shape[0],
                     clear_after_read=False
-                    #infer_shape=True,  # TODO tf>=2.0: this causes error related to eager execution in tf1.12
+                    #infer_shape=True,  # TODO tf1>=2.0: this causes error related to eager execution in tf1.12
                     #element_shape=var_shape
                 )
             ]
