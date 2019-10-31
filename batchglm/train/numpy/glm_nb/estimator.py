@@ -23,6 +23,7 @@ class Estimator(EstimatorGlm):
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
             dtype="float64",
+            **kwargs
     ):
         """
         Performs initialisation and creates a new estimator.

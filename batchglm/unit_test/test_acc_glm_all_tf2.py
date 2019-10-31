@@ -442,6 +442,7 @@ class TestAccuracyGlmNb(
         self.simulate()
         self._test_full(sparse=False)
         self._test_full(sparse=True)
+
 """
     def test_batched_nb(self):
         logging.getLogger("tensorflow").setLevel(logging.INFO)

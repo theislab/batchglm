@@ -4,6 +4,7 @@ import scipy
 import scipy.optimize
 
 from .external import _EstimatorGLM, pkg_constants
+from .training_strategies import TrainingStrategies
 
 
 class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
@@ -26,14 +27,20 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         self.values = []
         self.lls = []
 
+        self.TrainingStrategies = TrainingStrategies
+
     def initialize(self):
         pass
+
+    def train_sequence(self, training_strategy: str):
+        if isinstance(training_strategy, str):
+            training_strategy = self.TrainingStrategies[training_strategy].value[0]
+        self.train(**training_strategy)
 
     def train(
             self,
             max_steps: int,
-            update_b_freq: int = 5,
-            tr_a: float = 0.1
+            update_b_freq: int = 5
     ):
         # Iterate until conditions are fulfilled.
         train_step = 0
@@ -46,7 +53,13 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             # Update parameters:
             # Line search step for scale model:
             if train_step % update_b_freq == 0 and train_step > 0:
+                b_var_cache = self.model.b_var.copy()
                 self.model.b_var = self.b_step(idx=np.where(np.logical_not(delayed_b_converged))[0])
+                # Reverse update by feature if update leads to worse loss:
+                ll_proposal = - self.model.ll_byfeature
+                b_var_new = self.model.b_var.copy()
+                b_var_new[:, ll_proposal > ll_current] = b_var_cache[:, ll_proposal > ll_current]
+                self.model.b_var = b_var_new
                 delayed_b_converged = self.model.converged.copy()
             # IWLS step for location model:
             self.model.a_var = self.model.a_var + self.iwls_step()
@@ -55,7 +68,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             ll_previous = ll_current
             ll_current = - self.model.ll_byfeature
             converged_f = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
-            self.model.converged = np.logical_or(self.model.converged, converged_f)
+            # Location model convergence status has to be updated if b model was updated
+            if train_step % update_b_freq == 0 and train_step > 0:
+                self.model.converged = converged_f
+            else:
+                self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
             print("iter %i: ll=%f, converged: %i" % (train_step, np.sum(ll_current), np.sum(self.model.converged)))
             self.lls.append(ll_current)
@@ -110,7 +127,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             self.model.b_var_j_setter(value=x, j=j)
             return - self.model.jac_b_j(j=j)
 
-        b_var_new = np.zeros_like(self.model.b_var)
+        b_var_new = self.model.b_var.copy()
         for j in idx:
             if linesearch:
                 ls_result = scipy.optimize.line_search(

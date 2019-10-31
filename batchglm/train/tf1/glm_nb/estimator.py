@@ -44,7 +44,8 @@ class Estimator(TFEstimatorGLM, ProcessModel):
             provide_hessian: bool = False,
             optim_algos: list = [],
             extended_summary=False,
-            dtype="float64"
+            dtype="float64",
+            **kwargs
     ):
         """
         Performs initialisation and creates a new estimator.
