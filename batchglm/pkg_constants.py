@@ -37,6 +37,8 @@ TRUST_REGION_T1 = 0.5  # Fast collapse to avoid trailing.
 TRUST_REGION_T2 = 1.5  # Allow expansion if not shrinking.
 TRUST_REGION_UPPER_BOUND = 1e5
 
+TRUST_REGIONT_T1_IRLS_GD_TR_SCALE = 1
+
 # Convergence hyper-parameters:
 LLTOL_BY_FEATURE = 1e-10
 XTOL_BY_FEATURE_LOC = 1e-8
