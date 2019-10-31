@@ -13,6 +13,7 @@ resources/*
 **/.DS_Store
 batchglm.egg-info
 #**/*.ipynb
+tutorials
 
 !**/.gitignore
 
