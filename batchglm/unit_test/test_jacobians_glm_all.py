@@ -4,7 +4,6 @@ import time
 import numpy as np
 import scipy.sparse
 
-import batchglm.api as glm
 import batchglm.data as data_utils
 import batchglm.pkg_constants as pkg_constants
 
@@ -25,11 +24,11 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.glm_nb import Simulator
+                from batchglm.api.models.tf1.glm_nb import Simulator
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import Simulator
+                from batchglm.api.models import Simulator
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import Simulator
+                from batchglm.api.models.tf1.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -48,11 +47,11 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.glm_nb import Estimator
+                from batchglm.api.models.tf1.glm_nb import Estimator
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import Estimator
+                from batchglm.api.models import Estimator
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import Estimator
+                from batchglm.api.models.tf1.glm_beta import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -93,11 +92,11 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model=="nb":
-                from batchglm.api.models.glm_nb import InputDataGLM
+                from batchglm.api.models.tf1.glm_nb import InputDataGLM
             elif self.noise_model == "norm":
-                from batchglm.api.models.glm_norm import InputDataGLM
+                from batchglm.api.models import InputDataGLM
             elif self.noise_model == "beta":
-                from batchglm.api.models.glm_beta import InputDataGLM
+                from batchglm.api.models.tf1.glm_beta import InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -126,7 +125,7 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
         t_analytic = t1_analytic - t0_analytic
 
         logging.getLogger("batchglm").debug("** Running tensorflow Jacobian test")
-        pkg_constants.JACOBIAN_MODE = "tf"
+        pkg_constants.JACOBIAN_MODE = "tf1"
         t0_tf = time.time()
         J_tf = self.get_jacs(input_data)
         t1_tf = time.time()
