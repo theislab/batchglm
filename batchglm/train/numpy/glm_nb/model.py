@@ -102,6 +102,39 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return scale * (const1 + const2 + const3)
 
     @property
+    def hessian_weight_ab(self):
+        scale = self.scale
+        loc = self.location
+        return np.multiply(
+            loc * scale,
+            np.asarray(self.x - loc) / np.square(loc + scale)
+        )
+
+    @property
+    def hessian_weight_aa(self):
+        scale = self.scale
+        loc = self.location
+        if isinstance(self.x, np.ndarray):
+            x_by_scale_plus_one = self.x / scale + np.ones_like(scale)
+        else:
+            x_by_scale_plus_one = np.asarray(self.x.divide(scale) + np.ones_like(scale))
+
+        return - loc * x_by_scale_plus_one / np.square((loc / scale) + np.ones_like(loc))
+
+    @property
+    def hessian_weight_bb(self):
+        scale = self.scale
+        loc = self.location
+        scale_plus_x = np.asarray(self.x + scale)
+        scale_plus_loc = scale + loc
+        # Define graphs for individual terms of constant term of hessian:
+        const1 = scipy.special.digamma(scale_plus_x) + scale * scipy.special.polygamma(n=1, x=scale_plus_x)
+        const2 = - scipy.special.digamma(scale) + scale * scipy.special.polygamma(n=1, x=scale)
+        const3 = - loc * scale_plus_x + np.ones_like(scale) * 2. * scale * scale_plus_loc / np.square(scale_plus_loc)
+        const4 = np.log(scale) + np.ones_like(scale) * 2. - np.log(scale_plus_loc)
+        return scale * (const1 + const2 + const3 + const4)
+
+    @property
     def ll(self):
         scale = self.scale
         loc = self.location

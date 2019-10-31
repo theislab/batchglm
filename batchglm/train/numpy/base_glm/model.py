@@ -109,6 +109,74 @@ class ModelIwls:
             xh
         )
 
+    @abc.abstractmethod
+    def hessian_weight_aa(self) -> np.ndarray:
+        pass
+
+    @property
+    def hessian_aa(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.hessian_weight_aa
+        xh = np.matmul(self.design_loc, self.constraints_loc)
+        return np.einsum(
+            'fob,oc->fbc',
+            np.einsum('ob,of->fob', xh, w),
+            xh
+        )
+
+    @abc.abstractmethod
+    def hessian_weight_ab(self) -> np.ndarray:
+        pass
+
+    @property
+    def hessian_ab(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.hessian_weight_ab
+        return np.einsum(
+            'fob,oc->fbc',
+            np.einsum('ob,of->fob', np.matmul(self.design_loc, self.constraints_loc), w),
+            np.matmul(self.design_scale, self.constraints_scale)
+        )
+
+    @abc.abstractmethod
+    def hessian_weight_bb(self) -> np.ndarray:
+        pass
+
+    @property
+    def hessian_bb(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.hessian_weight_bb
+        xh = np.matmul(self.design_scale, self.constraints_scale)
+        return np.einsum(
+            'fob,oc->fbc',
+            np.einsum('ob,of->fob', xh, w),
+            xh
+        )
+
+    @property
+    def hessian(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        h_aa = self.hessian_aa
+        h_bb = self.hessian_bb
+        h_ab = self.hessian_ab
+        h_ba = np.transpose(h_ab, axes=[0, 2, 1])
+        return np.concatenate([
+            np.concatenate([h_aa, h_ab], axis=2),
+            np.concatenate([h_ba, h_bb], axis=2)
+        ], axis=1)
+
     @property
     def jac(self) -> np.ndarray:
         return np.concatenate([self.jac_a, self.jac_b], axis=-1)

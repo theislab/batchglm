@@ -1,10 +1,14 @@
 import abc
+import logging
 import numpy as np
+import pprint
 import scipy
 import scipy.optimize
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
+
+logger = logging.getLogger("batchglm")
 
 
 class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
@@ -18,6 +22,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             input_data,
             dtype,
     ):
+        if input_data.design_scale.shape[1] != 1:
+            raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
         _EstimatorGLM.__init__(
             self=self,
             model=model,
@@ -32,9 +38,17 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def initialize(self):
         pass
 
-    def train_sequence(self, training_strategy: str):
+    def train_sequence(
+            self,
+            training_strategy: str = "DEFAULT"
+    ):
         if isinstance(training_strategy, str):
             training_strategy = self.TrainingStrategies[training_strategy].value[0]
+
+        if training_strategy is None:
+            training_strategy = self.TrainingStrategies.DEFAULT.value
+
+        logging.getLogger("batchglm").info("training strategy:\n%s", pprint.pformat(training_strategy))
         self.train(**training_strategy)
 
     def train(
@@ -44,17 +58,17 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     ):
         # Iterate until conditions are fulfilled.
         train_step = 0
-        delayed_b_converged = np.tile(False, self.model.model_vars.n_features)
+        delayed_converged = np.tile(False, self.model.model_vars.n_features)
 
         ll_current = - self.model.ll_byfeature
-        print("iter %i: ll=%f" % (0, np.sum(ll_current)))
-        while (np.any(np.logical_not(self.model.converged)) or np.any(np.logical_not(delayed_b_converged))) and \
+        logging.getLogger("batchglm").debug("iter %i: ll=%f" % (0, np.sum(ll_current)))
+        while np.any(np.logical_not(delayed_converged)) and \
                 train_step < max_steps:
             # Update parameters:
             # Line search step for scale model:
             if train_step % update_b_freq == 0 and train_step > 0:
                 b_var_cache = self.model.b_var.copy()
-                self.model.b_var = self.b_step(idx=np.where(np.logical_not(delayed_b_converged))[0])
+                self.model.b_var = self.b_step(idx=np.where(np.logical_not(delayed_converged))[0])
                 # Reverse update by feature if update leads to worse loss:
                 ll_proposal = - self.model.ll_byfeature
                 b_var_new = self.model.b_var.copy()
@@ -71,10 +85,14 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             # Location model convergence status has to be updated if b model was updated
             if train_step % update_b_freq == 0 and train_step > 0:
                 self.model.converged = converged_f
+                delayed_converged = converged_f
             else:
                 self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
-            print("iter %i: ll=%f, converged: %i" % (train_step, np.sum(ll_current), np.sum(self.model.converged)))
+            logging.getLogger("batchglm").debug(
+                "iter %i: ll=%f, converged: %i" %
+                (train_step, np.sum(ll_current), np.sum(self.model.converged))
+            )
             self.lls.append(ll_current)
 
     def iwls_step(self) -> np.ndarray:
@@ -167,10 +185,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         transfers relevant attributes.
         """
         # Read from numpy-IRLS estimator specific model:
-        self._hessian = - self.model.fim
+
+        self._hessian = self.model.hessian
         self._fisher_inv = np.linalg.inv(- self._hessian)
-        self._jacobian = self.model.jac
-        self._log_likelihood = self.model.ll
+        self._jacobian = np.sum(np.abs(self.model.jac / self.model.x.shape[0]), axis=1)
+        self._log_likelihood = self.model.ll_byfeature
         self._loss = np.sum(self._log_likelihood)
 
     @abc.abstractmethod
