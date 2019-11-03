@@ -35,7 +35,7 @@ class InputDataGLM(InputDataBase):
             size_factors=None,
             observation_names=None,
             feature_names=None,
-            chunk_size_cells: int = 100000,
+            chunk_size_cells: int = 1e6,
             chunk_size_genes: int = 100,
             cast_dtype=None
     ):

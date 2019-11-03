@@ -5,6 +5,7 @@ import numpy as np
 import pprint
 import scipy
 import scipy.optimize
+import sys
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
@@ -172,7 +173,9 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             b_var_new = self.model.b_var.compute()
         else:
             b_var_new = self.model.b_var.copy()
-        for j in idx:
+        for i, j in enumerate(idx):
+            sys.stdout.write('\r' + 'Fitting dispersion model %f%%' % np.round(i/len(idx), 2)*100)
+            sys.stdout.flush()
             if linesearch:
                 ls_result = scipy.optimize.line_search(
                     f=cost_b_var,

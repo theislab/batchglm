@@ -73,7 +73,7 @@ class ModelVarsGlm:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
             temp[0:self.npar_a] = value
-            self.params = dask.array.from_array(temp)
+            self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
             self.params[0:self.npar_a] = value
 
@@ -87,7 +87,7 @@ class ModelVarsGlm:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
             temp[self.npar_a:] = value
-            self.params = dask.array.from_array(temp)
+            self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
             self.params[self.npar_a:] = value
 
@@ -95,7 +95,7 @@ class ModelVarsGlm:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
             temp[self.npar_a:, j] = value
-            self.params = dask.array.from_array(temp)
+            self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
             self.params[self.npar_a:, j] = value
 
