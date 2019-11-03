@@ -63,7 +63,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         delayed_converged = np.tile(False, self.model.model_vars.n_features)
 
         ll_current = - self.model.ll_byfeature.compute()
-        logging.getLogger("batchglm").debug("iter %i: ll=%f" % (0, np.sum(ll_current)))
+        logging.getLogger("batchglm").info("iter %i: ll=%f" % (0, np.sum(ll_current)))
         while np.any(np.logical_not(delayed_converged)) and \
                 train_step < max_steps:
             # Update parameters:
@@ -98,10 +98,17 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
             logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged: %i" %
-                (train_step, np.sum(ll_current), np.sum(self.model.converged))
+                "iter %i: ll=%f, converged location model: %.2f%%, converged total: %.2f%%" %
+                (train_step, np.sum(ll_current), np.mean(self.model.converged)*100, np.mean(delayed_converged)*100)
             )
+            #sys.stdout.write(
+            #    '\riter %i: ll=%f, %.2f%% converged' %
+            #    (train_step, np.sum(ll_current), np.round(np.mean(delayed_converged)*100, 2))
+            #)
+            #sys.stdout.flush()
             self.lls.append(ll_current)
+        #sys.stdout.write('\r')
+        #sys.stdout.flush()
 
     def iwls_step(self) -> np.ndarray:
         """
