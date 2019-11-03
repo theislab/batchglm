@@ -174,7 +174,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         else:
             b_var_new = self.model.b_var.copy()
         for i, j in enumerate(idx):
-            sys.stdout.write('\r' + 'Fitting dispersion model %f%%' % np.round(i/len(idx), 2)*100)
+            sys.stdout.write('\rFitting dispersion models in progress: %.2f%%' % np.round(i/len(idx)*100., 2))
             sys.stdout.flush()
             if linesearch:
                 ls_result = scipy.optimize.line_search(
@@ -203,6 +203,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 )
                 b_var_new[0, j] = ls_result["x"]
 
+        sys.stdout.write('\r')
+        sys.stdout.flush()
         return b_var_new
 
     def finalize(self):
