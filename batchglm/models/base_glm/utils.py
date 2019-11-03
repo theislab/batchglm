@@ -5,6 +5,7 @@ try:
 except ImportError:
     anndata = None
 
+import dask.array
 import numpy as np
 import pandas as pd
 import patsy
@@ -33,6 +34,9 @@ def parse_design(
     elif isinstance(design_matrix, np.ndarray):
         dmat = design_matrix
         params = None
+    elif isinstance(design_matrix, dask.array.core.Array):
+        dmat = design_matrix.compute()
+        params = None
     else:
         assert False
 
@@ -47,7 +51,7 @@ def parse_design(
 def parse_constraints(
         dmat: np.ndarray,
         dmat_par_names: List[str],
-        constraints: np.ndarray = None,
+        constraints: Union[np.ndarray, dask.array.core.Array] = None,
         constraint_par_names: list = None
 ) -> Tuple:
     r"""
@@ -62,6 +66,8 @@ def parse_constraints(
         constraints = np.identity(n=dmat.shape[1])
         constraint_params = dmat_par_names
     else:
+        if isinstance(constraints, dask.array.core.Array):
+            constraints = constraints.compute()
         # Cannot use all parameter names if constraint matrix is not identity: Make up new ones.
         # Use variable names that can be mapped (unconstrained).
         constraint_params = ["var_"+str(i) if np.sum(constraints[:, i] != 0) > 1

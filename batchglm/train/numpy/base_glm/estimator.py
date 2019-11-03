@@ -1,4 +1,5 @@
 import abc
+import dask.array
 import logging
 import numpy as np
 import pprint
@@ -60,18 +61,24 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         train_step = 0
         delayed_converged = np.tile(False, self.model.model_vars.n_features)
 
-        ll_current = - self.model.ll_byfeature
+        ll_current = - self.model.ll_byfeature.compute()
         logging.getLogger("batchglm").debug("iter %i: ll=%f" % (0, np.sum(ll_current)))
         while np.any(np.logical_not(delayed_converged)) and \
                 train_step < max_steps:
             # Update parameters:
             # Line search step for scale model:
             if train_step % update_b_freq == 0 and train_step > 0:
-                b_var_cache = self.model.b_var.copy()
+                if isinstance(self.model.b_var, dask.array.core.Array):
+                    b_var_cache = self.model.b_var.compute()
+                else:
+                    b_var_cache = self.model.b_var.copy()
                 self.model.b_var = self.b_step(idx=np.where(np.logical_not(delayed_converged))[0])
                 # Reverse update by feature if update leads to worse loss:
-                ll_proposal = - self.model.ll_byfeature
-                b_var_new = self.model.b_var.copy()
+                ll_proposal = - self.model.ll_byfeature.compute()
+                if isinstance(self.model.b_var, dask.array.core.Array):
+                    b_var_new = self.model.b_var.compute()
+                else:
+                    b_var_new = self.model.b_var.copy()
                 b_var_new[:, ll_proposal > ll_current] = b_var_cache[:, ll_proposal > ll_current]
                 self.model.b_var = b_var_new
                 delayed_b_converged = self.model.converged.copy()
@@ -80,7 +87,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
             # Evaluate convergence
             ll_previous = ll_current
-            ll_current = - self.model.ll_byfeature
+            ll_current = - self.model.ll_byfeature.compute()
             converged_f = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
             # Location model convergence status has to be updated if b model was updated
             if train_step % update_b_freq == 0 and train_step > 0:
@@ -89,7 +96,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             else:
                 self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
-            logging.getLogger("batchglm").debug(
+            logging.getLogger("batchglm").info(
                 "iter %i: ll=%f, converged: %i" %
                 (train_step, np.sum(ll_current), np.sum(self.model.converged))
             )
@@ -113,7 +120,23 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         b = np.einsum('fob,of->fb', xhw, ybar)
         # Via np.linalg.solve:
         delta_theta = np.zeros_like(self.model.a_var)
-        delta_theta[:, self.model.idx_not_converged] = np.linalg.solve(a, b).T
+        if isinstance(delta_theta, dask.array.core.Array):
+            delta_theta = delta_theta.compute()
+
+        if isinstance(a, dask.array.core.Array):
+            # Have to use a workaround to solve problems in parallel in dask here. This workaround does
+            # not work if there is only a single problem, ie. if the first dimension of a and b has length 1.
+            if a.shape[0] != 1:
+                delta_theta[:, self.model.idx_not_converged] = dask.array.map_blocks(
+                    np.linalg.solve, a, b[:, :, None], chunks=b[:, :, None].shape
+                ).squeeze().T.compute()
+            else:
+                delta_theta[:, self.model.idx_not_converged] = np.expand_dims(
+                    np.linalg.solve(a[0], b[0]).compute(),
+                    axis=-1
+                )
+        else:
+            delta_theta[:, self.model.idx_not_converged] = np.linalg.solve(a, b).T
         # Via np.linalg.lsts:
         #delta_theta[:, self.idx_not_converged] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
@@ -139,13 +162,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         def cost_b_var(x):
             self.model.b_var_j_setter(value=x, j=j)
-            return - np.sum(self.model.ll_j(j=j))
+            return - np.sum(self.model.ll_j(j=j)).compute()
 
         def grad_b_var(x):
             self.model.b_var_j_setter(value=x, j=j)
-            return - self.model.jac_b_j(j=j)
+            return - self.model.jac_b_j(j=j).compute()
 
-        b_var_new = self.model.b_var.copy()
+        if isinstance(self.model.b_var, dask.array.core.Array):
+            b_var_new = self.model.b_var.compute()
+        else:
+            b_var_new = self.model.b_var.copy()
         for j in idx:
             if linesearch:
                 ls_result = scipy.optimize.line_search(
@@ -186,10 +212,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         # Read from numpy-IRLS estimator specific model:
 
-        self._hessian = self.model.hessian
+        self._hessian = self.model.hessian.compute()
         self._fisher_inv = np.linalg.inv(- self._hessian)
-        self._jacobian = np.sum(np.abs(self.model.jac / self.model.x.shape[0]), axis=1)
-        self._log_likelihood = self.model.ll_byfeature
+        self._jacobian = np.sum(np.abs(self.model.jac.compute() / self.model.x.shape[0]), axis=1)
+        self._log_likelihood = self.model.ll_byfeature.compute()
         self._loss = np.sum(self._log_likelihood)
 
     @abc.abstractmethod

@@ -139,11 +139,11 @@ class _TestAccuracyGlmAll(
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.tf1.glm_nb import Simulator
+                from batchglm.api.models.numpy.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models import Simulator
             elif self.noise_model == "beta":
-                from batchglm.api.models.tf1.glm_beta import Simulator
+                from batchglm.api.models.numpy.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 

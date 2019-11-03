@@ -75,6 +75,7 @@ class Estimator(EstimatorGlm):
             init_b=init_b,
             constraints_loc=input_data.constraints_loc,
             constraints_scale=input_data.constraints_scale,
+            chunk_size_genes=input_data.chunk_size_genes,
             dtype=dtype
         )
         model = ModelIwlsNb(

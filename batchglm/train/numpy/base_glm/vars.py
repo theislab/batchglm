@@ -1,18 +1,13 @@
+import dask.array
 import numpy as np
-import tensorflow as tf
+import scipy.sparse
 import abc
 
 
 class ModelVarsGlm:
-    """ Build variables to be optimzed and their constraints.
+    """
+    Build variables to be optimzed and their constraints.
 
-    a_var and b_var slices of the tf1.Variable params which contains
-    all parameters to be optimized during model estimation.
-    Params is defined across both location and scale model so that
-    the hessian can be computed for the entire model.
-    a and b are the clipped parameter values which also contain
-    constraints and constrained dependent coefficients which are not
-    directly optimized.
     """
 
     constraints_loc: np.ndarray
@@ -31,6 +26,7 @@ class ModelVarsGlm:
             init_b: np.ndarray,
             constraints_loc: np.ndarray,
             constraints_scale: np.ndarray,
+            chunk_size_genes: int,
             dtype: str
     ):
         """
@@ -46,13 +42,13 @@ class ModelVarsGlm:
 
         init_a_clipped = self.np_clip_param(np.asarray(init_a, dtype=dtype), "a_var")
         init_b_clipped = self.np_clip_param(np.asarray(init_b, dtype=dtype), "b_var")
-        self.params = np.concatenate(
+        self.params = dask.array.from_array(np.concatenate(
             [
                 init_a_clipped,
                 init_b_clipped,
             ],
             axis=0
-        )
+        ), chunks=(1000, chunk_size_genes))
         self.npar_a = init_a_clipped.shape[0]
 
         # Properties to follow gene-wise convergence.
@@ -74,7 +70,12 @@ class ModelVarsGlm:
 
     @a_var.setter
     def a_var(self, value):
-        self.params[0:self.npar_a] = value
+        if isinstance(self.params, dask.array.core.Array):
+            temp = self.params.compute()
+            temp[0:self.npar_a] = value
+            self.params = dask.array.from_array(temp)
+        else:
+            self.params[0:self.npar_a] = value
 
     @property
     def b_var(self):
@@ -83,10 +84,20 @@ class ModelVarsGlm:
 
     @b_var.setter
     def b_var(self, value):
-        self.params[self.npar_a:] = value
+        if isinstance(self.params, dask.array.core.Array):
+            temp = self.params.compute()
+            temp[self.npar_a:] = value
+            self.params = dask.array.from_array(temp)
+        else:
+            self.params[self.npar_a:] = value
 
     def b_var_j_setter(self, value, j):
-        self.params[self.npar_a:, j] = value
+        if isinstance(self.params, dask.array.core.Array):
+            temp = self.params.compute()
+            temp[self.npar_a:, j] = value
+            self.params = dask.array.from_array(temp)
+        else:
+            self.params[self.npar_a:, j] = value
 
     @abc.abstractmethod
     def param_bounds(self, dtype):

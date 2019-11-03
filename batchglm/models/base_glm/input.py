@@ -3,6 +3,7 @@ try:
 except ImportError:
     anndata = None
 
+import dask.array
 import numpy as np
 import pandas as pd
 import patsy
@@ -34,6 +35,8 @@ class InputDataGLM(InputDataBase):
             size_factors=None,
             observation_names=None,
             feature_names=None,
+            chunk_size_cells: int = 100000,
+            chunk_size_genes: int = 100,
             cast_dtype=None
     ):
         """
@@ -81,6 +84,8 @@ class InputDataGLM(InputDataBase):
             data=data,
             observation_names=observation_names,
             feature_names=feature_names,
+            chunk_size_cells=chunk_size_cells,
+            chunk_size_genes=chunk_size_genes,
             cast_dtype=cast_dtype
         )
 
@@ -92,12 +97,15 @@ class InputDataGLM(InputDataBase):
             design_matrix=design_scale,
             param_names=design_scale_names
         )
-        if cast_dtype is not None:
-            design_loc = design_loc.astype(cast_dtype)
-            design_scale = design_scale.astype(cast_dtype)
 
-        self.design_loc = design_loc
-        self.design_scale = design_scale
+        self.design_loc = dask.array.from_array(
+            design_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+            chunks=(chunk_size_cells, 1000),
+        )
+        self.design_scale = dask.array.from_array(
+            design_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+            chunks=(chunk_size_cells, 1000),
+        )
         self._design_loc_names = design_loc_names
         self._design_scale_names = design_scale_names
 
@@ -113,8 +121,14 @@ class InputDataGLM(InputDataBase):
             constraints=constraints_scale,
             constraint_par_names=None
         )
-        self.constraints_loc = constraints_loc
-        self.constraints_scale = constraints_scale
+        self.constraints_loc = dask.array.from_array(
+            constraints_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+            chunks=(1000, 1000),
+        )
+        self.constraints_scale = dask.array.from_array(
+            constraints_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+            chunks=(1000, 1000),
+        )
         self._loc_names = loc_names
         self._scale_names = scale_names
 
