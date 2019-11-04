@@ -37,7 +37,7 @@ class InputDataGLM(InputDataBase):
             feature_names=None,
             chunk_size_cells: int = 1e6,
             chunk_size_genes: int = 100,
-            cast_dtype=None
+            cast_dtype="float64"
     ):
         """
         Create a new InputData object.
