@@ -81,7 +81,10 @@ def groupwise_solve_lm(
         raise ValueError("large least-square problem in init, likely defined a numeric predictor as categorical")
 
     full_rank = constraints.shape[1]
-    rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
+    if isinstance(dmat, dask.array.core.Array):  # matrix_rank not supported by dask
+        rank = np.linalg.matrix_rank(np.matmul(unique_design.compute(), constraints.compute()))
+    else:
+        rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
     if full_rank > rank:
         logger.error("model is not full rank!")
 

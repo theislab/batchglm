@@ -62,7 +62,7 @@ class _TestAccuracyGlmAllEstim:
             self
     ):
         self.estimator.initialize()
-        self.estimator.train(max_steps=100)
+        self.estimator.train_sequence(training_strategy="DEFAULT")
 
     def eval_estimation(
             self,

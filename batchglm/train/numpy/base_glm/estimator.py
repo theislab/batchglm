@@ -7,6 +7,7 @@ import pprint
 import scipy
 import scipy.optimize
 import sys
+import time
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
@@ -51,7 +52,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         if training_strategy is None:
             training_strategy = self.TrainingStrategies.DEFAULT.value
 
-        logging.getLogger("batchglm").info("training strategy:\n%s", pprint.pformat(training_strategy))
+        logging.getLogger("batchglm").debug("training strategy:\n%s", pprint.pformat(training_strategy))
         self.train(**training_strategy)
 
     def train(
@@ -68,9 +69,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         delayed_converged = np.tile(False, self.model.model_vars.n_features)
 
         ll_current = - self.model.ll_byfeature.compute()
-        logging.getLogger("batchglm").info("iter %i: ll=%f" % (0, np.sum(ll_current)))
+        logging.getLogger("batchglm").info("iter   %i: ll=%f" % (0, np.sum(ll_current)))
         while np.any(np.logical_not(delayed_converged)) and \
                 train_step < max_steps:
+            t0 = time.time()
             # Update parameters:
             # Line search step for scale model:
             if train_step % update_b_freq == 0 and train_step > 0:
@@ -109,8 +111,14 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
             logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged location model: %.2f%%, converged total: %.2f%%" %
-                (train_step, np.sum(ll_current), np.mean(self.model.converged)*100, np.mean(delayed_converged)*100)
+                "iter %s: ll=%f, converged: %.2f%% (location model: %.2f%%), in %.2fsec" %
+                (
+                    (" " if train_step < 10 else "") + (" " if train_step < 100 else "") + str(train_step),
+                    np.sum(ll_current),
+                    np.mean(delayed_converged)*100,
+                    np.mean(self.model.converged) * 100,
+                    time.time()-t0
+                )
             )
             #sys.stdout.write(
             #    '\riter %i: ll=%f, %.2f%% converged' %
@@ -155,7 +163,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             iter += 1
             logging.getLogger("batchglm").info(
                 "iter %i: ll=%f, converged location model: %.2f%%" %
-                (iter, np.sum(ll_current), np.mean(converged) * 100)
+                (
+                    (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
+                    np.sum(ll_current),
+                    np.mean(converged) * 100
+                )
             )
         return self.model.a_var.compute()
 
@@ -259,7 +271,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             iter += 1
             logging.getLogger("batchglm").info(
                 "iter %i: ll=%f, converged scale model: %.2f%%" %
-                (iter, np.sum(ll_current), np.mean(converged) * 100)
+                (
+                    (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
+                    np.sum(ll_current),
+                    np.mean(converged) * 100
+                )
             )
         return self.model.b_var.compute()
 
@@ -305,8 +321,15 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 results = pool.starmap(optim_handle, idx)
                 b_var_new[0, :] = np.array([x[0] for x in results])
         else:
+            t0 = time.time()
             for i, j in enumerate(idx):
-                sys.stdout.write('\rFitting dispersion models in progress: %.2f%%' % np.round(i/len(idx)*100., 2))
+                sys.stdout.write(
+                    '\rFitting dispersion models: %.2f%% in %.2fsec' %
+                    (
+                        np.round(i/len(idx)*100., 2),
+                        time.time() - t0
+                    )
+                )
                 sys.stdout.flush()
                 if method.lower() == "linesearch":
                     ls_result = scipy.optimize.line_search(
