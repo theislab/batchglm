@@ -64,7 +64,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             update_b_freq: int = 5,
             ftol_b: float = 1e-8,
             lr_b: float = 1e-2,
-            max_iter_b: int = 100
+            max_iter_b: int = 100,
+            nproc: int = 3
     ):
         # Iterate until conditions are fulfilled.
         train_step = 0
@@ -87,7 +88,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     method=method_b,
                     ftol=ftol_b,
                     lr=lr_b,
-                    max_iter=max_iter_b
+                    max_iter=max_iter_b,
+                    nproc=nproc
                 )
                 # Reverse update by feature if update leads to worse loss:
                 ll_proposal = - self.model.ll_byfeature.compute()
@@ -226,7 +228,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             method: str,
             ftol: float,
             lr: float,
-            max_iter: int
+            max_iter: int,
+            nproc: int
     ) -> np.ndarray:
         """
 
@@ -235,7 +238,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         if method.lower() in ["gd"]:
             return self._b_step_gd(idx=idx, ftol=ftol, lr=lr, max_iter=max_iter)
         else:
-            return self._b_step_loop(idx=idx, method=method, ftol=ftol, max_iter=max_iter)
+            return self._b_step_loop(idx=idx, method=method, ftol=ftol, max_iter=max_iter, nproc=nproc)
 
     def _b_step_gd(
             self,
@@ -308,7 +311,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             idx: np.ndarray,
             method: str,
             max_iter: int,
-            ftol: float
+            ftol: float,
+            nproc: int
     ) -> np.ndarray:
         """
 
@@ -316,21 +320,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         x0 = -10
 
-        def cost_b_var(x):
-            self.model.b_var_j_setter(value=x, j=j)
-            return - np.sum(self.model.ll_j(j=j)).compute()
-
-        def grad_b_var(x):
-            self.model.b_var_j_setter(value=x, j=j)
-            return - self.model.jac_b_j(j=j).compute()
-
         if isinstance(self.model.b_var, dask.array.core.Array):
             b_var_new = self.model.b_var.compute()
         else:
             b_var_new = self.model.b_var.copy()
+
         xh_scale = np.matmul(self.model.design_scale, self.model.constraints_scale).compute()
-        if True:
-            with multiprocessing.Pool(processes=3) as pool:
+        if nproc > 1:
+            sys.stdout.write('\rFitting %i dispersion models: (progress not available with multiprocessing)' % len(idx))
+            sys.stdout.flush()
+            with multiprocessing.Pool(processes=nproc) as pool:
                 results = pool.starmap(
                     self.optim_handle,
                     [(
@@ -343,6 +342,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 )
                 pool.close()
             b_var_new[0, idx] = np.array([x[0] for x in results])
+            sys.stdout.write('\r')
+            sys.stdout.flush()
         else:
             t0 = time.time()
             for i, j in enumerate(idx):
@@ -354,24 +355,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     )
                 )
                 sys.stdout.flush()
-                if method.lower() == "linesearch":
-                    ls_result = scipy.optimize.line_search(
-                        f=cost_b_var,
-                        myfprime=grad_b_var,
-                        xk=np.array([x0]),
-                        pk=np.array([1.]),
-                        gfk=None,
-                        old_fval=None,
-                        old_old_fval=None,
-                        args=(),
-                        c1=0.0001,
-                        c2=0.9,
-                        amax=50.,
-                        extra_condition=None,
-                        maxiter=max_iter
-                    )
-                    b_var_new[0, j] = x0 + ls_result[0]
-                elif method.lower() == "brent":
+                if method.lower() == "brent":
                     eta_loc = self.model.eta_loc_j(j=j).compute()
                     data = self.x[:, [j]].compute()
                     if isinstance(data, sparse._coo.core.COO) or isinstance(data, scipy.sparse.csr_matrix):
