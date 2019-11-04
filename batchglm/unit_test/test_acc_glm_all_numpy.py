@@ -147,7 +147,7 @@ class _TestAccuracyGlmAll(
             else:
                 raise ValueError("noise_model not recognized")
 
-        return Simulator(num_observations=10000, num_features=100)
+        return Simulator(num_observations=10000, num_features=1000)
 
     def simulate1(self):
         self.sim1 = self.get_simulator()
@@ -350,7 +350,7 @@ class TestAccuracyGlmNb(
         np.random.seed(1)
         self.noise_model = "nb"
         self.simulate()
-        #self._test_full(sparse=False)
+        self._test_full(sparse=False)
         self._test_full(sparse=True)
 
 

@@ -5,7 +5,9 @@ import multiprocessing
 import numpy as np
 import pprint
 import scipy
+import scipy.sparse
 import scipy.optimize
+import sparse
 import sys
 import time
 
@@ -97,7 +99,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 self.model.b_var = b_var_new
                 delayed_converged = self.model.converged.copy()
             # IWLS step for location model:
-            if np.any(np.logical_not(self.model.converged)):
+            if np.any(np.logical_not(self.model.converged)) or train_step % update_b_freq == 0 and train_step > 0:
                 self.model.a_var = self.model.a_var + self.iwls_step()
                 # Evaluate convergence
                 ll_previous = ll_current
@@ -279,6 +281,28 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             )
         return self.model.b_var.compute()
 
+    def optim_handle(self, data_j, eta_loc_j, xh_scale, max_iter, ftol):
+
+        if isinstance(data_j, sparse._coo.core.COO) or isinstance(data_j, scipy.sparse.csr_matrix):
+            data_j = data_j.todense()
+        if len(data_j.shape) == 1:
+            data_j = np.expand_dims(data_j, axis=-1)
+
+        ll = self.model.ll_handle()
+
+        def cost_b_var(x, data_jj, eta_loc_jj, xh_scale_jj):
+            x = np.array([[x]])
+            return - np.sum(ll(data_jj, eta_loc_jj, x, xh_scale_jj))
+
+        return scipy.optimize.brent(
+            func=cost_b_var,
+            args=(data_j, eta_loc_j, xh_scale),
+            maxiter=max_iter,
+            tol=ftol,
+            brack=(-5, 5),
+            full_output=True
+        )
+
     def _b_step_loop(
             self,
             idx: np.ndarray,
@@ -304,22 +328,21 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             b_var_new = self.model.b_var.compute()
         else:
             b_var_new = self.model.b_var.copy()
-        if False:
-            # TODO support multithreading
+        xh_scale = np.matmul(self.model.design_scale, self.model.constraints_scale).compute()
+        if True:
             with multiprocessing.Pool(processes=3) as pool:
-                if method.lower() == "brent":
-                    def optim_handle(j):
-                        scipy.optimize.brent(
-                            func=cost_b_var,
-                            args=(),
-                            tol=ftol,
-                            full_output=True,
-                            maxiter=max_iter
-                        )
-                else:
-                    raise ValueError("method %s not recognized" % method)
-                results = pool.starmap(optim_handle, idx)
-                b_var_new[0, :] = np.array([x[0] for x in results])
+                results = pool.starmap(
+                    self.optim_handle,
+                    [(
+                        self.x[:, [j]].compute(),
+                        self.model.eta_loc_j(j=j).compute(),
+                        xh_scale,
+                        max_iter,
+                        ftol
+                    ) for j in idx]
+                )
+                pool.close()
+            b_var_new[0, idx] = np.array([x[0] for x in results])
         else:
             t0 = time.time()
             for i, j in enumerate(idx):
@@ -349,9 +372,24 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     )
                     b_var_new[0, j] = x0 + ls_result[0]
                 elif method.lower() == "brent":
+                    eta_loc = self.model.eta_loc_j(j=j).compute()
+                    data = self.x[:, [j]].compute()
+                    if isinstance(data, sparse._coo.core.COO) or isinstance(data, scipy.sparse.csr_matrix):
+                        data = data.todense()
+
+                    ll = self.model.ll_handle()
+
+                    def cost_b_var(x, data_j, eta_loc_j, xh_scale_j):
+                        return - np.sum(ll(
+                            data_j,
+                            eta_loc_j,
+                            np.array([[x]]),
+                            xh_scale_j
+                        ))
+
                     b_var_new[0, j] = scipy.optimize.brent(
                         func=cost_b_var,
-                        args=(),
+                        args=(data, eta_loc, xh_scale),
                         maxiter=max_iter,
                         tol=ftol,
                         brack=(-5, 5),

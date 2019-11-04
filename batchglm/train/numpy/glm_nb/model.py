@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import scipy.sparse
 import scipy.special
+import sparse
 
 from .external import Model, ModelIwls, InputDataGLM
 from .processModel import ProcessModel
@@ -190,3 +191,21 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
                             np.multiply(scale, self.eta_scale_j(j=j) - log_r_plus_mu))
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
+
+    def ll_handle(self):
+        def fun(x, eta_loc, b_var, xh_scale):
+            eta_scale = np.matmul(xh_scale, b_var)
+            scale = np.exp(eta_scale)
+            loc = np.exp(eta_loc)
+            log_r_plus_mu = np.log(scale + loc)
+            if isinstance(x, np.ndarray) or isinstance(x, dask.array.core.Array):
+                # dense numpy or dask
+                ll = scipy.special.gammaln(scale + x) - \
+                     scipy.special.gammaln(x + np.ones_like(scale)) - \
+                     scipy.special.gammaln(scale) + \
+                     x * (eta_loc - log_r_plus_mu) + \
+                     np.multiply(scale, eta_scale - log_r_plus_mu)
+            else:
+                raise ValueError("type x %s not supported" % type(x))
+            return self.np_clip_param(ll, "ll")
+        return fun
