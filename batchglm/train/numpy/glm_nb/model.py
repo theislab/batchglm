@@ -1,6 +1,7 @@
 import dask.array
 import logging
 import numpy as np
+import scipy.sparse
 import scipy.special
 
 from .external import Model, ModelIwls, InputDataGLM
@@ -77,7 +78,10 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         """
         scale = self.scale
         loc = self.location
-        scale_plus_x = np.asarray(scale + self.x)
+        if isinstance(self.x, scipy.sparse.csr_matrix):
+            scale_plus_x = np.asarray(scale + self.x)
+        else:
+            scale_plus_x = scale + self.x
         r_plus_mu = scale + loc
 
         # Define graphs for individual terms of constant term of hessian:
@@ -96,7 +100,10 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             j = [j]
         scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
-        scale_plus_x = np.asarray(scale + self.x[:, j])
+        if isinstance(self.x, scipy.sparse.csr_matrix):
+            scale_plus_x = np.asarray(scale + self.x[:, j])
+        else:
+            scale_plus_x = scale + self.x[:, j]
         r_plus_mu = scale + loc
 
         # Define graphs for individual terms of constant term of hessian:
@@ -143,19 +150,8 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         scale = self.scale
         loc = self.location
         log_r_plus_mu = np.log(scale + loc)
-        if isinstance(self.x, np.ndarray) or \
-                (isinstance(self.x, dask.array.core.Array) and
-                 str(type(self.x._meta).__module__.split(".")[0]) != "sparse"  # accesses chunk dtype
-                ):
+        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
             # dense numpy or dask
-            ll = scipy.special.gammaln(scale + self.x) - \
-                 scipy.special.gammaln(self.x + np.ones_like(scale)) - \
-                 scipy.special.gammaln(scale) + \
-                 self.x * (self.eta_loc - log_r_plus_mu) + \
-                 np.multiply(scale, self.eta_scale - log_r_plus_mu)
-        elif isinstance(self.x, dask.array.core.Array) and \
-                str(type(self.x._meta).__module__.split(".")[0]) == "sparse":  # accesses chunk dtype
-            # sparse dask
             ll = scipy.special.gammaln(scale + self.x) - \
                  scipy.special.gammaln(self.x + np.ones_like(scale)) - \
                  scipy.special.gammaln(scale) + \
@@ -178,19 +174,8 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
         log_r_plus_mu = np.log(scale + loc)
-        if isinstance(self.x, np.ndarray) or \
-                (isinstance(self.x, dask.array.core.Array) and
-                 str(type(self.x._meta).__module__.split(".")[0]) != "sparse"  # accesses chunk dtype
-                ):
+        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
             # dense numpy or dask
-            ll = scipy.special.gammaln(scale + self.x[:, j]) - \
-                 scipy.special.gammaln(self.x + np.ones_like(scale)) - \
-                 scipy.special.gammaln(scale) + \
-                 self.x[:, j] * (self.eta_loc_j(j=j) - log_r_plus_mu) + \
-                 np.multiply(scale, self.eta_scale_j(j=j) - log_r_plus_mu)
-        elif isinstance(self.x, dask.array.core.Array) and \
-                str(type(self.x._meta).__module__.split(".")[0]) == "sparse":  # accesses chunk dtype
-            # sparse dask
             ll = scipy.special.gammaln(scale + self.x[:, j]) - \
                  scipy.special.gammaln(self.x[:, j] + np.ones_like(scale)) - \
                  scipy.special.gammaln(scale) + \

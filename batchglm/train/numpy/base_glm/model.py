@@ -238,10 +238,10 @@ class ModelIwls:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        w = self.jac_weight_b_j(j=j)  # (observations x features)
-        xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
-        return np.einsum(
-            'fob,of->fb',
-            np.einsum('ob,of->fob', xh, w),
-            xh
-        )
+            w = self.jac_weight_b_j(j=j)  # (observations x features)
+            xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
+            return np.einsum(
+                'fob,of->fb',
+                np.einsum('ob,of->fob', xh, w),
+                xh
+            )

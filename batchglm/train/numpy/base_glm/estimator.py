@@ -97,11 +97,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 self.model.b_var = b_var_new
                 delayed_converged = self.model.converged.copy()
             # IWLS step for location model:
-            self.model.a_var = self.model.a_var + self.iwls_step()
-
-            # Evaluate convergence
-            ll_previous = ll_current
-            ll_current = - self.model.ll_byfeature.compute()
+            if np.any(np.logical_not(self.model.converged)):
+                self.model.a_var = self.model.a_var + self.iwls_step()
+                # Evaluate convergence
+                ll_previous = ll_current
+                ll_current = - self.model.ll_byfeature.compute()
             converged_f = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
             # Location model convergence status has to be updated if b model was updated
             if train_step % update_b_freq == 0 and train_step > 0:
