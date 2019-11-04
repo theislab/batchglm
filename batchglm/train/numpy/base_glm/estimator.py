@@ -1,6 +1,7 @@
 import abc
 import dask.array
 import logging
+import multiprocessing
 import numpy as np
 import pprint
 import scipy
@@ -56,7 +57,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def train(
             self,
             max_steps: int,
-            update_b_freq: int = 5
+            method_b: str = "brent",
+            update_b_freq: int = 5,
+            ftol_b: float = 1e-8,
+            lr_b: float = 1e-2,
+            max_iter_b: int = 100
     ):
         # Iterate until conditions are fulfilled.
         train_step = 0
@@ -73,7 +78,13 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     b_var_cache = self.model.b_var.compute()
                 else:
                     b_var_cache = self.model.b_var.copy()
-                self.model.b_var = self.b_step(idx=np.where(np.logical_not(delayed_converged))[0])
+                self.model.b_var = self.b_step(
+                    idx=np.where(np.logical_not(delayed_converged))[0],
+                    method=method_b,
+                    ftol=ftol_b,
+                    lr=lr_b,
+                    max_iter=max_iter_b
+                )
                 # Reverse update by feature if update leads to worse loss:
                 ll_proposal = - self.model.ll_byfeature.compute()
                 if isinstance(self.model.b_var, dask.array.core.Array):
@@ -82,7 +93,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     b_var_new = self.model.b_var.copy()
                 b_var_new[:, ll_proposal > ll_current] = b_var_cache[:, ll_proposal > ll_current]
                 self.model.b_var = b_var_new
-                delayed_b_converged = self.model.converged.copy()
+                delayed_converged = self.model.converged.copy()
             # IWLS step for location model:
             self.model.a_var = self.model.a_var + self.iwls_step()
 
@@ -109,6 +120,44 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             self.lls.append(ll_current)
         #sys.stdout.write('\r')
         #sys.stdout.flush()
+
+    def a_step_gd(
+            self,
+            idx: np.ndarray,
+            ftol: float,
+            max_iter: int,
+            lr: float
+    ) -> np.ndarray:
+        """
+        Not used
+
+        :return:
+        """
+        iter = 0
+        converged = np.tile(True, self.model.model_vars.n_features)
+        converged[idx] = False
+        ll_current = - self.model.ll_byfeature.compute()
+        while np.any(np.logical_not(converged)) and iter < max_iter:
+            idx_to_update = np.where(np.logical_not(converged))[0]
+            jac = np.zeros_like(self.model.a_var).compute()
+            # Use mean jacobian so that learning rate is independent of number of samples.
+            jac[:, idx_to_update] = - self.model.jac_a.compute().T[:, idx_to_update] / \
+                                    self.model.input_data.num_observations
+            self.model._a_var = self.model.a_var.compute() + lr * jac
+            # Assess convergence:
+            ll_previous = ll_current
+            ll_current = - self.model.ll_byfeature.compute()
+            converged_f = (ll_current - ll_previous) / ll_previous > -ftol
+            a_var_new = self.model.a_var.compute()
+            a_var_new[:, converged_f] = a_var_new[:, converged_f] - lr * jac[:, converged_f]
+            self.model.a_var = a_var_new
+            converged = np.logical_or(converged, converged_f)
+            iter += 1
+            logging.getLogger("batchglm").info(
+                "iter %i: ll=%f, converged location model: %.2f%%" %
+                (iter, np.sum(ll_current), np.mean(converged) * 100)
+            )
+        return self.model.a_var.compute()
 
     def iwls_step(self) -> np.ndarray:
         """
@@ -160,7 +209,66 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def b_step(
             self,
             idx: np.ndarray,
-            linesearch: bool = False
+            method: str,
+            ftol: float,
+            lr: float,
+            max_iter: int
+    ) -> np.ndarray:
+        """
+
+        :return:
+        """
+        if method.lower() in ["gd"]:
+            return self._b_step_gd(idx=idx, ftol=ftol, lr=lr, max_iter=max_iter)
+        else:
+            return self._b_step_loop(idx=idx, method=method, ftol=ftol, max_iter=max_iter)
+
+    def _b_step_gd(
+            self,
+            idx: np.ndarray,
+            ftol: float,
+            max_iter: int,
+            lr: float
+    ) -> np.ndarray:
+        """
+
+        :return:
+        """
+        iter = 0
+        converged = np.tile(True, self.model.model_vars.n_features)
+        converged[idx] = False
+        ll_current = - self.model.ll_byfeature.compute()
+        while np.any(np.logical_not(converged)) and iter < max_iter:
+            idx_to_update = np.where(np.logical_not(converged))[0]
+            jac = np.zeros_like(self.model.b_var).compute()
+            # Use mean jacobian so that learning rate is independent of number of samples.
+            jac[:, idx_to_update] = self.model.jac_b_j(j=idx_to_update).compute().T / \
+                                    self.model.input_data.num_observations
+            self.model.b_var_j_setter(
+                value=(self.model.b_var.compute() + lr * jac)[:, idx_to_update],
+                j=idx_to_update
+            )
+            # Assess convergence:
+            ll_previous = ll_current
+            ll_current = - self.model.ll_byfeature.compute()
+            converged_f = (ll_current - ll_previous) / ll_previous > -ftol
+            b_var_new = self.model.b_var.compute()
+            b_var_new[:, converged_f] = b_var_new[:, converged_f] - lr * jac[:, converged_f]
+            self.model.b_var = b_var_new
+            converged = np.logical_or(converged, converged_f)
+            iter += 1
+            logging.getLogger("batchglm").info(
+                "iter %i: ll=%f, converged scale model: %.2f%%" %
+                (iter, np.sum(ll_current), np.mean(converged) * 100)
+            )
+        return self.model.b_var.compute()
+
+    def _b_step_loop(
+            self,
+            idx: np.ndarray,
+            method: str,
+            max_iter: int,
+            ftol: float
     ) -> np.ndarray:
         """
 
@@ -180,38 +288,56 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             b_var_new = self.model.b_var.compute()
         else:
             b_var_new = self.model.b_var.copy()
-        for i, j in enumerate(idx):
-            sys.stdout.write('\rFitting dispersion models in progress: %.2f%%' % np.round(i/len(idx)*100., 2))
+        if False:
+            # TODO support multithreading
+            with multiprocessing.Pool(processes=3) as pool:
+                if method.lower() == "brent":
+                    def optim_handle(j):
+                        scipy.optimize.brent(
+                            func=cost_b_var,
+                            args=(),
+                            tol=ftol,
+                            full_output=True,
+                            maxiter=max_iter
+                        )
+                else:
+                    raise ValueError("method %s not recognized" % method)
+                results = pool.starmap(optim_handle, idx)
+                b_var_new[0, :] = np.array([x[0] for x in results])
+        else:
+            for i, j in enumerate(idx):
+                sys.stdout.write('\rFitting dispersion models in progress: %.2f%%' % np.round(i/len(idx)*100., 2))
+                sys.stdout.flush()
+                if method.lower() == "linesearch":
+                    ls_result = scipy.optimize.line_search(
+                        f=cost_b_var,
+                        myfprime=grad_b_var,
+                        xk=np.array([x0]),
+                        pk=np.array([1.]),
+                        gfk=None,
+                        old_fval=None,
+                        old_old_fval=None,
+                        args=(),
+                        c1=0.0001,
+                        c2=0.9,
+                        amax=50.,
+                        extra_condition=None,
+                        maxiter=max_iter
+                    )
+                    b_var_new[0, j] = x0 + ls_result[0]
+                elif method.lower() == "brent":
+                    b_var_new[0, j] = scipy.optimize.brent(
+                        func=cost_b_var,
+                        args=(),
+                        maxiter=max_iter,
+                        tol=ftol,
+                        brack=(-5, 5),
+                        full_output=False
+                    )
+                else:
+                    raise ValueError("method %s not recognized" % method)
+            sys.stdout.write('\r')
             sys.stdout.flush()
-            if linesearch:
-                ls_result = scipy.optimize.line_search(
-                    f=cost_b_var,
-                    myfprime=grad_b_var,
-                    xk=np.array([x0]),
-                    pk=np.array([1.]),
-                    gfk=None,
-                    old_fval=None,
-                    old_old_fval=None,
-                    args=(),
-                    c1=0.0001,
-                    c2=0.9,
-                    amax=50.,
-                    extra_condition=None,
-                    maxiter=1000
-                )
-                b_var_new[0, j] = x0 + ls_result[0]
-            else:
-                ls_result = scipy.optimize.minimize_scalar(
-                    fun=cost_b_var,
-                    args=(),
-                    method='brent',
-                    tol=None,
-                    options={'maxiter': 500}
-                )
-                b_var_new[0, j] = ls_result["x"]
-
-        sys.stdout.write('\r')
-        sys.stdout.flush()
         return b_var_new
 
     def finalize(self):

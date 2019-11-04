@@ -7,6 +7,18 @@ class TrainingStrategies(Enum):
     DEFAULT = [
         {
             "max_steps": 1000,
-            "update_b_freq": 5
+            "method_b": "brent",
+            "update_b_freq": 5,
+            "ftol_b": 1e-6,
+            "max_iter_b": 100
+        },
+    ]
+    GD = [
+        {
+            "max_steps": 1000,
+            "method_b": "gd",
+            "update_b_freq": 5,
+            "ftol_b": 1e-6,
+            "max_iter_b": 100
         },
     ]

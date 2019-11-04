@@ -67,6 +67,9 @@ class ModelIwls:
     def ll_byfeature(self) -> np.ndarray:
         return np.sum(self.ll, axis=0)
 
+    def ll_byfeature_j(self, j) -> np.ndarray:
+        return np.sum(self.ll_j(j=j), axis=0)
+
     @abc.abstractmethod
     def fim_weight(self) -> np.ndarray:
         pass
