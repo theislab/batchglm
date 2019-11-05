@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Tuple, Union
 import numpy as np
 
 from .external import InputDataGLM, Model, EstimatorGlm
@@ -21,6 +21,7 @@ class Estimator(EstimatorGlm):
             input_data: InputDataGLM,
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
+            batch_size: Union[None, Tuple[int, int]] = None,
             quick_scale: bool = False,
             dtype="float64",
             **kwargs
