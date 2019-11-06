@@ -7,8 +7,13 @@ from typing import List
 
 try:
     import anndata
+    try:
+        from anndata.base import Raw
+    except ImportError:
+        from anndata import Raw
 except ImportError:
     anndata = None
+    Raw = None
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +56,7 @@ class InputDataBase:
                 isinstance(data, scipy.sparse.csr_matrix) or \
                 isinstance(data, dask.array.core.Array):
             self.x = data
-        elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
+        elif isinstance(data, anndata.AnnData) or isinstance(data, Raw):
             self.x = data.X
         elif isinstance(data, InputDataBase):
             self.x = data.x
@@ -59,7 +64,8 @@ class InputDataBase:
             raise ValueError("type of data %s not recognized" % type(data))
 
         if not isinstance(self.x, dask.array.core.Array):
-            if isinstance(data, scipy.sparse.csr_matrix):
+            # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
+            if isinstance(self.x, scipy.sparse.spmatrix):
                 self.x = dask.array.from_array(
                     sparse.COO.from_scipy_sparse(
                         self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)

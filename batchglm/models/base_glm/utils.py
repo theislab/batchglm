@@ -38,7 +38,7 @@ def parse_design(
         dmat = design_matrix.compute()
         params = None
     else:
-        assert False
+        raise ValueError("type %s not recognized" % type(design_matrix))
 
     if param_names is not None:
         if params is None:
