@@ -10,6 +10,7 @@ import scipy.optimize
 import sparse
 import sys
 import time
+from typing import Tuple
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
