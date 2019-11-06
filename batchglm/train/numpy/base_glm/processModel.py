@@ -14,7 +14,8 @@ class ProcessModelGlm:
             name
     ):
         bounds_min, bounds_max = self.param_bounds(param.dtype)
-        return param.clip(
+        return np.clip(
+            param,
             bounds_min[name],
             bounds_max[name]
         )

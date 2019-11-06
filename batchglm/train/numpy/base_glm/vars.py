@@ -70,6 +70,9 @@ class ModelVarsGlm:
 
     @a_var.setter
     def a_var(self, value):
+        # Threshold new entry:
+        value = self.np_clip_param(value, "a_var")
+        # Write either new dask array or into numpy array:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
             temp[0:self.npar_a] = value
@@ -84,6 +87,9 @@ class ModelVarsGlm:
 
     @b_var.setter
     def b_var(self, value):
+        # Threshold new entry:
+        value = self.np_clip_param(value, "b_var")
+        # Write either new dask array or into numpy array:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
             temp[self.npar_a:] = value
@@ -92,6 +98,9 @@ class ModelVarsGlm:
             self.params[self.npar_a:] = value
 
     def b_var_j_setter(self, value, j):
+        # Threshold new entry:
+        value = self.np_clip_param(value, "b_var")
+        # Write either new dask array or into numpy array:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
             temp[self.npar_a:, j] = value

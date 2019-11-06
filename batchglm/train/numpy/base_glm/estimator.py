@@ -48,31 +48,36 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             self,
             training_strategy: str = "DEFAULT"
     ):
-        if isinstance(training_strategy, str):
-            training_strategy = self.TrainingStrategies[training_strategy].value[0]
+        if not isinstance(training_strategy, list) and not isinstance(training_strategy, Tuple):
+            training_strategy = [training_strategy]
+        for ts in training_strategy:
+            if isinstance(ts, str):
+                ts = self.TrainingStrategies[ts].value[0]
 
-        if training_strategy is None:
-            training_strategy = self.TrainingStrategies.DEFAULT.value
+            if ts is None:
+                ts = self.TrainingStrategies.DEFAULT.value
 
-        logging.getLogger("batchglm").debug("training strategy:\n%s", pprint.pformat(training_strategy))
-        self.train(**training_strategy)
+            logging.getLogger("batchglm").debug("training strategy:\n%s", pprint.pformat(ts))
+            self.train(**ts)
 
     def train(
             self,
-            max_steps: int,
+            max_steps: int = 100,
             method_b: str = "brent",
             update_b_freq: int = 5,
             ftol_b: float = 1e-8,
             lr_b: float = 1e-2,
             max_iter_b: int = 100,
-            nproc: int = 3
+            nproc: int = 3,
+            **kwargs
     ):
         # Iterate until conditions are fulfilled.
         train_step = 0
         delayed_converged = np.tile(False, self.model.model_vars.n_features)
 
         ll_current = - self.model.ll_byfeature.compute()
-        logging.getLogger("batchglm").info("iter   %i: ll=%f" % (0, np.sum(ll_current)))
+        #logging.getLogger("batchglm").info(
+        sys.stdout.write("iter   %i: ll=%f\n" % (0, np.sum(ll_current)))
         while np.any(np.logical_not(delayed_converged)) and \
                 train_step < max_steps:
             t0 = time.time()
@@ -106,7 +111,13 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 # Evaluate convergence
                 ll_previous = ll_current
                 ll_current = - self.model.ll_byfeature.compute()
-            converged_f = (ll_previous - ll_current) / ll_previous < pkg_constants.LLTOL_BY_FEATURE
+            converged_f = np.logical_or(
+                ll_previous < ll_current,  # loss gets worse
+                np.abs(ll_previous - ll_current) / np.maximum(  # relative decrease in loss is too small
+                    np.nextafter(0, np.inf, dtype=ll_previous.dtype),  # catch division by zero
+                    np.abs(ll_previous)
+                ) < pkg_constants.LLTOL_BY_FEATURE,
+            )
             # Location model convergence status has to be updated if b model was updated
             if train_step % update_b_freq == 0 and train_step > 0:
                 self.model.converged = converged_f
@@ -114,8 +125,9 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             else:
                 self.model.converged = np.logical_or(self.model.converged, converged_f)
             train_step += 1
-            logging.getLogger("batchglm").info(
-                "iter %s: ll=%f, converged: %.2f%% (location model: %.2f%%), in %.2fsec" %
+            #logging.getLogger("batchglm").info(
+            sys.stdout.write(
+                "iter %s: ll=%f, converged: %.2f%% (location model: %.2f%%), in %.2fsec\n" %
                 (
                     (" " if train_step < 10 else "") + (" " if train_step < 100 else "") + str(train_step),
                     np.sum(ll_current),

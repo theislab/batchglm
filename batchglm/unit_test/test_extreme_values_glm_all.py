@@ -14,9 +14,31 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
     Test whether numerical extremes throw error in initialisation or during first training steps.
     """
 
-    def _test_low_values_a_and_b(self):
+    def _modify_sim(self, idx, val):
+        if self.noise_model is None:
+            raise ValueError("noise_model is None")
+        else:
+            if self.noise_model == "nb":
+                from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
+            elif self.noise_model == "norm":
+                from batchglm.api.models import Estimator, InputDataGLM
+            elif self.noise_model == "beta":
+                from batchglm.api.models.numpy.glm_beta import Estimator, InputDataGLM
+            else:
+                raise ValueError("noise_model not recognized")
+
         self.simulate1()
-        self.sim1.input_data.x[:, 0] = 0.
+        x = self.sim1.x
+        x[:, idx] = val
+        input_data = InputDataGLM(
+            data=x,
+            design_loc=self.sim1.input_data.design_loc,
+            design_scale=self.sim1.input_data.design_scale
+        )
+        self.sim1.input_data = input_data
+
+    def _test_low_values_a_and_b(self):
+        self._modify_sim(idx=0, val=0.)
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -25,8 +47,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         )
 
     def _test_low_values_a_only(self):
-        self.simulate1()
-        self.sim1.input_data.x[:, 0] = 0.
+        self._modify_sim(idx=0, val=0.)
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -35,8 +56,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         )
 
     def _test_low_values_b_only(self):
-        self.simulate1()
-        self.sim1.input_data.x[:, 0] = 0.
+        self._modify_sim(idx=0, val=0.)
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -45,8 +65,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         )
 
     def _test_zero_variance_a_and_b(self):
-        self.simulate1()
-        self.sim1.input_data.x[:, 0] = 5.
+        self._modify_sim(idx=0, val=5.)
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -55,8 +74,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         )
 
     def _test_zero_variance_a_only(self):
-        self.simulate1()
-        self.sim1.input_data.x[:, 0] = 5.
+        self._modify_sim(idx=0, val=5.)
         return self.basic_test(
             batched=False,
             train_loc=True,
@@ -65,8 +83,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
     )
 
     def _test_zero_variance_b_only(self):
-        self.simulate1()
-        self.sim1.input_data.x[:, 0] = 5.
+        self._modify_sim(idx=0, val=5.)
         return self.basic_test(
             batched=False,
             train_loc=True,

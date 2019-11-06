@@ -145,7 +145,7 @@ class Estimator(EstimatorGlm):
                         design_loc=input_data.design_loc,
                         constraints_loc=input_data.constraints_loc,
                         size_factors=size_factors_init,
-                        link_fn=lambda mu: np.log(mu)
+                        link_fn=lambda mu: np.log(mu+np.nextafter(0, 1, dtype=mu.dtype))
                     )
 
                     # train mu, if the closed-form solution is inaccurate
@@ -186,7 +186,7 @@ class Estimator(EstimatorGlm):
                         constraints=input_data.constraints_scale[[0], :][:, [0]],
                         size_factors=size_factors_init,
                         groupwise_means=None,
-                        link_fn=lambda r: np.log(r)
+                        link_fn=lambda r: np.log(r+np.nextafter(0, 1, dtype=r.dtype))
                     )
                     init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                     init_b[0, :] = init_b_intercept

@@ -123,12 +123,12 @@ class _TestGraphGlmAll:
 
     def simulate1(self):
         self.sim1 = self.get_simulator()
-        self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
+        self.sim1.generate_sample_description(num_batches=2, num_conditions=2, intercept_scale=True)
         self.sim1.generate()
 
     def simulate2(self):
         self.sim2 = self.get_simulator()
-        self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
+        self.sim2.generate_sample_description(num_batches=0, num_conditions=2, intercept_scale=True)
         self.sim2.generate()
 
     def simulator(self, train_loc):
