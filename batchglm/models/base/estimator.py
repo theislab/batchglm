@@ -3,6 +3,7 @@ from enum import Enum
 import logging
 import numpy as np
 import pandas as pd
+import pprint
 
 try:
     import anndata
@@ -87,6 +88,25 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         Initializes this estimator
         """
         pass
+
+    def train_sequence(
+            self,
+            training_strategy,
+            **kwargs
+    ):
+        if isinstance(training_strategy, Enum):
+            training_strategy = training_strategy.value
+        elif isinstance(training_strategy, str):
+            training_strategy = self.TrainingStrategies[training_strategy].value
+
+        if training_strategy is None:
+            training_strategy = self.TrainingStrategies.DEFAULT.value
+
+        logger.debug("training strategy:\n%s", pprint.pformat(training_strategy))
+        for idx, d in enumerate(training_strategy):
+            logger.debug("Beginning with training sequence #%d", idx + 1)
+            self.train(**d, **kwargs)
+            logger.debug("Training sequence #%d complete", idx + 1)
 
     @abc.abstractmethod
     def train(self, **kwargs):

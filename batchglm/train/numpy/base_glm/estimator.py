@@ -38,19 +38,6 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def initialize(self):
         pass
 
-    def train_sequence(
-            self,
-            training_strategy: str = "DEFAULT"
-    ):
-        if isinstance(training_strategy, str):
-            training_strategy = self.TrainingStrategies[training_strategy].value[0]
-
-        if training_strategy is None:
-            training_strategy = self.TrainingStrategies.DEFAULT.value
-
-        logging.getLogger("batchglm").info("training strategy:\n%s", pprint.pformat(training_strategy))
-        self.train(**training_strategy)
-
     def train(
             self,
             max_steps: int,
