@@ -132,7 +132,17 @@ class InputDataGLM(InputDataBase):
         self._loc_names = loc_names
         self._scale_names = scale_names
 
-        self.size_factors = size_factors
+        if size_factors is not None:
+            if len(size_factors.shape) == 1:
+                size_factors = np.expand_dims(np.asarray(size_factors), axis=-1)
+            elif len(size_factors.shape) == 2:
+                pass
+            else:
+                raise ValueError("received size factors with dimension=%i" % len(size_factors.shape))
+        self.size_factors = dask.array.from_array(
+            size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+            chunks=(chunk_size_cells, 1),
+        ) if size_factors is not None else None
 
     @property
     def design_loc_names(self):
