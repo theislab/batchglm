@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Tuple, Union
 import numpy as np
 
 from .external import InputDataGLM, Model, EstimatorGlm
@@ -21,6 +21,7 @@ class Estimator(EstimatorGlm):
             input_data: InputDataGLM,
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
+            batch_size: Union[None, Tuple[int, int]] = None,
             quick_scale: bool = False,
             dtype="float64",
             **kwargs
@@ -75,6 +76,7 @@ class Estimator(EstimatorGlm):
             init_b=init_b,
             constraints_loc=input_data.constraints_loc,
             constraints_scale=input_data.constraints_scale,
+            chunk_size_genes=input_data.chunk_size_genes,
             dtype=dtype
         )
         model = ModelIwlsNb(
@@ -119,15 +121,6 @@ class Estimator(EstimatorGlm):
                 &= D \cdot x' = f^{-1}(\theta)
         $$
         """
-
-        size_factors_init = input_data.size_factors
-        if size_factors_init is not None:
-            size_factors_init = np.expand_dims(size_factors_init, axis=1)
-            size_factors_init = np.broadcast_to(
-                array=size_factors_init,
-                shape=[input_data.num_observations, input_data.num_features]
-            )
-
         if init_model is None:
             groupwise_means = None
             init_a_str = None
@@ -142,8 +135,8 @@ class Estimator(EstimatorGlm):
                         x=input_data.x,
                         design_loc=input_data.design_loc,
                         constraints_loc=input_data.constraints_loc,
-                        size_factors=size_factors_init,
-                        link_fn=lambda mu: np.log(mu)
+                        size_factors=input_data.size_factors,
+                        link_fn=lambda mu: np.log(mu+np.nextafter(0, 1, dtype=mu.dtype))
                     )
 
                     # train mu, if the closed-form solution is inaccurate
@@ -182,9 +175,9 @@ class Estimator(EstimatorGlm):
                         x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
                         constraints=input_data.constraints_scale[[0], :][:, [0]],
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=None,
-                        link_fn=lambda r: np.log(r)
+                        link_fn=lambda r: np.log(r+np.nextafter(0, 1, dtype=r.dtype))
                     )
                     init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                     init_b[0, :] = init_b_intercept
@@ -210,7 +203,7 @@ class Estimator(EstimatorGlm):
                         x=input_data.x,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale,
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=groupwise_means,
                         link_fn=lambda r: np.log(r)
                     )

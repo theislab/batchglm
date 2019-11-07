@@ -2,7 +2,10 @@ import logging
 from typing import Union
 
 import numpy as np
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except:
+    tf = None
 
 from .external import TFEstimatorGLM, InputDataGLM, Model
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
@@ -100,6 +103,9 @@ class Estimator(TFEstimatorGLM, ProcessModel):
             Will increase runtime of summary writer, use only for debugging.
         :param dtype: Precision used in tensorflow.
         """
+        if tf is None:
+            raise ValueError("tensorflow could not be imported." +
+                             "Install tensorflow to use Estimators from the tf1 submodule")
         self.TrainingStrategies = TrainingStrategies
 
         self._input_data = input_data
