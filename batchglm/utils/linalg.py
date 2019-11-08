@@ -1,3 +1,4 @@
+import dask.array
 import numpy as np
 
 import logging
@@ -71,12 +72,19 @@ def groupwise_solve_lm(
     `dmat`.
     """
     # Get unqiue rows of design matrix and vector with group assignments:
-    unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
+    if isinstance(dmat, dask.array.core.Array):  # axis argument not supported by dask in .unique()
+        unique_design, inverse_idx = np.unique(dmat.compute(), axis=0, return_inverse=True)
+        unique_design = dask.array.from_array(unique_design, chunks=unique_design.shape)
+    else:
+        unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
     if unique_design.shape[0] > 100:
         raise ValueError("large least-square problem in init, likely defined a numeric predictor as categorical")
 
     full_rank = constraints.shape[1]
-    rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
+    if isinstance(dmat, dask.array.core.Array):  # matrix_rank not supported by dask
+        rank = np.linalg.matrix_rank(np.matmul(unique_design.compute(), constraints.compute()))
+    else:
+        rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
     if full_rank > rank:
         logger.error("model is not full rank!")
 
@@ -96,8 +104,7 @@ def groupwise_solve_lm(
         raise Warning("entries of params were nan which will throw error in lstsq")
     x_prime, rmsd, rank, s = np.linalg.lstsq(
         np.matmul(unique_design, constraints),
-        params,
-        rcond=None
+        params
     )
 
     return params, x_prime, rmsd, rank, s

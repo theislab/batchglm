@@ -1,2 +1,6 @@
 from . import numpy
-from . import tf1
+try:
+    import tensorflow as tf
+    from . import tf1
+except:
+    tf1 = None

@@ -39,8 +39,8 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model=="nb":
-                from batchglm.api.models.tf1.glm_nb import InputDataGLM
+            if self.noise_model == "nb":
+                from batchglm.api.models.numpy.glm_nb import InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -64,7 +64,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
             batched=False,
             train_loc=True,
             train_scale=True,
-            algo="ADAM",
+            algo="IRLS",
             sparse=False
         )
 
@@ -79,7 +79,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
             batched=False,
             train_loc=True,
             train_scale=True,
-            algo="ADAM",
+            algo="IRLS",
             sparse=False
         )
 
@@ -95,7 +95,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
             batched=False,
             train_loc=True,
             train_scale=True,
-            algo="ADAM",
+            algo="IRLS",
             sparse=False
         )
 

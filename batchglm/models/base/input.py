@@ -1,12 +1,19 @@
+import dask.array
 import logging
 import numpy as np
 import scipy.sparse
+import sparse
 from typing import List
 
 try:
     import anndata
+    try:
+        from anndata.base import Raw
+    except ImportError:
+        from anndata import Raw
 except ImportError:
     anndata = None
+    Raw = None
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +24,17 @@ class InputDataBase:
     """
     features: List[str]
     observations: List[str]
+    chunk_size_cells: int
+    chunk_size_genes: int
 
     def __init__(
             self,
             data,
             observation_names=None,
             feature_names=None,
+            chunk_size_cells: int = 100000,
+            chunk_size_genes: int = 100,
+            as_dask: bool = True,
             cast_dtype=None
     ):
         """
@@ -41,19 +53,41 @@ class InputDataBase:
         """
         self.observations = observation_names
         self.features = feature_names
-        if isinstance(data, np.ndarray) or isinstance(data, scipy.sparse.csr_matrix):
+        if isinstance(data, np.ndarray) or \
+                isinstance(data, scipy.sparse.csr_matrix) or \
+                isinstance(data, dask.array.core.Array):
             self.x = data
-        elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
+        elif isinstance(data, anndata.AnnData) or isinstance(data, Raw):
             self.x = data.X
         elif isinstance(data, InputDataBase):
             self.x = data.x
         else:
             raise ValueError("type of data %s not recognized" % type(data))
 
-        if cast_dtype is not None:
-            self.x = self.x.astype(cast_dtype)
+        if as_dask and not isinstance(self.x, dask.array.core.Array):
+            # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
+            if isinstance(self.x, scipy.sparse.spmatrix):
+                self.x = dask.array.from_array(
+                    sparse.COO.from_scipy_sparse(
+                        self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
+                    ),
+                    chunks=(chunk_size_cells, chunk_size_genes),
+                    asarray=False
+                )
+            else:
+                self.x = dask.array.from_array(
+                    self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                    chunks=(chunk_size_cells, chunk_size_genes),
+                )
+        else:
+            if not as_dask and isinstance(self.x, dask.array.core.Array):
+                self.x = self.x.compute()
+            if cast_dtype is not None:
+                self.x = self.x.astype(cast_dtype)
 
         self._feature_allzero = np.sum(self.x, axis=0) == 0
+        self.chunk_size_cells = chunk_size_cells
+        self.chunk_size_genes = chunk_size_genes
 
     @property
     def num_observations(self):

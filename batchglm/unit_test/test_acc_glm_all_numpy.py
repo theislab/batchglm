@@ -62,7 +62,7 @@ class _TestAccuracyGlmAllEstim:
             self
     ):
         self.estimator.initialize()
-        self.estimator.train(max_steps=100)
+        self.estimator.train_sequence(training_strategy="DEFAULT")
 
     def eval_estimation(
             self,
@@ -139,15 +139,15 @@ class _TestAccuracyGlmAll(
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.tf1.glm_nb import Simulator
+                from batchglm.api.models.numpy.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models import Simulator
             elif self.noise_model == "beta":
-                from batchglm.api.models.tf1.glm_beta import Simulator
+                from batchglm.api.models.numpy.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
-        return Simulator(num_observations=10000, num_features=10)
+        return Simulator(num_observations=1000, num_features=10)
 
     def simulate1(self):
         self.sim1 = self.get_simulator()

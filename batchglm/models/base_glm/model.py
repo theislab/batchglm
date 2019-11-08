@@ -141,11 +141,11 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def a(self) -> np.ndarray:
-        return np.matmul(self.constraints_loc, self.a_var)
+        return np.dot(self.constraints_loc, self.a_var)
 
     @property
     def b(self) -> np.ndarray:
-        return np.matmul(self.constraints_scale, self.b_var)
+        return np.dot(self.constraints_scale, self.b_var)
 
     @abc.abstractmethod
     def link_loc(self, data):
