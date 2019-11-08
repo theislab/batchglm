@@ -80,7 +80,7 @@ class InputDataBase:
                     chunks=(chunk_size_cells, chunk_size_genes),
                 )
         else:
-            if isinstance(self.x, dask.array.core.Array):
+            if not as_dask and isinstance(self.x, dask.array.core.Array):
                 self.x = self.x.compute()
             if cast_dtype is not None:
                 self.x = self.x.astype(cast_dtype)
