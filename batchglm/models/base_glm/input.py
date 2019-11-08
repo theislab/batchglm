@@ -37,6 +37,7 @@ class InputDataGLM(InputDataBase):
             feature_names=None,
             chunk_size_cells: int = 1e6,
             chunk_size_genes: int = 100,
+            as_dask: bool = True,
             cast_dtype="float64"
     ):
         """
@@ -86,7 +87,8 @@ class InputDataGLM(InputDataBase):
             feature_names=feature_names,
             chunk_size_cells=chunk_size_cells,
             chunk_size_genes=chunk_size_genes,
-            cast_dtype=cast_dtype
+            cast_dtype=cast_dtype,
+            as_dask=as_dask
         )
 
         design_loc, design_loc_names = parse_design(
@@ -98,14 +100,18 @@ class InputDataGLM(InputDataBase):
             param_names=design_scale_names
         )
 
-        self.design_loc = dask.array.from_array(
-            design_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-            chunks=(chunk_size_cells, 1000),
-        )
-        self.design_scale = dask.array.from_array(
-            design_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-            chunks=(chunk_size_cells, 1000),
-        )
+        if as_dask:
+            self.design_loc = dask.array.from_array(
+                design_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                chunks=(chunk_size_cells, 1000),
+            )
+            self.design_scale = dask.array.from_array(
+                design_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                chunks=(chunk_size_cells, 1000),
+            )
+        else:
+            self.design_loc = design_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
+            self.design_scale = design_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
         self._design_loc_names = design_loc_names
         self._design_scale_names = design_scale_names
 
@@ -121,14 +127,18 @@ class InputDataGLM(InputDataBase):
             constraints=constraints_scale,
             constraint_par_names=None
         )
-        self.constraints_loc = dask.array.from_array(
-            constraints_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-            chunks=(1000, 1000),
-        )
-        self.constraints_scale = dask.array.from_array(
-            constraints_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-            chunks=(1000, 1000),
-        )
+        if as_dask:
+            self.constraints_loc = dask.array.from_array(
+                constraints_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                chunks=(1000, 1000),
+            )
+            self.constraints_scale = dask.array.from_array(
+                constraints_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                chunks=(1000, 1000),
+            )
+        else:
+            self.constraints_loc = constraints_loc.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
+            self.constraints_scale = constraints_scale.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
         self._loc_names = loc_names
         self._scale_names = scale_names
 
@@ -139,10 +149,14 @@ class InputDataGLM(InputDataBase):
                 pass
             else:
                 raise ValueError("received size factors with dimension=%i" % len(size_factors.shape))
-        self.size_factors = dask.array.from_array(
-            size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-            chunks=(chunk_size_cells, 1),
-        ) if size_factors is not None else None
+        if as_dask:
+            self.size_factors = dask.array.from_array(
+                size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                chunks=(chunk_size_cells, 1),
+            ) if size_factors is not None else None
+        else:
+            self.size_factors =  size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype) \
+                if size_factors is not None else None
 
     @property
     def design_loc_names(self):

@@ -34,6 +34,7 @@ class InputDataBase:
             feature_names=None,
             chunk_size_cells: int = 100000,
             chunk_size_genes: int = 100,
+            as_dask: bool = True,
             cast_dtype=None
     ):
         """
@@ -63,7 +64,7 @@ class InputDataBase:
         else:
             raise ValueError("type of data %s not recognized" % type(data))
 
-        if not isinstance(self.x, dask.array.core.Array):
+        if as_dask and not isinstance(self.x, dask.array.core.Array):
             # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
             if isinstance(self.x, scipy.sparse.spmatrix):
                 self.x = dask.array.from_array(
@@ -79,6 +80,8 @@ class InputDataBase:
                     chunks=(chunk_size_cells, chunk_size_genes),
                 )
         else:
+            if isinstance(self.x, dask.array.core.Array):
+                self.x = self.x.compute()
             if cast_dtype is not None:
                 self.x = self.x.astype(cast_dtype)
 

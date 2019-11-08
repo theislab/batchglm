@@ -101,10 +101,6 @@ class _TFEstimator(metaclass=abc.ABCMeta):
     def loss(self):
         return self._get_unsafe("loss")
 
-    @abc.abstractmethod
-    def train_sequence(self, training_strategy, **kwargs):
-        pass
-
     def _train(
             self,
             *args,
