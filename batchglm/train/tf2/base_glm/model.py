@@ -3,8 +3,6 @@ import tensorflow as tf
 import numpy as np
 from .external import ModelBase, LossBase
 from .processModel import ProcessModelGLM
-from .training_strategies import TrainingStrategies
-
 logger = logging.getLogger("batchglm")
 
 
@@ -14,7 +12,6 @@ class GLM(ModelBase, ProcessModelGLM):
     base GLM class containg the model call.
     """
 
-    TS: {} = TrainingStrategies.DEFAULT.value
     compute_a: bool = True
     compute_b: bool = True
 
@@ -30,7 +27,8 @@ class GLM(ModelBase, ProcessModelGLM):
             jacobian: tf.keras.layers.Layer,
             hessian: tf.keras.layers.Layer,
             fim: tf.keras.layers.Layer,
-            use_gradient_tape: bool = False
+            optimizer: str,
+            use_gradient_tape: bool = False,
     ):
         super(GLM, self).__init__()
         self.model_vars = model_vars
@@ -54,6 +52,26 @@ class GLM(ModelBase, ProcessModelGLM):
         self.use_gradient_tape = use_gradient_tape
         self.params_copy = None
         self.batch_features = False
+
+        self.calc_jacobian = False
+        self.calc_hessian = False
+        self.calc_fim = False
+        self.concat_grads = True
+
+        self._setParams(optimizer)
+
+    def _setParams(self, optimizer):
+
+        optimizer = optimizer.lower()
+        if optimizer in ['gd', 'adam', 'adagrad', 'rmsprop']:
+            self.calc_jacobian = True
+
+        elif optimizer in ['nr', 'nr_tr']:
+            self.calc_hessian = True
+
+        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']:
+            self.calc_fim = True
+            self.concat_grads = False
 
     def _call_parameters(self, inputs, keep_previous_params_copy=False):
         if not keep_previous_params_copy:
@@ -142,17 +160,14 @@ class GLM(ModelBase, ProcessModelGLM):
 
         # This is for first order optimizations, which get the full jacobian
 
-        concat = self.TS["concat_grads"]
-
-        if self.TS["jacobian"] is True:
-            _, _, log_probs, jacobians = self._calc_jacobians(inputs, concat=concat)
+        if self.calc_jacobian:
+            _, _, log_probs, jacobians = self._calc_jacobians(inputs, concat=self.concat_grads)
             return log_probs, jacobians
 
         # This is for SecondOrder NR/NR_TR
-        if self.TS["hessian"] is True:
-
+        if self.calc_hessian:
             # with tf.GradientTape(persistent=True) as g2:
-            if concat:
+            if self.concat_grads:
                 loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, concat=True, transpose=False)
             else:
                 loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(inputs, concat=False, transpose=False)
@@ -186,21 +201,18 @@ class GLM(ModelBase, ProcessModelGLM):
                 hessians = tf.negative(hessians)
             '''
             # else:
-            if concat:
+            if self.concat_grads:
                 hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
                 return log_probs, jacobians, hessians
-            else:
-                hes_aa, hes_ab, hes_ba, hes_bb = self.hessian([*inputs[0:3], loc, scale, False])
-                return log_probs, jac_a, jac_b, tf.negative(hes_aa), tf.negative(hes_ab), tf.negative(hes_ba), tf.negative(hes_bb)
+
+            hes_aa, hes_ab, hes_ba, hes_bb = self.hessian([*inputs[0:3], loc, scale, False])
+            return log_probs, jac_a, jac_b, tf.negative(hes_aa), \
+                tf.negative(hes_ab), tf.negative(hes_ba), tf.negative(hes_bb)
             # del g2 # need to delete this GradientTape because persistent is True.
 
-
         # This is for SecondOrder IRLS/IRLS_GD/IRLS_TR/IRLS_GD_TR
-        if self.TS["fim"] is True:
-
-
-
-            if concat:
+        if self.calc_fim:
+            if self.concat_grads:
                 loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, concat=True, transpose=False)
                 fims = self.fim([*inputs[0:3], loc, scale, True])
 

@@ -4,7 +4,6 @@ import numpy as np
 import scipy
 import tensorflow as tf
 from .model import GLM
-from .training_strategies import TrainingStrategies
 from .external import TFEstimator, _EstimatorGLM
 from .optim import NR, IRLS
 from .external import pkg_constants
@@ -61,38 +60,25 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             input_data=input_data
         )
 
-    def train_sequence(self, training_strategy: []):
-        for strategy in training_strategy:
-            self.train(
-                batched_model=strategy['use_batching'],
-                optimizer=strategy['optim_algo'],
-                convergence_criteria=strategy['convergence_criteria'],
-                stopping_criteria=strategy['stopping_criteria'],
-                batch_size=strategy['batch_size'] if 'batch_size' in strategy else 500,
-                learning_rate=strategy['learning_rate'] if 'learning_rate' in strategy else 1e-2,
-                autograd=strategy['autograd'] if 'autograd' in strategy else False,
-                featurewise=strategy['featurewise'] if 'featurewise' in strategy else True
-            )
-
     def _train(
             self,
             noise_model: str,
             batched_model: bool = True,
             batch_size: int = 500,
             optimizer_object: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(),
-            optimizer_enum: TrainingStrategies = TrainingStrategies.DEFAULT,
             convergence_criteria: str = "step",
             stopping_criteria: int = 1000,
             autograd: bool = False,
             featurewise: bool = True,
             benchmark: bool = False,
+            optimizer: str = "adam"
     ):
 
         if not self._initialized:
             raise RuntimeError("Cannot train the model: \
                                 Estimator not initialized. Did you forget to call estimator.initialize() ?")
 
-        if autograd and optimizer_enum.value['hessian']:
+        if autograd and optimizer in ['nr', 'nr_tr']:
             logger.warning("Automatic differentiation is currently not supported for hessians. \
                             Falling back to closed form. Only Jacobians are calculated using autograd.")
 
@@ -129,14 +115,18 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ll_current = np.zeros([self._input_data.num_features], self.dtype) + np.nextafter(np.inf, 0, dtype=self.dtype)
 
         dataset_iterator = iter(input_list)
-        calc_separated = False
-        if optimizer_enum.value["hessian"] is True or optimizer_enum.value["fim"] is True:
-            second_order_optim = True
-            calc_separated = optimizer_enum.value['calc_separated']
+        irls_algo = False
+        nr_algo = False
+        if optimizer.lower() in ['nr','nr_tr']:
+            nr_algo = True
             update_func = optimizer_object.perform_parameter_update
+
+        elif optimizer.lower() in ['irls','irls_tr','irls_gd','irls_gd_tr']:
+            irls_algo = True
+            update_func = optimizer_object.perform_parameter_update
+
         else:
             update_func = optimizer_object.apply_gradients
-            second_order_optim = False
         n_obs = self._input_data.num_observations
 
         curr_norm_loc = np.sqrt(np.sum(np.square(
@@ -176,8 +166,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
 
                 results = self.model(x_batch)
-            if second_order_optim:
-                if calc_separated:
+            if irls_algo or nr_algo:
+                if irls_algo:
                     update_func([x_batch, *results, False, n_obs], True, False, batch_features, ll_prev)
                     if self._train_scale:
                         update_func([x_batch, *results, False, n_obs], False, True, batch_features, ll_prev)
@@ -215,9 +205,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 jac_normalization = batch_size
             else:
                 jac_normalization = self._input_data.num_observations
-            if optimizer_enum.value["optim_algo"] in ['irls', 'irls_gd', 'irls_gd_tr', 'irls_tr']:
+            if irls_algo:
                 grad_numpy = tf.abs(tf.concat((results[1], results[2]), axis=1))
-            elif optimizer_enum.value["optim_algo"] in ['nr', 'nr_tr']:
+            elif nr_algo:
                 grad_numpy = tf.abs(results[1])
             else:
                 grad_numpy = tf.abs(tf.transpose(results[1]))
@@ -253,10 +243,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self._fisher_inv = tf.zeros(shape=()).numpy()
         self._hessian = tf.zeros(shape=()).numpy()
 
-        if optimizer_enum.value["hessian"] is True:
+        if nr_algo:
             self._hessian = results[2].numpy()
             self._jacobian = results[1].numpy()
-        elif optimizer_enum.value["fim"] is True:
+        elif irls_algo:
             self._fisher_inv = tf.concat([results[3], results[4]], axis=0).numpy()
             self._jacobian = tf.concat([results[1], results[2]], axis=0).numpy()
         else:
@@ -339,46 +329,46 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         optimizer = optimizer.lower()
 
         if optimizer == "gd":
-            return tf.keras.optimizers.SGD(learning_rate=learning_rate), TrainingStrategies.GD
+            return tf.keras.optimizers.SGD(learning_rate=learning_rate)
         if optimizer == "adam":
-            return tf.keras.optimizers.Adam(learning_rate=learning_rate), TrainingStrategies.ADAM
+            return tf.keras.optimizers.Adam(learning_rate=learning_rate)
         if optimizer == "adagrad":
-            return tf.keras.optimizers.Adagrad(learning_rate=learning_rate), TrainingStrategies.ADAGRAD
+            return tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
         if optimizer == "rmsprop":
-            return tf.keras.optimizers.RMSprop(learning_rate=learning_rate), TrainingStrategies.RMSPROP
+            return tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
         if optimizer == "irls":
             return IRLS(dtype=self.dtype,
                         trusted_region_mode=False,
                         model=self.model,
-                        name="IRLS"), TrainingStrategies.IRLS
+                        name="IRLS")
         if optimizer == "irls_tr":
             return IRLS(dtype=self.dtype,
                         trusted_region_mode=True,
                         model=self.model,
-                        name="IRLS_TR"), TrainingStrategies.IRLS_TR
+                        name="IRLS_TR")
         if optimizer == "irls_gd":
             return IRLS(dtype=self.dtype,
                         trusted_region_mode=False,
                         model=self.model,
-                        name="IRLS_GD"), TrainingStrategies.IRLS_GD
+                        name="IRLS_GD")
         if optimizer == "irls_gd_tr":
             return IRLS(dtype=self.dtype,
                         trusted_region_mode=True,
                         model=self.model,
-                        name="IRLS_GD_TR"), TrainingStrategies.IRLS_GD_TR
+                        name="IRLS_GD_TR")
         if optimizer == "nr":
             return NR(dtype=self.dtype,
                       trusted_region_mode=False,
                       model=self.model,
-                      name="NR"), TrainingStrategies.NR
+                      name="NR")
         if optimizer == "nr_tr":
             return NR(dtype=self.dtype,
                       trusted_region_mode=True,
                       model=self.model,
-                      name="NR_TR"), TrainingStrategies.NR_TR
+                      name="NR_TR")
 
         logger.warning("No valid optimizer given. Default optimizer Adam chosen.")
-        return tf.keras.optimizers.Adam(learning_rate=learning_rate), TrainingStrategies.ADAM
+        return tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
     def fetch_fn(self, idx):
         """

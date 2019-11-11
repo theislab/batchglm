@@ -1,4 +1,4 @@
-from .external import pkg_constants, TrainingStrategies
+from .external import pkg_constants
 from .model import ModelBase, LossBase
 
 import numpy as np
@@ -19,12 +19,12 @@ class TFEstimator:
             batched_model: bool,
             batch_size: int,
             optimizer_object: tf.keras.optimizers.Optimizer,
-            optimizer_enum: TrainingStrategies,
             convergence_criteria: str,
             stopping_criteria: int,
             autograd: bool,
             featurewise: bool,
-            benchmark: bool
+            benchmark: bool,
+            optimizer: str
     ):
         pass
 

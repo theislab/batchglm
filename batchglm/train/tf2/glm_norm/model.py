@@ -16,7 +16,8 @@ class NormGLM(GLM, ProcessModel):
             dtype,
             compute_a,
             compute_b,
-            use_gradient_tape
+            use_gradient_tape,
+            optimizer
     ):
         self.compute_a = compute_a
         self.compute_b = compute_b
@@ -44,7 +45,8 @@ class NormGLM(GLM, ProcessModel):
                 compute_a=self.compute_a,
                 compute_b=self.compute_b,
                 dtype=dtype),
-            use_gradient_tape=use_gradient_tape
+            use_gradient_tape=use_gradient_tape,
+            optimizer=optimizer
         )
 
 

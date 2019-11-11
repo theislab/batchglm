@@ -108,20 +108,19 @@ class Estimator(GLMEstimator, ProcessModel):
             dtype=self.model_vars.dtype,
             compute_a=self._train_loc,
             compute_b=self._train_scale,
-            use_gradient_tape=autograd
+            use_gradient_tape=autograd,
+            optimizer=optimizer
         )
 
         self._loss = LossGLMNorm()
 
-        optimizer_object, optimizer_enum = self.get_optimizer_object(optimizer, learning_rate)
-        self.model.TS = optimizer_enum.value
+        optimizer_object = self.get_optimizer_object(optimizer, learning_rate)
 
         super(Estimator, self)._train(
             noise_model="norm",
             batched_model=batched_model,
             batch_size=batch_size,
             optimizer_object=optimizer_object,
-            optimizer_enum=optimizer_enum,
             convergence_criteria=convergence_criteria,
             stopping_criteria=stopping_criteria,
             autograd=autograd,

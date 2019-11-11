@@ -16,7 +16,8 @@ class BetaGLM(GLM, ProcessModel):
             dtype,
             compute_a,
             compute_b,
-            use_gradient_tape
+            use_gradient_tape,
+            optimizer
     ):
         self.compute_a = compute_a
         self.compute_b = compute_b
@@ -32,7 +33,8 @@ class BetaGLM(GLM, ProcessModel):
             jacobian=Jacobian(model_vars=model_vars, compute_a=compute_a, compute_b=compute_b, dtype=dtype),
             hessian=Hessian(model_vars=model_vars, compute_a=compute_a, compute_b=compute_b, dtype=dtype),
             fim=FIM(model_vars=model_vars, compute_a=compute_a, compute_b=compute_b, dtype=dtype),
-            use_gradient_tape=use_gradient_tape
+            use_gradient_tape=use_gradient_tape,
+            optimizer=optimizer
 
         )
 
