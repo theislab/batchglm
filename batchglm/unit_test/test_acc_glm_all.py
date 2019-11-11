@@ -54,7 +54,8 @@ class _TestAccuracyGlmAllEstim:
                 design_scale_names=simulator.input_data.design_scale_names,
                 constraints_loc=simulator.input_data.constraints_loc,
                 constraints_scale=simulator.input_data.constraints_scale,
-                size_factors=simulator.input_data.size_factors
+                size_factors=simulator.input_data.size_factors,
+                as_dask=False
             )
         else:
             input_data = InputDataGLM(
@@ -65,7 +66,8 @@ class _TestAccuracyGlmAllEstim:
                 design_scale_names=simulator.input_data.design_scale_names,
                 constraints_loc=simulator.input_data.constraints_loc,
                 constraints_scale=simulator.input_data.constraints_scale,
-                size_factors=simulator.input_data.size_factors
+                size_factors=simulator.input_data.size_factors,
+                as_dask=False
             )
 
         self.estimator = Estimator(

@@ -23,11 +23,11 @@ class _TestGraphGlmAllEstim:
             raise ValueError("noise_model is None")
         else:
             if noise_model == "nb":
-                from batchglm.api.models.tf1.glm_nb import Estimator, InputDataGLM
+                from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
             elif noise_model == "norm":
                 from batchglm.api.models import Estimator, InputDataGLM
             elif noise_model == "beta":
-                from batchglm.api.models.tf1.glm_beta import Estimator, InputDataGLM
+                from batchglm.api.models.numpy.glm_beta import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -111,11 +111,11 @@ class _TestGraphGlmAll:
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.tf1.glm_nb import Simulator
+                from batchglm.api.models.numpy.glm_nb import Simulator
             elif self.noise_model == "norm":
                 from batchglm.api.models import Simulator
             elif self.noise_model == "beta":
-                from batchglm.api.models.tf1.glm_beta import Simulator
+                from batchglm.api.models.numpy.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -123,12 +123,12 @@ class _TestGraphGlmAll:
 
     def simulate1(self):
         self.sim1 = self.get_simulator()
-        self.sim1.generate_sample_description(num_batches=2, num_conditions=2)
+        self.sim1.generate_sample_description(num_batches=2, num_conditions=2, intercept_scale=True)
         self.sim1.generate()
 
     def simulate2(self):
         self.sim2 = self.get_simulator()
-        self.sim2.generate_sample_description(num_batches=0, num_conditions=2)
+        self.sim2.generate_sample_description(num_batches=0, num_conditions=2, intercept_scale=True)
         self.sim2.generate()
 
     def simulator(self, train_loc):
