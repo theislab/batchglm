@@ -9,6 +9,7 @@ from .model import NBGLM, LossGLMNB
 from .vars import ModelVars
 from .processModel import ProcessModel
 from .external import Estimator as GLMEstimator
+from .training_strategies import TrainingStrategies
 
 
 class Estimator(GLMEstimator, ProcessModel):
@@ -56,6 +57,7 @@ class Estimator(GLMEstimator, ProcessModel):
             Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param dtype: Precision used in tensorflow.
         """
+        self.TrainingStrategies = TrainingStrategies
         self._train_loc = True
         self._train_scale = True
 
