@@ -16,7 +16,7 @@ class TFEstimator:
 
     def _train(
             self,
-            batched_model: bool,
+            is_batched: bool,
             batch_size: int,
             optimizer_object: tf.keras.optimizers.Optimizer,
             convergence_criteria: str,

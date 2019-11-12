@@ -87,7 +87,7 @@ class Estimator(GLMEstimator, ProcessModel):
 
     def train(
             self,
-            batched_model: bool = True,
+            use_batching: bool = True,
             batch_size: int = 500,
             optimizer: str = "adam",
             learning_rate: float = 1e-2,
@@ -112,7 +112,7 @@ class Estimator(GLMEstimator, ProcessModel):
 
         super(Estimator, self)._train(
             noise_model="nb",
-            batched_model=batched_model,
+            use_batching=use_batching,
             batch_size=batch_size,
             optimizer_object=optimizer_object,
             convergence_criteria=convergence_criteria,

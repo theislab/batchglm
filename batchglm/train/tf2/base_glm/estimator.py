@@ -63,7 +63,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     def _train(
             self,
             noise_model: str,
-            batched_model: bool = True,
+            is_batched: bool = True,
             batch_size: int = 500,
             optimizer_object: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(),
             convergence_criteria: str = "step",
@@ -87,7 +87,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         data_ids = tf.data.Dataset.from_tensor_slices(
             (tf.range(self._input_data.num_observations, name="sample_index", dtype=tf.dtypes.int64))
         )
-        if batched_model:
+        if is_batched:
             data = data_ids.shuffle(buffer_size=2 * batch_size).repeat().batch(batch_size)
         else:
             data = data_ids.shuffle(buffer_size=2 * batch_size).batch(batch_size, drop_remainder=True)
@@ -146,7 +146,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             if train_step % 10 == 0:
                 logger.info('step %i', train_step)
 
-            if not batched_model:
+            if not is_batched:
                 results = None
                 x_batch = None
                 first_batch = True
@@ -164,8 +164,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             else:
                 x_batch_tuple = next(dataset_iterator)
                 x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
-
                 results = self.model(x_batch)
+
             if irls_algo or nr_algo:
                 if irls_algo:
                     update_func([x_batch, *results, False, n_obs], True, False, batch_features, ll_prev)
@@ -201,7 +201,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 updated_lls = tf.scatter_nd(indices, ll_current, shape=ll_prev.shape)
                 ll_current = np.where(features_updated, updated_lls.numpy(), ll_prev)
 
-            if batched_model:
+            if is_batched:
                 jac_normalization = batch_size
             else:
                 jac_normalization = self._input_data.num_observations

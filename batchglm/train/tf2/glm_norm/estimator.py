@@ -93,14 +93,14 @@ class Estimator(GLMEstimator, ProcessModel):
 
     def train(
         self,
-        batched_model=True,
+        use_batching: bool = True,
         batch_size: int = 500,
         optimizer: str = "adam",
         learning_rate: float = 1e-2,
-        convergence_criteria="step",
-        stopping_criteria=1000,
-        autograd=False,
-        featurewise = True,
+        convergence_criteria: str = "step",
+        stopping_criteria: int = 1000,
+        autograd: bool = False,
+        featurewise: bool = True,
         benchmark: bool = False
     ):
 
@@ -119,7 +119,7 @@ class Estimator(GLMEstimator, ProcessModel):
 
         super(Estimator, self)._train(
             noise_model="norm",
-            batched_model=batched_model,
+            use_batching=use_batching,
             batch_size=batch_size,
             optimizer_object=optimizer_object,
             convergence_criteria=convergence_criteria,
