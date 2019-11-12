@@ -71,14 +71,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             autograd: bool = False,
             featurewise: bool = True,
             benchmark: bool = False,
-            optimizer: str = "adam"
+            optim_algo: str = "adam"
     ):
 
         if not self._initialized:
             raise RuntimeError("Cannot train the model: \
                                 Estimator not initialized. Did you forget to call estimator.initialize() ?")
 
-        if autograd and optimizer in ['nr', 'nr_tr']:
+        if autograd and optim_algo.lower() in ['nr', 'nr_tr']:
             logger.warning("Automatic differentiation is currently not supported for hessians. \
                             Falling back to closed form. Only Jacobians are calculated using autograd.")
 
@@ -117,11 +117,11 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         dataset_iterator = iter(input_list)
         irls_algo = False
         nr_algo = False
-        if optimizer.lower() in ['nr','nr_tr']:
+        if optim_algo.lower() in ['nr','nr_tr']:
             nr_algo = True
             update_func = optimizer_object.perform_parameter_update
 
-        elif optimizer.lower() in ['irls','irls_tr','irls_gd','irls_gd_tr']:
+        elif optim_algo.lower() in ['irls','irls_tr','irls_gd','irls_gd_tr']:
             irls_algo = True
             update_func = optimizer_object.perform_parameter_update
 

@@ -91,7 +91,7 @@ class Estimator(GLMEstimator, ProcessModel):
         self,
         use_batching: bool = True,
         batch_size: int = 500,
-        optimizer: str = "adam",
+        optim_algo: str = "adam",
         learning_rate: float = 1e-2,
         convergence_criteria: str = "step",
         stopping_criteria: int = 1000,
@@ -105,22 +105,22 @@ class Estimator(GLMEstimator, ProcessModel):
             compute_a=self._train_loc,
             compute_b=self._train_scale,
             use_gradient_tape=autograd,
-            optimizer=optimizer
+            optimizer=optim_algo
         )
         self._loss = LossGLMBeta()
 
-        optimizer_object = self.get_optimizer_object(optimizer, learning_rate)
+        optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
 
         super(Estimator, self)._train(
             noise_model="beta",
-            use_batching=use_batching,
+            is_batched=use_batching,
             batch_size=batch_size,
             optimizer_object=optimizer_object,
             convergence_criteria=convergence_criteria,
             stopping_criteria=stopping_criteria,
             autograd=autograd,
             benchmark=benchmark,
-            optimizer=optimizer
+            optim_algo=optim_algo
         )
 
     def get_model_container(
