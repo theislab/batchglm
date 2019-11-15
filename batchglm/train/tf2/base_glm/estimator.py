@@ -26,6 +26,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.times = []
         self.converged = []
         self._initialized = True
+        self.model = None
 
     def finalize(self, **kwargs):
         """
@@ -35,11 +36,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         Changes .model entry from tf-based EstimatorGraph to numpy based Model instance and
         transfers relevant attributes.
         """
+
         a_var, b_var = self.model.unpack_params([self.model.params, self.model.model_vars.a_var.get_shape()[0]])
         self.model = self.get_model_container(self._input_data)
         self.model._a_var = a_var
         self.model._b_var = b_var
-        self._loss = tf.reduce_sum(-self._log_likelihood / self.input_data.num_observations)
+        self._loss = tf.reduce_sum(np.negative(self._log_likelihood) / self.input_data.num_observations)
 
     def __init__(
             self,
@@ -64,7 +66,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self,
             noise_model: str,
             is_batched: bool = True,
-            batch_size: int = 500,
+            batch_size: int = 100,
             optimizer_object: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(),
             convergence_criteria: str = "step",
             stopping_criteria: int = 1000,
@@ -73,7 +75,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             benchmark: bool = False,
             optim_algo: str = "adam"
     ):
-
+        if batch_size > self.input_data.num_observations:
+            batch_size = self.input_data.num_observations
         if not self._initialized:
             raise RuntimeError("Cannot train the model: \
                                 Estimator not initialized. Did you forget to call estimator.initialize() ?")
@@ -84,6 +87,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         self.noise_model = noise_model
         # Slice data and create batches
+
         data_ids = tf.data.Dataset.from_tensor_slices(
             (tf.range(self._input_data.num_observations, name="sample_index", dtype=tf.dtypes.int64))
         )
@@ -172,6 +176,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     if self._train_scale:
                         update_func([x_batch, *results, False, n_obs], False, True, batch_features, ll_prev)
                 else:
+                    print(results)
                     update_func([x_batch, *results, False, n_obs], True, True, batch_features, ll_prev)
                 features_updated = self.model.model_vars.updated
             else:
