@@ -2,6 +2,7 @@ from typing import Union
 
 import abc
 import tensorflow as tf
+tf.keras.backend.set_floatx("float64")
 
 from .processModel import ProcessModelGLM
 
