@@ -39,9 +39,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         a_var, b_var = self.model.unpack_params([self.model.params, self.model.model_vars.a_var.get_shape()[0]])
         self.model = self.get_model_container(self._input_data)
-        self.model._a_var = a_var
-        self.model._b_var = b_var
-        self._loss = tf.reduce_sum(np.negative(self._log_likelihood) / self.input_data.num_observations)
+        self.model._a_var = a_var.numpy()
+        self.model._b_var = b_var.numpy()
+        self._loss = tf.reduce_sum(np.negative(self._log_likelihood) / self.input_data.num_observations).numpy()
 
     def __init__(
             self,
