@@ -99,14 +99,16 @@ class Estimator(GLMEstimator, ProcessModel):
         featurewise: bool = True,
         benchmark: bool = False
     ):
-        self.model = BetaGLM(
-            model_vars=self.model_vars,
-            dtype=self.model_vars.dtype,
-            compute_a=self._train_loc,
-            compute_b=self._train_scale,
-            use_gradient_tape=autograd,
-            optimizer=optim_algo
-        )
+
+        if self.model is None:
+            self.model = BetaGLM(
+                model_vars=self.model_vars,
+                dtype=self.model_vars.dtype,
+                compute_a=self._train_loc,
+                compute_b=self._train_scale,
+                use_gradient_tape=autograd,
+                optimizer=optim_algo
+            )
         self._loss = LossGLMBeta()
 
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
