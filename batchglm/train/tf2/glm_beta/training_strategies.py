@@ -5,7 +5,7 @@ class TrainingStrategies(Enum):
     AUTO = None
     DEFAULT = [
         {
-            "convergence_criteria": "all_converged",
+            "convergence_criteria": "all_converged_ll",
             "stopping_criteria": 1e-8,
             "use_batching": False,
             "optim_algo": "nr_tr",
@@ -13,7 +13,7 @@ class TrainingStrategies(Enum):
     ]
     INEXACT = [
         {
-            "convergence_criteria": "all_converged",
+            "convergence_criteria": "all_converged_ll",
             "stopping_criteria": 1e-6,
             "use_batching": False,
             "optim_algo": "nr_tr",
@@ -21,7 +21,7 @@ class TrainingStrategies(Enum):
     ]
     EXACT = [
         {
-            "convergence_criteria": "all_converged",
+            "convergence_criteria": "all_converged_ll",
             "stopping_criteria": 1e-8,
             "use_batching": False,
             "optim_algo": "nr_tr",
@@ -29,7 +29,7 @@ class TrainingStrategies(Enum):
     ]
     IRLS = [
         {
-            "convergence_criteria": "all_converged",
+            "convergence_criteria": "all_converged_ll",
             "stopping_criteria": 1e-8,
             "use_batching": False,
             "optim_algo": "irls_tr",
