@@ -233,9 +233,20 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         :return:
         """
         if method.lower() in ["gd"]:
-            return self._b_step_gd(idx=idx, ftol=ftol, lr=lr, max_iter=max_iter)
+            return self._b_step_gd(
+                idx=idx,
+                ftol=ftol,
+                lr=lr,
+                max_iter=max_iter
+            )
         else:
-            return self._b_step_loop(idx=idx, method=method, ftol=ftol, max_iter=max_iter, nproc=nproc)
+            return self._b_step_loop(
+                idx=idx,
+                method=method,
+                ftol=ftol,
+                max_iter=max_iter,
+                nproc=nproc
+            )
 
     def _b_step_gd(
             self,
@@ -281,7 +292,14 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             )
         return self.model.b_var.compute()
 
-    def optim_handle(self, data_j, eta_loc_j, xh_scale, max_iter, ftol):
+    def optim_handle(
+            self,
+            data_j,
+            eta_loc_j,
+            xh_scale,
+            max_iter,
+            ftol
+    ):
 
         if isinstance(data_j, sparse._coo.core.COO) or isinstance(data_j, scipy.sparse.csr_matrix):
             data_j = data_j.todense()
@@ -327,11 +345,13 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             sys.stdout.write('\rFitting %i dispersion models: (progress not available with multiprocessing)' % len(idx))
             sys.stdout.flush()
             with multiprocessing.Pool(processes=nproc) as pool:
+                x = self.x.compute()
+                eta_loc = self.model.eta_loc.compute()
                 results = pool.starmap(
                     self.optim_handle,
                     [(
-                        self.x[:, [j]].compute(),
-                        self.model.eta_loc_j(j=j).compute(),
+                        x[:, [j]],
+                        eta_loc[:, [j]],
                         xh_scale,
                         max_iter,
                         ftol
