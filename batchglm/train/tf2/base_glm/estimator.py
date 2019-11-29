@@ -75,6 +75,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             benchmark: bool = False,
             optim_algo: str = "adam"
     ):
+        print(featurewise)
         if batch_size > self.input_data.num_observations:
             batch_size = self.input_data.num_observations
         if not self._initialized:
@@ -148,7 +149,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             not_converged = np.logical_not(self.model.model_vars.converged)
             ll_prev = ll_current.copy()
             if train_step % 10 == 0:
-                logger.info('step %i', train_step)
+                logger.warning('step %i', train_step)
 
             if not is_batched:
                 results = None
@@ -172,12 +173,30 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             if irls_algo or nr_algo:
                 if irls_algo:
-                    update_func([x_batch, *results, False, n_obs], True, False, batch_features, ll_prev)
+                    update_func(
+                        [x_batch, *results, False, n_obs],
+                        True,
+                        False,
+                        batch_features,
+                        ll_prev
+                    )
                     if self._train_scale:
-                        update_func([x_batch, *results, False, n_obs], False, True, batch_features, ll_prev)
+                        update_func(
+                            [x_batch, *results, False, n_obs],
+                            False,
+                            True,
+                            batch_features,
+                            ll_prev
+                        )
                 else:
                     print(results)
-                    update_func([x_batch, *results, False, n_obs], True, True, batch_features, ll_prev)
+                    update_func(
+                        [x_batch, *results, False, n_obs],
+                        True,
+                        True,
+                        batch_features,
+                        ll_prev
+                    )
                 features_updated = self.model.model_vars.updated
             else:
                 if batch_features:
@@ -218,11 +237,22 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 grad_numpy = tf.abs(tf.transpose(results[1]))
             if batch_features:
                 indices = tf.where(not_converged)
-                grad_numpy = tf.scatter_nd(indices, grad_numpy, shape=(self.model.model_vars.n_features,
-                                                                       self.model.params.get_shape()[0]))
+                grad_numpy = tf.scatter_nd(
+                    indices,
+                    grad_numpy,
+                    shape=(self.model.model_vars.n_features, self.model.params.get_shape()[0])
+                )
             grad_numpy = grad_numpy.numpy()
-            convergences = self.calculate_convergence(converged_prev, ll_prev, prev_norm_loc, prev_norm_scale,
-                                                      ll_current, jac_normalization, grad_numpy, features_updated)
+            convergences = self.calculate_convergence(
+                converged_prev,
+                ll_prev,
+                prev_norm_loc,
+                prev_norm_scale,
+                ll_current,
+                jac_normalization,
+                grad_numpy,
+                features_updated
+            )
             converged_current, converged_f, converged_g, converged_x = convergences
 
             self.model.model_vars.convergence_update(converged_current, features_updated)
@@ -231,12 +261,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 if featurewise and not batch_features:
                     batch_features = True
                     self.model.batch_features = batch_features
-                logger.info("Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)",
-                            train_step,
-                            np.sum(ll_current),
-                            num_converged,
-                            np.sum(features_updated).astype("int32"),
-                            np.sum(converged_f), np.sum(converged_g), np.sum(converged_x))
+                logger.warning(
+                    "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)",
+                    train_step,
+                    np.sum(ll_current),
+                    num_converged,
+                    np.sum(features_updated).astype("int32"),
+                    np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
+                )
             train_step += 1
             if benchmark:
                 t1_epoch = time.time()
@@ -252,13 +284,18 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self._hessian = results[2].numpy()
             self._jacobian = results[1].numpy()
         elif irls_algo:
-            self._fisher_inv = tf.concat([results[3], results[4]], axis=0).numpy()
-            self._jacobian = tf.concat([results[1], results[2]], axis=0).numpy()
+            # TODO: maybe report fisher inv here. But concatenation only works if !intercept_scale
+            # self._fisher_inv = tf.concat([results[3], results[4]], axis=0).numpy()
+            self._fisher_inv = None # self.model.calc_hessians(x_batch)[3]
+            self._jacobian = None # tf.concat([results[1], results[2]], axis=0).numpy()
         else:
             self._jacobian = results[1].numpy()
 
     def getModelInput(self, x_batch_tuple: tuple, batch_features: bool, not_converged):
-
+        """
+            Checks whether batch_features is true and returns a smaller x_batch tuple reduced
+            in feature space. Otherwise returns the x_batch.
+        """
         if batch_features:
             x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor = x_batch_tuple
             if isinstance(self._input_data.x, scipy.sparse.csr_matrix):
@@ -281,6 +318,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
     def calculate_convergence(self, converged_prev, ll_prev, prev_norm_loc, prev_norm_scale, ll_current,
                               jac_normalization, grad_numpy, features_updated):
+        """
+            Wrapper method to perform all necessary convergence checks.
+        """
         def get_convergence(converged_previous, condition1, condition2):
             return np.logical_or(converged_previous, np.logical_and(condition1, condition2))
 
@@ -329,51 +369,38 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                                 x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE)
         return converged_current, converged_f, converged_g, converged_x
 
-    def get_optimizer_object(self, optimizer, learning_rate):
+    def get_optimizer_object(self, optimizer: str, learning_rate):
+        """
+            Creates an optimizer object based on the given optimizer string.
+        """
 
         optimizer = optimizer.lower()
 
         if optimizer == "gd":
-            return tf.keras.optimizers.SGD(learning_rate=learning_rate)
-        if optimizer == "adam":
-            return tf.keras.optimizers.Adam(learning_rate=learning_rate)
-        if optimizer == "adagrad":
-            return tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
-        if optimizer == "rmsprop":
-            return tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
-        if optimizer == "irls":
-            return IRLS(dtype=self.dtype,
-                        trusted_region_mode=False,
-                        model=self.model,
-                        name="IRLS")
-        if optimizer == "irls_tr":
-            return IRLS(dtype=self.dtype,
-                        trusted_region_mode=True,
-                        model=self.model,
-                        name="IRLS_TR")
-        if optimizer == "irls_gd":
-            return IRLS(dtype=self.dtype,
-                        trusted_region_mode=False,
-                        model=self.model,
-                        name="IRLS_GD")
-        if optimizer == "irls_gd_tr":
-            return IRLS(dtype=self.dtype,
-                        trusted_region_mode=True,
-                        model=self.model,
-                        name="IRLS_GD_TR")
-        if optimizer == "nr":
-            return NR(dtype=self.dtype,
-                      trusted_region_mode=False,
-                      model=self.model,
-                      name="NR")
-        if optimizer == "nr_tr":
-            return NR(dtype=self.dtype,
-                      trusted_region_mode=True,
-                      model=self.model,
-                      name="NR_TR")
+            optim_obj = tf.keras.optimizers.SGD(learning_rate=learning_rate)
+        elif optimizer == "adam":
+            optim_obj = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        elif optimizer == "adagrad":
+            optim_obj = tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
+        elif optimizer == "rmsprop":
+            optim_obj = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
+        else:
+            tr_mode = optimizer.endswith('tr')
+            init_dict = {
+                "dtype": self.dtype,
+                "model": self.model,
+                "name": optimizer,
+                "trusted_region_mode": tr_mode
+            }
+            if optimizer.startswith('irls'):
+                optim_obj = IRLS(**init_dict)
+            elif optimizer.startswith('nr'):
+                optim_obj = NR(**init_dict)
+            else:
+                optim_obj = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+                logger.warning("No valid optimizer given. Default optimizer Adam chosen.")
 
-        logger.warning("No valid optimizer given. Default optimizer Adam chosen.")
-        return tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        return optim_obj
 
     def fetch_fn(self, idx):
         """
