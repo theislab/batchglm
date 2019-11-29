@@ -155,6 +155,52 @@ class GLM(ModelBase, ProcessModelGLM):
             return loc, scale, log_probs, tf.negative(jacobians)
         return loc, scale, log_probs, tf.negative(jac_a), tf.negative(jac_b)
 
+    def calc_hessians(self, inputs, concat=False):
+        # with tf.GradientTape(persistent=True) as g2:
+        if concat:
+            loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, concat=True, transpose=False)
+        else:
+            loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(inputs, concat=False, transpose=False)
+        # results_arr = [jacobians[:, i] for i in tf.range(self.params_copy.get_shape()[0])]
+
+        '''
+        autograd not yet working. TODO: Search error in the following code:
+
+        if self.use_gradient_tape:
+
+            i = tf.constant(0, tf.int32)
+            h_tensor_array = tf.TensorArray(  # hessian slices [:,:,j]
+                dtype=self.params_copy.dtype,
+                size=self.params_copy.get_shape()[0],
+                clear_after_read=False
+            )
+            while i < self.params_copy.get_shape()[0]:
+                grad = g2.gradient(results_arr[i], self.params_copy)
+                h_tensor_array.write(index=i, value=grad)
+                i += 1
+
+            # h_tensor_array is a TensorArray, reshape this into a tensor so that it can be used
+            # in down-stream computation graphs.
+
+            hessians = tf.transpose(tf.reshape(
+                h_tensor_array.stack(),
+                tf.stack((self.params_copy.get_shape()[0],
+                          self.params_copy.get_shape()[0],
+                          self.params_copy.get_shape()[1]))
+            ), perm=[2, 1, 0])
+            hessians = tf.negative(hessians)
+        '''
+        # else:
+        print('opsdfopdsfpodsfpodsfpo')
+        if concat:
+            hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
+            return log_probs, jacobians, hessians
+
+        hes_aa, hes_ab, hes_ba, hes_bb = self.hessian([*inputs[0:3], loc, scale, False])
+        return log_probs, jac_a, jac_b, tf.negative(hes_aa), \
+            tf.negative(hes_ab), tf.negative(hes_ba), tf.negative(hes_bb)
+        # del g2 # need to delete this GradientTape because persistent is True.
+
     def call(self, inputs, training=False, mask=None):
         # X_data, design_loc, design_scale, size_factors = inputs
 
@@ -166,50 +212,8 @@ class GLM(ModelBase, ProcessModelGLM):
 
         # This is for SecondOrder NR/NR_TR
         if self.calc_hessian:
-            # with tf.GradientTape(persistent=True) as g2:
-            if self.concat_grads:
-                loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, concat=True, transpose=False)
-            else:
-                loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(inputs, concat=False, transpose=False)
-            # results_arr = [jacobians[:, i] for i in tf.range(self.params_copy.get_shape()[0])]
-
-            '''
-            autograd not yet working. TODO: Search error in the following code:
-
-            if self.use_gradient_tape:
-
-                i = tf.constant(0, tf.int32)
-                h_tensor_array = tf.TensorArray(  # hessian slices [:,:,j]
-                    dtype=self.params_copy.dtype,
-                    size=self.params_copy.get_shape()[0],
-                    clear_after_read=False
-                )
-                while i < self.params_copy.get_shape()[0]:
-                    grad = g2.gradient(results_arr[i], self.params_copy)
-                    h_tensor_array.write(index=i, value=grad)
-                    i += 1
-
-                # h_tensor_array is a TensorArray, reshape this into a tensor so that it can be used
-                # in down-stream computation graphs.
-
-                hessians = tf.transpose(tf.reshape(
-                    h_tensor_array.stack(),
-                    tf.stack((self.params_copy.get_shape()[0],
-                              self.params_copy.get_shape()[0],
-                              self.params_copy.get_shape()[1]))
-                ), perm=[2, 1, 0])
-                hessians = tf.negative(hessians)
-            '''
-            # else:
-            if self.concat_grads:
-                hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
-                return log_probs, jacobians, hessians
-
-            hes_aa, hes_ab, hes_ba, hes_bb = self.hessian([*inputs[0:3], loc, scale, False])
-            return log_probs, jac_a, jac_b, tf.negative(hes_aa), \
-                tf.negative(hes_ab), tf.negative(hes_ba), tf.negative(hes_bb)
-            # del g2 # need to delete this GradientTape because persistent is True.
-
+            results = self.calc_hessians(inputs, concat=self.concat_grads)
+            return results
         # This is for SecondOrder IRLS/IRLS_GD/IRLS_TR/IRLS_GD_TR
         if self.calc_fim:
             if self.concat_grads:
