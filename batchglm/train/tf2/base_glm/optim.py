@@ -150,7 +150,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
     def __init__(self, dtype: tf.dtypes.DType, trusted_region_mode: bool, model: tf.keras.Model, name: str):
 
         self.model = model
-        self.gd = name in ['IRLS_GD', 'IRLS_GD_TR']
+        self.gd = name in ['irls_gd', 'irls_gd_tr']
 
         super(SecondOrderOptim, self).__init__(name)
 
