@@ -24,3 +24,17 @@ class TrainingStrategies(Enum):
             "optim_algo": "irls_gd_tr",
         },
     ]
+    ADAM_BATCHED = [
+        {
+            "convergence_criteria": "all_converged",
+            "use_batching": True,
+            "optim_algo": "adam",
+        },
+    ]
+    ADAM = [
+        {
+            "convergence_criteria": "all_converged",
+            "use_batching": False,
+            "optim_algo": "adam",
+        },
+    ]
