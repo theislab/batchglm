@@ -52,7 +52,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             update_b_freq: int = 5,
             ftol_b: float = 1e-8,
             lr_b: float = 1e-2,
-            max_iter_b: int = 100,
+            max_iter_b: int = 1000,
             nproc: int = 3,
             **kwargs
     ):
@@ -250,7 +250,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         :return: (inferred param x features)
         """
-        w = self.model.fim_weight_j(j=idx_update)  # (observations x features)
+        w = self.model.fim_weight_aa_j(j=idx_update)  # (observations x features)
         ybar = self.model.ybar_j(j=idx_update)  # (observations x features)
         # Translate to problem of form ax = b for each feature:
         # (in the following, X=design and Y=counts)
@@ -368,6 +368,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def optim_handle(
             self,
+            b_j,
             data_j,
             eta_loc_j,
             xh_scale,
@@ -381,17 +382,33 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             data_j = np.expand_dims(data_j, axis=-1)
 
         ll = self.model.ll_handle()
+        lb, ub = self.model.param_bounds(dtype=data_j.dtype)
+        lb_bracket = np.max([lb["b_var"], b_j - 20])
+        ub_bracket = np.min([ub["b_var"], b_j + 20])
 
         def cost_b_var(x, data_jj, eta_loc_jj, xh_scale_jj):
-            x = np.array([[x]])
+            x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
             return - np.sum(ll(data_jj, eta_loc_jj, x, xh_scale_jj))
+
+        # jac_b = self.model.jac_b_handle()
+        # def cost_b_var_prime(x, data_jj, eta_loc_jj, xh_scale_jj):
+        #    x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
+        #    return - np.sum(jac_b(data_jj, eta_loc_jj, x, xh_scale_jj))
+        # return scipy.optimize.line_search(
+        #    f=cost_b_var,
+        #    myfprime=cost_b_var_prime,
+        #    args=(data_j, eta_loc_j, xh_scale),
+        #    maxiter=max_iter,
+        #    xk=b_j+5,
+        #    pk=-np.ones_like(b_j)
+        # )
 
         return scipy.optimize.brent(
             func=cost_b_var,
             args=(data_j, eta_loc_j, xh_scale),
             maxiter=max_iter,
             tol=ftol,
-            brack=(-5, 5),
+            brack=(lb_bracket, ub_bracket),
             full_output=True
         )
 
@@ -407,13 +424,13 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         :return:
         """
-        x0 = -10
         delta_theta = np.zeros_like(self.model.b_var)
         if isinstance(delta_theta, dask.array.core.Array):
             delta_theta = delta_theta.compute()
 
         xh_scale = np.matmul(self.model.design_scale, self.model.constraints_scale).compute()
-        if nproc > 1:
+        b_var = self.model.b_var.compute()
+        if nproc > 1 and len(idx_update) > nproc:
             sys.stdout.write('\rFitting %i dispersion models: (progress not available with multiprocessing)' % len(idx_update))
             sys.stdout.flush()
             with multiprocessing.Pool(processes=nproc) as pool:
@@ -422,6 +439,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 results = pool.starmap(
                     self.optim_handle,
                     [(
+                        b_var[0, j],
                         x[:, [j]],
                         eta_loc[:, [j]],
                         xh_scale,
@@ -452,12 +470,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                         data = data.todense()
 
                     ll = self.model.ll_handle()
+                    lb, ub = self.model.param_bounds(dtype=data.dtype)
+                    lb_bracket = np.max([lb["b_var"], b_var[0, j] - 20])
+                    ub_bracket = np.min([ub["b_var"], b_var[0, j] + 20])
 
                     def cost_b_var(x, data_j, eta_loc_j, xh_scale_j):
+                        x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
                         return - np.sum(ll(
                             data_j,
                             eta_loc_j,
-                            np.array([[x]]),
+                            x,
                             xh_scale_j
                         ))
 
@@ -466,7 +488,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                         args=(data, eta_loc, xh_scale),
                         maxiter=max_iter,
                         tol=ftol,
-                        brack=(-5, 5),
+                        brack=(lb_bracket, ub_bracket),
                         full_output=False
                     )
                 else:
@@ -489,8 +511,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         transfers relevant attributes.
         """
         # Read from numpy-IRLS estimator specific model:
-
-        self._hessian = self.model.hessian.compute()
+        self._hessian = - self.model.fim.compute()
         self._fisher_inv = np.linalg.inv(- self._hessian)
         self._jacobian = np.sum(np.abs(self.model.jac.compute() / self.model.x.shape[0]), axis=1)
         self._log_likelihood = self.model.ll_byfeature.compute()
