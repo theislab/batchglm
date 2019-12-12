@@ -91,6 +91,7 @@ class GLM(ModelBase, ProcessModelGLM):
 
     def calc_ll(self, inputs, keep_previous_params_copy=False):
         parameters = self._call_parameters(inputs[1:], keep_previous_params_copy)
+
         log_probs = self.likelihood([*parameters[:-2], inputs[0], np.sum(self.model_vars.updated)])
         return (log_probs, *parameters[2:])
 
@@ -191,7 +192,6 @@ class GLM(ModelBase, ProcessModelGLM):
             hessians = tf.negative(hessians)
         '''
         # else:
-        print('opsdfopdsfpodsfpodsfpo')
         if concat:
             hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
             return log_probs, jacobians, hessians

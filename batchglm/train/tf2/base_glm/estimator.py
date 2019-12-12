@@ -75,7 +75,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             benchmark: bool = False,
             optim_algo: str = "adam"
     ):
-        print(featurewise)
         if batch_size > self.input_data.num_observations:
             batch_size = self.input_data.num_observations
         if not self._initialized:
@@ -189,7 +188,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             ll_prev
                         )
                 else:
-                    print(results)
                     update_func(
                         [x_batch, *results, False, n_obs],
                         True,
@@ -276,20 +274,44 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 self.converged.append(num_converged)
 
         # Evaluate final params
+        logger.warning("Final Evaluation run.")
         self._log_likelihood = results[0].numpy()
         self._fisher_inv = tf.zeros(shape=()).numpy()
         self._hessian = tf.zeros(shape=()).numpy()
+        self.model.batch_features = False
+
+        # change to hessian mode since we still use hessian instead of FIM for self._fisher_inv
+        if irls_algo:
+            self.model.calc_fim = False
+            self.model.calc_hessian = True
+            self.model.concat_grads = True
+
+        first_batch = True
+        for x_batch_tuple in input_list:
+            current_results = self.model(x_batch_tuple)
+            if first_batch:
+                results = list(current_results)
+                first_batch = False
+            else:
+                for i, x in enumerate(current_results):
+                    results[i] += x
 
         if nr_algo:
             self._hessian = results[2].numpy()
             self._jacobian = results[1].numpy()
         elif irls_algo:
             # TODO: maybe report fisher inv here. But concatenation only works if !intercept_scale
-            # self._fisher_inv = tf.concat([results[3], results[4]], axis=0).numpy()
-            self._fisher_inv = None # self.model.calc_hessians(x_batch)[3]
-            self._jacobian = None # tf.concat([results[1], results[2]], axis=0).numpy()
+            self._fisher_inv = results[2].numpy()
+            self._jacobian = results[1].numpy()
+
+            # change back to FIM mode
+            self.model.calc_fim = True
+            self.model.calc_hessian = False
+            self.model.concat_grads = False
         else:
             self._jacobian = results[1].numpy()
+
+        self.model.batch_features = batch_features
 
     def getModelInput(self, x_batch_tuple: tuple, batch_features: bool, not_converged):
         """
