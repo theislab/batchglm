@@ -156,7 +156,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 first_batch = True
                 for x_batch_tuple in input_list:
                     x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
-
                     current_results = self.model(x_batch)
                     if first_batch:
                         results = list(current_results)
@@ -483,9 +482,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 inp=[idx],
                 Tout=self._input_data.size_factors.dtype,
             )
-
-            size_factors_tensor.set_shape(idx.get_shape())
-            size_factors_tensor = tf.expand_dims(size_factors_tensor, axis=-1)
             size_factors_tensor = tf.cast(size_factors_tensor, dtype=self.dtype)
 
         else:
