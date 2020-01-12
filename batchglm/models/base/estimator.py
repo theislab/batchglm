@@ -1,4 +1,5 @@
 import abc
+import dask
 from enum import Enum
 import logging
 import numpy as np
@@ -76,11 +77,17 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
     @property
     def a_var(self):
-        return self.model.a_var
+        if isinstance(self.model.a_var, dask.array.core.Array):
+            return self.model.a_var.compute()
+        else:
+            return self.model.a_var
 
     @property
     def b_var(self) -> np.ndarray:
-        return self.model.b_var
+        if isinstance(self.model.b_var, dask.array.core.Array):
+            return self.model.b_var.compute()
+        else:
+            return self.model.b_var
 
     @abc.abstractmethod
     def initialize(self, **kwargs):
