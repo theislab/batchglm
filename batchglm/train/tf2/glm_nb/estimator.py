@@ -154,14 +154,6 @@ class Estimator(GLMEstimator, ProcessModel):
         $$
         """
 
-        size_factors_init = input_data.size_factors
-        if size_factors_init is not None:
-            size_factors_init = np.expand_dims(size_factors_init, axis=1)
-            size_factors_init = np.broadcast_to(
-                array=size_factors_init,
-                shape=[input_data.num_observations, input_data.num_features]
-            )
-
         if init_model is None:
             groupwise_means = None
             init_a_str = None
@@ -176,7 +168,7 @@ class Estimator(GLMEstimator, ProcessModel):
                         x=input_data.x,
                         design_loc=input_data.design_loc,
                         constraints_loc=input_data.constraints_loc,
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         link_fn=lambda loc: np.log(self.np_clip_param(loc, "loc"))
                     )
 
@@ -217,7 +209,7 @@ class Estimator(GLMEstimator, ProcessModel):
                         x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
                         constraints=input_data.constraints_scale[[0], :][:, [0]],
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=None,
                         link_fn=lambda scale: np.log(self.np_clip_param(scale, "scale"))
                     )
@@ -246,7 +238,7 @@ class Estimator(GLMEstimator, ProcessModel):
                         x=input_data.x,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale,
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=groupwise_means,
                         link_fn=lambda scale: np.log(self.np_clip_param(scale, "scale"))
                     )
