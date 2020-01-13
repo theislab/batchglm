@@ -349,7 +349,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             return np.logical_and(np.logical_not(converged_previous), np.logical_and(condition1, condition2))
 
         def calc_x_step(idx_train, prev_norm):
-            if len(idx_train) > 0 and len(self.values) > 1:
+            if len(idx_train) > 0:
                 curr_norm = np.sqrt(np.sum(np.square(
                     np.abs(self.model.params.numpy()[idx_train, :])
                 ), axis=0))
