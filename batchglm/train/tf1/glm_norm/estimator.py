@@ -172,14 +172,6 @@ class Estimator(TFEstimatorGLM, ProcessModel):
         $$
         """
 
-        size_factors_init = input_data.size_factors
-        if size_factors_init is not None:
-            size_factors_init = np.expand_dims(size_factors_init, axis=1)
-            size_factors_init = np.broadcast_to(
-                array=size_factors_init,
-                shape=[input_data.num_observations, input_data.num_features]
-            )
-
         sf_given = False
         if input_data.size_factors is not None:
             if np.any(np.abs(input_data.size_factors - 1.) > 1e-8):
@@ -268,7 +260,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                         x=input_data.x,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale,
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=groupwise_means,
                         link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
                     )
@@ -282,7 +274,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                         x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
                         constraints=input_data.constraints_scale[[0], :][:, [0]],
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=None,
                         link_fn=lambda sd: np.log(self.np_clip_param(sd, "sd"))
                     )
@@ -331,4 +323,3 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                 logger.debug("Using initialization based on input model for dispersion")
 
         return init_a, init_b
-
