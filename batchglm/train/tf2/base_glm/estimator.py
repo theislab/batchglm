@@ -145,7 +145,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             not_converged = np.logical_not(self.model.model_vars.converged)
             ll_prev = ll_current.copy()
             #if train_step % 10 == 0:
-            logger.warning('step %i: loss: %s', train_step, np.array2string(ll_current[0:10]))
+            logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
 
             if not is_batched:
                 results = None
@@ -254,22 +254,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 if featurewise and not batch_features:
                     batch_features = True
                     self.model.batch_features = batch_features
-                logger_pattern = "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i"
-                logger_data = [
+                logger_pattern = "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)"
+                logger.warning(
+                    logger_pattern,
                     train_step,
                     np.sum(ll_current),
                     num_converged.astype("int32"),
                     np.sum(features_updated).astype("int32"),
                     *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
-                ]
-                if (irls_algo or nr_algo) and optimizer_object.trusted_region_mode:
-                    logger_pattern += " tr: %i)"
-                else:
-                    logger_pattern += ")"
-
-                logger.warning(
-                    logger_pattern,
-                    *logger_data
                 )
             train_step += 1
             if benchmark:
