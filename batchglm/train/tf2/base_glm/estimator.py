@@ -209,8 +209,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 self.values.append(self.model.trainable_variables[0].numpy().copy())
 
             # Update converged status
-            prev_norm_loc = curr_norm_loc.copy()
-            prev_norm_scale = curr_norm_scale.copy()
             converged_prev = converged_current.copy()
             ll_current = self.loss.norm_neg_log_likelihood(results[0]).numpy()
 
