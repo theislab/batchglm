@@ -133,10 +133,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             update_func = optimizer_object.apply_gradients
         n_obs = self._input_data.num_observations
 
-        curr_norm_loc = np.sqrt(np.sum(np.square(
-            np.abs(self.model.params.numpy()[self.model.model_vars.idx_train_loc, :])), axis=0))
-        curr_norm_scale = np.sqrt(np.sum(np.square(
-            np.abs(self.model.params.numpy()[self.model.model_vars.idx_train_scale, :])), axis=0))
+        prev_params = self.model.params.numpy()
 
         batch_features = False
         while convergence_decision(converged_current, train_step):
@@ -243,14 +240,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             convergences = self.calculate_convergence(
                 converged_prev,
                 ll_prev,
-                prev_norm_loc,
-                prev_norm_scale,
                 ll_current,
+                prev_params,
                 jac_normalization,
                 grad_numpy,
                 features_updated,
                 optimizer_object
             )
+            prev_params = self.model.params.numpy()
             #converged_current, converged_f, converged_g, converged_x = convergences
             converged_current = convergences[0]
             self.model.model_vars.convergence_update(converged_current, features_updated)
@@ -347,7 +344,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         return x_batch
 
-    def calculate_convergence(self, converged_prev, ll_prev, prev_norm_loc, prev_norm_scale, ll_current,
+    def calculate_convergence(self, converged_prev, ll_prev, ll_current, prev_params,
                               jac_normalization, grad_numpy, features_updated, optimizer_object):
         """
             Wrapper method to perform all necessary convergence checks.
@@ -363,7 +360,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ll_converged = (ll_difference < pkg_constants.LLTOL_BY_FEATURE) & features_updated
         epoch_ll_converged = not_converged_prev & ll_converged  # formerly known as converged_f
 
-        total_converged |= ll_converged
+        total_converged |= epoch_ll_converged
 
         """
         Now getting convergence based on change in gradient below threshold:
@@ -376,7 +373,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         grad_norm_loc_converged = grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC
         grad_norm_scale_converged = grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
 
-        grad_converged = grad_norm_loc_converged & grad_norm_scale_converged
+        grad_converged = grad_norm_loc_converged & grad_norm_scale_converged & features_updated
         epoch_grad_converged = not_converged_prev & grad_converged  # formerly known as converged_g
 
         total_converged |= grad_converged
@@ -384,36 +381,22 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         """
         Now getting convergence based on change of coefficients below threshold:
         """
-        def calc_x_step(idx_train, prev_norm):
-            if len(idx_train) > 0:
-                curr_norm = np.sqrt(np.sum(np.square(
-                    np.abs(self.model.params.numpy()[idx_train, :])
-                ), axis=0))
-                return np.abs(curr_norm - prev_norm)
-            else:
-                return np.zeros([self.model.model_vars.n_features]) + np.nextafter(np.inf, 0, dtype=self.dtype)
 
-        x_norm_loc = calc_x_step(self.model.model_vars.idx_train_loc, prev_norm_loc)
-        x_norm_scale = calc_x_step(self.model.model_vars.idx_train_scale, prev_norm_scale)
+        x_step_converged = self.calc_x_step(prev_params, features_updated)
+        epoch_step_converged = not_converged_prev & x_step_converged
 
-        x_norm_loc_converged = x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC
-        x_norm_scale_converged = x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
-
-        step_converged = x_norm_loc_converged & x_norm_scale_converged
-        epoch_step_converged = not_converged_prev & step_converged
-
-        total_converged |= step_converged
         """
         In case we use irls_tr/irls_gd_tr or nr_tr, we can also utilize the trusted region radius.
-        For now it must not be below the threshold for the X step of the scale model.
+        For now it must not be below the threshold for the X step of the loc model.
         """
         if hasattr(optimizer_object, 'trusted_region_mode') and optimizer_object.trusted_region_mode:
-            converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
+            converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.XTOL_BY_FEATURE_LOC
             if hasattr(optimizer_object, 'tr_radius_b') and self._train_scale:
-                converged_tr &= optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
+                converged_tr &= optimizer_object.tr_radius_b.numpy() < pkg_constants.XTOL_BY_FEATURE_SCALE
             epoch_tr_converged = not_converged_prev & converged_tr
-            total_converged |= epoch_tr_converged
-            return total_converged, epoch_ll_converged, epoch_grad_converged, epoch_step_converged, epoch_tr_converged
+            epoch_step_converged |= epoch_tr_converged
+
+        total_converged |= epoch_step_converged
 
         return total_converged, epoch_ll_converged, epoch_grad_converged, epoch_step_converged
 
@@ -550,3 +533,42 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_model_container(self, input_data):
         pass
+
+    def calc_x_step(self, prev_params, features_updated):
+
+        def get_norm_converged(model: str, prev_params):
+            if model == 'loc':
+                idx_train = self.model.model_vars.idx_train_loc
+                XTOL = pkg_constants.XTOL_BY_FEATURE_LOC
+            elif model == 'scale':
+                idx_train = self.model.model_vars.idx_train_scale
+                XTOL = pkg_constants.XTOL_BY_FEATURE_SCALE
+            else:
+                assert False, "Supply either 'loc' or 'scale'!"
+            x_step = self.model.params.numpy() - prev_params
+            x_norm = np.sqrt(np.sum(np.square(x_step[idx_train, :]), axis=0))
+            return x_norm < XTOL
+
+        """
+        We use a trick here: First we set both the loc and scale convergence to True.
+        It is not necessary to use an array with length = number of features, since bitwise
+        AND also works with a single boolean.
+        """
+        loc_conv = np.bool_(True)
+        scale_conv = np.bool_(True)
+
+        """
+        Now we check which models need to be trained. E.g. if you are using quick_scale = True,
+        self._train_scale will be False and so the above single True value will be used.
+        """
+        if self._train_loc:
+            loc_conv = get_norm_converged('loc', prev_params)
+        if self._train_scale:
+            scale_conv = get_norm_converged('scale', prev_params)
+
+        """
+        Finally, we check that only features updated in this epoch can evaluate to True.
+        This is only a problem for 2nd order optims with trusted region mode, since it might occur,
+        that a feature isn't updated, so the x_step is zero although not yet converged.
+        """
+        return loc_conv & scale_conv & features_updated
