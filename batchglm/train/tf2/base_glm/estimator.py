@@ -147,8 +147,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             not_converged = np.logical_not(self.model.model_vars.converged)
             ll_prev = ll_current.copy()
-            if train_step % 10 == 0:
-                logger.warning('step %i', train_step)
+            #if train_step % 10 == 0:
+            logger.warning('step %i: loss: %s', train_step, np.array2string(ll_current[0:10]))
 
             if not is_batched:
                 results = None
@@ -248,23 +248,33 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 ll_current,
                 jac_normalization,
                 grad_numpy,
-                features_updated
+                features_updated,
+                optimizer_object
             )
-            converged_current, converged_f, converged_g, converged_x = convergences
-
+            #converged_current, converged_f, converged_g, converged_x = convergences
+            converged_current = convergences[0]
             self.model.model_vars.convergence_update(converged_current, features_updated)
-            num_converged = np.sum(converged_current).astype("int32")
-            if np.sum(converged_current) != np.sum(converged_prev):
+            num_converged = np.sum(converged_current)
+            if num_converged != np.sum(converged_prev):
                 if featurewise and not batch_features:
                     batch_features = True
                     self.model.batch_features = batch_features
-                logger.warning(
-                    "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)",
+                logger_pattern = "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i"
+                logger_data = [
                     train_step,
                     np.sum(ll_current),
-                    num_converged,
+                    num_converged.astype("int32"),
                     np.sum(features_updated).astype("int32"),
-                    np.sum(converged_f), np.sum(converged_g), np.sum(converged_x)
+                    *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
+                ]
+                if (irls_algo or nr_algo) and optimizer_object.trusted_region_mode:
+                    logger_pattern += " tr: %i)"
+                else:
+                    logger_pattern += ")"
+
+                logger.warning(
+                    logger_pattern,
+                    *logger_data
                 )
             train_step += 1
             if benchmark:
@@ -338,16 +348,42 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         return x_batch
 
     def calculate_convergence(self, converged_prev, ll_prev, prev_norm_loc, prev_norm_scale, ll_current,
-                              jac_normalization, grad_numpy, features_updated):
+                              jac_normalization, grad_numpy, features_updated, optimizer_object):
         """
             Wrapper method to perform all necessary convergence checks.
         """
-        def get_convergence(converged_previous, condition1, condition2):
-            return np.logical_or(converged_previous, np.logical_and(condition1, condition2))
 
-        def get_convergence_by_method(converged_previous, condition1, condition2):
-            return np.logical_and(np.logical_not(converged_previous), np.logical_and(condition1, condition2))
+        total_converged = converged_prev.copy()
+        not_converged_prev = ~ converged_prev
+        """
+        Get all converged features due to change in ll < LLTOL_BY_FEATURE
+        IMPORTANT: we need to ensure they have also been updated, otherwise ll_prev = ll_current!
+        """
+        ll_difference = np.abs(ll_prev - ll_current) / ll_prev
+        ll_converged = (ll_difference < pkg_constants.LLTOL_BY_FEATURE) & features_updated
+        epoch_ll_converged = not_converged_prev & ll_converged  # formerly known as converged_f
 
+        total_converged |= ll_converged
+
+        """
+        Now getting convergence based on change in gradient below threshold:
+        """
+        grad_loc = np.sum(grad_numpy[:, self.model.model_vars.idx_train_loc], axis=1)
+        grad_norm_loc = grad_loc / jac_normalization
+        grad_scale = np.sum(grad_numpy[:, self.model.model_vars.idx_train_scale], axis=1)
+        grad_norm_scale = grad_scale / jac_normalization
+
+        grad_norm_loc_converged = grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC
+        grad_norm_scale_converged = grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
+
+        grad_converged = grad_norm_loc_converged & grad_norm_scale_converged
+        epoch_grad_converged = not_converged_prev & grad_converged  # formerly known as converged_g
+
+        total_converged |= grad_converged
+
+        """
+        Now getting convergence based on change of coefficients below threshold:
+        """
         def calc_x_step(idx_train, prev_norm):
             if len(idx_train) > 0:
                 curr_norm = np.sqrt(np.sum(np.square(
@@ -360,35 +396,26 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         x_norm_loc = calc_x_step(self.model.model_vars.idx_train_loc, prev_norm_loc)
         x_norm_scale = calc_x_step(self.model.model_vars.idx_train_scale, prev_norm_scale)
 
-        ll_converged = np.abs(ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
+        x_norm_loc_converged = x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC
+        x_norm_scale_converged = x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE
 
-        converged_current = get_convergence(converged_prev, ll_converged, features_updated)
+        step_converged = x_norm_loc_converged & x_norm_scale_converged
+        epoch_step_converged = not_converged_prev & step_converged
 
-        # those features which were not converged in the prev run, but converged now
-        converged_f = get_convergence_by_method(converged_prev, ll_converged, features_updated)
-        grad_loc = np.sum(grad_numpy[:, self.model.model_vars.idx_train_loc], axis=1)
-        grad_norm_loc = grad_loc / jac_normalization
-        grad_scale = np.sum(grad_numpy[:, self.model.model_vars.idx_train_scale], axis=1)
-        grad_norm_scale = grad_scale / jac_normalization
+        total_converged |= step_converged
+        """
+        In case we use irls_tr/irls_gd_tr or nr_tr, we can also utilize the trusted region radius.
+        For now it must not be below the threshold for the X step of the scale model.
+        """
+        if hasattr(optimizer_object, 'trusted_region_mode') and optimizer_object.trusted_region_mode:
+            converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
+            if hasattr(optimizer_object, 'tr_radius_b') and self._train_scale:
+                converged_tr &= optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
+            epoch_tr_converged = not_converged_prev & converged_tr
+            total_converged |= epoch_tr_converged
+            return total_converged, epoch_ll_converged, epoch_grad_converged, epoch_step_converged, epoch_tr_converged
 
-        converged_current = get_convergence(converged_current,
-                                            grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
-                                            grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE)
-        # those features which were not converged in the prev run, but converged now
-        converged_g = get_convergence_by_method(converged_prev,
-                                                grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC,
-                                                grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE)
-
-        # Step length:
-        converged_current = get_convergence(converged_current,
-                                            x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
-                                            x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE)
-
-        # those features which were not converged in the prev run, but converged now
-        converged_x = get_convergence_by_method(converged_prev,
-                                                x_norm_loc < pkg_constants.XTOL_BY_FEATURE_LOC,
-                                                x_norm_scale < pkg_constants.XTOL_BY_FEATURE_SCALE)
-        return converged_current, converged_f, converged_g, converged_x
+        return total_converged, epoch_ll_converged, epoch_grad_converged, epoch_step_converged
 
     def get_optimizer_object(self, optimizer: str, learning_rate):
         """
