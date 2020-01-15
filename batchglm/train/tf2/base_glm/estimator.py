@@ -271,7 +271,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         # Evaluate final params
         logger.warning("Final Evaluation run.")
-        self._log_likelihood = results[0].numpy()
         self._fisher_inv = tf.zeros(shape=()).numpy()
         self._hessian = tf.zeros(shape=()).numpy()
         self.model.batch_features = False
@@ -291,6 +290,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             else:
                 for i, x in enumerate(current_results):
                     results[i] += x
+
+        self._log_likelihood = self.loss.norm_log_likelihood(results[0].numpy())
 
         if nr_algo:
             self._hessian = results[2].numpy()
