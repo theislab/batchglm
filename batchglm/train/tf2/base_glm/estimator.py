@@ -296,8 +296,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self._hessian = results[2].numpy()
             self._jacobian = results[1].numpy()
         elif irls_algo:
-            # TODO: maybe report fisher inv here. But concatenation only works if !intercept_scale
-            self._fisher_inv = results[2].numpy()
+            # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
+            self._fisher_inv = tf.linalg.inv(results[2]).numpy()
             self._jacobian = results[1].numpy()
 
             # change back to FIM mode
