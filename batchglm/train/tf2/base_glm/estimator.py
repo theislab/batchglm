@@ -94,7 +94,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         if is_batched:
             data = data_ids.shuffle(buffer_size=2 * batch_size).repeat().batch(batch_size)
         else:
-            data = data_ids.shuffle(buffer_size=2 * batch_size).batch(batch_size, drop_remainder=True)
+            data = data_ids.batch(batch_size, drop_remainder=True)
         input_list = data.map(self.fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
 
         # Iterate until conditions are fulfilled.
