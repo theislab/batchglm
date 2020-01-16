@@ -88,6 +88,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.noise_model = noise_model
         # Slice data and create batches
 
+        """
+        with map
+        """
         data_ids = tf.data.Dataset.from_tensor_slices(
             (tf.range(self._input_data.num_observations, name="sample_index", dtype=tf.dtypes.int64))
         )
@@ -96,6 +99,21 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         else:
             data = data_ids.batch(batch_size, drop_remainder=True)
         input_list = data.map(self.fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+
+        """
+        with custom Generator
+        """
+        custom_generator = self.Data_Generator(num_observations=self.input_data.num_observations,
+                                          input_data=self._input_data,
+                                          batch_size=batch_size,
+                                          drop_remainder=True)
+
+        dataset = tf.data.Dataset.from_generator(
+            generator=custom_generator,
+            output_types=(self._input_data.x.dtype, self._input_data.design_loc.dtype,
+                          self._input_data.design_scale.dtype, self._input_data.size_factors.dtype)
+        )
+        # output_shapes = (tf.TensorShape([]), tf.TensorShape([None])))
 
         # Iterate until conditions are fulfilled.
         train_step = 0
@@ -490,6 +508,44 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         # feature batching
         return x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor
+
+    class Data_Generator:
+        def __init__(self,
+                     num_observations,
+                     input_data,
+                     batch_size: int = 1000,
+                     drop_remainder: bool = True):
+            self.num_observations = num_observations
+            self.input_data = input_data
+            self.batch_size = batch_size
+            self.drop_remainder = drop_remainder
+
+        def __next__(self):
+            data = np.random.shuffle(self.num_observations)
+            for id in range(0, self.num_observations, self.batch_size):
+                """
+                Get data only if it is not the last batch while
+                drop_remainder is set on True.
+                """
+                if not ((id+self.batch_size) > self.num_observations and self.drop_remainder):
+                    """
+                    Generate data with size = batch_size or
+                    generate smaller data for remaining data (if smaller than batch_size)
+                    """
+                    if (id+self.batch_size) < self.num_observations:
+                        idx = data[id:(id+self.batch_size)]
+                    else:
+                        idx = data[id:self.num_observations]
+
+                    if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
+                        x_tensor_idx, x_tensor_val, x =  self.input_data.fetch_x_sparse([idx])
+                        x_tensor = tf.SparseTensor(x_tensor_idx, x_tensor_val, x)
+                    else:
+                        x_tensor =self.input_data.fetch_x_dense([idx])
+                    design_loc_tensor = self.input_data.fetch_design_loc([idx])
+                    design_scale_tensor = self.input_data.fetch_design_scale([idx])
+                    size_factors_tensor =  self.input_data.fetch_size_factors([idx])
+                    yield x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor
 
     @staticmethod
     def get_init_from_model(init_a, init_b, input_data, init_model):
