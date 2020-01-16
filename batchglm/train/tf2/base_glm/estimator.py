@@ -95,7 +95,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             data = data_ids.shuffle(buffer_size=2 * batch_size).repeat().batch(batch_size)
         else:
             data = data_ids.batch(batch_size, drop_remainder=True)
-        input_list = data.map(self.fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS)
+        input_list = data.map(self.fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS).prefetch(2)
 
         # Iterate until conditions are fulfilled.
         train_step = 0
@@ -146,12 +146,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             ll_prev = ll_current.copy()
             #if train_step % 10 == 0:
             logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
-
             if not is_batched:
                 results = None
                 x_batch = None
                 first_batch = True
                 for x_batch_tuple in input_list:
+
                     x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
                     current_results = self.model(x_batch)
                     if first_batch:
@@ -160,7 +160,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     else:
                         for i, x in enumerate(current_results):
                             results[i] += x
-
             else:
                 x_batch_tuple = next(dataset_iterator)
                 x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
@@ -245,6 +244,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 features_updated,
                 optimizer_object
             )
+
             prev_params = self.model.params.numpy()
             #converged_current, converged_f, converged_g, converged_x = convergences
             converged_current = convergences[0]
@@ -292,21 +292,21 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     results[i] += x
 
         self._log_likelihood = self.loss.norm_log_likelihood(results[0].numpy())
+        self._jacobian = tf.reduce_sum(tf.abs(results[1] / self.input_data.num_observations), axis=1)
 
         if nr_algo:
-            self._hessian = results[2].numpy()
-            self._jacobian = results[1].numpy()
+            self._hessian = -results[2].numpy()
+
         elif irls_algo:
             # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
             self._fisher_inv = tf.linalg.inv(results[2]).numpy()
-            self._jacobian = results[1].numpy()
+            self._hessian = -results[2].numpy()
 
             # change back to FIM mode
             self.model.calc_fim = True
             self.model.calc_hessian = False
             self.model.concat_grads = False
-        else:
-            self._jacobian = results[1].numpy()
+
 
         self.model.batch_features = batch_features
 
