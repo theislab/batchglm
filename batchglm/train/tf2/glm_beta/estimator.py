@@ -109,6 +109,9 @@ class Estimator(GLMEstimator, ProcessModel):
                 use_gradient_tape=autograd,
                 optimizer=optim_algo
             )
+        else:
+            self.model.setMethod(optim_algo)
+
         self._loss = LossGLMBeta()
 
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)

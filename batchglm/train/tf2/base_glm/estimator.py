@@ -271,15 +271,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         # Evaluate final params
         logger.warning("Final Evaluation run.")
-        self._fisher_inv = tf.zeros(shape=()).numpy()
-        self._hessian = tf.zeros(shape=()).numpy()
         self.model.batch_features = False
 
         # change to hessian mode since we still use hessian instead of FIM for self._fisher_inv
-        if irls_algo:
-            self.model.calc_fim = False
-            self.model.calc_hessian = True
-            self.model.concat_grads = True
+        self.model.setMethod('nr_tr')
 
         first_batch = True
         for x_batch_tuple in input_list:
@@ -294,19 +289,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self._log_likelihood = self.loss.norm_log_likelihood(results[0].numpy())
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / self.input_data.num_observations), axis=1)
 
-        if nr_algo:
-            self._hessian = -results[2].numpy()
-
-        elif irls_algo:
-            # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
-            self._fisher_inv = tf.linalg.inv(results[2]).numpy()
-            self._hessian = -results[2].numpy()
-
-            # change back to FIM mode
-            self.model.calc_fim = True
-            self.model.calc_hessian = False
-            self.model.concat_grads = False
-
+        # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
+        self._fisher_inv = tf.linalg.inv(results[2]).numpy()
+        self._hessian = -results[2].numpy()
 
         self.model.batch_features = batch_features
 
