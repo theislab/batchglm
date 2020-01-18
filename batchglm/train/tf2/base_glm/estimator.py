@@ -107,11 +107,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                           input_data=self._input_data,
                                           batch_size=batch_size,
                                           drop_remainder=True)
-
         dataset = tf.data.Dataset.from_generator(
             generator=custom_generator,
-            output_types=(self._input_data.x.dtype, self._input_data.design_loc.dtype,
-                          self._input_data.design_scale.dtype, self._input_data.size_factors.dtype)
+            output_types=(self.dtype, self.dtype,
+                          self.dtype, self.dtype)
+            #output_types=(self._input_data.x.dtype, self._input_data.design_loc.dtype,
+            #              self._input_data.design_scale.dtype, self._input_data.size_factors.dtype)
         )
         # output_shapes = (tf.TensorShape([]), tf.TensorShape([None])))
 
