@@ -137,6 +137,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ll_current = np.zeros([self._input_data.num_features], self.dtype) + np.nextafter(np.inf, 0, dtype=self.dtype)
 
         dataset_iterator = iter(input_list)
+
         irls_algo = False
         nr_algo = False
         if optim_algo.lower() in ['nr','nr_tr']:
@@ -169,7 +170,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 results = None
                 x_batch = None
                 first_batch = True
-                for x_batch_tuple in input_list:
+                for x_batch_tuple in dataset: #input_list:
                     x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
                     current_results = self.model(x_batch)
                     if first_batch:
