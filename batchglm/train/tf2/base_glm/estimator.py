@@ -108,7 +108,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                           batch_size=batch_size,
                                           drop_remainder=True)
         dataset = tf.data.Dataset.from_generator(
-            generator=custom_generator,
+            generator=custom_generator.generate,
             output_types=(self.dtype, self.dtype,
                           self.dtype, self.dtype)
             #output_types=(self._input_data.x.dtype, self._input_data.design_loc.dtype,
@@ -505,9 +505,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self.input_data = input_data
             self.batch_size = batch_size
             self.drop_remainder = drop_remainder
+            self.data = np.random.permutation(self.num_observations)
 
-        def __next__(self):
-            data = np.random.shuffle(self.num_observations)
+        def generate(self):
             for id in range(0, self.num_observations, self.batch_size):
                 """
                 Get data only if it is not the last batch while
@@ -519,18 +519,18 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     generate smaller data for remaining data (if smaller than batch_size)
                     """
                     if (id+self.batch_size) < self.num_observations:
-                        idx = data[id:(id+self.batch_size)]
+                        idx = self.data[id:(id+self.batch_size)]
                     else:
-                        idx = data[id:self.num_observations]
-
+                        idx = self.data[id:self.num_observations]
                     if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
-                        x_tensor_idx, x_tensor_val, x =  self.input_data.fetch_x_sparse([idx])
+                        x_tensor_idx, x_tensor_val, x =  self.input_data.fetch_x_sparse(idx)
                         x_tensor = tf.SparseTensor(x_tensor_idx, x_tensor_val, x)
                     else:
-                        x_tensor =self.input_data.fetch_x_dense([idx])
-                    design_loc_tensor = self.input_data.fetch_design_loc([idx])
-                    design_scale_tensor = self.input_data.fetch_design_scale([idx])
-                    size_factors_tensor =  self.input_data.fetch_size_factors([idx])
+                        x_tensor =self.input_data.fetch_x_dense(idx)
+                    design_loc_tensor = self.input_data.fetch_design_loc(idx)
+                    design_scale_tensor = self.input_data.fetch_design_scale(idx)
+                    if self.input_data.size_factors is not None:
+                        size_factors_tensor =  self.input_data.fetch_size_factors(idx)
                     yield x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor
 
     @staticmethod
