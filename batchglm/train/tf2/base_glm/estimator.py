@@ -66,7 +66,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self,
             noise_model: str,
             is_batched: bool = True,
-            batch_size: int = 100,
+            batch_size: int = 1000,
             optimizer_object: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(),
             convergence_criteria: str = "step",
             stopping_criteria: int = 1000,
@@ -75,8 +75,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             benchmark: bool = False,
             optim_algo: str = "adam"
     ):
-        if batch_size > self.input_data.num_observations:
-            batch_size = self.input_data.num_observations
+
+        n_obs = self.input_data.num_observations
+        if batch_size > n_obs:
+            batch_size = n_obs
         if not self._initialized:
             raise RuntimeError("Cannot train the model: \
                                 Estimator not initialized. Did you forget to call estimator.initialize() ?")
@@ -86,34 +88,44 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             Falling back to closed form. Only Jacobians are calculated using autograd.")
 
         self.noise_model = noise_model
-        # Slice data and create batches
+        sparse = isinstance(self.input_data.x, scipy.sparse.csr_matrix)
+        full_model = not is_batched
 
-        """
-        with map
-        """
-        data_ids = tf.data.Dataset.from_tensor_slices(
-            (tf.range(self._input_data.num_observations, name="sample_index", dtype=tf.dtypes.int64))
-        )
-        if is_batched:
-            data = data_ids.shuffle(buffer_size=2 * batch_size).repeat().batch(batch_size)
-        else:
-            data = data_ids.batch(batch_size, drop_remainder=True)
-        input_list = data.map(self.fetch_fn, num_parallel_calls=pkg_constants.TF_NUM_THREADS).prefetch(2)
+        def generate():
+            """
+            Generator for the full model.
+            We use max_obs to cut the observations with max_obs % batch_size = 0 to ensure consistent
+            sizes of tensors.
+            """
+            fetch_size_factors = self._input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
 
+            if full_model:
+                max_obs = n_obs - (n_obs % batch_size)
+                obs_pool = np.arange(max_obs)
+            else:
+                max_obs = n_obs
+                obs_pool = np.random.permutation(n_obs)
+
+            for id in range(0, max_obs, batch_size):
+                idx = obs_pool[id: id + batch_size]  # numpy returns just n_obs if id + batch_size > n_obs
+
+                x = self.input_data.fetch_x_sparse(idx) if sparse else self.input_data.fetch_x_dense(idx)
+                dloc = self.input_data.fetch_design_loc(idx)
+                dscale = self.input_data.fetch_design_scale(idx)
+                size_factors = self.input_data.fetch_size_factors(idx) if fetch_size_factors else 1
+
+                yield x, dloc, dscale, size_factors
+
+        dtp = self.dtype
+        output_types = ((tf.int64, dtp, tf.int64), *(dtp,) * 3) if sparse else (dtp,) * 4
+
+        dataset = tf.data.Dataset.from_generator(generator=generate, output_types=output_types)
         """
-        with custom Generator
+        Workaround for sparse x tensor according to:
+        https://github.com/tensorflow/tensorflow/issues/16689#issuecomment-362662437
         """
-        custom_generator = self.Data_Generator(num_observations=self.input_data.num_observations,
-                                          input_data=self._input_data,
-                                          batch_size=batch_size,
-                                          drop_remainder=True)
-        dataset = tf.data.Dataset.from_generator(
-            generator=custom_generator.generate,
-            output_types=(self.dtype, self.dtype,
-                          self.dtype, self.dtype)
-            #output_types=(self._input_data.x.dtype, self._input_data.design_loc.dtype,
-            #              self._input_data.design_scale.dtype, self._input_data.size_factors.dtype)
-        )
+        if sparse:
+            dataset = dataset.map(lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf))
         # output_shapes = (tf.TensorShape([]), tf.TensorShape([None])))
 
         # Iterate until conditions are fulfilled.
@@ -137,7 +149,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # fill with highest possible number:
         ll_current = np.zeros([self._input_data.num_features], self.dtype) + np.nextafter(np.inf, 0, dtype=self.dtype)
 
-        dataset_iterator = iter(input_list)
+        dataset_iterator = iter(dataset)
 
         irls_algo = False
         nr_algo = False
@@ -166,7 +178,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             ll_prev = ll_current.copy()
             #if train_step % 10 == 0:
             logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
-            if not is_batched:
+            if full_model:
                 results = None
                 x_batch = None
                 first_batch = True
@@ -506,32 +518,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self.batch_size = batch_size
             self.drop_remainder = drop_remainder
             self.data = np.random.permutation(self.num_observations)
+            self.fetch_size_factors = self.input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
 
-        def generate(self):
-            for id in range(0, self.num_observations, self.batch_size):
-                """
-                Get data only if it is not the last batch while
-                drop_remainder is set on True.
-                """
-                if not ((id+self.batch_size) > self.num_observations and self.drop_remainder):
-                    """
-                    Generate data with size = batch_size or
-                    generate smaller data for remaining data (if smaller than batch_size)
-                    """
-                    if (id+self.batch_size) < self.num_observations:
-                        idx = self.data[id:(id+self.batch_size)]
-                    else:
-                        idx = self.data[id:self.num_observations]
-                    if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
-                        x_tensor_idx, x_tensor_val, x =  self.input_data.fetch_x_sparse(idx)
-                        x_tensor = tf.SparseTensor(x_tensor_idx, x_tensor_val, x)
-                    else:
-                        x_tensor =self.input_data.fetch_x_dense(idx)
-                    design_loc_tensor = self.input_data.fetch_design_loc(idx)
-                    design_scale_tensor = self.input_data.fetch_design_scale(idx)
-                    if self.input_data.size_factors is not None:
-                        size_factors_tensor =  self.input_data.fetch_size_factors(idx)
-                    yield x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor
 
     @staticmethod
     def get_init_from_model(init_a, init_b, input_data, init_model):
