@@ -163,7 +163,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         else:
             update_func = optimizer_object.apply_gradients
-        n_obs = self._input_data.num_observations
 
         prev_params = self.model.params.numpy()
 
