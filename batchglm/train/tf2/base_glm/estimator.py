@@ -48,19 +48,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             input_data,
             dtype,
     ):
-
-        self._input_data = input_data
-
-        TFEstimator.__init__(
-            self=self,
-            input_data=input_data,
-            dtype=dtype,
-        )
-        _EstimatorGLM.__init__(
-            self=self,
-            model=None,
-            input_data=input_data
-        )
+        TFEstimator.__init__(self=self, input_data=input_data, dtype=dtype)
+        _EstimatorGLM.__init__(self=self, model=None, input_data=input_data)
 
     def _train(
             self,
@@ -76,13 +65,13 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             optim_algo: str = "adam"
     ):
 
-        conv_step = lambda x: np.all(x)
-        conv_all = lambda x, y: np.any(x) and y < stopping_criteria
+        conv_step = lambda x, y: not np.all(x)
+        conv_all = lambda x, y: not np.all(x) and y < stopping_criteria
         assert convergence_criteria in ["step", "all_converged"], ("Unrecognized convergence criteria %s", convergence_criteria)
         convergence_decision = conv_step if convergence_criteria == "step" else conv_all
 
         n_obs = self.input_data.num_observations
-        n_features = self.model.model_vars.num_features
+        n_features = self.input_data.num_features
         if batch_size > n_obs:
             batch_size = n_obs
         if not self._initialized:
@@ -135,7 +124,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         converged_current = np.zeros(n_features, dtype=np.bool)
 
         # fill with lowest possible number:
-        ll_current = np.nextafter(np.inf, np.zeros([self._input_data.num_features]), dtype=self.dtype)
+        ll_current = np.nextafter(np.inf, np.zeros(n_features), dtype=self.dtype)
 
         dataset_iterator = iter(dataset)
 
@@ -148,9 +137,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         batch_features = False
         train_step = 0
+
         while convergence_decision(converged_current, train_step):
-            # ### Iterate over the batches of the dataset.
-            # x_batch is a tuple (idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor))
+
             if benchmark:
                 t0_epoch = time.time()
 
@@ -160,7 +149,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 results = None
                 x_batch = None
                 first_batch = True
-                for x_batch_tuple in dataset: #input_list:
+                for x_batch_tuple in dataset:
                     x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
                     current_results = self.model(x_batch)
                     if first_batch:
@@ -206,7 +195,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     update_var = tf.transpose(tf.scatter_nd(
                         indices,
                         tf.transpose(results[1]),
-                        shape=(self.model.model_vars.n_features, results[1].get_shape()[0])
+                        shape=(n_features, results[1].get_shape()[0])
                     ))
                 else:
                     update_var = results[1]
@@ -228,7 +217,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             if is_batched:
                 jac_normalization = batch_size
             else:
-                jac_normalization = self._input_data.num_observations
+                jac_normalization = n_obs
             if irls_algo:
                 grad_numpy = tf.abs(tf.concat((results[1], results[2]), axis=1))
             elif nr_algo:
@@ -240,7 +229,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 grad_numpy = tf.scatter_nd(
                     indices,
                     grad_numpy,
-                    shape=(self.model.model_vars.n_features, self.model.params.get_shape()[0])
+                    shape=(n_features, self.model.params.get_shape()[0])
                 )
             grad_numpy = grad_numpy.numpy()
             convergences = self.calculate_convergence(
@@ -288,7 +277,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model.setMethod('nr_tr')
 
         first_batch = True
-        for x_batch_tuple in input_list:
+        for x_batch_tuple in dataset:
             current_results = self.model(x_batch_tuple)
             if first_batch:
                 results = list(current_results)
@@ -419,87 +408,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 logger.warning("No valid optimizer given. Default optimizer Adam chosen.")
 
         return optim_obj
-
-    def fetch_fn(self, idx):
-        """
-        Documentation of tensorflow coding style in this function:
-        tf.py_func defines a python function (the getters of the InputData object slots)
-        as a tensorflow operation. Here, the shape of the tensor is lost and
-        has to be set with set_shape. For size factors, we use explicit broadcasting
-        as explained below.
-        """
-        # Catch dimension collapse error if idx is only one element long, ie. 0D:
-        if len(idx.shape) == 0:
-            idx = tf.expand_dims(idx, axis=0)
-
-        if isinstance(self._input_data.x, scipy.sparse.csr_matrix):
-
-            x_tensor_idx, x_tensor_val, x = tf.py_function(
-                func=self._input_data.fetch_x_sparse,
-                inp=[idx],
-                Tout=[np.int64, np.float64, np.int64],
-            )
-            # Note on Tout: np.float64 for val seems to be required to avoid crashing v1.12.
-            x_tensor_idx = tf.cast(x_tensor_idx, dtype=tf.int64)
-            x = tf.cast(x, dtype=tf.int64)
-            x_tensor_val = tf.cast(x_tensor_val, dtype=self.dtype)
-            x_tensor = tf.SparseTensor(x_tensor_idx, x_tensor_val, x)
-            x_tensor = tf.cast(x_tensor, dtype=self.dtype)
-
-        else:
-
-            x_tensor = tf.py_function(
-                func=self._input_data.fetch_x_dense,
-                inp=[idx],
-                Tout=self._input_data.x.dtype,
-            )
-
-            x_tensor.set_shape(idx.get_shape().as_list() + [self._input_data.num_features])
-            x_tensor = tf.cast(x_tensor, dtype=self.dtype)
-
-        design_loc_tensor = tf.py_function(
-            func=self._input_data.fetch_design_loc,
-            inp=[idx],
-            Tout=self._input_data.design_loc.dtype,
-        )
-        design_loc_tensor.set_shape(idx.get_shape().as_list() + [self._input_data.num_design_loc_params])
-        design_loc_tensor = tf.cast(design_loc_tensor, dtype=self.dtype)
-
-        design_scale_tensor = tf.py_function(
-            func=self._input_data.fetch_design_scale,
-            inp=[idx],
-            Tout=self._input_data.design_scale.dtype,
-        )
-        design_scale_tensor.set_shape(idx.get_shape().as_list() + [self._input_data.num_design_scale_params])
-        design_scale_tensor = tf.cast(design_scale_tensor, dtype=self.dtype)
-
-        if self._input_data.size_factors is not None and self.noise_model in ["nb", "norm"]:
-            size_factors_tensor = tf.py_function(
-                func=self._input_data.fetch_size_factors,
-                inp=[idx],
-                Tout=self._input_data.size_factors.dtype,
-            )
-            size_factors_tensor = tf.cast(size_factors_tensor, dtype=self.dtype)
-
-        else:
-            size_factors_tensor = tf.constant(1, shape=[1, 1], dtype=self.dtype)
-
-        # feature batching
-        return x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor
-
-    class Data_Generator:
-        def __init__(self,
-                     num_observations,
-                     input_data,
-                     batch_size: int = 1000,
-                     drop_remainder: bool = True):
-            self.num_observations = num_observations
-            self.input_data = input_data
-            self.batch_size = batch_size
-            self.drop_remainder = drop_remainder
-            self.data = np.random.permutation(self.num_observations)
-            self.fetch_size_factors = self.input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
-
 
     @staticmethod
     def get_init_from_model(init_a, init_b, input_data, init_model):
