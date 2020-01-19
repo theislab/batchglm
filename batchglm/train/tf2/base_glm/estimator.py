@@ -76,7 +76,13 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             optim_algo: str = "adam"
     ):
 
+        conv_step = lambda x: np.all(x)
+        conv_all = lambda x, y: np.any(x) and y < stopping_criteria
+        assert convergence_criteria in ["step", "all_converged"], ("Unrecognized convergence criteria %s", convergence_criteria)
+        convergence_decision = conv_step if convergence_criteria == "step" else conv_all
+
         n_obs = self.input_data.num_observations
+        n_features = self.model.model_vars.num_features
         if batch_size > n_obs:
             batch_size = n_obs
         if not self._initialized:
@@ -106,8 +112,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 max_obs = n_obs
                 obs_pool = np.random.permutation(n_obs)
 
-            for id in range(0, max_obs, batch_size):
-                idx = obs_pool[id: id + batch_size]  # numpy returns just n_obs if id + batch_size > n_obs
+            for x in range(0, max_obs, batch_size):
+                idx = obs_pool[x: x + batch_size]  # numpy automatically returns only id:id+n_obs if out of range
 
                 x = self.input_data.fetch_x_sparse(idx) if sparse else self.input_data.fetch_x_dense(idx)
                 dloc = self.input_data.fetch_design_loc(idx)
@@ -118,65 +124,38 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         dtp = self.dtype
         output_types = ((tf.int64, dtp, tf.int64), *(dtp,) * 3) if sparse else (dtp,) * 4
-
         dataset = tf.data.Dataset.from_generator(generator=generate, output_types=output_types)
-        """
-        Workaround for sparse x tensor according to:
-        https://github.com/tensorflow/tensorflow/issues/16689#issuecomment-362662437
-        """
         if sparse:
             dataset = dataset.map(lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf))
-        # output_shapes = (tf.TensorShape([]), tf.TensorShape([None])))
 
-        # Iterate until conditions are fulfilled.
-        train_step = 0
+
 
         # Set all to convergence status = False, this is needed if multiple
         # training strategies are run:
-        converged_current = np.repeat(
-            False, repeats=self.model.model_vars.n_features)
+        converged_current = np.zeros(n_features, dtype=np.bool)
 
-        def convergence_decision(convergence_status, train_step):
-            if convergence_criteria == "step":
-                return train_step < stopping_criteria
-            elif convergence_criteria == "all_converged":
-                return np.any(np.logical_not(convergence_status))
-            elif convergence_criteria == "both":
-                return np.any(np.logical_not(convergence_status)) and train_step < stopping_criteria
-            else:
-                raise ValueError("convergence_criteria %s not recognized." % convergence_criteria)
-
-        # fill with highest possible number:
-        ll_current = np.zeros([self._input_data.num_features], self.dtype) + np.nextafter(np.inf, 0, dtype=self.dtype)
+        # fill with lowest possible number:
+        ll_current = np.nextafter(np.inf, np.zeros([self._input_data.num_features]), dtype=self.dtype)
 
         dataset_iterator = iter(dataset)
 
-        irls_algo = False
-        nr_algo = False
-        if optim_algo.lower() in ['nr','nr_tr']:
-            nr_algo = True
-            update_func = optimizer_object.perform_parameter_update
+        irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
+        nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
 
-        elif optim_algo.lower() in ['irls','irls_tr','irls_gd','irls_gd_tr']:
-            irls_algo = True
-            update_func = optimizer_object.perform_parameter_update
-
-        else:
-            update_func = optimizer_object.apply_gradients
+        update_func = optimizer_object.perform_parameter_update if irls_algo or nr_algo else optimizer_object.apply_gradients
 
         prev_params = self.model.params.numpy()
 
         batch_features = False
+        train_step = 0
         while convergence_decision(converged_current, train_step):
             # ### Iterate over the batches of the dataset.
             # x_batch is a tuple (idx, (X_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor))
             if benchmark:
                 t0_epoch = time.time()
 
-            not_converged = np.logical_not(self.model.model_vars.converged)
+            not_converged = ~ self.model.model_vars.converged
             ll_prev = ll_current.copy()
-            #if train_step % 10 == 0:
-            logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
             if full_model:
                 results = None
                 x_batch = None
@@ -293,6 +272,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     np.sum(features_updated).astype("int32"),
                     *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
                 )
+            else:
+                logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
             train_step += 1
             if benchmark:
                 t1_epoch = time.time()
