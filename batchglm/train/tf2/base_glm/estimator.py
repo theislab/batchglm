@@ -65,8 +65,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             optim_algo: str = "adam"
     ):
 
-        conv_step = lambda x, y: not np.all(x)
-        conv_all = lambda x, y: not np.all(x) and y < stopping_criteria
+        conv_all = lambda x, y: not np.all(x)
+        conv_step = lambda x, y: not np.all(x) and y < stopping_criteria
         assert convergence_criteria in ["step", "all_converged"], ("Unrecognized convergence criteria %s", convergence_criteria)
         convergence_decision = conv_step if convergence_criteria == "step" else conv_all
 
