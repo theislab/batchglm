@@ -110,6 +110,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 size_factors = self.input_data.fetch_size_factors(idx) if fetch_size_factors else 1
 
                 yield x, dloc, dscale, size_factors
+            return
 
         dtp = self.dtype
         output_types = ((tf.int64, dtp, tf.int64), *(dtp,) * 3) if sparse else (dtp,) * 4
@@ -118,15 +119,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             dataset = dataset.map(lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf))
 
 
-
         # Set all to convergence status = False, this is needed if multiple
         # training strategies are run:
         converged_current = np.zeros(n_features, dtype=np.bool)
 
         # fill with lowest possible number:
         ll_current = np.nextafter(np.inf, np.zeros(n_features), dtype=self.dtype)
-
-        dataset_iterator = iter(dataset)
 
         irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
         nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
@@ -137,6 +135,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         batch_features = False
         train_step = 0
+        num_batches = n_obs // batch_size
 
         while convergence_decision(converged_current, train_step):
 
@@ -145,129 +144,122 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             not_converged = ~ self.model.model_vars.converged
             ll_prev = ll_current.copy()
-            if full_model:
-                results = None
-                x_batch = None
-                first_batch = True
-                for x_batch_tuple in dataset:
-                    x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
-                    current_results = self.model(x_batch)
-                    if first_batch:
-                        results = list(current_results)
-                        first_batch = False
-                    else:
-                        for i, x in enumerate(current_results):
-                            results[i] += x
-            else:
-                x_batch_tuple = next(dataset_iterator)
+            results = None
+            for i, x_batch_tuple in enumerate(dataset):
                 x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
-                results = self.model(x_batch)
+                current_results = self.model(x_batch)
+                if is_batched or i == 0:
+                    results = current_results
+                else:
+                    results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
 
-            if irls_algo or nr_algo:
-                if irls_algo:
-                    update_func(
-                        [x_batch, *results, False, n_obs],
-                        True,
-                        False,
-                        batch_features,
-                        ll_prev
-                    )
-                    if self._train_scale:
-                        update_func(
-                            [x_batch, *results, False, n_obs],
-                            False,
-                            True,
-                            batch_features,
-                            ll_prev
+                if is_batched or i == num_batches - 1:
+
+                    if irls_algo or nr_algo:
+                        if irls_algo:
+                            update_func(
+                                [x_batch, *results, False, n_obs],
+                                True,
+                                False,
+                                batch_features,
+                                ll_prev
+                            )
+                            if self._train_scale:
+                                update_func(
+                                    [x_batch, *results, False, n_obs],
+                                    False,
+                                    True,
+                                    batch_features,
+                                    ll_prev
+                                )
+                        else:
+                            update_func(
+                                [x_batch, *results, False, n_obs],
+                                True,
+                                True,
+                                batch_features,
+                                ll_prev
+                            )
+                        features_updated = self.model.model_vars.updated
+                    else:
+                        if batch_features:
+                            indices = tf.where(not_converged)
+                            update_var = tf.transpose(tf.scatter_nd(
+                                indices,
+                                tf.transpose(results[1]),
+                                shape=(n_features, results[1].get_shape()[0])
+                            ))
+                        else:
+                            update_var = results[1]
+                        update_func([(update_var, self.model.params)])
+                        features_updated = not_converged
+
+                    if benchmark:
+                        self.values.append(self.model.trainable_variables[0].numpy().copy())
+
+                    # Update converged status
+                    converged_prev = converged_current.copy()
+                    ll_current = self.loss.norm_neg_log_likelihood(results[0]).numpy()
+
+                    if batch_features:
+                        indices = tf.where(not_converged)
+                        updated_lls = tf.scatter_nd(indices, ll_current, shape=ll_prev.shape)
+                        ll_current = np.where(features_updated, updated_lls.numpy(), ll_prev)
+
+                    if is_batched:
+                        jac_normalization = batch_size
+                    else:
+                        jac_normalization = n_obs
+                    if irls_algo:
+                        grad_numpy = tf.abs(tf.concat((results[1], results[2]), axis=1))
+                    elif nr_algo:
+                        grad_numpy = tf.abs(results[1])
+                    else:
+                        grad_numpy = tf.abs(tf.transpose(results[1]))
+                    if batch_features:
+                        indices = tf.where(not_converged)
+                        grad_numpy = tf.scatter_nd(
+                            indices,
+                            grad_numpy,
+                            shape=(n_features, self.model.params.get_shape()[0])
                         )
-                else:
-                    update_func(
-                        [x_batch, *results, False, n_obs],
-                        True,
-                        True,
-                        batch_features,
-                        ll_prev
+                    grad_numpy = grad_numpy.numpy()
+                    convergences = self.calculate_convergence(
+                        converged_prev,
+                        ll_prev,
+                        ll_current,
+                        prev_params,
+                        jac_normalization,
+                        grad_numpy,
+                        features_updated,
+                        optimizer_object
                     )
-                features_updated = self.model.model_vars.updated
-            else:
-                if batch_features:
-                    indices = tf.where(not_converged)
-                    update_var = tf.transpose(tf.scatter_nd(
-                        indices,
-                        tf.transpose(results[1]),
-                        shape=(n_features, results[1].get_shape()[0])
-                    ))
-                else:
-                    update_var = results[1]
-                update_func([(update_var, self.model.params)])
-                features_updated = not_converged
 
-            if benchmark:
-                self.values.append(self.model.trainable_variables[0].numpy().copy())
-
-            # Update converged status
-            converged_prev = converged_current.copy()
-            ll_current = self.loss.norm_neg_log_likelihood(results[0]).numpy()
-
-            if batch_features:
-                indices = tf.where(not_converged)
-                updated_lls = tf.scatter_nd(indices, ll_current, shape=ll_prev.shape)
-                ll_current = np.where(features_updated, updated_lls.numpy(), ll_prev)
-
-            if is_batched:
-                jac_normalization = batch_size
-            else:
-                jac_normalization = n_obs
-            if irls_algo:
-                grad_numpy = tf.abs(tf.concat((results[1], results[2]), axis=1))
-            elif nr_algo:
-                grad_numpy = tf.abs(results[1])
-            else:
-                grad_numpy = tf.abs(tf.transpose(results[1]))
-            if batch_features:
-                indices = tf.where(not_converged)
-                grad_numpy = tf.scatter_nd(
-                    indices,
-                    grad_numpy,
-                    shape=(n_features, self.model.params.get_shape()[0])
-                )
-            grad_numpy = grad_numpy.numpy()
-            convergences = self.calculate_convergence(
-                converged_prev,
-                ll_prev,
-                ll_current,
-                prev_params,
-                jac_normalization,
-                grad_numpy,
-                features_updated,
-                optimizer_object
-            )
-
-            prev_params = self.model.params.numpy()
-            #converged_current, converged_f, converged_g, converged_x = convergences
-            converged_current = convergences[0]
-            self.model.model_vars.convergence_update(converged_current, features_updated)
-            num_converged = np.sum(converged_current)
-            if num_converged != np.sum(converged_prev):
-                if featurewise and not batch_features:
-                    batch_features = True
-                    self.model.batch_features = batch_features
-                logger_pattern = "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)"
-                logger.warning(
-                    logger_pattern,
-                    train_step,
-                    np.sum(ll_current),
-                    num_converged.astype("int32"),
-                    np.sum(features_updated).astype("int32"),
-                    *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
-                )
-            else:
-                logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
-            train_step += 1
-            if benchmark:
-                t1_epoch = time.time()
-                self.times.append(t1_epoch-t0_epoch)
-                self.converged.append(num_converged)
+                    prev_params = self.model.params.numpy()
+                    #converged_current, converged_f, converged_g, converged_x = convergences
+                    converged_current = convergences[0]
+                    self.model.model_vars.convergence_update(converged_current, features_updated)
+                    num_converged = np.sum(converged_current)
+                    if num_converged != np.sum(converged_prev):
+                        if featurewise and not batch_features:
+                            batch_features = True
+                            self.model.batch_features = batch_features
+                        logger_pattern = "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)"
+                        logger.warning(
+                            logger_pattern,
+                            train_step,
+                            np.sum(ll_current),
+                            num_converged.astype("int32"),
+                            np.sum(features_updated).astype("int32"),
+                            *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
+                        )
+                    else:
+                        logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
+                    train_step += 1
+                    if benchmark:
+                        t1_epoch = time.time()
+                        self.times.append(t1_epoch-t0_epoch)
+                        self.converged.append(num_converged)
 
         # Evaluate final params
         logger.warning("Final Evaluation run.")
@@ -285,6 +277,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             else:
                 for i, x in enumerate(current_results):
                     results[i] += x
+
+        for i, x_batch_tuple in enumerate(dataset):
+            current_results = self.model(x_batch_tuple)
+            results = current_results if i == 0 else [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
 
         self._log_likelihood = self.loss.norm_log_likelihood(results[0].numpy())
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / self.input_data.num_observations), axis=1)
