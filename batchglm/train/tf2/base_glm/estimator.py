@@ -275,6 +275,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         # change to hessian mode since we still use hessian instead of FIM for self._fisher_inv
         self.model.setMethod('nr_tr')
+        self.model.hessian.compute_b = True
 
         first_batch = True
         for x_batch_tuple in input_list:
@@ -293,6 +294,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self._fisher_inv = tf.linalg.inv(results[2]).numpy()
         self._hessian = -results[2].numpy()
 
+        self.model.hessian.compute_b = self.model.compute_b
         self.model.batch_features = batch_features
 
     def getModelInput(self, x_batch_tuple: tuple, batch_features: bool, not_converged):
