@@ -38,7 +38,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         """
 
         a_var, b_var = self.model.unpack_params([self.model.params, self.model.model_vars.a_var.get_shape()[0]])
-        self.model = self.get_model_container(self._input_data)
+        self.model = self.get_model_container(self.input_data)
         self.model._a_var = a_var.numpy()
         self.model._b_var = b_var.numpy()
         self._loss = tf.reduce_sum(np.negative(self._log_likelihood) / self.input_data.num_observations).numpy()
@@ -92,7 +92,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             We use max_obs to cut the observations with max_obs % batch_size = 0 to ensure consistent
             sizes of tensors.
             """
-            fetch_size_factors = self._input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
+            fetch_size_factors = self.input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
 
             if full_model:
                 max_obs = n_obs - (n_obs % batch_size)
@@ -300,7 +300,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         """
         if batch_features:
             x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor = x_batch_tuple
-            if isinstance(self._input_data.x, scipy.sparse.csr_matrix):
+            if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
                 not_converged_idx = np.where(not_converged)[0]
                 feature_columns = tf.sparse.split(
                     x_tensor,
