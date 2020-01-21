@@ -154,7 +154,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
 
                 if is_batched or i == num_batches - 1:
-
                     if irls_algo or nr_algo:
                         if irls_algo:
                             update_func(
@@ -254,7 +253,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
                         )
                     else:
-                        logger.warning('step %i: loss: %f', train_step, np.sum(ll_current))
+                        logger.warning('step %i: loss: %f converged %i, updated %i', train_step, np.sum(ll_current), num_converged.astype("int32"), np.sum(features_updated).astype("int32"))
                     train_step += 1
                     if benchmark:
                         t1_epoch = time.time()
@@ -333,7 +332,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ll_difference = np.abs(ll_prev - ll_current) / ll_prev
         ll_converged = (ll_difference < pkg_constants.LLTOL_BY_FEATURE) & features_updated
         epoch_ll_converged = not_converged_prev & ll_converged  # formerly known as converged_f
-
         total_converged |= epoch_ll_converged
 
         """
@@ -363,15 +361,15 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         In case we use irls_tr/irls_gd_tr or nr_tr, we can also utilize the trusted region radius.
         For now it must not be below the threshold for the X step of the loc model.
         """
+
         if hasattr(optimizer_object, 'trusted_region_mode') and optimizer_object.trusted_region_mode:
-            converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.XTOL_BY_FEATURE_LOC
+            converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
             if hasattr(optimizer_object, 'tr_radius_b') and self._train_scale:
-                converged_tr &= optimizer_object.tr_radius_b.numpy() < pkg_constants.XTOL_BY_FEATURE_SCALE
+                converged_tr &= optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
             epoch_tr_converged = not_converged_prev & converged_tr
             epoch_step_converged |= epoch_tr_converged
 
         total_converged |= epoch_step_converged
-
         return total_converged, epoch_ll_converged, epoch_grad_converged, epoch_step_converged
 
     def get_optimizer_object(self, optimizer: str, learning_rate):
