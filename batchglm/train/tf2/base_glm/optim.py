@@ -36,13 +36,13 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
     def _trust_region_ops(
             self,
             x_batches,
-            likelihood,
+            log_probs,
             proposed_vector,
             proposed_gain,
             compute_a,
             compute_b,
             batch_features,
-            compute_full_ll
+            is_batched
     ):
         # Load hyper-parameters:
         assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
@@ -64,20 +64,25 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
         # Phase I: Perform a trial update.
         # Propose parameter update:
-        if compute_full_ll:
+        """
+        Current likelihood refers to the likelihood that has been calculated in the last model call.
+        We are always evaluating on the full model, so if we train on the batched model (is_batched),
+        current likelihood needs to be calculated on the full model using the same model state as
+        used in the last model call:
+        """
+        current_likelihood = log_probs
+        if is_batched:
             for i, x_batch in enumerate(x_batches):
                 log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
-                if i == 0:
-                    old_likelihood = log_likelihood
-                else:
-                    old_likelihood += log_likelihood
-        else:
-            old_likelihood = likelihood
-        old_likelihood = self._norm_neg_log_likelihood(old_likelihood)
+                current_likelihood = log_likelihood if i == 0 else tf.math.add(current_likelihood, log_likelihood)
 
+        current_likelihood = self._norm_neg_log_likelihood(current_likelihood)
+
+        """
+        The new likelihood is calculated on the full model now, after updating the parameters using
+        the proposed vector:
+        """
         self.model.params_copy.assign_sub(proposed_vector)
-        # Phase II: Evaluate success of trial update and complete update cycle.
-        # Include parameter updates only if update improves cost function:
         for i, x_batch in enumerate(x_batches):
             log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
             if i == 0:
@@ -86,13 +91,22 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
                 new_likelihood += log_likelihood
         new_likelihood = self._norm_neg_log_likelihood(new_likelihood)
 
-        delta_f_actual = old_likelihood - new_likelihood
+        """
+        delta_f_actual shows the difference between the log likelihoods before and after the proposed
+        update of parameters. It is > 0 if the new likelihood is greater than the old.
+        """
+        delta_f_actual = current_likelihood - new_likelihood
 
+        """
+        If we use feature batching, the individual vector indices need to be spread out to the full
+        feature space by adding columns corresponding to positions of converged (non calculated)
+        features.
+        """
         if batch_features:
             n_features = self.model.model_vars.n_features
             indices = tf.where(tf.logical_not(self.model.model_vars.converged))
-            old_lls = tf.scatter_nd(self.model.model_vars.converged, old_likelihood, shape=tf.constant([n_features]))
-            delta_f_actual = tf.scatter_nd_update(old_lls, indices, delta_f_actual)
+
+            delta_f_actual = tf.scatter_nd(indices, delta_f_actual, shape=(n_features,))
             update_var = tf.transpose(tf.scatter_nd(
                 indices,
                 tf.transpose(proposed_vector),
@@ -101,7 +115,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             gain_var = tf.transpose(tf.scatter_nd(
                 indices,
                 proposed_gain,
-                shape=([n_features])))
+                shape=(n_features,)))
         else:
             update_var = proposed_vector
             gain_var = proposed_gain
@@ -288,7 +302,7 @@ class NR(SecondOrderOptim):
 
         return update_raw, update
 
-    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, compute_full_ll=False):
+    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         x_batches, log_probs, jacobians, hessians = inputs
         if not (compute_a or compute_b):
@@ -323,13 +337,13 @@ class NR(SecondOrderOptim):
 
             self._trust_region_ops(
                 x_batches=x_batches,
-                likelihood=log_probs,
+                log_probs=log_probs,
                 proposed_vector=tr_proposed_vector_pad,
                 proposed_gain=tr_pred_cost_gain,
                 compute_a=compute_a,
                 compute_b=compute_b,
                 batch_features=batch_features,
-                compute_full_ll=compute_full_ll
+                is_batched=is_batched
             )
 
         else:
@@ -409,7 +423,7 @@ class IRLS(SecondOrderOptim):
         ), axis=0)
         return pred_cost_gain
 
-    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, compute_full_ll=False):
+    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         x_batches, log_probs, jac_a, jac_b, fim_a, fim_b = inputs
         if not (compute_a or compute_b):
@@ -519,11 +533,11 @@ class IRLS(SecondOrderOptim):
 
             self._trust_region_ops(
                 x_batches=x_batches,
-                likelihood=log_probs,
+                log_probs=log_probs,
                 proposed_vector=tr_update,
                 proposed_gain=tr_pred_cost_gain,
                 compute_a=compute_a,
                 compute_b=compute_b,
                 batch_features=batch_features,
-                compute_full_ll=compute_full_ll
+                is_batched=is_batched
             )

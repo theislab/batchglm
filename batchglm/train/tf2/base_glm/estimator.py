@@ -167,7 +167,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                 compute_a=True,
                                 compute_b=False,
                                 batch_features=batch_features,
-                                compute_full_ll=is_batched
+                                is_batched=is_batched
                             )
                             if self._train_scale:
                                 update_func(
@@ -175,13 +175,13 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                     compute_a=False,
                                     compute_b=True,
                                     batch_features=batch_features,
-                                    compute_full_ll=is_batched
+                                    is_batched=is_batched
                                 )
                         else:
                             update_func(
                                 inputs=[x_batches, *results],
                                 batch_features=batch_features,
-                                compute_full_ll=is_batched
+                                is_batched=is_batched
                             )
                         features_updated = self.model.model_vars.updated
                     else:
@@ -272,21 +272,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model.setMethod('nr_tr')
         self.model.hessian.compute_b = True
 
-        first_batch = True
-        for x_batch_tuple in dataset:
-            current_results = self.model(x_batch_tuple)
-            if first_batch:
-                results = list(current_results)
-                first_batch = False
-            else:
-                for i, x in enumerate(current_results):
-                    results[i] += x
-
         for i, x_batch_tuple in enumerate(dataset):
             current_results = self.model(x_batch_tuple)
-            results = current_results if i == 0 else [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
+            if i == 0:
+                results = current_results
+            else:
+                results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
 
-        self._log_likelihood = self.loss.norm_log_likelihood(results[0].numpy())
+        self._log_likelihood = results[0].numpy() / self.input_data.num_observations
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / self.input_data.num_observations), axis=1)
 
         # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
