@@ -85,8 +85,8 @@ class GLM(ModelBase, ProcessModelGLM):
 
     def calc_ll(self, inputs, keep_previous_params_copy=False):
         parameters = self._call_parameters(inputs[1:], keep_previous_params_copy)
-
         log_probs = self.likelihood([*parameters[:-2], inputs[0], np.sum(self.model_vars.updated)])
+        log_probs = tf.reduce_sum(log_probs, axis=0)
         return (log_probs, *parameters[2:])
 
     def _return_jacobians(self, inputs):

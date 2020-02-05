@@ -145,8 +145,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             not_converged = ~ self.model.model_vars.converged
             ll_prev = ll_current.copy()
             results = None
-            for i, x_batch_tuple in enumerate(dataset):
-                x_batch = self.getModelInput(x_batch_tuple, batch_features, not_converged)
+            x_batches = []
+            for x_batch_tuple in dataset:
+                if batch_features:
+                    x_batches.append(self.getModelInput(x_batch_tuple, not_converged))
+                else:
+                    x_batches.append(x_batch_tuple)
+
+            for i, x_batch in enumerate(x_batches):
                 current_results = self.model(x_batch)
                 if is_batched or i == 0:
                     results = current_results
@@ -157,27 +163,25 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     if irls_algo or nr_algo:
                         if irls_algo:
                             update_func(
-                                [x_batch, *results, False, n_obs],
-                                True,
-                                False,
-                                batch_features,
-                                ll_prev
+                                inputs=[x_batches, *results],
+                                compute_a=True,
+                                compute_b=False,
+                                batch_features=batch_features,
+                                compute_full_ll=is_batched
                             )
                             if self._train_scale:
                                 update_func(
-                                    [x_batch, *results, False, n_obs],
-                                    False,
-                                    True,
-                                    batch_features,
-                                    ll_prev
+                                    inputs=[x_batches, *results],
+                                    compute_a=False,
+                                    compute_b=True,
+                                    batch_features=batch_features,
+                                    compute_full_ll=is_batched
                                 )
                         else:
                             update_func(
-                                [x_batch, *results, False, n_obs],
-                                True,
-                                True,
-                                batch_features,
-                                ll_prev
+                                inputs=[x_batches, *results],
+                                batch_features=batch_features,
+                                compute_full_ll=is_batched
                             )
                         features_updated = self.model.model_vars.updated
                     else:
@@ -198,11 +202,11 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
                     # Update converged status
                     converged_prev = converged_current.copy()
-                    ll_current = self.loss.norm_neg_log_likelihood(results[0]).numpy()
+                    ll_current = -results[0].numpy() / self.input_data.num_observations
 
                     if batch_features:
                         indices = tf.where(not_converged)
-                        updated_lls = tf.scatter_nd(indices, ll_current, shape=ll_prev.shape)
+                        updated_lls = tf.scatter_nd(indices, ll_current, shape=[n_features])
                         ll_current = np.where(features_updated, updated_lls.numpy(), ll_prev)
 
                     if is_batched:
@@ -292,28 +296,23 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model.hessian.compute_b = self.model.compute_b
         self.model.batch_features = batch_features
 
-    def getModelInput(self, x_batch_tuple: tuple, batch_features: bool, not_converged):
+    def getModelInput(self, x_batch_tuple: tuple, not_converged):
         """
-            Checks whether batch_features is true and returns a smaller x_batch tuple reduced
-            in feature space. Otherwise returns the x_batch.
+            Returns a smaller x_batch tuple reduced in feature space.
         """
-        if batch_features:
-            x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor = x_batch_tuple
-            if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
-                not_converged_idx = np.where(not_converged)[0]
-                feature_columns = tf.sparse.split(
-                    x_tensor,
-                    num_split=self.model.model_vars.n_features,
-                    axis=1)
-                feature_columns = [feature_columns[i] for i in not_converged_idx]
-                x_tensor = tf.sparse.concat(axis=1, sp_inputs=feature_columns)
-                if not isinstance(x_tensor, tf.sparse.SparseTensor):
-                    raise RuntimeError("x_tensor now dense!!!")
-            else:
-                x_tensor = tf.boolean_mask(tensor=x_tensor, mask=not_converged, axis=1)
-            x_batch = (x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
+        x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor = x_batch_tuple
+        if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
+            not_converged_idx = np.where(not_converged)[0]
+            feature_columns = tf.sparse.split(
+                x_tensor,
+                num_split=self.model.model_vars.n_features,
+                axis=1)
+            feature_columns = [feature_columns[i] for i in not_converged_idx]
+            x_tensor = tf.sparse.concat(axis=1, sp_inputs=feature_columns)
+
         else:
-            x_batch = x_batch_tuple
+            x_tensor = tf.boolean_mask(tensor=x_tensor, mask=not_converged, axis=1)
+        x_batch = (x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
 
         return x_batch
 
@@ -393,7 +392,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 "dtype": self.dtype,
                 "model": self.model,
                 "name": optimizer,
-                "trusted_region_mode": tr_mode
+                "trusted_region_mode": tr_mode,
+                "n_obs": self.input_data.num_observations
             }
             if optimizer.startswith('irls'):
                 optim_obj = IRLS(**init_dict)

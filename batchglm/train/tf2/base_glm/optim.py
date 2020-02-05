@@ -11,11 +11,8 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
     Superclass for NR and IRLS
     """
 
-    def _norm_log_likelihood(self, log_probs):
-        return tf.reduce_mean(log_probs, axis=0, name="log_likelihood")
-
     def _norm_neg_log_likelihood(self, log_probs):
-        return - self._norm_log_likelihood(log_probs)
+        return - log_probs / self.n_obs
 
     def _resource_apply_dense(self, grad, handle, apply_state=None):
 
@@ -38,14 +35,14 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
     def _trust_region_ops(
             self,
-            x_batch,
+            x_batches,
             likelihood,
             proposed_vector,
             proposed_gain,
             compute_a,
             compute_b,
             batch_features,
-            ll_prev
+            compute_full_ll
     ):
         # Load hyper-parameters:
         assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
@@ -67,28 +64,44 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
         # Phase I: Perform a trial update.
         # Propose parameter update:
+        if compute_full_ll:
+            for i, x_batch in enumerate(x_batches):
+                log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
+                if i == 0:
+                    old_likelihood = log_likelihood
+                else:
+                    old_likelihood += log_likelihood
+        else:
+            old_likelihood = likelihood
+        old_likelihood = self._norm_neg_log_likelihood(old_likelihood)
 
         self.model.params_copy.assign_sub(proposed_vector)
         # Phase II: Evaluate success of trial update and complete update cycle.
         # Include parameter updates only if update improves cost function:
-        new_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
-        delta_f_actual = self._norm_neg_log_likelihood(likelihood) - self._norm_neg_log_likelihood(new_likelihood)
+        for i, x_batch in enumerate(x_batches):
+            log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
+            if i == 0:
+                new_likelihood = log_likelihood
+            else:
+                new_likelihood += log_likelihood
+        new_likelihood = self._norm_neg_log_likelihood(new_likelihood)
+
+        delta_f_actual = old_likelihood - new_likelihood
 
         if batch_features:
-
+            n_features = self.model.model_vars.n_features
             indices = tf.where(tf.logical_not(self.model.model_vars.converged))
-            updated_lls = tf.scatter_nd(indices, delta_f_actual, shape=ll_prev.shape)
-            delta_f_actual = np.where(self.model.model_vars.converged, ll_prev, updated_lls.numpy())
+            old_lls = tf.scatter_nd(self.model.model_vars.converged, old_likelihood, shape=tf.constant([n_features]))
+            delta_f_actual = tf.scatter_nd_update(old_lls, indices, delta_f_actual)
             update_var = tf.transpose(tf.scatter_nd(
                 indices,
                 tf.transpose(proposed_vector),
-                shape=(self.model.model_vars.n_features, proposed_vector.get_shape()[0])
+                shape=(n_features, proposed_vector.get_shape()[0])
             ))
-
             gain_var = tf.transpose(tf.scatter_nd(
                 indices,
                 proposed_gain,
-                shape=([self.model.model_vars.n_features])))
+                shape=([n_features])))
         else:
             update_var = proposed_vector
             gain_var = proposed_gain
@@ -102,16 +115,13 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             params = tf.transpose(tf.scatter_nd(
                 indices,
                 tf.transpose(self.model.params_copy),
-                shape=(self.model.model_vars.n_features, self.model.params.get_shape()[0])
+                shape=(n_features, self.model.params.get_shape()[0])
             ))
 
             theta_new_tr = tf.add(
                 tf.multiply(self.model.params, keep_theta_numeric),
                 tf.multiply(params, update_theta_numeric)
             )
-
-
-            #self.model.params.assign_(tf.multiply(params, update_theta_numeric))
 
         else:
             params = self.model.params_copy
@@ -147,42 +157,36 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         radius_new = tf.minimum(tf.multiply(tr_radius, radius_update), upper_bound)
         tr_radius.assign(radius_new)
 
-    def __init__(self, dtype: tf.dtypes.DType, trusted_region_mode: bool, model: tf.keras.Model, name: str):
-
-        self.model = model
-        self.gd = name in ['irls_gd', 'irls_gd_tr']
+    def __init__(self, dtype: tf.dtypes.DType, trusted_region_mode: bool, model: tf.keras.Model, name: str, n_obs: int):
 
         super(SecondOrderOptim, self).__init__(name)
 
+        self.model = model
+        self.gd = name in ['irls_gd', 'irls_gd_tr']
         self._dtype = dtype
+        self.n_obs = tf.cast(n_obs, dtype=self._dtype)
         self.trusted_region_mode = trusted_region_mode
-        if trusted_region_mode:
 
+        if trusted_region_mode:
+            n_features = self.model.model_vars.n_features
             self.tr_radius = tf.Variable(
-                np.zeros(shape=[self.model.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
-                dtype=self._dtype, trainable=False
-            )
+                np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
+                dtype=self._dtype, trainable=False)
             if self.gd:
                 self.tr_radius_b = tf.Variable(
-                    np.zeros(shape=[self.model.model_vars.n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
-                    dtype=self._dtype, trainable=False
-                )
-
-            self.tr_ll_prev = tf.Variable(np.zeros(shape=[self.model.model_vars.n_features]), trainable=False)
-            self.tr_pred_gain = tf.Variable(np.zeros(shape=[self.model.model_vars.n_features]), trainable=False)
-
+                    np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
+                    dtype=self._dtype, trainable=False)
         else:
-
             self.tr_radius = tf.Variable(np.array([np.inf]), dtype=self._dtype, trainable=False)
 
     @abc.abstractmethod
     def perform_parameter_update(self, inputs):
         pass
 
-    def _newton_type_update(self, lhs, rhs, psd):
+    def _newton_type_update(self, lhs, rhs, psd=False):
 
         new_rhs = tf.expand_dims(rhs, axis=-1)
-        res = tf.linalg.lstsq(lhs, new_rhs, fast=False)
+        res = tf.linalg.lstsq(lhs, new_rhs, fast=psd)
         delta_t = tf.squeeze(res, axis=-1)
         update_tensor = tf.transpose(delta_t)
         return update_tensor
@@ -256,47 +260,45 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             self,
             proposed_vector,
             neg_jac,
-            hessian_fim,
-            n_obs
+            hessian_fim
     ):
         pred_cost_gain = tf.add(
             tf.einsum(
                 'ni,in->n',
                 neg_jac,
                 proposed_vector
-            ) / n_obs,
+            ) / self.n_obs,
             0.5 * tf.einsum(
                 'nix,xin->n',
                 tf.einsum('inx,nij->njx',
                           tf.expand_dims(proposed_vector, axis=-1),
                           hessian_fim),
                 tf.expand_dims(proposed_vector, axis=0)
-            ) / tf.square(n_obs)
+            ) / tf.square(self.n_obs)
         )
         return pred_cost_gain
 
 
 class NR(SecondOrderOptim):
 
-    def _get_updates(self, lhs, rhs, psd, compute_a, compute_b):
+    def _get_updates(self, lhs, rhs, compute_a, compute_b):
 
-        update_raw = self._newton_type_update(lhs=lhs, rhs=rhs, psd=psd)
+        update_raw = self._newton_type_update(lhs=lhs, rhs=rhs)
         update = self._pad_updates(update_raw, compute_a, compute_b)
 
         return update_raw, update
 
-    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, prev_ll=None):
+    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, compute_full_ll=False):
 
-        x_batch, log_probs, jacobians, hessians, psd, n_obs = inputs
+        x_batches, log_probs, jacobians, hessians = inputs
         if not (compute_a or compute_b):
             raise ValueError(
                 "Nothing can be trained. Please make sure at least one of train_mu and train_r is set to True.")
 
-        update_raw, update = self._get_updates(hessians, jacobians, psd, compute_a, compute_b)
+        update_raw, update = self._get_updates(hessians, jacobians, compute_a, compute_b)
 
         if self.trusted_region_mode:
 
-            n_obs = tf.cast(n_obs, dtype=self._dtype)
             if batch_features:
                 radius_container = tf.boolean_mask(
                     tensor=self.tr_radius,
@@ -310,8 +312,7 @@ class NR(SecondOrderOptim):
             tr_pred_cost_gain = self._trust_region_newton_cost_gain(
                 proposed_vector=tr_proposed_vector,
                 neg_jac=jacobians,
-                hessian_fim=hessians,
-                n_obs=n_obs
+                hessian_fim=hessians
             )
 
             tr_proposed_vector_pad = self._pad_updates(
@@ -321,14 +322,14 @@ class NR(SecondOrderOptim):
             )
 
             self._trust_region_ops(
-                x_batch=x_batch,
+                x_batches=x_batches,
                 likelihood=log_probs,
                 proposed_vector=tr_proposed_vector_pad,
                 proposed_gain=tr_pred_cost_gain,
                 compute_a=compute_a,
                 compute_b=compute_b,
                 batch_features=batch_features,
-                ll_prev=prev_ll
+                compute_full_ll=compute_full_ll
             )
 
         else:
@@ -352,7 +353,6 @@ class IRLS(SecondOrderOptim):
             self,
             update_x,
             radius_container,
-            n_obs,
             gd,
             neg_jac_x,
             fim_x=None
@@ -363,8 +363,6 @@ class IRLS(SecondOrderOptim):
 
         :param radius_container: tf.tensor ? x ? TODO
 
-        :param n_obs: ? TODO
-            Number of observations in current batch.
         :param gd: boolean
             If True, the proposed vector and predicted cost gain are
             calculated by linear functions related to IRLS_GD(_TR) optimizer.
@@ -382,7 +380,7 @@ class IRLS(SecondOrderOptim):
         proposed_vector_x = self._trust_region_update(
             update_raw=update_x,
             radius_container=radius_container,
-            n_obs=n_obs if gd else None
+            n_obs=self.n_obs if gd else None
         )
         # here, functions have different number of arguments, thus
         # must be written out
@@ -395,8 +393,7 @@ class IRLS(SecondOrderOptim):
             pred_cost_gain_x = self._trust_region_newton_cost_gain(
                 proposed_vector=proposed_vector_x,
                 neg_jac=neg_jac_x,
-                hessian_fim=fim_x,
-                n_obs=n_obs
+                hessian_fim=fim_x
             )
 
         return proposed_vector_x, pred_cost_gain_x
@@ -412,9 +409,9 @@ class IRLS(SecondOrderOptim):
         ), axis=0)
         return pred_cost_gain
 
-    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, prev_ll=None):
+    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, compute_full_ll=False):
 
-        x_batch, log_probs, jac_a, jac_b, fim_a, fim_b, psd, n_obs = inputs
+        x_batches, log_probs, jac_a, jac_b, fim_a, fim_b = inputs
         if not (compute_a or compute_b):
             raise ValueError(
                 "Nothing can be trained. Please make sure at least one of train_mu and train_r is set to True.")
@@ -437,8 +434,7 @@ class IRLS(SecondOrderOptim):
             else:
                 update_b = self._newton_type_update(
                     lhs=fim_b,
-                    rhs=jac_b,
-                    psd=False
+                    rhs=jac_b
                 )
 
         if not self.trusted_region_mode:
@@ -470,8 +466,6 @@ class IRLS(SecondOrderOptim):
             self.model.params.assign_sub(update_var)
 
         else:
-
-            n_obs = tf.cast(n_obs, dtype=self._dtype)
             # put together update_raw based on proposed vector and cost gain depending on train_r and train_mu
             if compute_b:
                 if compute_a:
@@ -482,10 +476,10 @@ class IRLS(SecondOrderOptim):
                     else:
                         radius_container = self.tr_radius
                     tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
-                        update_b, radius_container, n_obs, self.gd, jac_b, fim_b)
+                        update_b, radius_container, self.gd, jac_b, fim_b)
 
                     tr_proposed_vector_a, tr_pred_cost_gain_a = self._calc_proposed_vector_and_pred_cost_gain(
-                        update_a, radius_container, n_obs, False, jac_a, fim_a)
+                        update_a, radius_container, False, jac_a, fim_a)
 
                     tr_update_raw = tf.concat([tr_proposed_vector_a, tr_proposed_vector_b], axis=0)
                     tr_pred_cost_gain = tf.add(tr_pred_cost_gain_a, tr_pred_cost_gain_b)
@@ -498,7 +492,7 @@ class IRLS(SecondOrderOptim):
                             mask=tf.logical_not(self.model.model_vars.converged))
 
                     tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
-                        update_b, radius_container, n_obs, self.gd, jac_b, fim_b)
+                        update_b, radius_container, self.gd, jac_b, fim_b)
 
                     # directly apply output of calc_proposed_vector_and_pred_cost_gain to tr_update_raw
                     # and tr_pred_cost_gain
@@ -514,7 +508,7 @@ class IRLS(SecondOrderOptim):
                 # here train_r is False AND train_mu is true, so the output of the function can directly be applied to
                 # tr_update_raw and tr_pred_cost_gain, similar to train_r = True and train_mu = False
                 tr_update_raw, tr_pred_cost_gain = self._calc_proposed_vector_and_pred_cost_gain(
-                    update_a, radius_container, n_obs, False, jac_a, fim_a)
+                    update_a, radius_container, False, jac_a, fim_a)
 
             # perform update
             tr_update = self._pad_updates(
@@ -524,12 +518,12 @@ class IRLS(SecondOrderOptim):
             )
 
             self._trust_region_ops(
-                x_batch,
-                log_probs,
-                tr_update,
-                tr_pred_cost_gain,
-                compute_a,
-                compute_b,
-                batch_features,
-                prev_ll
+                x_batches=x_batches,
+                likelihood=log_probs,
+                proposed_vector=tr_update,
+                proposed_gain=tr_pred_cost_gain,
+                compute_a=compute_a,
+                compute_b=compute_b,
+                batch_features=batch_features,
+                compute_full_ll=compute_full_ll
             )
