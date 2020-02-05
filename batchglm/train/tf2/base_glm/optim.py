@@ -68,10 +68,13 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         Current likelihood refers to the likelihood that has been calculated in the last model call.
         We are always evaluating on the full model, so if we train on the batched model (is_batched),
         current likelihood needs to be calculated on the full model using the same model state as
-        used in the last model call:
+        used in the last model call. Moreover, if this update is conducted separately for loc
+        (compute_a) and scale (compute_b), current likelihood always needs to be recalculated when
+        updating the scale params since the location params changed in the location update before.
+        This is only true if the location params are updated before the scale params however!
         """
         current_likelihood = log_probs
-        if is_batched:
+        if is_batched or compute_b and not compute_a:
             for i, x_batch in enumerate(x_batches):
                 log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
                 current_likelihood = log_likelihood if i == 0 else tf.math.add(current_likelihood, log_likelihood)
