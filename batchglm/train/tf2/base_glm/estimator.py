@@ -9,8 +9,8 @@ from .external import TFEstimator, _EstimatorGLM
 from .optim import NR, IRLS
 from .external import pkg_constants
 
-
 logger = logging.getLogger("batchglm")
+
 
 class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     """
@@ -31,18 +31,18 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
     def finalize(self, **kwargs):
         """
-        Evaluate all tensors that need to be exported from session and save these as class attributes
-        and close session.
-
+        Evaluate all tensors that need to be exported from session,
+        save these as class attributes and close session.
         Changes .model entry from tf-based EstimatorGraph to numpy based Model instance and
         transfers relevant attributes.
         """
-
-        a_var, b_var = self.model.unpack_params([self.model.params, self.model.model_vars.a_var.get_shape()[0]])
+        a_var, b_var = self.model.unpack_params(
+            [self.model.params, self.model.model_vars.a_var.get_shape()[0]])
         self.model = self.get_model_container(self.input_data)
         self.model._a_var = a_var.numpy()
         self.model._b_var = b_var.numpy()
-        self._loss = tf.reduce_sum(np.negative(self._log_likelihood) / self.input_data.num_observations).numpy()
+        self._loss = tf.reduce_sum(
+            tf.negative(self._log_likelihood) / self.input_data.num_observations).numpy()
 
     def __init__(
             self,
@@ -68,7 +68,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         conv_all = lambda x, y: not np.all(x)
         conv_step = lambda x, y: not np.all(x) and y < stopping_criteria
-        assert convergence_criteria in ["step", "all_converged"], ("Unrecognized convergence criteria %s", convergence_criteria)
+        assert convergence_criteria in ["step", "all_converged"], \
+            ("Unrecognized convergence criteria %s", convergence_criteria)
         convergence_decision = conv_step if convergence_criteria == "step" else conv_all
 
         n_obs = self.input_data.num_observations
@@ -76,52 +77,44 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         if batch_size > n_obs:
             batch_size = n_obs
         if not self._initialized:
-            raise RuntimeError("Cannot train the model: \
-                                Estimator not initialized. Did you forget to call estimator.initialize() ?")
+            raise RuntimeError("Cannot train the model: Estimator not initialized. \
+                Did you forget to call estimator.initialize() ?")
 
         if autograd and optim_algo.lower() in ['nr', 'nr_tr']:
-            logger.warning("Automatic differentiation is currently not supported for hessians. \
-                            Falling back to closed form. Only Jacobians are calculated using autograd.")
+            logger.warning(
+                "Automatic differentiation is currently not supported for hessians. Falling back \
+                to closed form. Only Jacobians are calculated using autograd.")
 
         self.noise_model = noise_model
         sparse = isinstance(self.input_data.x, scipy.sparse.csr_matrix)
         full_model = not is_batched
 
         def generate():
-            """
-            Generator for the full model.
-            We use max_obs to cut the observations with max_obs % batch_size = 0 to ensure consistent
-            sizes of tensors.
-            """
-            fetch_size_factors = self.input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
 
-            if full_model:
-                max_obs = n_obs  # - (n_obs % batch_size)
-                obs_pool = np.arange(max_obs)
-            else:
-                max_obs = n_obs
-                obs_pool = np.random.permutation(n_obs)
+            fetch_size_factors = self.input_data.size_factors is not None \
+                and self.noise_model in ["nb", "norm"]
+            obs_pool = np.arange(n_obs) if full_model else np.random.permutation(n_obs)
 
-            for x in range(0, max_obs, batch_size):
-                idx = obs_pool[x: x + batch_size]  # numpy automatically returns only id:id+n_obs if out of range
+            for start_id in range(0, n_obs, batch_size):
+                # numpy ignores ids > len(obs_pool) so no out of bounds check needed here:
+                idx = obs_pool[start_id: start_id + batch_size]
 
-                x = self.input_data.fetch_x_sparse(idx) if sparse else self.input_data.fetch_x_dense(idx)
+                counts = self.input_data.fetch_x_sparse(idx) if sparse \
+                    else self.input_data.fetch_x_dense(idx)
                 dloc = self.input_data.fetch_design_loc(idx)
                 dscale = self.input_data.fetch_design_scale(idx)
                 size_factors = self.input_data.fetch_size_factors(idx) if fetch_size_factors else 1
 
-                yield x, dloc, dscale, size_factors
-            return
+                yield counts, dloc, dscale, size_factors
 
         dtp = self.dtype
         output_types = ((tf.int64, dtp, tf.int64), *(dtp,) * 3) if sparse else (dtp,) * 4
-        dataset = tf.data.Dataset.from_generator(generator=generate, output_types=output_types).prefetch(1)
+        dataset = tf.data.Dataset.from_generator(
+            generator=generate, output_types=output_types).prefetch(1)
         if sparse:
             dataset = dataset.map(
                 lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf)
             ).cache()
-
-
         # Set all to convergence status = False, this is needed if multiple
         # training strategies are run:
         converged_current = np.zeros(n_features, dtype=np.bool)
@@ -132,13 +125,16 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
         nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
 
-        update_func = optimizer_object.perform_parameter_update if irls_algo or nr_algo else optimizer_object.apply_gradients
+        update_func = optimizer_object.perform_parameter_update \
+            if irls_algo or nr_algo else optimizer_object.apply_gradients
 
         prev_params = self.model.params.numpy()
 
         batch_features = False
         train_step = 0
-        num_batches = (n_obs + batch_size - 1) // batch_size  # integer ceil division ceil(a/b)=(a+b-1)//b
+        # integer ceil division with arithmetic trick: ceil(a/b)=(a+b-1)//b
+        # We need this for cases where n_obs mod batch_size != 0
+        num_batches = (n_obs + batch_size - 1) // batch_size
 
         while convergence_decision(converged_current, train_step):
 
@@ -205,7 +201,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
                     # Update converged status
                     converged_prev = converged_current.copy()
-                    ll_current = -results[0].numpy() / self.input_data.num_observations
+                    ll_current = -results[0].numpy() / n_obs
 
                     if batch_features:
                         indices = tf.where(not_converged)
@@ -242,25 +238,24 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     )
 
                     prev_params = self.model.params.numpy()
-                    #converged_current, converged_f, converged_g, converged_x = convergences
+                    # converged_current, converged_f, converged_g, converged_x = convergences
                     converged_current = convergences[0]
                     self.model.model_vars.convergence_update(converged_current, features_updated)
                     num_converged = np.sum(converged_current)
-                    if num_converged != np.sum(converged_prev):
+                    loss = np.sum(ll_current)
+                    num_updated = np.sum(features_updated)
+                    log_output = f"Step: {train_step} loss: {loss}, "\
+                        f"converged {num_converged}, updated {num_updated}"
+                    if num_converged == np.sum(converged_prev):
+                        logger.warning(log_output)
+                    else:
                         if featurewise and not batch_features:
                             batch_features = True
                             self.model.batch_features = batch_features
-                        logger_pattern = "Step: %i loss: %f, converged %i, updated %i, (logs: %i, grad: %i, x_step: %i)"
-                        logger.warning(
-                            logger_pattern,
-                            train_step,
-                            np.sum(ll_current),
-                            num_converged.astype("int32"),
-                            np.sum(features_updated).astype("int32"),
-                            *[np.sum(convergence_vals) for convergence_vals in convergences[1:]]
-                        )
-                    else:
-                        logger.warning('step %i: loss: %f converged %i, updated %i', train_step, np.sum(ll_current), num_converged.astype("int32"), np.sum(features_updated).astype("int32"))
+                        sums = [np.sum(convergence_vals) for convergence_vals in convergences[1:]]
+                        log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\
+                            f"x_step: {sums[2]}"
+                        logger.warning(log_output)
                     train_step += 1
                     if benchmark:
                         t1_epoch = time.time()
@@ -283,9 +278,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
 
         self._log_likelihood = results[0].numpy()
-        self._jacobian = tf.reduce_sum(tf.abs(results[1] / self.input_data.num_observations), axis=1)
+        self._jacobian = tf.reduce_sum(tf.abs(results[1] / n_obs), axis=1)
 
-        # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
+        # TODO: maybe report fisher inf here in the future.
         self._fisher_inv = tf.linalg.inv(results[2]).numpy()
         self._hessian = -results[2].numpy()
 
@@ -356,10 +351,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         For now it must not be below the threshold for the X step of the loc model.
         """
 
-        if hasattr(optimizer_object, 'trusted_region_mode') and optimizer_object.trusted_region_mode:
+        if hasattr(optimizer_object, 'trusted_region_mode') \
+                and optimizer_object.trusted_region_mode:
             converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
             if hasattr(optimizer_object, 'tr_radius_b') and self._train_scale:
-                converged_tr &= optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
+                converged_tr &= \
+                    optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
             epoch_tr_converged = not_converged_prev & converged_tr
             epoch_step_converged |= epoch_tr_converged
 
@@ -439,15 +436,15 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         def get_norm_converged(model: str, prev_params):
             if model == 'loc':
                 idx_train = self.model.model_vars.idx_train_loc
-                XTOL = pkg_constants.XTOL_BY_FEATURE_LOC
+                xtol = pkg_constants.XTOL_BY_FEATURE_LOC
             elif model == 'scale':
                 idx_train = self.model.model_vars.idx_train_scale
-                XTOL = pkg_constants.XTOL_BY_FEATURE_SCALE
+                xtol = pkg_constants.XTOL_BY_FEATURE_SCALE
             else:
                 assert False, "Supply either 'loc' or 'scale'!"
             x_step = self.model.params.numpy() - prev_params
             x_norm = np.sqrt(np.sum(np.square(x_step[idx_train, :]), axis=0))
-            return x_norm < XTOL
+            return x_norm < xtol
 
         """
         We use a trick here: First we set both the loc and scale convergence to True.
