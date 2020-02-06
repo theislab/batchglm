@@ -1,5 +1,6 @@
 import abc
 import logging
+import time
 import numpy as np
 import scipy
 import tensorflow as tf
@@ -7,7 +8,7 @@ from .model import GLM
 from .external import TFEstimator, _EstimatorGLM
 from .optim import NR, IRLS
 from .external import pkg_constants
-import time
+
 
 logger = logging.getLogger("batchglm")
 
@@ -95,7 +96,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             fetch_size_factors = self.input_data.size_factors is not None and self.noise_model in ["nb", "norm"]
 
             if full_model:
-                max_obs = n_obs - (n_obs % batch_size)
+                max_obs = n_obs  # - (n_obs % batch_size)
                 obs_pool = np.arange(max_obs)
             else:
                 max_obs = n_obs
@@ -114,9 +115,11 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         dtp = self.dtype
         output_types = ((tf.int64, dtp, tf.int64), *(dtp,) * 3) if sparse else (dtp,) * 4
-        dataset = tf.data.Dataset.from_generator(generator=generate, output_types=output_types)
+        dataset = tf.data.Dataset.from_generator(generator=generate, output_types=output_types).prefetch(1)
         if sparse:
-            dataset = dataset.map(lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf))
+            dataset = dataset.map(
+                lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf)
+            ).cache()
 
 
         # Set all to convergence status = False, this is needed if multiple
@@ -135,7 +138,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         batch_features = False
         train_step = 0
-        num_batches = n_obs // batch_size
+        num_batches = (n_obs + batch_size - 1) // batch_size  # integer ceil division ceil(a/b)=(a+b-1)//b
 
         while convergence_decision(converged_current, train_step):
 
@@ -279,7 +282,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             else:
                 results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
 
-        self._log_likelihood = results[0].numpy() / self.input_data.num_observations
+        self._log_likelihood = results[0].numpy()
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / self.input_data.num_observations), axis=1)
 
         # TODO: maybe report fisher inf here. But concatenation only works if !intercept_scale
@@ -325,7 +328,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ll_converged = (ll_difference < pkg_constants.LLTOL_BY_FEATURE) & features_updated
         epoch_ll_converged = not_converged_prev & ll_converged  # formerly known as converged_f
         total_converged |= epoch_ll_converged
-
         """
         Now getting convergence based on change in gradient below threshold:
         """
