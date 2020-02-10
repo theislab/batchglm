@@ -26,6 +26,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.values = []
         self.times = []
         self.converged = []
+        self.lls = []
         self._initialized = True
         self.model = None
 
@@ -207,7 +208,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         indices = tf.where(not_converged)
                         updated_lls = tf.scatter_nd(indices, ll_current, shape=[n_features])
                         ll_current = np.where(features_updated, updated_lls.numpy(), ll_prev)
-
+                    if benchmark:
+                        self.lls.append(ll_current)
                     if is_batched:
                         jac_normalization = batch_size
                     else:
