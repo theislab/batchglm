@@ -22,28 +22,33 @@ def parse_design(
     Parser for design matrices.
 
     :param design_matrix: Design matrix.
-    :param param_names:
+    :param param_names: Optional column names for design_matrix (names of individual coefficients).
     :return: Tuple containing the design matrix and the parameter names.
+    :raise ValueError: if the type of design_matrix is not understood.
+    :raise ValueError: if param_names is None when type of design_matrix is numpy.ndarray or dask.array.core.Array
+    :raise AssertionError: if length of provided param_names is not equal to number of coefficients in design_matrix
     """
+
+    params = None
     if isinstance(design_matrix, patsy.design_info.DesignMatrix):
         dmat = np.asarray(design_matrix)
         params = design_matrix.design_info.column_names
     elif isinstance(design_matrix, pd.DataFrame):
         dmat = np.asarray(design_matrix)
         params = design_matrix.columns
-    elif isinstance(design_matrix, np.ndarray):
-        dmat = design_matrix
-        params = None
     elif isinstance(design_matrix, dask.array.core.Array):
         dmat = design_matrix.compute()
-        params = None
+        params = param_names
+    elif isinstance(design_matrix, np.ndarray):
+        dmat = design_matrix
+        params = param_names
     else:
         raise ValueError("type %s not recognized" % type(design_matrix))
-
-    if param_names is not None:
-        if params is None:
-            assert len(param_names) == dmat.shape[1]
-            params = param_names
+    if params is None:
+        raise ValueError(
+            'Provide names when passing design_matrix as np.ndarray or dask.array.core.Array!')
+    assert len(params) == dmat.shape[1], "Length of provided param_names is not equal to " \
+        "number of coefficients in design_matrix."
 
     return dmat, params
 
@@ -70,14 +75,14 @@ def parse_constraints(
             constraints = constraints.compute()
         # Cannot use all parameter names if constraint matrix is not identity: Make up new ones.
         # Use variable names that can be mapped (unconstrained).
-        constraint_params = ["var_"+str(i) if np.sum(constraints[:, i] != 0) > 1
-                             else dmat_par_names[np.where(constraints[:, i] != 0)[0][0]]
-                             for i in range(constraints.shape[1])]
+        if constraint_par_names is not None:
+            assert len(constraint_params) == len(constraint_par_names)
+            constraint_params = constraint_par_names
+        else:
+            constraint_params = ["var_"+str(i) if np.sum(constraints[:, i] != 0) > 1
+                                 else dmat_par_names[np.where(constraints[:, i] != 0)[0][0]]
+                                 for i in range(constraints.shape[1])]
         assert constraints.shape[0] == dmat.shape[1], "constraint dimension mismatch"
-
-    if constraint_par_names is not None:
-        assert len(constraint_params) == len(constraint_par_names)
-        constraint_params = constraint_par_names
 
     return constraints, constraint_params
 
