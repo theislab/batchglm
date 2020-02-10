@@ -45,21 +45,22 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             is_batched
     ):
         # Load hyper-parameters:
-        assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
-            "eta0 must be smaller than eta1"
-        assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
-            "eta1 must be smaller than or equal to eta2"
-        assert pkg_constants.TRUST_REGION_T1 <= 1, "t1 must be smaller than 1"
-        assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
+        #assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
+        #    "eta0 must be smaller than eta1"
+        #assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
+        #    "eta1 must be smaller than or equal to eta2"
+        #assert pkg_constants.TRUST_REGION_T1 <= 1, "t1 must be smaller than 1"
+        #assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
         # Set trust region hyper-parameters
         eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=self._dtype)
         eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)
         eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=self._dtype)
         if self.gd and compute_b:
             t1 = tf.constant(pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE, dtype=self._dtype)
+            t2 = tf.constant(pkg_constants.TRUST_REGIONT_T2_IRLS_GD_TR_SCALE, dtype=self._dtype)
         else:
             t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=self._dtype)
-        t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=self._dtype)
+            t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=self._dtype)
         upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=self._dtype)
 
         # Phase I: Perform a trial update.
@@ -122,7 +123,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         else:
             update_var = proposed_vector
             gain_var = proposed_gain
-        delta_f_ratio = tf.divide(delta_f_actual, gain_var)
+        #delta_f_ratio = tf.divide(delta_f_actual, gain_var)
 
         # Compute parameter updates.g
         update_theta = tf.logical_and(delta_f_actual > eta0, tf.logical_not(self.model.model_vars.converged))
@@ -147,9 +148,15 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
                 tf.multiply(params, update_theta_numeric)  # new values
             )
         self.model.params.assign(theta_new_tr)
-        self.model.model_vars.updated = update_theta.numpy()
+        if compute_b and not compute_a:
+            self.model.model_vars.updated &= update_theta.numpy()
+        else:
+            self.model.model_vars.updated = update_theta.numpy()
 
         # Update trusted region accordingly:
+        decrease_radius = delta_f_actual <= eta0
+        increase_radius = delta_f_actual > eta0
+        """
         decrease_radius = tf.logical_or(
             delta_f_actual <= eta0,
             tf.logical_and(delta_f_ratio <= eta1, tf.logical_not(self.model.model_vars.converged))
@@ -158,6 +165,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             delta_f_actual > eta0,
             tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model.model_vars.converged))
         )
+        """
         keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
                                      tf.logical_not(increase_radius))
         radius_update = tf.add_n([
@@ -166,7 +174,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, self._dtype))
         ])
 
-        if self.gd and compute_b and not compute_a:
+        if compute_b and not compute_a:
             tr_radius = self.tr_radius_b
         else:
             tr_radius = self.tr_radius
@@ -191,7 +199,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
                 dtype=self._dtype, trainable=False)
             if self.gd:
                 self.tr_radius_b = tf.Variable(
-                    np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
+                    np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE,
                     dtype=self._dtype, trainable=False)
         else:
             self.tr_radius = tf.Variable(np.array([np.inf]), dtype=self._dtype, trainable=False)
@@ -261,7 +269,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         update_norm = tf.multiply(update_raw, update_magnitude_inv)
         # the following switch is for irls_gd_tr (linear instead of newton)
         if n_obs is not None:
-            update_magnitude /= n_obs
+            update_magnitude = update_magnitude / n_obs * radius_container
         update_scale = tf.minimum(
             radius_container,
             update_magnitude
