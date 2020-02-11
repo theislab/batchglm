@@ -91,11 +91,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         full_model = not is_batched
 
         def generate():
-
             fetch_size_factors = self.input_data.size_factors is not None \
                 and self.noise_model in ["nb", "norm"]
             obs_pool = np.arange(n_obs) if full_model else np.random.permutation(n_obs)
-
             for start_id in range(0, n_obs, batch_size):
                 # numpy ignores ids > len(obs_pool) so no out of bounds check needed here:
                 idx = obs_pool[start_id: start_id + batch_size]
@@ -105,17 +103,20 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 dloc = self.input_data.fetch_design_loc(idx)
                 dscale = self.input_data.fetch_design_scale(idx)
                 size_factors = self.input_data.fetch_size_factors(idx) if fetch_size_factors else 1
-
                 yield counts, dloc, dscale, size_factors
 
         dtp = self.dtype
         output_types = ((tf.int64, dtp, tf.int64), *(dtp,) * 3) if sparse else (dtp,) * 4
+        # integer ceil division with arithmetic trick: ceil(a/b)=(a+b-1)//b
+        # We need this for cases where n_obs mod batch_size != 0
+        num_batches = (n_obs + batch_size - 1) // batch_size
         dataset = tf.data.Dataset.from_generator(
-            generator=generate, output_types=output_types).prefetch(1)
+            generator=generate, output_types=output_types)
         if sparse:
             dataset = dataset.map(
                 lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf)
-            ).cache()
+            )
+        batch_features = False
         # Set all to convergence status = False, this is needed if multiple
         # training strategies are run:
         converged_current = np.zeros(n_features, dtype=np.bool)
@@ -131,29 +132,43 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         prev_params = self.model.params.numpy()
 
-        batch_features = False
         train_step = 0
-        # integer ceil division with arithmetic trick: ceil(a/b)=(a+b-1)//b
-        # We need this for cases where n_obs mod batch_size != 0
-        num_batches = (n_obs + batch_size - 1) // batch_size
 
+        not_converged = ~ self.model.model_vars.converged
+
+        def featurewise_batch(x_tensor, dloc, dscale, size_factors):
+            if not batch_features:
+                return x_tensor, dloc, dscale, size_factors
+            if isinstance(x_tensor, tf.SparseTensor):
+                feature_columns = tf.sparse.split(
+                    x_tensor,
+                    num_split=self.model.model_vars.n_features,
+                    axis=1)
+                not_converged_idx = np.where(not_converged)[0]
+                feature_columns = [feature_columns[i] for i in not_converged_idx]
+                x_tensor = tf.sparse.concat(axis=1, sp_inputs=feature_columns)
+
+            else:
+                x_tensor = tf.boolean_mask(tensor=x_tensor, mask=not_converged, axis=1)
+            return x_tensor, dloc, dscale, size_factors
+
+        def new_epoch_set():
+            return dataset.take(num_batches).map(featurewise_batch).cache().prefetch(1)
+
+        epoch_set = new_epoch_set()
+        num_converged = 0
+        num_converged_prev = 0
+        need_new_epoch_set = False
         while convergence_decision(converged_current, train_step):
-
             if benchmark:
                 t0_epoch = time.time()
 
-            not_converged = ~ self.model.model_vars.converged
             ll_prev = ll_current.copy()
             results = None
-            x_batches = []
-            for x_batch_tuple in dataset:
-                if batch_features:
-                    x_batches.append(self.getModelInput(x_batch_tuple, not_converged))
-                else:
-                    x_batches.append(x_batch_tuple)
-
-            for i, x_batch in enumerate(x_batches):
-                current_results = self.model(x_batch)
+            if need_new_epoch_set:
+                epoch_set = new_epoch_set()
+            for i, x_batch in enumerate(epoch_set):
+                current_results = self.model(x_batch, keep_previous_params_copy=not need_new_epoch_set)
                 if is_batched or i == 0:
                     results = current_results
                 else:
@@ -162,8 +177,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 if is_batched or i == num_batches - 1:
                     if irls_algo or nr_algo:
                         if irls_algo:
+                            batches = x_batch if is_batched else epoch_set
                             update_func(
-                                inputs=[x_batches, *results],
+                                inputs=[batches, *results],
                                 compute_a=True,
                                 compute_b=False,
                                 batch_features=batch_features,
@@ -171,7 +187,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             )
                             if self._train_scale:
                                 update_func(
-                                    inputs=[x_batches, *results],
+                                    inputs=[batches, *results],
                                     compute_a=False,
                                     compute_b=True,
                                     batch_features=batch_features,
@@ -179,7 +195,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                 )
                         else:
                             update_func(
-                                inputs=[x_batches, *results],
+                                inputs=[batches, *results],
                                 batch_features=batch_features,
                                 is_batched=is_batched
                             )
@@ -248,12 +264,19 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     num_updated = np.sum(features_updated)
                     log_output = f"Step: {train_step} loss: {loss}, "\
                         f"converged {num_converged}, updated {num_updated}"
-                    if num_converged == np.sum(converged_prev):
+                    num_converged_prev = np.sum(converged_prev)
+                    need_new_epoch_set = False
+                    if num_converged == num_converged_prev:
                         logger.warning(log_output)
                     else:
-                        if featurewise and not batch_features:
-                            batch_features = True
-                            self.model.batch_features = batch_features
+                        if featurewise:
+                            if not batch_features:
+                                batch_features = True
+                                self.model.batch_features = batch_features
+
+                            if num_converged - num_converged_prev >= pkg_constants.FEATUREWISE_THRESHOLD:
+                                need_new_epoch_set = True
+                        not_converged = ~self.model.model_vars.converged
                         sums = [np.sum(convergence_vals) for convergence_vals in convergences[1:]]
                         log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\
                             f"x_step: {sums[2]}"
@@ -267,13 +290,13 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # Evaluate final params
         logger.warning("Final Evaluation run.")
         self.model.batch_features = False
-
+        batch_features = False
         # change to hessian mode since we still use hessian instead of FIM for self._fisher_inv
         self.model.setMethod('nr_tr')
         self.model.hessian.compute_b = True
-
-        for i, x_batch_tuple in enumerate(dataset):
-            current_results = self.model(x_batch_tuple)
+        final_set = new_epoch_set()
+        for i, x_batch_tuple in enumerate(final_set):
+            current_results = self.model(x_batch_tuple, keep_previous_params_copy=False)
             if i == 0:
                 results = current_results
             else:
@@ -288,26 +311,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         self.model.hessian.compute_b = self.model.compute_b
         self.model.batch_features = batch_features
-
-    def getModelInput(self, x_batch_tuple: tuple, not_converged):
-        """
-            Returns a smaller x_batch tuple reduced in feature space.
-        """
-        x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor = x_batch_tuple
-        if isinstance(self.input_data.x, scipy.sparse.csr_matrix):
-            not_converged_idx = np.where(not_converged)[0]
-            feature_columns = tf.sparse.split(
-                x_tensor,
-                num_split=self.model.model_vars.n_features,
-                axis=1)
-            feature_columns = [feature_columns[i] for i in not_converged_idx]
-            x_tensor = tf.sparse.concat(axis=1, sp_inputs=feature_columns)
-
-        else:
-            x_tensor = tf.boolean_mask(tensor=x_tensor, mask=not_converged, axis=1)
-        x_batch = (x_tensor, design_loc_tensor, design_scale_tensor, size_factors_tensor)
-
-        return x_batch
+        batch_features = True
 
     def calculate_convergence(self, converged_prev, ll_prev, ll_current, prev_params,
                               jac_normalization, grad_numpy, features_updated, optimizer_object):
