@@ -77,7 +77,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         current_likelihood = log_probs
         if is_batched or compute_b and not compute_a:
             for i, x_batch in enumerate(x_batches):
-                log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
+                log_likelihood = self.model.calc_ll([*x_batch])[0]
                 current_likelihood = log_likelihood if i == 0 else tf.math.add(current_likelihood, log_likelihood)
 
         current_likelihood = self._norm_neg_log_likelihood(current_likelihood)
@@ -88,7 +88,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         """
         self.model.params_copy.assign_sub(proposed_vector)
         for i, x_batch in enumerate(x_batches):
-            log_likelihood = self.model.calc_ll([*x_batch], keep_previous_params_copy=True)[0]
+            log_likelihood = self.model.calc_ll([*x_batch])[0]
             if i == 0:
                 new_likelihood = log_likelihood
             else:
@@ -100,7 +100,6 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         update of parameters. It is > 0 if the new likelihood is greater than the old.
         """
         delta_f_actual = current_likelihood - new_likelihood
-
         """
         If we use feature batching, the individual vector indices need to be spread out to the full
         feature space by adding columns corresponding to positions of converged (non calculated)
@@ -449,7 +448,7 @@ class IRLS(SecondOrderOptim):
             update_a = self._newton_type_update(
                 lhs=fim_a,
                 rhs=jac_a,
-                psd=True
+                psd=False
             )
         if compute_b:
 
