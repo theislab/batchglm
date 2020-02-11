@@ -84,7 +84,7 @@ class GLM(ModelBase, ProcessModelGLM):
         scale = self.linker_scale(eta_scale)
         return eta_loc, eta_scale, loc, scale, a_var, b_var
 
-    def calc_ll(self, inputs, keep_previous_params_copy=False):
+    def calc_ll(self, inputs, keep_previous_params_copy=True):
         parameters = self._call_parameters(inputs[1:], keep_previous_params_copy)
         log_probs = self.likelihood([*parameters[:-2], inputs[0], np.sum(self.model_vars.updated)])
         log_probs = tf.reduce_sum(log_probs, axis=0)
