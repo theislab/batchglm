@@ -50,7 +50,7 @@ class GLM(ModelBase, ProcessModelGLM):
         self.hessian = hessian
         self.fim = fim
         self.use_gradient_tape = use_gradient_tape
-        self.params_copy = None
+        self.params_copy = self.params
         self.batch_features = False
 
         self.setMethod(optimizer)
@@ -67,7 +67,7 @@ class GLM(ModelBase, ProcessModelGLM):
         elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']:
             self._calc = self._calc_fim
 
-    def _call_parameters(self, inputs, keep_previous_params_copy=False):
+    def _call_parameters(self, inputs, keep_previous_params_copy=True):
         if not keep_previous_params_copy:
             if self.batch_features:
                 self.params_copy = tf.Variable(tf.boolean_mask(tensor=self.params,
@@ -75,6 +75,7 @@ class GLM(ModelBase, ProcessModelGLM):
                                                                axis=1), trainable=True)
             else:
                 self.params_copy = self.params
+
         design_loc, design_scale, size_factors = inputs
         a_var, b_var = self.unpack_params([self.params_copy, self.model_vars.a_var.get_shape()[0]])
         eta_loc = self.linear_loc([a_var, design_loc, self.model_vars.constraints_loc, size_factors])
@@ -89,10 +90,10 @@ class GLM(ModelBase, ProcessModelGLM):
         log_probs = tf.reduce_sum(log_probs, axis=0)
         return (log_probs, *parameters[2:])
 
-    def _return_jacobians(self, inputs):
-        return self._calc_jacobians(inputs)[-2:]
+    def _return_jacobians(self, inputs, keep_previous_params_copy=True):
+        return self._calc_jacobians(inputs, keep_previous_params_copy)[-2:]
 
-    def _calc_jacobians(self, inputs, concat=True, transpose=True):
+    def _calc_jacobians(self, inputs, concat=True, transpose=True, keep_previous_params_copy=True):
         """
         calculates jacobian.
 
@@ -108,7 +109,7 @@ class GLM(ModelBase, ProcessModelGLM):
         """
 
         with tf.GradientTape(persistent=True) as g:
-            log_probs, loc, scale, a_var, b_var = self.calc_ll(inputs)
+            log_probs, loc, scale, a_var, b_var = self.calc_ll(inputs, keep_previous_params_copy)
 
         if self.use_gradient_tape:
 
@@ -153,9 +154,12 @@ class GLM(ModelBase, ProcessModelGLM):
             return loc, scale, log_probs, tf.negative(jacobians)
         return loc, scale, log_probs, tf.negative(jac_a), tf.negative(jac_b)
 
-    def _calc_hessians(self, inputs):
+    def _calc_hessians(self, inputs, keep_previous_params_copy=True):
         # with tf.GradientTape(persistent=True) as g2:
-        loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, transpose=False)
+        loc, scale, log_probs, jacobians = self._calc_jacobians(
+            inputs,
+            keep_previous_params_copy=keep_previous_params_copy,
+            transpose=False)
         '''
         autograd not yet working. TODO: Search error in the following code:
 
@@ -186,13 +190,17 @@ class GLM(ModelBase, ProcessModelGLM):
         hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
         return log_probs, jacobians, hessians
 
-    def _calc_fim(self, inputs):
-        loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(inputs, concat=False, transpose=False)
+    def _calc_fim(self, inputs, keep_previous_params_copy=True):
+        loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(
+            inputs,
+            concat=False,
+            transpose=False,
+            keep_previous_params_copy=keep_previous_params_copy)
         fim_a, fim_b = self.fim([*inputs[0:3], loc, scale, False])
         return log_probs, jac_a, jac_b, fim_a, fim_b
 
-    def call(self, inputs, training=False, mask=None):
-        return self._calc(inputs)
+    def call(self, inputs, keep_previous_params_copy=True):
+        return self._calc(inputs, keep_previous_params_copy)
 
 class LossGLM(LossBase):
 
