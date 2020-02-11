@@ -17,13 +17,13 @@ TRUST_REGION_ETA1 = 0.25
 TRUST_REGION_ETA2 = 0.25
 TRUST_REGION_T1 = 0.5  # Fast collapse to avoid trailing.
 TRUST_REGION_T2 = 1.5  # Allow expansion if not shrinking.
-TRUST_REGION_UPPER_BOUND = 1e5
+TRUST_REGION_UPPER_BOUND = 1e40
 
-TRUST_REGIONT_T1_IRLS_GD_TR_SCALE = 0.8
-TRUST_REGIONT_T2_IRLS_GD_TR_SCALE = 1.2
+TRUST_REGIONT_T1_IRLS_GD_TR_SCALE = 0.5
+TRUST_REGIONT_T2_IRLS_GD_TR_SCALE = 1.5
 
 # Convergence hyper-parameters:
-LLTOL_BY_FEATURE = 1e-16
+LLTOL_BY_FEATURE = 1e-12
 XTOL_BY_FEATURE_LOC = 1e-8
 XTOL_BY_FEATURE_SCALE = 1e-6
 GTOL_BY_FEATURE_LOC = 1e-8
@@ -31,6 +31,8 @@ GTOL_BY_FEATURE_SCALE = 1e-8
 
 TRTOL_BY_FEATURE_LOC = 1e-12
 TRTOL_BY_FEATURE_SCALE = 1e-12
+
+FEATUREWISE_THRESHOLD = 1  # the minimal number of features to converge before next featurewise batch
 
 try:
     import tensorflow as tf
