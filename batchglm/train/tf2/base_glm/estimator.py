@@ -159,6 +159,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         num_converged = 0
         num_converged_prev = 0
         need_new_epoch_set = False
+        n_conv_last_featurewise_batch = 0
         while convergence_decision(converged_current, train_step):
             if benchmark:
                 t0_epoch = time.time()
@@ -273,9 +274,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             if not batch_features:
                                 batch_features = True
                                 self.model.batch_features = batch_features
-
-                            if num_converged - num_converged_prev >= pkg_constants.FEATUREWISE_THRESHOLD:
+                            conv_diff = num_converged - n_conv_last_featurewise_batch
+                            if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
                                 need_new_epoch_set = True
+                                n_conv_last_featurewise_batch = num_converged
                         not_converged = ~self.model.model_vars.converged
                         sums = [np.sum(convergence_vals) for convergence_vals in convergences[1:]]
                         log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\
