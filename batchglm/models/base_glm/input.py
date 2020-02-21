@@ -197,4 +197,4 @@ class InputDataGLM(InputDataBase):
         return self.design_scale[idx, :]
 
     def fetch_size_factors(self, idx):
-        return self.size_factors[idx]
+        return self.size_factors[idx, :]
