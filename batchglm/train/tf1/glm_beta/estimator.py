@@ -169,8 +169,6 @@ class Estimator(TFEstimatorGLM, ProcessModel):
         $$
         """
 
-        size_factors_init = input_data.size_factors
-
         if init_model is None:
             groupwise_means = None
             init_a_str = None
@@ -185,7 +183,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                         x=input_data.x,
                         design_loc=input_data.design_loc,
                         constraints_loc=input_data.constraints_loc,
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         link_fn=lambda mean: np.log(
                             1/(1/self.np_clip_param(mean, "mean")-1)
                         )
@@ -221,7 +219,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                         x=input_data.x,
                         design_scale=input_data.design_scale[:, [0]],
                         constraints=input_data.constraints_scale[[0], :][:, [0]],
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=None,
                         link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
                     )
@@ -248,7 +246,7 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                         x=input_data.x,
                         design_scale=input_data.design_scale,
                         constraints=input_data.constraints_scale,
-                        size_factors=size_factors_init,
+                        size_factors=input_data.size_factors,
                         groupwise_means=groupwise_means,
                         link_fn=lambda samplesize: np.log(self.np_clip_param(samplesize, "samplesize"))
                     )
@@ -291,4 +289,3 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                 logging.getLogger("batchglm").debug("Using initialization based on input model for dispersion")
 
         return init_a, init_b
-

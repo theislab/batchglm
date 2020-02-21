@@ -6,13 +6,13 @@ from typing import Union, Tuple, List
 
 try:
     import anndata
+    try:
+        from anndata.base import Raw
+    except ImportError:
+        from anndata import Raw
 except ImportError:
     anndata = None
-
-try:
-    from anndata.base import Raw
-except ImportError:
-    from anndata import Raw
+    Raw = None
 
 
 def design_matrix(

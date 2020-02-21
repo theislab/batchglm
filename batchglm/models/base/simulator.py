@@ -1,4 +1,5 @@
 import abc
+import dask.array
 import os
 import logging
 import numpy as np
@@ -64,5 +65,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     @property
     def x(self) -> np.ndarray:
-        return self.input_data.x
-
+        if isinstance(self.input_data.x, dask.array.core.Array):
+            return self.input_data.x.compute()
+        else:
+            return self.input_data.x
