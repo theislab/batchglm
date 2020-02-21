@@ -101,22 +101,6 @@ class _TFEstimator(metaclass=abc.ABCMeta):
     def loss(self):
         return self._get_unsafe("loss")
 
-    def train_sequence(self, training_strategy):
-        if isinstance(training_strategy, Enum):
-            training_strategy = training_strategy.value
-        elif isinstance(training_strategy, str):
-            training_strategy = self.TrainingStrategies[training_strategy].value
-
-        if training_strategy is None:
-            training_strategy = self.TrainingStrategies.DEFAULT.value
-
-        logger.info("training strategy:\n%s", pprint.pformat(training_strategy))
-
-        for idx, d in enumerate(training_strategy):
-            logger.info("Beginning with training sequence #%d", idx + 1)
-            self.train(**d)
-            logger.info("Training sequence #%d complete", idx + 1)
-
     def _train(
             self,
             *args,
@@ -178,7 +162,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
             )
             ll_current = self.session.run(self.model.full_data_model.norm_neg_log_likelihood_eval1)
 
-        tf.compat.v1.logging.info(
+        logging.getLogger("batchglm").info(
             "Step: 0 loss: %f models converged 0",
             np.sum(ll_current)
         )
@@ -250,7 +234,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
             t_f = time.time()
 
             if trustregion_mode:
-                tf.compat.v1.logging.debug(
+                logging.getLogger("batchglm").debug(
                     "### run time break-down: reduce op. %s, trial %s, ll %s, update %s, eval %s",
                     str(np.round(t_b - t_a, 3)),
                     str(np.round(t_c - t_b, 3)),
@@ -259,7 +243,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
                     str(np.round(t_f - t_e, 3))
                 )
             else:
-                tf.compat.v1.logging.debug(
+                logging.getLogger("batchglm").debug(
                     "### run time break-down: reduce op. %s, update %s, eval %s",
                     str(np.round(t_b - t_a, 3)),
                     str(np.round(t_c - t_b, 3)),
@@ -285,7 +269,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
             ll_converged = (ll_prev - ll_current) / ll_prev < pkg_constants.LLTOL_BY_FEATURE
             if not pkg_constants.EVAL_ON_BATCHED or not is_batched:
                 if np.any(ll_current > ll_prev + 1e-12):
-                    tf.compat.v1.logging.warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
+                    logging.getLogger("batchglm").warning("bad update found: %i bad updates" % np.sum(ll_current > ll_prev + 1e-12))
 
             converged_current = np.logical_or(
                 converged_prev,
@@ -347,7 +331,7 @@ class _TFEstimator(metaclass=abc.ABCMeta):
             self.session.run((self.model.model_vars.convergence_update), feed_dict={
                 self.model.model_vars.convergence_status: converged_current
             })
-            tf.compat.v1.logging.info(
+            logging.getLogger("batchglm").info(
                 "Step: %d loss: %f, converged %i in %s sec., updated %i, {f: %i, g: %i, x: %i}",
                 train_step,
                 np.sum(ll_current),

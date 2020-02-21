@@ -17,28 +17,24 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=[
+        'anndata',
         'numpy>=1.16.4',
         'scipy>=1.2.1',
         'pandas',
         'dask',
         'toolz',
         'patsy',
+        'sparse',
+        'dask'
     ],
     extras_require={
         'optional': [
-            'tensorflow>=1.14.0'
-        ],
-        'scanpy_deps': [
-            "scanpy",
-            "anndata"
+            'tensorflow>=1.14.0',
+            'tensorflow-gpu>=1.14.0'
         ],
         'plotting_deps': [
              "matplotlib",
              "seaborn"
-        ],
-        'tensorflow_gpu': [
-            "tensorflow-gpu",
-            "tensorflow-probability-gpu",
         ],
         'docs': [
             'sphinx',
