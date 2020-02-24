@@ -265,7 +265,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         if isinstance(delta_theta, dask.array.core.Array):
             delta_theta = delta_theta.compute()
 
-        with np.errstate(linalg="ignore"):
+        with np.errstate(all="ignore"):
             if isinstance(a, dask.array.core.Array):
                 # Have to use a workaround to solve problems in parallel in dask here. This workaround does
                 # not work if there is only a single problem, ie. if the first dimension of a and b has length 1.
@@ -280,10 +280,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     )
             else:
                 delta_theta[:, idx_update] = np.linalg.solve(a, b).T
-        linalg_errors = np.isnan(delta_theta[:, 0, 0])
+        linalg_errors = np.isnan(delta_theta[0, :])
         if np.any(linalg_errors):
             print("caught %i linalg errors" % np.sum(linalg_errors))
-            delta_theta[linalg_errors, :, :] = 0.
+            delta_theta[:, linalg_errors] = 0.
         # Via np.linalg.lsts:
         #delta_theta[:, idx_update] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
@@ -516,7 +516,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         # Read from numpy-IRLS estimator specific model:
         self._hessian = - self.model.fim.compute()
-        with np.errstate(linalg="ignore"):
+        with np.errstate(all="ignore"):
             self._fisher_inv = np.linalg.inv(- self._hessian)
         self._jacobian = np.sum(np.abs(self.model.jac.compute() / self.model.x.shape[0]), axis=1)
         self._log_likelihood = self.model.ll_byfeature.compute()
