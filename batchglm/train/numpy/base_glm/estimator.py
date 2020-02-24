@@ -290,7 +290,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             invertible = np.where(np.linalg.cond(a, p=None) < 1 / sys.float_info.epsilon)[0]
             delta_theta[:, idx_update[invertible]] = np.linalg.solve(a[invertible], b[invertible]).T
         if invertible.shape[0] < len(idx_update):
-            print("caught %i linalg singular matrix errors" % len(idx_update) - invertible.shape[0])
+            print("caught %i linalg singular matrix errors" % (len(idx_update) - invertible.shape[0]))
         # Via np.linalg.lsts:
         #delta_theta[:, idx_update] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
