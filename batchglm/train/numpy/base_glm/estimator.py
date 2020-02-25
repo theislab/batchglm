@@ -273,10 +273,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 invertible = np.where(dask.array.map_blocks(
                     get_cond_number, a, chunks=a.shape
                 ).squeeze().compute() < 1 / sys.float_info.epsilon)[0]
-                delta_theta[:, idx_update[invertible]] = dask.array.map_blocks(
-                    np.linalg.solve, a[invertible], b[invertible, :, None],
-                    chunks=b[invertible, :, None].shape
-                ).squeeze().T.compute()
+                if len(idx_update[invertible]) > 1:
+                    delta_theta[:, idx_update[invertible]] = dask.array.map_blocks(
+                        np.linalg.solve, a[invertible], b[invertible, :, None],
+                        chunks=b[invertible, :, None].shape
+                    ).squeeze().T.compute()
+                elif len(idx_update[invertible]) == 1:
+                    delta_theta[:, idx_update[invertible]] = np.expand_dims(
+                        np.linalg.solve(a[invertible], b[invertible]).compute(),
+                        axis=-1
+                    )
             else:
                 if np.linalg.cond(a.compute(), p=None) < 1 / sys.float_info.epsilon:
                     delta_theta[:, idx_update] = np.expand_dims(
