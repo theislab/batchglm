@@ -3,7 +3,6 @@ import dask.array
 import logging
 import multiprocessing
 import numpy as np
-import pprint
 import scipy
 import scipy.sparse
 import scipy.optimize
@@ -270,16 +269,28 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             # Have to use a workaround to solve problems in parallel in dask here. This workaround does
             # not work if there is only a single problem, ie. if the first dimension of a and b has length 1.
             if a.shape[0] != 1:
-                delta_theta[:, idx_update] = dask.array.map_blocks(
-                    np.linalg.solve, a, b[:, :, None], chunks=b[:, :, None].shape
+                get_cond_number = lambda x: np.expand_dims(np.expand_dims(np.linalg.cond(x, p=None), axis=-1), axis=-1)
+                invertible = np.where(dask.array.map_blocks(
+                    get_cond_number, a, chunks=a.shape
+                ).squeeze().compute() < 1 / sys.float_info.epsilon)[0]
+                delta_theta[:, idx_update[invertible]] = dask.array.map_blocks(
+                    np.linalg.solve, a[invertible], b[invertible, :, None],
+                    chunks=b[invertible, :, None].shape
                 ).squeeze().T.compute()
             else:
-                delta_theta[:, idx_update] = np.expand_dims(
-                    np.linalg.solve(a[0], b[0]).compute(),
-                    axis=-1
-                )
+                if np.linalg.cond(a.compute(), p=None) < 1 / sys.float_info.epsilon:
+                    delta_theta[:, idx_update] = np.expand_dims(
+                        np.linalg.solve(a[0], b[0]).compute(),
+                        axis=-1
+                    )
+                    invertible = np.array([0])
+                else:
+                    invertible = np.array([])
         else:
-            delta_theta[:, idx_update] = np.linalg.solve(a, b).T
+            invertible = np.where(np.linalg.cond(a, p=None) < 1 / sys.float_info.epsilon)[0]
+            delta_theta[:, idx_update[invertible]] = np.linalg.solve(a[invertible], b[invertible]).T
+        if invertible.shape[0] < len(idx_update):
+            print("caught %i linalg singular matrix errors" % (len(idx_update) - invertible.shape[0]))
         # Via np.linalg.lsts:
         #delta_theta[:, idx_update] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
@@ -512,7 +523,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         # Read from numpy-IRLS estimator specific model:
         self._hessian = - self.model.fim.compute()
-        self._fisher_inv = np.linalg.inv(- self._hessian)
+        fisher_inv = np.zeros_like(self._hessian)
+        invertible = np.where(np.linalg.cond(self._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
+        fisher_inv[invertible] = np.linalg.inv(- self._hessian[invertible])
+        self._fisher_inv = fisher_inv
         self._jacobian = np.sum(np.abs(self.model.jac.compute() / self.model.x.shape[0]), axis=1)
         self._log_likelihood = self.model.ll_byfeature.compute()
         self._loss = np.sum(self._log_likelihood)
