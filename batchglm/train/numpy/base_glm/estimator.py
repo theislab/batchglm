@@ -280,7 +280,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     ).squeeze().T.compute()
                 elif len(idx_update[invertible]) == 1:
                     delta_theta[:, idx_update[invertible]] = np.expand_dims(
-                        np.linalg.solve(a[invertible], b[invertible]).compute(),
+                        np.linalg.solve(a[invertible[0]], b[invertible[0]]).compute(),
                         axis=-1
                     )
             else:
