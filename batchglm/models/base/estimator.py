@@ -165,6 +165,11 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         from matplotlib import gridspec
         from matplotlib import rcParams
 
+        if isinstance(true_values, dask.array.core.Array):
+            true_values = true_values.compute()
+        if isinstance(estim_values, dask.array.core.Array):
+            estim_values = estim_values.compute()
+
         plt.ioff()
 
         n_par = true_values.shape[0]
@@ -257,6 +262,11 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         """
         import seaborn as sns
         import matplotlib.pyplot as plt
+
+        if isinstance(true_values, dask.array.core.Array):
+            true_values = true_values.compute()
+        if isinstance(estim_values, dask.array.core.Array):
+            estim_values = estim_values.compute()
 
         plt.ioff()
 
