@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pprint
+import sys
 
 try:
     import anndata
@@ -112,6 +113,14 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         logger.debug("training strategy:\n%s", pprint.pformat(training_strategy))
         for idx, d in enumerate(training_strategy):
             logger.debug("Beginning with training sequence #%d", idx + 1)
+            # Override duplicate arguments with user choice:
+            if np.any([x in list(d.keys()) for x in list(kwargs.keys())]):
+                d = dict([(x, y) for x, y in d.items() if x not in list(kwargs.keys())])
+                for x in [xx for xx in list(d.keys()) if xx in list(kwargs.keys())]:
+                    sys.stdout.write(
+                        "overrding %s from training strategy with value %s with new value %s\n" %
+                        (x, str(d[x]), str(kwargs[x]))
+                    )
             self.train(**d, **kwargs)
             logger.debug("Training sequence #%d complete", idx + 1)
 
