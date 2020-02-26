@@ -123,7 +123,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     b_var_new[:, idx_bad_step] = b_var_new[:, idx_bad_step] - b_step[:, idx_bad_step]
                     self.model.b_var = b_var_new
                 else:
-                    ll_proposal = ll_current
+                    ll_proposal = ll_current[idx_update]
                     idx_bad_step = np.array([], dtype=np.int32)
                 # Update likelihood vector with updated genes based on already evaluated proposal likelihood.
                 ll_new = ll_current.copy()
@@ -149,7 +149,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     a_var_new[:, idx_bad_step] = a_var_new[:, idx_bad_step] - a_step[:, idx_bad_step]
                     self.model.a_var = a_var_new
                 else:
-                    ll_proposal = ll_current
+                    ll_proposal = ll_current[idx_update]
                     idx_bad_step = np.array([], dtype=np.int32)
                 # Update likelihood vector with updated genes based on already evaluated proposal likelihood.
                 ll_new = ll_current.copy()
