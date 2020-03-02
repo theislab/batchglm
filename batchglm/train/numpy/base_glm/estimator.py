@@ -82,6 +82,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         # Iterate until conditions are fulfilled.
         train_step = 0
+        if self._train_scale:
+            if not self._train_loc:
+                update_b_freq = 1
+        else:
+            update_b_freq = np.inf
         epochs_until_b_update = update_b_freq
         fully_converged = np.tile(False, self.model.model_vars.n_features)
 
@@ -97,25 +102,29 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             if epochs_until_b_update == 0:
                 # Compute update.
                 idx_update = np.where(np.logical_not(fully_converged))[0]
-                b_step = self.b_step(
-                    idx_update=idx_update,
-                    method=method_b,
-                    ftol=ftol_b,
-                    lr=lr_b,
-                    max_iter=max_iter_b,
-                    nproc=nproc
-                )
-                # Perform trial update.
-                self.model.b_var = self.model.b_var + b_step
-                # Reverse update by feature if update leads to worse loss:
-                ll_proposal = - self.model.ll_byfeature_j(j=idx_update).compute()
-                idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                if isinstance(self.model.b_var, dask.array.core.Array):
-                    b_var_new = self.model.b_var.compute()
+                if self._train_scale:
+                    b_step = self.b_step(
+                        idx_update=idx_update,
+                        method=method_b,
+                        ftol=ftol_b,
+                        lr=lr_b,
+                        max_iter=max_iter_b,
+                        nproc=nproc
+                    )
+                    # Perform trial update.
+                    self.model.b_var = self.model.b_var + b_step
+                    # Reverse update by feature if update leads to worse loss:
+                    ll_proposal = - self.model.ll_byfeature_j(j=idx_update).compute()
+                    idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
+                    if isinstance(self.model.b_var, dask.array.core.Array):
+                        b_var_new = self.model.b_var.compute()
+                    else:
+                        b_var_new = self.model.b_var.copy()
+                    b_var_new[:, idx_bad_step] = b_var_new[:, idx_bad_step] - b_step[:, idx_bad_step]
+                    self.model.b_var = b_var_new
                 else:
-                    b_var_new = self.model.b_var.copy()
-                b_var_new[:, idx_bad_step] = b_var_new[:, idx_bad_step] - b_step[:, idx_bad_step]
-                self.model.b_var = b_var_new
+                    ll_proposal = ll_current[idx_update]
+                    idx_bad_step = np.array([], dtype=np.int32)
                 # Update likelihood vector with updated genes based on already evaluated proposal likelihood.
                 ll_new = ll_current.copy()
                 ll_new[idx_update] = ll_proposal
@@ -126,18 +135,22 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 # IWLS step for location model:
                 # Compute update.
                 idx_update = self.model.idx_not_converged
-                a_step = self.iwls_step(idx_update=idx_update)
-                # Perform trial update.
-                self.model.a_var = self.model.a_var + a_step
-                # Reverse update by feature if update leads to worse loss:
-                ll_proposal = - self.model.ll_byfeature_j(j=idx_update).compute()
-                idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                if isinstance(self.model.b_var, dask.array.core.Array):
-                    a_var_new = self.model.a_var.compute()
+                if self._train_loc:
+                    a_step = self.iwls_step(idx_update=idx_update)
+                    # Perform trial update.
+                    self.model.a_var = self.model.a_var + a_step
+                    # Reverse update by feature if update leads to worse loss:
+                    ll_proposal = - self.model.ll_byfeature_j(j=idx_update).compute()
+                    idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
+                    if isinstance(self.model.b_var, dask.array.core.Array):
+                        a_var_new = self.model.a_var.compute()
+                    else:
+                        a_var_new = self.model.a_var.copy()
+                    a_var_new[:, idx_bad_step] = a_var_new[:, idx_bad_step] - a_step[:, idx_bad_step]
+                    self.model.a_var = a_var_new
                 else:
-                    a_var_new = self.model.a_var.copy()
-                a_var_new[:, idx_bad_step] = a_var_new[:, idx_bad_step] - a_step[:, idx_bad_step]
-                self.model.a_var = a_var_new
+                    ll_proposal = ll_current[idx_update]
+                    idx_bad_step = np.array([], dtype=np.int32)
                 # Update likelihood vector with updated genes based on already evaluated proposal likelihood.
                 ll_new = ll_current.copy()
                 ll_new[idx_update] = ll_proposal
@@ -273,10 +286,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 invertible = np.where(dask.array.map_blocks(
                     get_cond_number, a, chunks=a.shape
                 ).squeeze().compute() < 1 / sys.float_info.epsilon)[0]
-                delta_theta[:, idx_update[invertible]] = dask.array.map_blocks(
-                    np.linalg.solve, a[invertible], b[invertible, :, None],
-                    chunks=b[invertible, :, None].shape
-                ).squeeze().T.compute()
+                if len(idx_update[invertible]) > 1:
+                    delta_theta[:, idx_update[invertible]] = dask.array.map_blocks(
+                        np.linalg.solve, a[invertible], b[invertible, :, None],
+                        chunks=b[invertible, :, None].shape
+                    ).squeeze().T.compute()
+                elif len(idx_update[invertible]) == 1:
+                    delta_theta[:, idx_update[invertible]] = np.expand_dims(
+                        np.linalg.solve(a[invertible[0]], b[invertible[0]]).compute(),
+                        axis=-1
+                    )
             else:
                 if np.linalg.cond(a.compute(), p=None) < 1 / sys.float_info.epsilon:
                     delta_theta[:, idx_update] = np.expand_dims(
@@ -290,7 +309,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             invertible = np.where(np.linalg.cond(a, p=None) < 1 / sys.float_info.epsilon)[0]
             delta_theta[:, idx_update[invertible]] = np.linalg.solve(a[invertible], b[invertible]).T
         if invertible.shape[0] < len(idx_update):
-            print("caught %i linalg singular matrix errors" % (len(idx_update) - invertible.shape[0]))
+            sys.stdout.write("caught %i linalg singular matrix errors\n" % (len(idx_update) - invertible.shape[0]))
         # Via np.linalg.lsts:
         #delta_theta[:, idx_update] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
@@ -537,14 +556,3 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             input_data
     ):
         pass
-
-    @abc.abstractmethod
-    def init_par(
-            self,
-            input_data,
-            init_a,
-            init_b,
-            init_model
-    ):
-        pass
-
