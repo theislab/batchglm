@@ -222,9 +222,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     ll_current = -results[0].numpy() / n_obs
 
                     if batch_features:
-                        indices = tf.where(not_converged)
-                        updated_lls = tf.scatter_nd(indices, ll_current, shape=[n_features])
-                        ll_current = np.where(features_updated, updated_lls.numpy(), ll_prev)
+                        indices = np.where(not_converged)[0]
+                        updated_lls = tf.scatter_nd(
+                            np.expand_dims(indices, 1), ll_current, shape=[n_features])
+                        ll_current = np.where(not_converged, updated_lls.numpy(), ll_prev)
                     if benchmark:
                         self.lls.append(ll_current)
                     if is_batched:
