@@ -99,7 +99,8 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         delta_f_actual shows the difference between the log likelihoods before and after the proposed
         update of parameters. It is > 0 if the new likelihood is greater than the old.
         """
-        delta_f_actual = current_likelihood - new_likelihood
+        delta_f_actual = tf.math.subtract(current_likelihood, new_likelihood)
+
         """
         If we use feature batching, the individual vector indices need to be spread out to the full
         feature space by adding columns corresponding to positions of converged (non calculated)
@@ -148,7 +149,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             )
         self.model.params.assign(theta_new_tr)
         if compute_b and not compute_a:
-            self.model.model_vars.updated &= update_theta.numpy()
+            self.model.model_vars.updated |= update_theta.numpy()
         else:
             self.model.model_vars.updated = update_theta.numpy()
 
@@ -268,7 +269,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         update_norm = tf.multiply(update_raw, update_magnitude_inv)
         # the following switch is for irls_gd_tr (linear instead of newton)
         if n_obs is not None:
-            update_magnitude = update_magnitude / n_obs * radius_container
+            update_magnitude = update_magnitude / n_obs #* radius_container
         update_scale = tf.minimum(
             radius_container,
             update_magnitude
