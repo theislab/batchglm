@@ -68,13 +68,13 @@ class GLM(ModelBase, ProcessModelGLM):
             self._calc = self._calc_fim
 
     def _call_parameters(self, inputs, keep_previous_params_copy=True):
-        if not keep_previous_params_copy:
-            if self.batch_features:
-                self.params_copy = tf.Variable(tf.boolean_mask(tensor=self.params,
-                                                               mask=tf.logical_not(self.model_vars.converged),
-                                                               axis=1), trainable=True)
-            else:
-                self.params_copy = self.params
+        #if not keep_previous_params_copy:
+        if self.batch_features:
+            self.params_copy = tf.Variable(tf.boolean_mask(tensor=self.params,
+                                                           mask=tf.logical_not(self.model_vars.converged),
+                                                           axis=1), trainable=True)
+        else:
+            self.params_copy = self.params
 
         design_loc, design_scale, size_factors = inputs
         a_var, b_var = self.unpack_params([self.params_copy, self.model_vars.a_var.get_shape()[0]])
