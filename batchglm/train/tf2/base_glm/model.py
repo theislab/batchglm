@@ -91,7 +91,7 @@ class GLM(ModelBase, ProcessModelGLM):
         return (log_probs, *parameters[2:])
 
     def _return_jacobians(self, inputs, keep_previous_params_copy=True):
-        return self._calc_jacobians(inputs, True, keep_previous_params_copy)[-2:]
+        return self._calc_jacobians(inputs, keep_previous_params_copy=keep_previous_params_copy)[-2:]
 
     def _calc_jacobians(self, inputs, concat=True, transpose=True, keep_previous_params_copy=True):
         """
