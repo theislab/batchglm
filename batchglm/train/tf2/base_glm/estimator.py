@@ -66,7 +66,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             benchmark: bool = False,
             optim_algo: str = "adam"
     ):
-
         conv_all = lambda x, y: not np.all(x)
         conv_step = lambda x, y: not np.all(x) and y < stopping_criteria
         assert convergence_criteria in ["step", "all_converged"], \
@@ -130,7 +129,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         update_func = optimizer_object.perform_parameter_update \
             if irls_algo or nr_algo else optimizer_object.apply_gradients
 
-        prev_params = self.model.params.numpy()
+        prev_params = self.model.params_copy.numpy()
 
         train_step = 0
 
@@ -202,6 +201,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             )
                         features_updated = self.model.model_vars.updated
                     else:
+                        """
                         if batch_features:
                             indices = tf.where(not_converged)
                             update_var = tf.transpose(tf.scatter_nd(
@@ -210,8 +210,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                                 shape=(n_features, results[1].get_shape()[0])
                             ))
                         else:
-                            update_var = results[1]
-                        update_func([(update_var, self.model.params)])
+                        """
+                        update_var = results[1]
+                        update_func([(update_var, self.model.params_copy)])
                         features_updated = not_converged
 
                     if benchmark:
@@ -246,18 +247,29 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             shape=(n_features, self.model.params.get_shape()[0])
                         )
                     grad_numpy = grad_numpy.numpy()
+                    curr_params = self.model.params_copy
+                    if batch_features:
+                        curr_params = tf.transpose(
+                            tf.scatter_nd(
+                                tf.where(not_converged),
+                                tf.transpose(curr_params),
+                                shape=(self.model.params.shape[1], self.model.params.shape[0])
+                            )
+                        )
+                    curr_params = curr_params.numpy()
                     convergences = self.calculate_convergence(
                         converged_prev,
                         ll_prev,
                         ll_current,
                         prev_params,
+                        curr_params,
                         jac_normalization,
                         grad_numpy,
                         features_updated,
                         optimizer_object
                     )
+                    prev_params = curr_params
 
-                    prev_params = self.model.params.numpy()
                     # converged_current, converged_f, converged_g, converged_x = convergences
                     converged_current = convergences[0]
                     self.model.model_vars.convergence_update(converged_current, features_updated)
@@ -279,6 +291,16 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                             if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
                                 need_new_epoch_set = True
                                 n_conv_last_featurewise_batch = num_converged
+                                scattered_update_tensor = tf.transpose(
+                                    tf.scatter_nd(
+                                        tf.where(not_converged),
+                                        tf.transpose(self.model.params_copy),
+                                        shape=(self.model.params.shape[1], self.model.params.shape[0])
+                                    )
+                                )
+                                self.model.params.assign(
+                                    tf.where(not_converged, scattered_update_tensor, self.model.params)
+                                )
                         not_converged = ~self.model.model_vars.converged
                         sums = [np.sum(convergence_vals) for convergence_vals in convergences[1:]]
                         log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\
@@ -316,7 +338,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model.batch_features = batch_features
         batch_features = True
 
-    def calculate_convergence(self, converged_prev, ll_prev, ll_current, prev_params,
+    def calculate_convergence(self, converged_prev, ll_prev, ll_current, prev_params, curr_params,
                               jac_normalization, grad_numpy, features_updated, optimizer_object):
         """
             Wrapper method to perform all necessary convergence checks.
@@ -352,7 +374,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         Now getting convergence based on change of coefficients below threshold:
         """
 
-        x_step_converged = self.calc_x_step(prev_params, features_updated)
+        x_step_converged = self.calc_x_step(prev_params, curr_params, features_updated)
         epoch_step_converged = not_converged_prev & x_step_converged
 
         """
@@ -440,7 +462,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     def get_model_container(self, input_data):
         pass
 
-    def calc_x_step(self, prev_params, features_updated):
+    def calc_x_step(self, prev_params, curr_params, features_updated):
 
         def get_norm_converged(model: str, prev_params):
             if model == 'loc':
@@ -451,7 +473,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 xtol = pkg_constants.XTOL_BY_FEATURE_SCALE
             else:
                 assert False, "Supply either 'loc' or 'scale'!"
-            x_step = self.model.params.numpy() - prev_params
+            x_step = curr_params - prev_params
             x_norm = np.sqrt(np.sum(np.square(x_step[idx_train, :]), axis=0))
             return x_norm < xtol
 

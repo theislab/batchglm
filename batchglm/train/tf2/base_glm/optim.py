@@ -86,6 +86,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         The new likelihood is calculated on the full model now, after updating the parameters using
         the proposed vector:
         """
+        original_params_copy = tf.identity(self.model.params_copy)
         self.model.params_copy.assign_sub(proposed_vector)
         for i, x_batch in enumerate(x_batches):
             log_likelihood = self.model.calc_ll([*x_batch])[0]
@@ -106,6 +107,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         feature space by adding columns corresponding to positions of converged (non calculated)
         features.
         """
+        """
         if batch_features:
             n_features = self.model.model_vars.n_features
             indices = tf.where(tf.logical_not(self.model.model_vars.converged))
@@ -124,11 +126,15 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             update_var = proposed_vector
             gain_var = proposed_gain
         #delta_f_ratio = tf.divide(delta_f_actual, gain_var)
-
+        """
         # Compute parameter updates.g
-        update_theta = tf.logical_and(delta_f_actual > eta0, tf.logical_not(self.model.model_vars.converged))
-        update_theta_numeric = tf.expand_dims(tf.cast(update_theta, self._dtype), axis=0)
-        keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
+        #update_theta = tf.logical_and(delta_f_actual > eta0, tf.logical_not(self.model.model_vars.converged))
+        update_theta = delta_f_actual > eta0
+        self.model.params_copy.assign(tf.where(update_theta, self.model.params_copy, original_params_copy))
+
+        #update_theta_numeric = tf.expand_dims(tf.cast(update_theta, self._dtype), axis=0)
+        #keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
+        """
         if batch_features:
             params = tf.transpose(tf.scatter_nd(
                 indices,
@@ -140,7 +146,6 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
                 tf.multiply(self.model.params, keep_theta_numeric),
                 tf.multiply(params, update_theta_numeric)
             )
-
         else:
             params = self.model.params_copy
             theta_new_tr = tf.add(
@@ -148,14 +153,25 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
                 tf.multiply(params, update_theta_numeric)  # new values
             )
         self.model.params.assign(theta_new_tr)
+        """
+        decrease_radius = tf.math.logical_not(update_theta)
+        increase_radius = update_theta
+        if batch_features:
+            n_features = self.model.model_vars.n_features
+            indices = tf.where(tf.logical_not(self.model.model_vars.converged))
+            decrease_radius = tf.scatter_nd(indices, decrease_radius, shape=(n_features,))
+            increase_radius = tf.scatter_nd(indices, update_theta, shape=(n_features,))
+            update_theta = increase_radius
+
         if compute_b and not compute_a:
-            self.model.model_vars.updated |= update_theta.numpy()
+            self.model.model_vars.updated &= update_theta.numpy()
         else:
             self.model.model_vars.updated = update_theta.numpy()
 
         # Update trusted region accordingly:
-        decrease_radius = delta_f_actual <= eta0
-        increase_radius = delta_f_actual > eta0
+
+        #decrease_radius = delta_f_actual <= eta0
+        #increase_radius = delta_f_actual > eta0
         """
         decrease_radius = tf.logical_or(
             delta_f_actual <= eta0,
@@ -269,7 +285,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         update_norm = tf.multiply(update_raw, update_magnitude_inv)
         # the following switch is for irls_gd_tr (linear instead of newton)
         if n_obs is not None:
-            update_magnitude = update_magnitude / n_obs #* radius_container
+            update_magnitude = update_magnitude / n_obs * radius_container
         update_scale = tf.minimum(
             radius_container,
             update_magnitude
