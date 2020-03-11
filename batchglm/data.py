@@ -453,3 +453,31 @@ def constraint_matrix_from_string(
         )
 
     return constraint_mat
+
+
+def bin_continuous_covariate(
+        sample_description: pd.DataFrame,
+        factor_to_bin: str,
+        bins: Union[int, list, np.ndarray, Tuple]
+):
+    r"""
+    Bin a continuous covariate.
+
+    Adds the binned covariate to the table. Binning is performed on quantiles of the distribution.
+
+    :param sample_description: Sample description table.
+    :param factor_to_bin: Name of columns of factor to bin.
+    :param bins: Number of bins or iteratable with bin borders. If given as integer, the bins are defined on the
+        quantiles of the covariate, ie the bottom 20% of observations are in the first bin if bins==5.
+    :return: Sample description table with binned covariate added.
+    """
+    if isinstance(bins, list) or isinstance(bins, np.ndarray) or isinstance(bins, Tuple):
+        bins = np.asarray(bins)
+    else:
+        bins = np.arange(0, 1, 1 / bins)
+
+    sample_description[factor_to_bin + "_binned"] = np.digitize(
+        np.argsort(np.argsort(sample_description[factor_to_bin].values)) / sample_description.shape[0],
+        bins
+    )
+    return sample_description
