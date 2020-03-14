@@ -57,7 +57,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             self,
             noise_model: str,
             is_batched: bool = True,
-            batch_size: int = 1000,
+            batch_size: int = 5000,
             optimizer_object: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(),
             convergence_criteria: str = "step",
             stopping_criteria: int = 1000,
