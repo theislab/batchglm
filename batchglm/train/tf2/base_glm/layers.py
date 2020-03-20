@@ -234,7 +234,7 @@ class LikelihoodGLM(tf.keras.layers.Layer, ProcessModelGLM):
         self.ll_dtype = dtype
 
     @abc.abstractmethod
-    def _ll(self, eta_loc, eta_scale, loc, scale, x, n_features):
+    def _ll(self, eta_loc, eta_scale, loc, scale, x):
         """
         Does the actual likelihood calculation. Depends on the given noise model and needs to be implemented in the
         inheriting layer.
@@ -249,8 +249,6 @@ class LikelihoodGLM(tf.keras.layers.Layer, ProcessModelGLM):
             the variance values for each individual distribution, encoded in data space.
         :param x: tf.Tensor
             the input data
-        :param n_features
-            number of features.
 
         :return tf.Tensor
             the log-likelihoods of each individual data point.

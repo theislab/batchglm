@@ -35,7 +35,7 @@ class LinkerScale(LinkerScaleGLM):
 
 class Likelihood(LikelihoodGLM, ProcessModel):
 
-    def _ll(self, eta_loc, eta_scale, loc, scale, x, n_features):
+    def _ll(self, eta_loc, eta_scale, loc, scale, x):
 
         if isinstance(x, tf.SparseTensor):
             one_minus_x = -tf.sparse.add(x, -tf.ones_like(loc))

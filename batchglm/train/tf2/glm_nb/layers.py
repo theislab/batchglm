@@ -36,7 +36,7 @@ class LinkerScale(LinkerScaleGLM):
 
 class Likelihood(LikelihoodGLM, ProcessModel):
 
-    def _ll(self, eta_loc, eta_scale, loc, scale, x, n_features):
+    def _ll(self, eta_loc, eta_scale, loc, scale, x):
 
         # Log-likelihood:
         log_r_plus_mu = tf.math.log(scale + loc)
