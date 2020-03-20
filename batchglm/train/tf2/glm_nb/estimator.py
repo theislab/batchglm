@@ -88,7 +88,7 @@ class Estimator(GLMEstimator, ProcessModel):
     def train(
             self,
             use_batching: bool = True,
-            batch_size: int = 500,
+            batch_size: int = 5000,
             optim_algo: str = "adam",
             learning_rate: float = 1e-2,
             convergence_criteria: str = "step",
