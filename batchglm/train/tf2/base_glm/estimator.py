@@ -125,6 +125,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
         irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
         nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
+        if featurewise and not (irls_algo or nr_algo):
+            featurewise = False
+            logger.warning("WARNING: 'Featurewise batching' is only available for 2nd order "
+                           "optimizers IRLS and NR. Fallback to full featurespace fitting.")
 
         update_func = optimizer_object.perform_parameter_update \
             if irls_algo or nr_algo else optimizer_object.apply_gradients
