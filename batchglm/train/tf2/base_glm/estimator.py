@@ -22,6 +22,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     _train_scale: bool
     _initialized: bool = False
     noise_model: str
+    irls_algo: bool = False
+    nr_algo: bool = False
 
     def initialize(self, **kwargs):
         self.values = []
@@ -57,7 +59,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     def _train(
             self,
             noise_model: str,
-            is_batched: bool = True,
+            is_batched: bool = False,
             batch_size: int = 5000,
             optimizer_object: tf.keras.optimizers.Optimizer = tf.keras.optimizers.Adam(),
             convergence_criteria: str = "step",
@@ -67,17 +69,22 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             benchmark: bool = False,
             optim_algo: str = "adam"
     ):
+        # define some useful shortcuts here
         n_obs = self.input_data.num_observations
         n_features = self.input_data.num_features
-        conv_all = lambda x, y: x < n_features
-        conv_step = lambda x, y: x < n_features and y < stopping_criteria
+        # set necessary attributes
+        self.noise_model = noise_model
+        self.irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
+        self.nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
+
+        ################################################
+        # INIT Step 1: Consistency Checks
+        ####
+        assert not is_batched, "The TF2 backend does not yet support updates on individual" \
+            "batches. Use full data updates instead."
         assert convergence_criteria in ["step", "all_converged"], \
             ("Unrecognized convergence criteria %s", convergence_criteria)
-        convergence_decision = conv_step if convergence_criteria == "step" else conv_all
 
-
-        if batch_size > n_obs:
-            batch_size = n_obs
         if not self._initialized:
             raise RuntimeError("Cannot train the model: Estimator not initialized. \
                 Did you forget to call estimator.initialize() ?")
@@ -87,63 +94,82 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 "Automatic differentiation is currently not supported for hessians. Falling back \
                 to closed form. Only Jacobians are calculated using autograd.")
 
-        self.noise_model = noise_model
-
-        batch_features = False
-
-        self.irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
-        self.nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
         if featurewise and not (self.irls_algo or self.nr_algo):
             featurewise = False
             logger.warning("WARNING: 'Featurewise batching' is only available for 2nd order "
                            "optimizers IRLS and NR. Fallback to full featurespace fitting.")
+        if batch_size > n_obs:
+            batch_size = n_obs
 
+        ################################################
+        # INIT Step 2: Intialise training loop.
+        #
         update_func = optimizer_object.perform_parameter_update \
             if self.irls_algo or self.nr_algo else optimizer_object.apply_gradients
-
-        train_step = 0
 
         # create a tensorflow dataset using the DataGenerator
         datagenerator = DataGenerator(self, noise_model, is_batched, batch_size)
         epoch_set = datagenerator.new_epoch_set()
 
+        # first model call to initialise prior to first update.
         for i, x_batch in enumerate(epoch_set):
-            current_results = self.model(x_batch)
-            if is_batched or i == 0:
-                results = current_results
+            if i == 0:
+                results = self.model(x_batch)
             else:
-                results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
-        # create a ConvergenceCalculator Object
+                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+
+        # create ConvergenceCalculator to check for new convergences.
         conv_calc = ConvergenceCalculator(self, tf.negative(tf.divide(results[0], n_obs)).numpy())
 
+        # termination decision for training loop
+        def convergence_decision(num_converged, train_step):
+            not_done_fitting = num_converged < n_features
+            if convergence_criteria == "step":
+                not_done_fitting &= train_step < stopping_criteria
+            return not_done_fitting
+
+        # condition variables neede during while loop
+        batch_features = False
+        train_step = 0
         num_converged = 0
         num_converged_prev = 0
         need_new_epoch_set = False
         n_conv_last_featurewise_batch = 0
 
+        ################################################
+        # Training Loop: Model Fitting happens here.
+        ####
+
         while convergence_decision(num_converged, train_step):
             if benchmark:
                 t0_epoch = time.time()
 
+            ############################################
+            # 1. recalculate, only done if featurewise
             if need_new_epoch_set:
+                # this is executed only if a new feature converged in the last train step and
+                # using featurewise.
                 epoch_set = datagenerator.new_epoch_set(batch_features=batch_features)
                 for i, x_batch in enumerate(epoch_set):
-                    current_results = self.model(x_batch, keep_previous_params_copy=not need_new_epoch_set)
-                    if is_batched or i == 0:
-                        results = current_results
+                    if i == 0:
+                        # need new params_copy in model due to new convergence in first model call
+                        # in order to resume calculation in smaller feature space.
+                        results = self.model(x_batch, keep_previous_params_copy=False)
                     else:
-                        results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
+                        results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
 
-            self.update_params(x_batch if is_batched else epoch_set, results, batch_features, is_batched, update_func)
-            # converged_current, converged_f, converged_g, converged_x = convergences
+            ############################################
+            # 2. Update the parameters
+            self.update_params(epoch_set, results, batch_features, update_func)
 
+            ############################################
+            # 3. calculate new ll, jacs, hessian/fim
             for i, x_batch in enumerate(epoch_set):
-                current_results = self.model(x_batch)
-                if is_batched or i == 0:
-                    results = current_results
-                else:
-                    results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
+                results = self.model(x_batch) if i == 0 \
+                    else [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
 
+            ############################################
+            # 4. check for any new convergences
             convergences = conv_calc.calculate_convergence(
                 results=results,
                 jac_normalization=batch_size if is_batched else n_obs,
@@ -154,13 +180,16 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             num_converged = np.sum(self.model.model_vars.total_converged)
             loss = conv_calc.getLoss()
             if self.irls_algo and self._train_scale:
-                num_updated = np.sum(np.logical_or(self.model.model_vars.updated, self.model.model_vars.updated_b))
+                num_updated = np.sum(
+                    np.logical_or(self.model.model_vars.updated, self.model.model_vars.updated_b))
             else:
                 num_updated = np.sum(self.model.model_vars.updated)
             log_output = f"Step: {train_step} loss: {loss}, "\
                 f"converged {num_converged}, updated {num_updated}"
             num_converged_prev = conv_calc.getPreviousNumberConverged()
 
+            ############################################
+            # 5. report any new convergences
             if num_converged == num_converged_prev:
                 need_new_epoch_set = False
                 logger.warning(log_output)
@@ -170,18 +199,24 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         batch_features = True
                         self.model.batch_features = batch_features
                     conv_diff = num_converged - n_conv_last_featurewise_batch
+
+                    # Update params if number of new convergences since last
+                    # featurewise batch is reached again.
                     if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
                         need_new_epoch_set = True
                         n_conv_last_featurewise_batch = num_converged
                         self.model.params.assign(
-                            tf.where(self.model.model_vars.total_converged, self.model.params, conv_calc.last_params)
-                        )
+                            tf.where(
+                                self.model.model_vars.total_converged,
+                                self.model.params, conv_calc.last_params))
 
                 sums = [np.sum(convergence_vals) for convergence_vals in convergences]
                 log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\
                     f"x_step: {sums[2]}"
                 logger.warning(log_output)
+
             train_step += 1
+            # store some useful stuff for benchmarking purposes.
             if benchmark:
                 t1_epoch = time.time()
                 self.times.append(t1_epoch-t0_epoch)
@@ -189,21 +224,25 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 self.values.append(self.model.trainable_variables[0].numpy().copy())
                 self.lls.append(conv_calc.last_ll)
 
-        # Evaluate final params
+        ################################################
+        # Final model call on the full feature space.
+        ####
         logger.warning("Final Evaluation run.")
         self.model.batch_features = False
         batch_features = False
         # change to hessian mode since we still use hessian instead of FIM for self._fisher_inv
         self.model.setMethod('nr_tr')
-        self.model.hessian.compute_b = True
-        final_set = datagenerator.new_epoch_set()
-        for i, x_batch_tuple in enumerate(final_set):
-            current_results = self.model(x_batch_tuple, keep_previous_params_copy=False)
-            if i == 0:
-                results = current_results
-            else:
-                results = [tf.math.add(results[i], x) for i, x in enumerate(current_results)]
+        self.model.hessian.compute_b = True  # since self._train_scale could be False.
 
+        # need new set here with full feature space.
+        final_set = datagenerator.new_epoch_set()
+        for i, x_batch in enumerate(final_set):
+            if i == 0:
+                results = self.model(x_batch, keep_previous_params_copy=False)
+            else:
+                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+
+        # store all the final results in this estimator instance.
         self._log_likelihood = results[0].numpy()
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / n_obs), axis=1)
 
@@ -211,20 +250,20 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self._fisher_inv = tf.linalg.inv(results[2]).numpy()
         self._hessian = -results[2].numpy()
 
-        self.model.hessian.compute_b = self.model.compute_b
+        self.model.hessian.compute_b = self.model.compute_b  # reset if self._train_scale == False
         self.model.batch_features = batch_features
-        batch_features = True
 
-    def update_params(self, batches, results, batch_features, is_batched, update_func):
+    def update_params(self, batches, results, batch_features, update_func):
+        """Wrapper method to conduct updates based on different optimizers/conditions."""
         if self.irls_algo or self.nr_algo:
             if self.irls_algo:
-
+                # separate loc and scale update if using IRLS.
                 update_func(
                     inputs=[batches, *results],
                     compute_a=True,
                     compute_b=False,
                     batch_features=batch_features,
-                    is_batched=is_batched
+                    is_batched=False
                 )
                 if self._train_scale:
                     update_func(
@@ -232,27 +271,22 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         compute_a=False,
                         compute_b=True,
                         batch_features=batch_features,
-                        is_batched=is_batched
+                        is_batched=False
                     )
             else:
                 update_func(
                     inputs=[batches, *results],
                     batch_features=batch_features,
-                    is_batched=is_batched
+                    is_batched=False
                 )
         else:
-
             update_var = results[1]
             update_func([(update_var, self.model.params_copy)])
             self.model.model_vars.updated = ~self.model.model_vars.converged
 
     def get_optimizer_object(self, optimizer: str, learning_rate):
-        """
-            Creates an optimizer object based on the given optimizer string.
-        """
-
+        """ Creates an optimizer object based on the given optimizer string."""
         optimizer = optimizer.lower()
-
         if optimizer == "gd":
             optim_obj = tf.keras.optimizers.SGD(learning_rate=learning_rate)
         elif optimizer == "adam":
