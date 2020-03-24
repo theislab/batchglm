@@ -56,7 +56,7 @@ class DataGenerator:
     def _featurewise_batch(self, x_tensor, dloc, dscale, size_factors):
         """Takes an element of a dataset, performs featurewise batching
         and returns the reduced element."""
-        not_converged = np.negative(self.estimator.model.model_vars.total_converged)
+        not_converged = ~self.estimator.model.model_vars.total_converged
         if self.sparse:
             feature_columns = tf.sparse.split(
                 x_tensor,

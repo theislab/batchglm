@@ -9,18 +9,24 @@ class ConvergenceCalculator:
 
     def __init__(self, estimator, last_ll: np.ndarray):
         self.estimator = estimator
-        self.current_converged = estimator.model.model_vars.converged
-        self.current_params = estimator.model.params_copy
-        self.current_ll = last_ll
+        self.last_params = estimator.model.params_copy.numpy()
+        self.last_ll = last_ll
         self.previous_number_converged = 0
+        self.calc_separated = self.estimator.irls_algo and self.estimator._train_scale
+
 
     def calculate_convergence(self, results, jac_normalization, optimizer_object, batch_features):
         """Calculates convergence based on change in likelihood, gradient and parameters."""
 
-        features_updated = self.estimator.model.model_vars.features_updated
-        total_converged = self.estimator.model.model_vars.converged
-        not_converged_prev = ~ self.current_converged
-        n_features = self.estimator.input_data.n_features
+        features_updated = self.estimator.model.model_vars.updated
+        converged_a = self.estimator.model.model_vars.converged
+        not_converged_a = ~ converged_a
+        if self.calc_separated:
+            features_updated_b = self.estimator.model.model_vars.updated_b
+            converged_b = self.estimator.model.model_vars.converged_b
+            not_converged_b = ~ converged_b
+
+        n_features = self.estimator.input_data.num_features
 
         ###########################################################
         # FIRST PART: Retrieve and manipulate ll, grads and params.
@@ -36,14 +42,13 @@ class ConvergenceCalculator:
 
         if batch_features:
             # map columns of ll to full feature space
-            indices = np.where(not_converged_prev)[0]
-            updated_lls = tf.scatter_nd(
-                np.expand_dims(indices, 1), new_ll, shape=[n_features])
+            not_conv = not_converged_a if not self.calc_separated else ~self.estimator.model.model_vars.total_converged
+            indices = tf.where(not_conv)
+            updated_lls = tf.scatter_nd(indices, new_ll, shape=[n_features])
             # fill the added columns with previous ll
-            new_ll = np.where(not_converged_prev, updated_lls.numpy(), self.current_ll)
+            new_ll = tf.where(not_conv, updated_lls, self.last_ll)
 
             # fill added columns with the gradients from previous runs.
-            indices = tf.where(not_converged_prev)
             grad_numpy = tf.scatter_nd(
                 indices,
                 grad_numpy,
@@ -57,11 +62,13 @@ class ConvergenceCalculator:
                     indices,
                     tf.transpose(new_params),
                     shape=(self.estimator.model.params.shape[1], self.estimator.model.params.shape[0])
-                ).numpy()
+                )
             )
             # TODO: added columns are zero here, does that matter?
-        else:
-            new_ll = new_ll.numpy()
+
+        grad_numpy = grad_numpy.numpy()
+        new_params = new_params.numpy()
+        new_ll = new_ll.numpy()
 
         ###########################################################
         # SECOND PART: Calculate ll convergence.
@@ -69,11 +76,18 @@ class ConvergenceCalculator:
 
         # Get all converged features due to change in ll < LLTOL_BY_FEATURE
         # IMPORTANT: we need to ensure they have also been updated, otherwise ll_prev = ll_current!
-        ll_difference = np.abs(self.current_ll - new_ll) / self.current_ll
-        ll_converged = (ll_difference < pkg_constants.LLTOL_BY_FEATURE) & features_updated
-        epoch_ll_converged = not_converged_prev & ll_converged  # formerly known as converged_f
+        ll_difference = np.abs(self.last_ll - new_ll) / self.last_ll
+        # print('ll_diff: ', ll_difference[0])
+        # print(self.estimator.model.model_vars.converged[0], self.estimator.model.model_vars.updated[0])
+        # print(self.estimator.model.model_vars.converged_b[0], self.estimator.model.model_vars.updated_b[0])
+        ll_converged = ll_difference < pkg_constants.LLTOL_BY_FEATURE
 
-        total_converged |= epoch_ll_converged
+        ll_converged_a = ll_converged & features_updated
+        epoch_ll_converged_a = not_converged_a & ll_converged_a  # formerly known as converged_f
+
+        if self.calc_separated:
+            ll_converged_b = ll_converged & features_updated_b
+            epoch_ll_converged_b = not_converged_b & ll_converged_b  # formerly known as converged_f
 
         ###########################################################
         # THIRD PART: calculate grad convergence.
@@ -85,42 +99,66 @@ class ConvergenceCalculator:
 
         grad_norm_loc_converged = grad_norm_loc < pkg_constants.GTOL_BY_FEATURE_LOC
         grad_norm_scale_converged = grad_norm_scale < pkg_constants.GTOL_BY_FEATURE_SCALE
+        if self.calc_separated:
+            grad_converged_a = grad_norm_loc_converged & features_updated
+            grad_converged_b = grad_norm_scale_converged & features_updated_b
+            epoch_grad_converged_b = not_converged_b & grad_converged_b  # formerly known as converged_g
 
-        grad_converged = grad_norm_loc_converged & grad_norm_scale_converged & features_updated
-        epoch_grad_converged = not_converged_prev & grad_converged  # formerly known as converged_g
-
-        total_converged |= grad_converged
+        else:
+            grad_converged_a = grad_norm_loc_converged & grad_norm_scale_converged & features_updated
+        epoch_grad_converged_a = not_converged_a & grad_converged_a  # formerly known as converged_g
+        # print('grad: ', grad_norm_loc[0], grad_norm_scale[0])
 
         ###########################################################
         # Fourth PART: calculate parameter step convergence.
         ####
-        x_step_converged = self.calc_x_step(self.current_params, new_params, features_updated)
-        epoch_step_converged = not_converged_prev & x_step_converged
+        x_step_a, x_step_b = self.calc_x_step(self.last_params, new_params)
+        if self.calc_separated:
+            x_step_converged_a = x_step_a & features_updated
+            x_step_converged_b = x_step_b & features_updated_b
+            epoch_step_converged_b = not_converged_b & x_step_converged_b
+
+        else:
+            x_step_converged_a = x_step_a & x_step_b & features_updated
+        epoch_step_converged_a = not_converged_a & x_step_converged_a
+        # print('x_step: ', x_step_converged_a[0], x_step_converged_b[0])
 
         # In case we use irls_tr/irls_gd_tr or nr_tr, we can also utilize the trusted region radius.
         # For now it must not be below the threshold for the X step of the loc model.
         if hasattr(optimizer_object, 'trusted_region_mode') \
                 and optimizer_object.trusted_region_mode:
             converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
-            if hasattr(optimizer_object, 'tr_radius_b') and self.estimator.train_scale:
-                converged_tr &= \
+            if hasattr(optimizer_object, 'tr_radius_b') and self.estimator._train_scale:
+                converged_tr_b = \
                     optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
-            epoch_tr_converged = not_converged_prev & converged_tr
-            epoch_step_converged |= epoch_tr_converged
-
-        total_converged |= epoch_step_converged
-
+                epoch_tr_converged_b = not_converged_b & converged_tr_b
+                epoch_step_converged_b |= epoch_tr_converged_b
+            epoch_tr_converged = not_converged_a & converged_tr
+            epoch_step_converged_a |= epoch_tr_converged
+        # print('tr: ', epoch_tr_converged[0], epoch_tr_converged_b[0])
+        # print(self.estimator.model.model_vars.converged[0], self.estimator.model.model_vars.updated[0])
+        # print(self.estimator.model.model_vars.converged_b[0], self.estimator.model.model_vars.updated_b[0])
         ###########################################################
         # FINAL PART: exchange the current with the new containers.
         ####
-        self.previous_number_converged = np.sum(self.current_converged)
-        self.current_converged = total_converged.copy()
-        self.current_params = new_params
-        self.current_ll = new_ll
+        self.previous_number_converged = np.sum(self.estimator.model.model_vars.total_converged)
+        self.last_params = new_params
+        self.last_ll = new_ll
+        converged_a = np.logical_or.reduce((converged_a, epoch_ll_converged_a, epoch_grad_converged_a, epoch_step_converged_a))
+        if self.calc_separated:
+            converged_b = np.logical_or.reduce((converged_b, epoch_ll_converged_b, epoch_grad_converged_b, epoch_step_converged_b))
+            self.estimator.model.model_vars.total_converged = converged_a & converged_b
+            self.estimator.model.model_vars.converged_b = converged_b
+            epoch_ll_converged_a |= epoch_ll_converged_b
+            epoch_grad_converged_a |= epoch_grad_converged_b
+            epoch_step_converged_a |= epoch_step_converged_b
+        else:
+            self.estimator.model.model_vars.total_converged = converged_a
+        self.estimator.model.model_vars.converged = converged_a
+        # print(self.estimator.model.model_vars.total_converged[0])
+        return epoch_ll_converged_a, epoch_grad_converged_a, epoch_step_converged_a
 
-        return total_converged, epoch_ll_converged, epoch_grad_converged, epoch_step_converged
-
-    def calc_x_step(self, prev_params, curr_params, features_updated):
+    def calc_x_step(self, prev_params, curr_params):
         """Calculates convergence based on the difference in parameters before and
         after the update."""
         def get_norm_converged(model: str, prev_params):
@@ -134,6 +172,7 @@ class ConvergenceCalculator:
                 assert False, "Supply either 'loc' or 'scale'!"
             x_step = curr_params - prev_params
             x_norm = np.sqrt(np.sum(np.square(x_step[idx_train, :]), axis=0))
+            # print('x_norm: ', x_norm[0])
             return x_norm < xtol
 
         # We use a trick here: First we set both the loc and scale convergence to True.
@@ -144,21 +183,18 @@ class ConvergenceCalculator:
 
         # Now we check which models need to be trained. E.g. if you are using quick_scale = True,
         # self._train_scale will be False and so the above single True value will be used.
-        if self.estimator.train_loc:
+        if self.estimator._train_loc:
             loc_conv = get_norm_converged('loc', prev_params)
-        if self.estimator.train_scale:
+        if self.estimator._train_scale:
             scale_conv = get_norm_converged('scale', prev_params)
 
         # Finally, we check that only features updated in this epoch can evaluate to True.
         # This is only a problem for 2nd order optims with trusted region mode, since it might
         # occur, that a feature isn't updated, so the x_step is zero although not yet converged.
-        return loc_conv & scale_conv & features_updated
+        return loc_conv, scale_conv
 
     def getLoss(self):
-        return np.sum(self.current_ll)
-
-    def getNumberConverged(self):
-        return np.sum(self.current_converged)
+        return np.sum(self.last_ll)
 
     def getPreviousNumberConverged(self):
         return self.previous_number_converged

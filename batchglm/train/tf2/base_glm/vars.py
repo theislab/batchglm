@@ -70,7 +70,11 @@ class ModelVarsGLM(ProcessModelGLM):
 
         # Properties to follow gene-wise convergence.
         self.updated = np.repeat(a=True, repeats=self.params.shape[1])  # Initialise to is updated.
+        self.updated_b = np.repeat(a=True, repeats=self.params.shape[1])  # Initialise to is updated.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
+        self.converged_b = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
+
+        self.total_converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
 
         self.dtype = dtype
         self.n_features = self.params.shape[1]
