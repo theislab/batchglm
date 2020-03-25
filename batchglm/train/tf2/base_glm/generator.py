@@ -51,7 +51,7 @@ class DataGenerator:
 
     def _featurewise_batch_sparse(self, ivs_tuple, dloc, dscale, size_factors):
 
-        not_converged = ~self.estimator.model.model_vars.total_converged
+        not_converged = self.estimator.model.model_vars.remaining_features
 
         not_converged_numeric = tf.cast(not_converged, dtype=tf.int64)
         col_idx_map = tf.cumsum(not_converged_numeric, exclusive=True)
@@ -73,7 +73,7 @@ class DataGenerator:
         """Takes an element of a dataset, performs featurewise batching
         and returns the reduced element."""
 
-        not_converged = ~self.estimator.model.model_vars.total_converged
+        not_converged = self.estimator.model.model_vars.remaining_features
         """
         if self.sparse:
             feature_columns = tf.sparse.split(

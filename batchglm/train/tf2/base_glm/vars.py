@@ -75,7 +75,7 @@ class ModelVarsGLM(ProcessModelGLM):
         self.converged_b = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
 
         self.total_converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
-
+        self.remaining_features = np.repeat(a=True, repeats=self.params.shape[1])
         self.dtype = dtype
         self.n_features = self.params.shape[1]
         self.idx_train_loc = np.arange(0, init_a.shape[0])

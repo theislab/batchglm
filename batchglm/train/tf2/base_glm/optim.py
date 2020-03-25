@@ -158,7 +158,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         increase_radius = update_theta
         if batch_features:
             n_features = self.model.model_vars.n_features
-            indices = tf.where(tf.logical_not(self.model.model_vars.total_converged))
+            indices = tf.where(self.model.model_vars.remaining_features)
             decrease_radius = tf.scatter_nd(indices, decrease_radius, shape=(n_features,))
             increase_radius = tf.scatter_nd(indices, update_theta, shape=(n_features,))
             update_theta = increase_radius
@@ -343,7 +343,7 @@ class NR(SecondOrderOptim):
             if batch_features:
                 radius_container = tf.boolean_mask(
                     tensor=self.tr_radius,
-                    mask=tf.logical_not(self.model.model_vars.total_converged))
+                    mask=self.model.model_vars.remaining_features)
             else:
                 radius_container = self.tr_radius
             tr_proposed_vector = self._trust_region_update(
@@ -375,7 +375,7 @@ class NR(SecondOrderOptim):
 
         else:
             if batch_features:
-                indices = tf.where(tf.logical_not(self.model.model_vars.total_converged))
+                indices = tf.where(self.model.model_vars.remaining_features)
                 update_var = tf.transpose(
                     tf.scatter_nd(
                         indices,
@@ -494,7 +494,7 @@ class IRLS(SecondOrderOptim):
             )
 
             if batch_features:
-                indices = tf.where(tf.logical_not(self.model.model_vars.total_converged))
+                indices = tf.where(self.model.model_vars.remaining_features)
                 update_var = tf.transpose(
                     tf.scatter_nd(
                         indices,
@@ -513,7 +513,7 @@ class IRLS(SecondOrderOptim):
                     if batch_features:
                         radius_container = tf.boolean_mask(
                             tensor=self.tr_radius,
-                            mask=tf.logical_not(self.model.model_vars.total_converged))
+                            mask=self.model.model_vars.remaining_features)
                     else:
                         radius_container = self.tr_radius
                     tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
@@ -530,7 +530,7 @@ class IRLS(SecondOrderOptim):
                     if batch_features:
                         radius_container = tf.boolean_mask(
                             tensor=radius_container,
-                            mask=tf.logical_not(self.model.model_vars.total_converged))
+                            mask=self.model.model_vars.remaining_features)
 
                     tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
                         update_b, radius_container, self.gd, jac_b, fim_b)
@@ -543,7 +543,7 @@ class IRLS(SecondOrderOptim):
                 if batch_features:
                     radius_container = tf.boolean_mask(
                         tensor=self.tr_radius,
-                        mask=tf.logical_not(self.model.model_vars.total_converged))
+                        mask=self.model.model_vars.remaining_features)
                 else:
                     radius_container = self.tr_radius
                 # here train_r is False AND train_mu is true, so the output of the function can directly be applied to

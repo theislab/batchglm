@@ -70,9 +70,9 @@ class GLM(ModelBase, ProcessModelGLM):
     def _call_parameters(self, inputs, keep_previous_params_copy=True):
         if not keep_previous_params_copy:
             if self.batch_features:
-                self.params_copy = tf.Variable(tf.boolean_mask(tensor=self.params,
-                                                               mask=tf.logical_not(self.model_vars.total_converged),
-                                                               axis=1), trainable=True)
+                self.params_copy = tf.Variable(
+                    tf.boolean_mask(tensor=self.params, mask=self.model_vars.remaining_features, axis=1),
+                    trainable=True)
             else:
                 self.params_copy = self.params
 

@@ -207,8 +207,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         n_conv_last_featurewise_batch = num_converged
                         self.model.params.assign(
                             tf.where(
-                                self.model.model_vars.total_converged,
-                                self.model.params, conv_calc.last_params))
+                                self.model.model_vars.remaining_features,
+                                conv_calc.last_params, self.model.params))
+                        self.model.model_vars.remaining_features = \
+                            ~self.model.model_vars.total_converged
 
                 sums = [np.sum(convergence_vals) for convergence_vals in convergences]
                 log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\

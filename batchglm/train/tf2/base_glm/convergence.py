@@ -14,7 +14,6 @@ class ConvergenceCalculator:
         self.previous_number_converged = 0
         self.calc_separated = self.estimator.irls_algo and self.estimator._train_scale
 
-
     def calculate_convergence(self, results, jac_normalization, optimizer_object, batch_features):
         """Calculates convergence based on change in likelihood, gradient and parameters."""
 
@@ -42,11 +41,11 @@ class ConvergenceCalculator:
 
         if batch_features:
             # map columns of ll to full feature space
-            not_conv = not_converged_a if not self.calc_separated else ~self.estimator.model.model_vars.total_converged
-            indices = tf.where(not_conv)
+            remaining_features = self.estimator.model.model_vars.remaining_features
+            indices = tf.where(remaining_features)
             updated_lls = tf.scatter_nd(indices, new_ll, shape=[n_features])
             # fill the added columns with previous ll
-            new_ll = tf.where(not_conv, updated_lls, self.last_ll)
+            new_ll = tf.where(remaining_features, updated_lls, self.last_ll)
 
             # fill added columns with the gradients from previous runs.
             grad_numpy = tf.scatter_nd(
