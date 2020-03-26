@@ -147,6 +147,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             ############################################
             # 1. recalculate, only done if featurewise
             if need_new_epoch_set:
+                need_new_epoch_set = False
                 # this is executed only if a new feature converged in the last train step and
                 # using featurewise.
                 epoch_set = datagenerator.new_epoch_set(batch_features=batch_features)
@@ -191,7 +192,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             ############################################
             # 5. report any new convergences
             if num_converged == num_converged_prev:
-                need_new_epoch_set = False
                 logger.warning(log_output)
             else:
                 if featurewise:
