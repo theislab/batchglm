@@ -151,13 +151,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 # this is executed only if a new feature converged in the last train step and
                 # using featurewise.
                 epoch_set = datagenerator.new_epoch_set(batch_features=batch_features)
-                for i, x_batch in enumerate(epoch_set):
-                    if i == 0:
-                        # need new params_copy in model due to new convergence in first model call
-                        # in order to resume calculation in smaller feature space.
-                        results = self.model(x_batch, keep_previous_params_copy=False)
-                    else:
-                        results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                if pkg_constants.FEATUREWISE_RECALCULATE:
+                    for i, x_batch in enumerate(epoch_set):
+                        results = self.model(x_batch) if i == 0 else \
+                            [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
 
             ############################################
             # 2. Update the parameters
@@ -166,6 +163,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             ############################################
             # 3. calculate new ll, jacs, hessian/fim
             for i, x_batch in enumerate(epoch_set):
+                # need new params_copy in model in case we use featurewise without recalculation
                 results = self.model(x_batch) if i == 0 \
                     else [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
 
@@ -205,12 +203,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                     if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
                         need_new_epoch_set = True
                         n_conv_last_featurewise_batch = num_converged
-                        self.model.params.assign(
-                            tf.where(
-                                self.model.model_vars.remaining_features,
-                                conv_calc.last_params, self.model.params))
+                        self.model.apply_featurewise_updates(conv_calc.last_params)
+                        if not pkg_constants.FEATUREWISE_RECALCULATE:
+                            results = self.mask_unconverged(results)
                         self.model.model_vars.remaining_features = \
                             ~self.model.model_vars.total_converged
+                        self.model.featurewise_batch()
 
                 sums = [np.sum(convergence_vals) for convergence_vals in convergences]
                 log_output = f"{log_output} logs: {sums[0]} grad: {sums[1]}, "\
@@ -230,30 +228,36 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # Final model call on the full feature space.
         ####
         logger.warning("Final Evaluation run.")
-        self.model.batch_features = False
-        batch_features = False
+        if batch_features:
+            # need to update `model.params` if conv_diff wasn't reached in last train step
+            # as updates since the last featurewise batch are not yet applied in that case.
+            if np.any(self.model.model_vars.remaining_features):
+                self.model.apply_featurewise_updates(conv_calc.last_params)
+            # now make sure we use the full feature space for the last update
+            self.model.model_vars.remaining_features = np.ones(n_features, dtype=np.bool)
+            self.model.featurewise_batch()
+
+        batch_features = False  # reset in case train is run repeatedly
         # change to hessian mode since we still use hessian instead of FIM for self._fisher_inv
-        self.model.setMethod('nr_tr')
+        self.model.setMethod('nr_tr')  # TODO: maybe stay with irls to compute fim in the future
         self.model.hessian.compute_b = True  # since self._train_scale could be False.
 
-        # need new set here with full feature space.
+        # need new set here with full feature space
+        # TODO: only ineeded if batch_features, maybe put this in the above if switch later
         final_set = datagenerator.new_epoch_set()
         for i, x_batch in enumerate(final_set):
-            if i == 0:
-                results = self.model(x_batch, keep_previous_params_copy=False)
-            else:
-                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+            results = self.model(x_batch) if i == 0 else \
+                [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
 
         # store all the final results in this estimator instance.
         self._log_likelihood = results[0].numpy()
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / n_obs), axis=1)
 
-        # TODO: maybe report fisher inf here in the future.
+        # TODO: maybe report fisher inf here in the future instead of inverted hessian.
         self._fisher_inv = tf.linalg.inv(results[2]).numpy()
         self._hessian = -results[2].numpy()
 
-        self.model.hessian.compute_b = self.model.compute_b  # reset if self._train_scale == False
-        self.model.batch_features = batch_features
+        self.model.hessian.compute_b = self.model.compute_b  # reset if not self._train_scale
 
     def update_params(self, batches, results, batch_features, update_func):
         """Wrapper method to conduct updates based on different optimizers/conditions."""
@@ -285,6 +289,28 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             update_var = results[1]
             update_func([(update_var, self.model.params_copy)])
             self.model.model_vars.updated = ~self.model.model_vars.converged
+
+    def mask_unconverged(self, results):
+
+        # the idx from unconverged features, thus features reamining in the curent results
+        idx = np.where(self.model.model_vars.remaining_features)[0]
+        # the new remaining_features in reduced feature space
+        mask = ~(self.model.model_vars.total_converged[idx])
+
+        ll = tf.boolean_mask(results[0], mask)
+        if self.irls_algo:
+            jac_a = tf.boolean_mask(results[1], mask)
+            jac_b = tf.boolean_mask(results[2], mask)
+            fim_a = tf.boolean_mask(results[3], mask)
+            fim_b = tf.boolean_mask(results[4], mask)
+            return ll, jac_a, jac_b, fim_a, fim_b
+        elif self.nr_algo:
+            jac = tf.boolean_mask(results[1], mask)
+            hessian = tf.boolean_mask(results[2], mask)
+            return ll, jac, hessian
+        else:
+            jac = tf.boolean_mask(results[1], mask, axis=1)
+        return ll, jac
 
     def get_optimizer_object(self, optimizer: str, learning_rate):
         """ Creates an optimizer object based on the given optimizer string."""
