@@ -51,12 +51,15 @@ class GLM(ModelBase, ProcessModelGLM):
         self.fim = fim
         self.use_gradient_tape = use_gradient_tape
         self.params_copy = self.params
-        self.batch_features = False
 
         self.setMethod(optimizer)
 
-    def setMethod(self, optimizer):
-
+    def setMethod(self, optimizer: str):
+        """
+        Determines which function is executed to calculate and return the desired outputs when
+        calling the model. The internal function is chosen based on the given optimizer. It will
+        through an AssertionError if the optimizer is not understood.
+        """
         optimizer = optimizer.lower()
         if optimizer in ['gd', 'adam', 'adagrad', 'rmsprop']:
             self._calc = self._return_jacobians
@@ -66,16 +69,34 @@ class GLM(ModelBase, ProcessModelGLM):
 
         elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']:
             self._calc = self._calc_fim
+        else:
+            assert False, ("Unrecognized optimizer: %s", optimizer)
 
-    def _call_parameters(self, inputs, keep_previous_params_copy=True):
-        if not keep_previous_params_copy:
-            if self.batch_features:
-                self.params_copy = tf.Variable(
-                    tf.boolean_mask(tensor=self.params, mask=self.model_vars.remaining_features, axis=1),
-                    trainable=True)
-            else:
-                self.params_copy = self.params
+    def featurewise_batch(self):
+        """
+        Applies a boolean mask over the feature dimension of the parameter matrix by removing
+        some feature columns (e.g. to exclude converged parameters) determined by the
+        `remaining_features` vector in `model_vars`. This method must be called after each
+        featurewise batch event to ensure the feature dimension of the input tensors matches the
+        feature dimension of `params_copy` in the following model call.
+        """
+        self.params_copy = tf.Variable(
+            tf.boolean_mask(tensor=self.params, mask=self.model_vars.remaining_features, axis=1),
+            trainable=True)
 
+    def apply_featurewise_updates(self, full_params_copy: tf.Tensor):
+        """
+        Applies featurewise updates stored in `params_copy` on `params`. Feature columns in
+        `params` corresponding to remaining feature columns in `params_copy` are overwritten with
+        the new values while the others (corresponding to features with converged parameters) are
+        retained. This method must be called after each featurewise batch event to ensure that the
+        updates stored in `params_copy` aren't lost when deriving a new `params_copy` from `params`
+        in the following model calls using `featurewise_batch()`.
+        """
+        self.params.assign(
+            tf.where(self.model_vars.remaining_features, full_params_copy, self.params))
+
+    def _call_parameters(self, inputs):
         design_loc, design_scale, size_factors = inputs
         a_var, b_var = self.unpack_params([self.params_copy, self.model_vars.a_var.get_shape()[0]])
         eta_loc = self.linear_loc([a_var, design_loc, self.model_vars.constraints_loc, size_factors])
@@ -84,16 +105,20 @@ class GLM(ModelBase, ProcessModelGLM):
         scale = self.linker_scale(eta_scale)
         return eta_loc, eta_scale, loc, scale, a_var, b_var
 
-    def calc_ll(self, inputs, keep_previous_params_copy=True):
-        parameters = self._call_parameters(inputs[1:], keep_previous_params_copy)
+    def calc_ll(self, inputs):
+        """
+        Calculates the log probabilities, summed up per feature column and returns it together with
+        loc, scale, a_var, and b_var (forwarding results from `_call_parameters`).
+        """
+        parameters = self._call_parameters(inputs[1:])
         log_probs = self.likelihood([*parameters[:-2], inputs[0]])
         log_probs = tf.reduce_sum(log_probs, axis=0)
         return (log_probs, *parameters[2:])
 
-    def _return_jacobians(self, inputs, keep_previous_params_copy=True):
-        return self._calc_jacobians(inputs, keep_previous_params_copy=keep_previous_params_copy)[-2:]
+    def _return_jacobians(self, inputs):
+        return self._calc_jacobians(inputs)[-2:]
 
-    def _calc_jacobians(self, inputs, concat=True, transpose=True, keep_previous_params_copy=True):
+    def _calc_jacobians(self, inputs, concat=True, transpose=True):
         """
         calculates jacobian.
 
@@ -109,7 +134,7 @@ class GLM(ModelBase, ProcessModelGLM):
         """
 
         with tf.GradientTape(persistent=True) as g:
-            log_probs, loc, scale, a_var, b_var = self.calc_ll(inputs, keep_previous_params_copy)
+            log_probs, loc, scale, a_var, b_var = self.calc_ll(inputs)
 
         if self.use_gradient_tape:
 
@@ -154,12 +179,9 @@ class GLM(ModelBase, ProcessModelGLM):
             return loc, scale, log_probs, tf.negative(jacobians)
         return loc, scale, log_probs, tf.negative(jac_a), tf.negative(jac_b)
 
-    def _calc_hessians(self, inputs, keep_previous_params_copy=True):
+    def _calc_hessians(self, inputs):
         # with tf.GradientTape(persistent=True) as g2:
-        loc, scale, log_probs, jacobians = self._calc_jacobians(
-            inputs,
-            keep_previous_params_copy=keep_previous_params_copy,
-            transpose=False)
+        loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, transpose=False)
         '''
         autograd not yet working. TODO: Search error in the following code:
 
@@ -190,17 +212,21 @@ class GLM(ModelBase, ProcessModelGLM):
         hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
         return log_probs, jacobians, hessians
 
-    def _calc_fim(self, inputs, keep_previous_params_copy=True):
+    def _calc_fim(self, inputs):
         loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(
             inputs,
             concat=False,
-            transpose=False,
-            keep_previous_params_copy=keep_previous_params_copy)
+            transpose=False)
         fim_a, fim_b = self.fim([*inputs[0:3], loc, scale, False])
         return log_probs, jac_a, jac_b, fim_a, fim_b
 
-    def call(self, inputs, keep_previous_params_copy=True):
-        return self._calc(inputs, keep_previous_params_copy)
+    def call(self, inputs):
+        """
+        Wrapper method to call this model. Depending on the desired calculations specified by the
+        `optimizer` arg to `__init__`, it will forward the call to the necessary function to perform
+        the right calculations and return all the results.
+        """
+        return self._calc(inputs)
 
 class LossGLM(LossBase):
 
