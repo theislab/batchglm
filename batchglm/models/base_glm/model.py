@@ -98,7 +98,9 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def eta_scale(self) -> np.ndarray:
-        return np.matmul(self.design_scale, self.b)
+        eta = np.matmul(self.design_scale, self.b)
+        eta = self.np_clip_param(eta, "eta_scale")
+        return eta
 
     @property
     def location(self):
