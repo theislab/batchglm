@@ -259,11 +259,8 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
         return netwon_type_update
 
-    def _trust_region_update(
-            self,
-            update_raw,
-            radius_container
-    ):
+    @staticmethod
+    def _calc_update_magnitudes(update_raw):
         update_magnitude_sq = tf.reduce_sum(tf.square(update_raw), axis=0)
         update_magnitude = tf.where(
             condition=update_magnitude_sq > 0,
@@ -278,9 +275,15 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             ),
             y=tf.zeros_like(update_magnitude)
         )
+        return update_magnitude, update_magnitude_inv
+
+    def _trust_region_update(
+            self,
+            update_raw,
+            radius_container,
+    ):
+        update_magnitude, update_magnitude_inv = SecondOrderOptim._calc_update_magnitudes(update_raw)
         update_norm = tf.multiply(update_raw, update_magnitude_inv)
-        # the following method is for irls_gd_tr (linear instead of newton)
-        self.normalize_update_magnitude(update_magnitude)
 
         update_scale = tf.minimum(
             radius_container,

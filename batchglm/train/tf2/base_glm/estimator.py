@@ -200,14 +200,11 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         batch_features = True
                         self.model.batch_features = batch_features
                     conv_diff = num_converged - n_conv_last_featurewise_batch
-                    print(conv_diff)
                     if pkg_constants.FEATUREWISE_THRESHOLD < 1:
                         conv_diff /= n_features-n_conv_last_featurewise_batch
-                    print(conv_diff)
                     # Update params if number of new convergences since last
                     # featurewise batch is reached again.
                     if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
-                        print(num_converged - n_conv_last_featurewise_batch, n_features-n_conv_last_featurewise_batch, conv_diff)
                         need_new_epoch_set = True
                         n_conv_last_featurewise_batch = num_converged
                         self.model.apply_featurewise_updates(conv_calc.last_params)

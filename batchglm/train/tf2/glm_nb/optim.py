@@ -37,9 +37,6 @@ class IRLS_LS(IRLS):
         ), axis=0)
         return pred_cost_gain
 
-    def normalize_update_magnitude(self, update_magnitude):
-        update_magnitude = update_magnitude / self.n_obs * self.tr_radius_b
-
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         assert compute_a ^ compute_b, \
@@ -53,12 +50,34 @@ class IRLS_LS(IRLS):
             i = 0
             while(not all_features_converged and i < self.max_iter):
                 all_features_converged = self.update_b_func(inputs, batch_features, is_batched)
+                i += 1
+                print(i)
 
     def gett1t2(self):
         t1 = tf.constant(pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE, dtype=self._dtype)
         t2 = tf.constant(pkg_constants.TRUST_REGIONT_T2_IRLS_GD_TR_SCALE, dtype=self._dtype)
         return t1, t2
 
+    def _trust_region_update_b(
+            self,
+            update_raw,
+            radius_container,
+    ):
+        update_magnitude, update_magnitude_inv = IRLS_LS._calc_update_magnitudes(update_raw)
+        update_norm = tf.multiply(update_raw, update_magnitude_inv)
+
+        update_magnitude = update_magnitude / self.n_obs * radius_container
+
+        update_scale = tf.minimum(
+            radius_container,
+            update_magnitude
+        )
+        proposed_vector = tf.multiply(
+            update_norm,
+            update_scale
+        )
+
+        return proposed_vector
     def update_b_gd(self, inputs, batch_features, is_batched):
 
         x_batches, log_probs, _, jac_b, _, _ = inputs
@@ -90,8 +109,9 @@ class IRLS_LS(IRLS):
                     mask=self.model.model_vars.remaining_features)
             else:
                 radius_container = self.tr_radius_b
-
-            tr_proposed_vector_b = self._trust_region_update(
+            print(update_b.shape)
+            print(radius_container.shape)
+            tr_proposed_vector_b = self._trust_region_update_b(
                 update_raw=update_b,
                 radius_container=radius_container
             )
