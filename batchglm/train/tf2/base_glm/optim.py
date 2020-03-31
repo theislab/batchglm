@@ -33,6 +33,11 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
         self.add_slot(var_list[0], 'mu_r')
 
+    def gett1t2(self):
+        t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=self._dtype)
+        t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=self._dtype)
+        return t1, t2
+
     def _trust_region_ops(
             self,
             x_batches,
@@ -45,22 +50,18 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             is_batched
     ):
         # Load hyper-parameters:
-        #assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
+        # assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
         #    "eta0 must be smaller than eta1"
-        #assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
+        # assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
         #    "eta1 must be smaller than or equal to eta2"
-        #assert pkg_constants.TRUST_REGION_T1 <= 1, "t1 must be smaller than 1"
-        #assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
+        # assert pkg_constants.TRUST_REGION_T1 <= 1, "t1 must be smaller than 1"
+        # assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
         # Set trust region hyper-parameters
         eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=self._dtype)
-        eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)
-        eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=self._dtype)
-        if self.gd and compute_b:
-            t1 = tf.constant(pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE, dtype=self._dtype)
-            t2 = tf.constant(pkg_constants.TRUST_REGIONT_T2_IRLS_GD_TR_SCALE, dtype=self._dtype)
-        else:
-            t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=self._dtype)
-            t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=self._dtype)
+        # eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)
+        # eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=self._dtype)
+        t1, t2 = self.gett1t2()
+
         upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=self._dtype)
 
         # Phase I: Perform a trial update.
@@ -203,7 +204,6 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         super(SecondOrderOptim, self).__init__(name)
 
         self.model = model
-        self.gd = name in ['irls_gd', 'irls_gd_tr']
         self._dtype = dtype
         self.n_obs = tf.cast(n_obs, dtype=self._dtype)
         self.trusted_region_mode = trusted_region_mode
@@ -213,15 +213,12 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             self.tr_radius = tf.Variable(
                 np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
                 dtype=self._dtype, trainable=False)
-            if self.gd:
-                self.tr_radius_b = tf.Variable(
-                    np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE,
-                    dtype=self._dtype, trainable=False)
+
         else:
             self.tr_radius = tf.Variable(np.array([np.inf]), dtype=self._dtype, trainable=False)
 
     @abc.abstractmethod
-    def perform_parameter_update(self, inputs):
+    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
         pass
 
     def _newton_type_update(self, lhs, rhs, psd=False):
@@ -265,8 +262,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
     def _trust_region_update(
             self,
             update_raw,
-            radius_container,
-            n_obs=None
+            radius_container
     ):
         update_magnitude_sq = tf.reduce_sum(tf.square(update_raw), axis=0)
         update_magnitude = tf.where(
@@ -283,9 +279,9 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             y=tf.zeros_like(update_magnitude)
         )
         update_norm = tf.multiply(update_raw, update_magnitude_inv)
-        # the following switch is for irls_gd_tr (linear instead of newton)
-        if n_obs is not None:
-            update_magnitude = update_magnitude / n_obs * radius_container
+        # the following method is for irls_gd_tr (linear instead of newton)
+        self.normalize_update_magnitude(update_magnitude)
+
         update_scale = tf.minimum(
             radius_container,
             update_magnitude
@@ -296,6 +292,9 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         )
 
         return proposed_vector
+
+    def normalize_update_magnitude(self, update_magnitude):
+        return update_magnitude
 
     def _trust_region_newton_cost_gain(
             self,
@@ -394,7 +393,6 @@ class IRLS(SecondOrderOptim):
             self,
             update_x,
             radius_container,
-            gd,
             neg_jac_x,
             fim_x=None
     ):
@@ -404,10 +402,6 @@ class IRLS(SecondOrderOptim):
 
         :param radius_container: tf.tensor ? x ? TODO
 
-        :param gd: boolean
-            If True, the proposed vector and predicted cost gain are
-            calculated by linear functions related to IRLS_GD(_TR) optimizer.
-            If False, use newton functions for IRLS_TR optimizer instead.
         :param neg_jac_x: tf.Tensor coefficients x features ? TODO
             Upper (mu part) or lower (r part) of negative jacobian matrix
         :param fim_x
@@ -420,35 +414,17 @@ class IRLS(SecondOrderOptim):
 
         proposed_vector_x = self._trust_region_update(
             update_raw=update_x,
-            radius_container=radius_container,
-            n_obs=self.n_obs if gd else None
+            radius_container=radius_container
         )
-        # here, functions have different number of arguments, thus
-        # must be written out
-        if gd:
-            pred_cost_gain_x = self._trust_region_linear_cost_gain(
-                proposed_vector=proposed_vector_x,
-                neg_jac=neg_jac_x
-            )
-        else:
-            pred_cost_gain_x = self._trust_region_newton_cost_gain(
-                proposed_vector=proposed_vector_x,
-                neg_jac=neg_jac_x,
-                hessian_fim=fim_x
-            )
+
+        pred_cost_gain_x = self._trust_region_newton_cost_gain(
+            proposed_vector=proposed_vector_x,
+            neg_jac=neg_jac_x,
+            hessian_fim=fim_x
+        )
 
         return proposed_vector_x, pred_cost_gain_x
 
-    def _trust_region_linear_cost_gain(
-            self,
-            proposed_vector,
-            neg_jac
-    ):
-        pred_cost_gain = tf.reduce_sum(tf.multiply(
-            proposed_vector,
-            tf.transpose(neg_jac)
-        ), axis=0)
-        return pred_cost_gain
 
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
@@ -469,14 +445,10 @@ class IRLS(SecondOrderOptim):
             )
         if compute_b:
 
-            if self.gd:
-                update_b = tf.transpose(jac_b)
-
-            else:
-                update_b = self._newton_type_update(
-                    lhs=fim_b,
-                    rhs=jac_b
-                )
+            update_b = self._newton_type_update(
+                lhs=fim_b,
+                rhs=jac_b
+            )
 
         if not self.trusted_region_mode:
             if compute_a:
@@ -504,60 +476,44 @@ class IRLS(SecondOrderOptim):
                 )
             else:
                 update_var = update
-            self.model.params.assign_sub(update_var)
+            self.model.params_copy.assign_sub(update_var)
 
         else:
             # put together update_raw based on proposed vector and cost gain depending on train_r and train_mu
-            if compute_b:
-                if compute_a:
-                    if batch_features:
-                        radius_container = tf.boolean_mask(
-                            tensor=self.tr_radius,
-                            mask=self.model.model_vars.remaining_features)
-                    else:
-                        radius_container = self.tr_radius
-                    tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
-                        update_b, radius_container, self.gd, jac_b, fim_b)
+            if batch_features:
+                radius_container = tf.boolean_mask(
+                    tensor=self.tr_radius,
+                    mask=self.model.model_vars.remaining_features)
+            else:
+                radius_container = self.tr_radius
 
+            if compute_b:
+                tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
+                    update_b, radius_container, jac_b, fim_b)
+                if compute_a:
                     tr_proposed_vector_a, tr_pred_cost_gain_a = self._calc_proposed_vector_and_pred_cost_gain(
-                        update_a, radius_container, False, jac_a, fim_a)
+                        update_a, radius_container, jac_a, fim_a)
 
                     tr_update_raw = tf.concat([tr_proposed_vector_a, tr_proposed_vector_b], axis=0)
                     tr_pred_cost_gain = tf.add(tr_pred_cost_gain_a, tr_pred_cost_gain_b)
-
                 else:
-                    radius_container = self.tr_radius_b if self.gd else self.tr_radius
-                    if batch_features:
-                        radius_container = tf.boolean_mask(
-                            tensor=radius_container,
-                            mask=self.model.model_vars.remaining_features)
-
-                    tr_proposed_vector_b, tr_pred_cost_gain_b = self._calc_proposed_vector_and_pred_cost_gain(
-                        update_b, radius_container, self.gd, jac_b, fim_b)
-
                     # directly apply output of calc_proposed_vector_and_pred_cost_gain to tr_update_raw
                     # and tr_pred_cost_gain
                     tr_update_raw = tr_proposed_vector_b
                     tr_pred_cost_gain = tr_pred_cost_gain_b
             else:
-                if batch_features:
-                    radius_container = tf.boolean_mask(
-                        tensor=self.tr_radius,
-                        mask=self.model.model_vars.remaining_features)
-                else:
-                    radius_container = self.tr_radius
                 # here train_r is False AND train_mu is true, so the output of the function can directly be applied to
                 # tr_update_raw and tr_pred_cost_gain, similar to train_r = True and train_mu = False
                 tr_update_raw, tr_pred_cost_gain = self._calc_proposed_vector_and_pred_cost_gain(
-                    update_a, radius_container, False, jac_a, fim_a)
+                    update_a, radius_container, jac_a, fim_a)
 
-            # perform update
             tr_update = self._pad_updates(
                 update_raw=tr_update_raw,
                 compute_a=compute_a,
                 compute_b=compute_b
             )
 
+            # perform update
             self._trust_region_ops(
                 x_batches=x_batches,
                 log_probs=log_probs,

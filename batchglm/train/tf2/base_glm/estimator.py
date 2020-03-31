@@ -24,6 +24,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     noise_model: str
     irls_algo: bool = False
     nr_algo: bool = False
+    optimizer = None
 
     def initialize(self, **kwargs):
         self.values = []
@@ -32,6 +33,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.lls = []
         self._initialized = True
         self.model = None
+
+    def update(self, results, *args):
+        self.optimizer.apply_gradients([(results[1], self.model.params_copy)])
+        self.model.model_vars.updated = ~self.model.model_vars.converged
 
     def finalize(self, **kwargs):
         """
@@ -104,8 +109,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ################################################
         # INIT Step 2: Intialise training loop.
         #
-        update_func = optimizer_object.perform_parameter_update \
-            if self.irls_algo or self.nr_algo else optimizer_object.apply_gradients
 
         # create a tensorflow dataset using the DataGenerator
         datagenerator = DataGenerator(self, noise_model, is_batched, batch_size)
@@ -158,7 +161,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             ############################################
             # 2. Update the parameters
-            self.update_params(epoch_set, results, batch_features, update_func)
+            self.update(results, epoch_set, batch_features)
 
             ############################################
             # 3. calculate new ll, jacs, hessian/fim
@@ -197,10 +200,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         batch_features = True
                         self.model.batch_features = batch_features
                     conv_diff = num_converged - n_conv_last_featurewise_batch
-
+                    print(conv_diff)
+                    if pkg_constants.FEATUREWISE_THRESHOLD < 1:
+                        conv_diff /= n_features-n_conv_last_featurewise_batch
+                    print(conv_diff)
                     # Update params if number of new convergences since last
                     # featurewise batch is reached again.
                     if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
+                        print(num_converged - n_conv_last_featurewise_batch, n_features-n_conv_last_featurewise_batch, conv_diff)
                         need_new_epoch_set = True
                         n_conv_last_featurewise_batch = num_converged
                         self.model.apply_featurewise_updates(conv_calc.last_params)

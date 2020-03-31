@@ -1,16 +1,21 @@
 import logging
 from typing import Union
+import time  # needed for train_irls_ls_tr benchmarking
 import numpy as np
+import tensorflow as tf  # needed for train_irls_ls_tr
 
 from .external import InputDataGLM, Model
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
-
 from .model import NBGLM, LossGLMNB
 from .vars import ModelVars
 from .processModel import ProcessModel
 from .external import Estimator as GLMEstimator
 from .training_strategies import TrainingStrategies
 
+# needed for train_irls_ls_tr
+from .external import DataGenerator, ConvergenceCalculator, pkg_constants
+from .optim import IRLS_LS
+logger = logging.getLogger("batchglm")
 
 class Estimator(GLMEstimator, ProcessModel):
     """
@@ -109,9 +114,11 @@ class Estimator(GLMEstimator, ProcessModel):
         else:
             self.model.setMethod(optim_algo)
 
-        self._loss = LossGLMNB()
-
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
+        self.optimizer = optimizer_object
+        if optimizer_object.name in ['irls_gd_tr', 'irls_ar_tr']:
+            self.update = self.update_separated
+            self.epochs_until_b_update = 5
 
         super(Estimator, self)._train(
             noise_model="nb",
@@ -125,6 +132,37 @@ class Estimator(GLMEstimator, ProcessModel):
             benchmark=benchmark,
             optim_algo=optim_algo
         )
+
+    def get_optimizer_object(self, optimizer, learning_rate):
+        optim = optimizer.lower()
+        if optim in ['irls_gd_tr', 'irls_gd', 'irls_ar', 'irls_ar_tr']:
+            return IRLS_LS(
+                dtype=self.dtype,
+                trusted_region_mode=optim.endswith('tr'),
+                model=self.model,
+                name=optim,
+                n_obs=self.input_data.num_observations,
+                max_iter=20)
+        return super().get_optimizer_object(optimizer, learning_rate)
+
+    def update_separated(self, results, batches, batch_features):
+
+        self.optimizer.perform_parameter_update(
+            inputs=[batches, *results],
+            compute_a=True,
+            compute_b=False,
+            batch_features=batch_features,
+            is_batched=False
+        )
+        if self._train_scale and self.epochs_until_b_update == 0:
+            self.optimizer.perform_parameter_update(
+                inputs=[batches, *results],
+                compute_a=False,
+                compute_b=True,
+                batch_features=batch_features,
+                is_batched=False
+            )
+        self.epochs_until_b_update -= 1
 
     def get_model_container(
             self,
