@@ -71,7 +71,7 @@ class ModelIwls:
         return np.sum(self.ll_j(j=j), axis=0)
 
     @abc.abstractmethod
-    def fim_weight(self) -> np.ndarray:
+    def fim_weight_aa(self) -> np.ndarray:
         pass
 
     @abc.abstractmethod
@@ -79,7 +79,7 @@ class ModelIwls:
         pass
 
     @abc.abstractmethod
-    def fim_weight_j(self, j) -> np.ndarray:
+    def fim_weight_aa_j(self, j) -> np.ndarray:
         pass
 
     @abc.abstractmethod
@@ -95,12 +95,13 @@ class ModelIwls:
         pass
 
     @property
-    def fim(self) -> np.ndarray:
+    def fim_aa(self) -> np.ndarray:
         """
+        Location-location coefficient block of FIM
 
         :return: (features x inferred param x inferred param)
         """
-        w = self.fim_weight  # (observations x features)
+        w = self.fim_weight_aa  # (observations x features)
         # constraints: (observed param x inferred param)
         # design: (observations x observed param)
         # w: (observations x features)
@@ -111,6 +112,30 @@ class ModelIwls:
             np.einsum('ob,of->fob', xh, w),
             xh
         )
+
+    @abc.abstractmethod
+    def fim_ab(self) -> np.ndarray:
+        pass
+
+    @property
+    def fim_bb(self) -> np.ndarray:
+        pass
+
+    @property
+    def fim(self) -> np.ndarray:
+        """
+        Full FIM
+
+        :return: (features x inferred param x inferred param)
+        """
+        fim_aa = self.fim_aa
+        fim_bb = self.fim_bb
+        fim_ab = self.fim_ab
+        fim_ba = np.transpose(fim_ab, axes=[0, 2, 1])
+        return - np.concatenate([
+            np.concatenate([fim_aa, fim_ab], axis=2),
+            np.concatenate([fim_ba, fim_bb], axis=2)
+        ], axis=1)
 
     @abc.abstractmethod
     def hessian_weight_aa(self) -> np.ndarray:
@@ -190,7 +215,7 @@ class ModelIwls:
 
         :return: (features x inferred param)
         """
-        w = self.fim_weight  # (observations x features)
+        w = self.fim_weight_aa  # (observations x features)
         ybar = self.ybar  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
         return np.einsum(
@@ -207,7 +232,7 @@ class ModelIwls:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        w = self.fim_weight_j(j=j)  # (observations x features)
+        w = self.fim_weight_aa_j(j=j)  # (observations x features)
         ybar = self.ybar_j(j=j)  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
         return np.einsum(

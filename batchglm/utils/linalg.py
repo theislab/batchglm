@@ -77,7 +77,7 @@ def groupwise_solve_lm(
         unique_design = dask.array.from_array(unique_design, chunks=unique_design.shape)
     else:
         unique_design, inverse_idx = np.unique(dmat, axis=0, return_inverse=True)
-    if unique_design.shape[0] > 100:
+    if unique_design.shape[0] > 500:
         raise ValueError("large least-square problem in init, likely defined a numeric predictor as categorical")
 
     full_rank = constraints.shape[1]
