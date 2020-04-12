@@ -1,4 +1,5 @@
 import abc
+import sys
 import logging
 import time
 import numpy as np
@@ -79,7 +80,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         n_features = self.input_data.num_features
         # set necessary attributes
         self.noise_model = noise_model
-        self.irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
+        self.irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_ar_tr']
         self.nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
 
         ################################################
@@ -247,7 +248,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model.hessian.compute_b = True  # since self._train_scale could be False.
 
         # need new set here with full feature space
-        # TODO: only ineeded if batch_features, maybe put this in the above if switch later
+        # TODO: only needed if batch_features, maybe put this in the above if switch later
         final_set = datagenerator.new_epoch_set()
         for i, x_batch in enumerate(final_set):
             results = self.model(x_batch) if i == 0 else \
@@ -256,10 +257,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # store all the final results in this estimator instance.
         self._log_likelihood = results[0].numpy()
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / n_obs), axis=1)
-
+        self._hessian = - results[2].numpy()
         # TODO: maybe report fisher inf here in the future instead of inverted hessian.
-        self._fisher_inv = tf.linalg.inv(results[2]).numpy()
-        self._hessian = -results[2].numpy()
+        fisher_inv = np.zeros_like(self._hessian)
+        invertible = np.where(np.linalg.cond(self._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
+        num_non_invertible = n_features - len(invertible)
+        if num_non_invertible > 0:
+            logger.warning(f"fisher_inv could not be calculated for {num_non_invertible} features.")
+        fisher_inv[invertible] = np.linalg.inv(- self._hessian[invertible])
 
         self.model.hessian.compute_b = self.model.compute_b  # reset if not self._train_scale
 
