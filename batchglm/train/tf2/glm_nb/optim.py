@@ -17,14 +17,18 @@ class IRLS_LS(IRLS):
 
         if name.startswith('irls_gd'):
             self.update_b_func = self.update_b_gd
-            if trusted_region_mode:
-                n_features = self.model.model_vars.n_features
-                self.tr_radius_b = tf.Variable(
-                    np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE,
-                    dtype=self._dtype, trainable=False)
 
         elif name in ['irls_ar_tr', 'irls_ar']:
-            self.update_b_func = self.update_b_armijio
+            self.update_b_func = self.update_b_ar
+
+        else:
+            assert False, "Unrecognized method for optimization given."
+
+        if trusted_region_mode:
+            n_features = self.model.model_vars.n_features
+            self.tr_radius_b = tf.Variable(
+                np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE,
+                dtype=self._dtype, trainable=False)
 
     def _trust_region_linear_cost_gain(
             self,
@@ -46,12 +50,7 @@ class IRLS_LS(IRLS):
             super(IRLS_LS, self).perform_parameter_update(
                 inputs, compute_a, compute_b, batch_features, is_batched)
         else:
-            all_features_converged = False
-            i = 0
-            while(not all_features_converged and i < self.max_iter):
-                all_features_converged = self.update_b_func(inputs, batch_features, is_batched)
-                i += 1
-                print(i)
+            self.update_b_func(inputs, batch_features, is_batched)
 
     def gett1t2(self):
         t1 = tf.constant(pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE, dtype=self._dtype)
@@ -109,8 +108,7 @@ class IRLS_LS(IRLS):
                     mask=self.model.model_vars.remaining_features)
             else:
                 radius_container = self.tr_radius_b
-            print(update_b.shape)
-            print(radius_container.shape)
+
             tr_proposed_vector_b = self._trust_region_update_b(
                 update_raw=update_b,
                 radius_container=radius_container
@@ -136,16 +134,117 @@ class IRLS_LS(IRLS):
 
         return False
 
-    def update_b_ar(self, inputs, batch_features, is_batched):
+    def update_b_ar(self, inputs, batch_features, is_batched, alpha0=None):
 
-        raise NotImplementedError('Armijio line search not implemented yet.')
-        """
-        x_batches = inputs[0]
-        proposed_vector = self._perform_trial_update()
-        self._check_and_apply_update(x_batches, proposed_vector, batch_features)
 
-        return None
-        """
+        c1 = pkg_constants.TRUST_REGION_ETA1
+        x_batches, log_probs, _, jac_b, _, _ = inputs
+        jac_b = tf.reshape(jac_b, [jac_b.shape[0]])
+        #jac_b = tf.negative(jac_b)
+        direction = -tf.sign(jac_b)
+        derphi0 = jac_b / self.n_obs
+        alpha0 = tf.ones_like(jac_b) * pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE # self.tr_radius_b
+        original_params_b_copy = self.model.params_copy[-1]
+        print(direction[0].numpy(), jac_b[0].numpy())
+        def phi(alpha):
+            multiplier = tf.multiply(alpha, direction)
+            new_scale_params = tf.add(original_params_b_copy, multiplier)
+            self.model.params_copy[-1].assign(new_scale_params)
+            new_likelihood = None
+            for i, x_batch in enumerate(x_batches):
+                log_likelihood = self.model.calc_ll([*x_batch])[0]
+                new_likelihood = log_likelihood if i == 0 else tf.math.add(new_likelihood, log_likelihood)
+            new_likelihood = self._norm_neg_log_likelihood(new_likelihood)
+            return new_likelihood
+        current_likelihood = self._norm_neg_log_likelihood(log_probs)
+
+        new_likelihood = phi(alpha0)
+        #print(new_likelihood, current_likelihood)
+        beneficial = new_likelihood < current_likelihood + c1 * alpha0 * derphi0
+        #print(beneficial)
+
+        if tf.reduce_all(beneficial):  # are all beneficial?
+            updated = beneficial
+            if batch_features:
+                n_features = self.model.model_vars.n_features
+                indices = tf.where(self.model.model_vars.remaining_features)
+                updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
+            self.model.model_vars.updated_b = updated
+            # self.tr_radius_b.assign(alpha0)
+            return
+
+        alpha1 = tf.negative(derphi0) * alpha0**2 / 2 / (new_likelihood - current_likelihood - derphi0 * alpha0)
+        alpha1 = tf.where(beneficial, alpha0, alpha1)
+        new_likelihood2 = phi(alpha1)
+        #print(new_likelihood2, current_likelihood)
+        beneficial = new_likelihood2 < current_likelihood + c1 * alpha1 * derphi0
+        #print(beneficial)
+        if tf.reduce_all(beneficial):
+            updated = beneficial
+            if batch_features:
+                n_features = self.model.model_vars.n_features
+                indices = tf.where(self.model.model_vars.remaining_features)
+                updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
+            self.model.model_vars.updated_b = updated
+            # self.tr_radius_b.assign(alpha1)
+            return
+
+        for i in range(self.max_iter):
+            print(i)
+            factor = alpha0**2 * alpha1**2 * (alpha1-alpha0)
+            a = alpha0**2 * (new_likelihood2 - current_likelihood - derphi0 * alpha1) - \
+                alpha1**2 * (new_likelihood - current_likelihood - derphi0 * alpha0)
+            a = a / factor
+
+            b = -alpha0**3 * (new_likelihood2 - current_likelihood - derphi0 * alpha1) + \
+                alpha1**3 * (new_likelihood - current_likelihood - derphi0 * alpha0)
+            b = b / factor
+
+            alpha2 = (-b + tf.sqrt(tf.abs(tf.square(b) - 3 * a * derphi0))) / (3 * a)
+            alpha2 = tf.where(beneficial, alpha1, alpha2)
+            alpha2 = tf.clip_by_value(alpha2, clip_value_min=1e-12, clip_value_max=np.inf)
+            #print(alpha2)
+            if tf.reduce_all(alpha2 == 1e-12):
+                print('Minimum allowed step size reached for all features.')
+                self.model.model_vars.updated_b = np.zeros(self.model.model_vars.n_features, dtype=np.bool)
+            #print(alpha2)
+            new_likelihood3 = phi(alpha2)
+            #print(new_likelihood3, current_likelihood)
+            beneficial = new_likelihood3 < current_likelihood + c1 * alpha2 * derphi0
+            #print(beneficial)
+            if tf.reduce_all(beneficial):
+                updated = beneficial
+                if batch_features:
+                    n_features = self.model.model_vars.n_features
+                    indices = tf.where(self.model.model_vars.remaining_features)
+                    updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
+                self.model.model_vars.updated_b = updated
+                # self.tr_radius_b.assign(alpha1)
+                return
+
+            step_diff_greater_half_alpha1 = (alpha1 - alpha2) > alpha1 / 2
+            ratio = (1 - alpha2/alpha1) < 0.96
+            set_back = tf.logical_or(step_diff_greater_half_alpha1, ratio)
+            alpha2 = tf.where(set_back, alpha1 / 2, alpha2)
+            #if step_diff or ratio:
+            #    alpha2 = alpha1 / 2
+
+            alpha0 = alpha1
+            alpha1 = alpha2
+            new_likelihood = new_likelihood2
+            new_likelihood2 = new_likelihood3
+
+        # self.tr_radius_b.assign(alpha2)
+        new_scale_params = tf.where(beneficial, self.model.params_copy[-1], original_params_b_copy)
+        self.model.params_copy[-1].assign(new_scale_params)
+        updated = beneficial
+        if batch_features:
+            n_features = self.model.model_vars.n_features
+            indices = tf.where(self.model.model_vars.remaining_features)
+            updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
+        self.model.model_vars.updated_b = updated
+
+
 
     def _check_and_apply_update(
         self,
