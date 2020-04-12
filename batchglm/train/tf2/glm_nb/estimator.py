@@ -113,7 +113,7 @@ class Estimator(GLMEstimator, ProcessModel):
 
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
         self.optimizer = optimizer_object
-        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr']:
+        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr', 'irls_ar']:
             self.update = self.update_separated
             self.epochs_until_b_update = 0
 
@@ -139,7 +139,7 @@ class Estimator(GLMEstimator, ProcessModel):
                 model=self.model,
                 name=optim,
                 n_obs=self.input_data.num_observations,
-                max_iter=1)
+                max_iter=10)
         return super().get_optimizer_object(optimizer, learning_rate)
 
     def update_separated(self, results, batches, batch_features):
@@ -152,6 +152,7 @@ class Estimator(GLMEstimator, ProcessModel):
             is_batched=False
         )
         if self._train_scale and self.epochs_until_b_update == 0:
+            self.model.model_vars.updated_b = False
             self.optimizer.perform_parameter_update(
                 inputs=[batches, *results],
                 compute_a=False,
