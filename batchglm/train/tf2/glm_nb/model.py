@@ -31,9 +31,9 @@ class NBGLM(GLM, ProcessModel):
             linker_loc=LinkerLoc(),
             linker_scale=LinkerScale(),
             likelihood=Likelihood(dtype),
-            jacobian=Jacobian(model_vars=model_vars, compute_a=compute_a, compute_b=compute_b, dtype=dtype),
-            hessian=Hessian(model_vars=model_vars, compute_a=compute_a, compute_b=compute_b, dtype=dtype),
-            fim=FIM(model_vars=model_vars, compute_a=compute_a, compute_b=compute_b, dtype=dtype),
+            jacobian=Jacobian(model_vars=model_vars, dtype=dtype),
+            hessian=Hessian(model_vars=model_vars, dtype=dtype),
+            fim=FIM(model_vars=model_vars, dtype=dtype),
             use_gradient_tape=use_gradient_tape,
             optimizer=optimizer
         )
