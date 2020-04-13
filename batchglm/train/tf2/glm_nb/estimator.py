@@ -111,11 +111,13 @@ class Estimator(GLMEstimator, ProcessModel):
         else:
             self.model.setMethod(optim_algo)
 
-        optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
+        intercept_scale = len(self.model.model_vars.idx_train_scale) == 1
+        optimizer_object = self.get_optimizer_object(optim_algo, learning_rate, intercept_scale)
         self.optimizer = optimizer_object
-        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr', 'irls_ar']:
+        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr']:
             self.update = self.update_separated
-            self.epochs_until_b_update = 0
+            self.b_update_freq = 0
+            self.epochs_until_b_update = self.b_update_freq
 
         super(Estimator, self)._train(
             noise_model="nb",
@@ -130,28 +132,21 @@ class Estimator(GLMEstimator, ProcessModel):
             optim_algo=optim_algo
         )
 
-    def get_optimizer_object(self, optimizer, learning_rate):
+    def get_optimizer_object(self, optimizer, learning_rate, intercept_scale):
         optim = optimizer.lower()
-        if optim in ['irls_gd_tr', 'irls_gd', 'irls_ar', 'irls_ar_tr']:
+        if optim in ['irls_gd_tr', 'irls_gd', 'irls_ar_tr']:
             return IRLS_LS(
                 dtype=self.dtype,
-                trusted_region_mode=optim.endswith('tr'),
+                tr_mode=optim.endswith('tr'),
                 model=self.model,
                 name=optim,
                 n_obs=self.input_data.num_observations,
-                max_iter=10)
+                intercept_scale=intercept_scale)
         return super().get_optimizer_object(optimizer, learning_rate)
 
     def update_separated(self, results, batches, batch_features):
 
-        self.optimizer.perform_parameter_update(
-            inputs=[batches, *results],
-            compute_a=True,
-            compute_b=False,
-            batch_features=batch_features,
-            is_batched=False
-        )
-        if self._train_scale and self.epochs_until_b_update == 0:
+        if self.epochs_until_b_update == 0:
             self.model.model_vars.updated_b = False
             self.optimizer.perform_parameter_update(
                 inputs=[batches, *results],
@@ -160,9 +155,16 @@ class Estimator(GLMEstimator, ProcessModel):
                 batch_features=batch_features,
                 is_batched=False
             )
-            self.epochs_until_b_update = 0
+            self.epochs_until_b_update = self.b_update_freq
         else:
             self.epochs_until_b_update -= 1
+            self.optimizer.perform_parameter_update(
+                inputs=[batches, *results],
+                compute_a=True,
+                compute_b=False,
+                batch_features=batch_features,
+                is_batched=False
+            )
 
     def get_model_container(
             self,
