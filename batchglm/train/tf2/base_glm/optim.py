@@ -58,7 +58,6 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         # assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
         # Set trust region hyper-parameters
         eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=self._dtype)
-        # eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)
         # eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=self._dtype)
         t1, t2 = self.gett1t2()
 
@@ -108,53 +107,14 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         feature space by adding columns corresponding to positions of converged (non calculated)
         features.
         """
-        """
-        if batch_features:
-            n_features = self.model.model_vars.n_features
-            indices = tf.where(tf.logical_not(self.model.model_vars.converged))
 
-            delta_f_actual = tf.scatter_nd(indices, delta_f_actual, shape=(n_features,))
-            update_var = tf.transpose(tf.scatter_nd(
-                indices,
-                tf.transpose(proposed_vector),
-                shape=(n_features, proposed_vector.get_shape()[0])
-            ))
-            gain_var = tf.transpose(tf.scatter_nd(
-                indices,
-                proposed_gain,
-                shape=(n_features,)))
-        else:
-            update_var = proposed_vector
-            gain_var = proposed_gain
-        #delta_f_ratio = tf.divide(delta_f_actual, gain_var)
-        """
         # Compute parameter updates.g
-        #update_theta = tf.logical_and(delta_f_actual > eta0, tf.logical_not(self.model.model_vars.converged))
         update_theta = delta_f_actual > eta0
         self.model.params_copy.assign(tf.where(update_theta, self.model.params_copy, original_params_copy))
 
         #update_theta_numeric = tf.expand_dims(tf.cast(update_theta, self._dtype), axis=0)
         #keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
-        """
-        if batch_features:
-            params = tf.transpose(tf.scatter_nd(
-                indices,
-                tf.transpose(self.model.params_copy),
-                shape=(n_features, self.model.params.get_shape()[0])
-            ))
 
-            theta_new_tr = tf.add(
-                tf.multiply(self.model.params, keep_theta_numeric),
-                tf.multiply(params, update_theta_numeric)
-            )
-        else:
-            params = self.model.params_copy
-            theta_new_tr = tf.add(
-                tf.multiply(params + update_var, keep_theta_numeric),  # old values
-                tf.multiply(params, update_theta_numeric)  # new values
-            )
-        self.model.params.assign(theta_new_tr)
-        """
         decrease_radius = tf.math.logical_not(update_theta)
         increase_radius = update_theta
         if batch_features:
@@ -162,27 +122,14 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             indices = tf.where(self.model.model_vars.remaining_features)
             decrease_radius = tf.scatter_nd(indices, decrease_radius, shape=(n_features,))
             increase_radius = tf.scatter_nd(indices, update_theta, shape=(n_features,))
-            update_theta = increase_radius
 
         if compute_b and not compute_a:
-            self.model.model_vars.updated_b = update_theta.numpy()
+            self.model.model_vars.updated_b |= increase_radius.numpy()  # needs to be |= if maxiter > 1
         else:
-            self.model.model_vars.updated = update_theta.numpy()
+            self.model.model_vars.updated = increase_radius.numpy()
 
         # Update trusted region accordingly:
 
-        #decrease_radius = delta_f_actual <= eta0
-        #increase_radius = delta_f_actual > eta0
-        """
-        decrease_radius = tf.logical_or(
-            delta_f_actual <= eta0,
-            tf.logical_and(delta_f_ratio <= eta1, tf.logical_not(self.model.model_vars.converged))
-        )
-        increase_radius = tf.logical_and(
-            delta_f_actual > eta0,
-            tf.logical_and(delta_f_ratio > eta2, tf.logical_not(self.model.model_vars.converged))
-        )
-        """
         keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
                                      tf.logical_not(increase_radius))
         radius_update = tf.add_n([
@@ -198,6 +145,8 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
         radius_new = tf.minimum(tf.multiply(tr_radius, radius_update), upper_bound)
         tr_radius.assign(radius_new)
+
+        return update_theta
 
     def __init__(self, dtype: tf.dtypes.DType, trusted_region_mode: bool, model: tf.keras.Model, name: str, n_obs: int):
 
@@ -334,9 +283,12 @@ class NR(SecondOrderOptim):
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         x_batches, log_probs, jacobians, hessians = inputs
-        if not (compute_a or compute_b):
-            raise ValueError(
-                "Nothing can be trained. Please make sure at least one of train_mu and train_r is set to True.")
+        if compute_b:
+            if not compute_a:
+                self.model.model_vars.updated_b = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to is updated.
+
+        assert (compute_a or compute_b), "Nothing can be trained. Please make sure" \
+            "at least one of train_mu and train_r is set to True."
 
         update_raw, update = self._get_updates(hessians, jacobians, compute_a, compute_b)
 
@@ -376,18 +328,7 @@ class NR(SecondOrderOptim):
             )
 
         else:
-            if batch_features:
-                indices = tf.where(self.model.model_vars.remaining_features)
-                update_var = tf.transpose(
-                    tf.scatter_nd(
-                        indices,
-                        tf.transpose(update),
-                        shape=(self.model.model_vars.n_features, update.get_shape()[0])
-                    )
-                )
-            else:
-                update_var = update
-            self.model.params.assign_sub(update_var)
+            self.model.params_copy.assign_sub(update)
 
 
 class IRLS(SecondOrderOptim):
@@ -432,9 +373,13 @@ class IRLS(SecondOrderOptim):
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         x_batches, log_probs, jac_a, jac_b, fim_a, fim_b = inputs
-        if not (compute_a or compute_b):
-            raise ValueError(
-                "Nothing can be trained. Please make sure at least one of train_mu and train_r is set to True.")
+        if compute_b:
+            if not compute_a:
+                self.model.model_vars.updated_b = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to is updated.
+
+        assert (compute_a or compute_b), "Nothing can be trained. Please make sure" \
+            "at least one of train_mu and train_r is set to True."
+
         # Compute a and b model updates separately.
         if compute_a:
             # The FIM of the mean model is guaranteed to be
@@ -527,3 +472,7 @@ class IRLS(SecondOrderOptim):
                 batch_features=batch_features,
                 is_batched=is_batched
             )
+
+    def calc_delta_f_actual(self, current_likelihood, new_likelihood, jacobian):
+        eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)
+        return
