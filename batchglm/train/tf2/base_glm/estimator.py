@@ -73,15 +73,18 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             autograd: bool = False,
             featurewise: bool = True,
             benchmark: bool = False,
-            optim_algo: str = "adam"
+            optim_algo: str = "adam",
+            b_update_freq = 0
     ):
         # define some useful shortcuts here
         n_obs = self.input_data.num_observations
         n_features = self.input_data.num_features
         # set necessary attributes
         self.noise_model = noise_model
-        self.irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_ar_tr']
-        self.nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
+        optim = optim_algo.lower()
+        self.irls_algo = optim in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar_tr']
+        self.nr_algo = optim in ['nr', 'nr_tr']
+        epochs_until_b_update = b_update_freq
 
         ################################################
         # INIT Step 1: Consistency Checks
@@ -116,11 +119,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         epoch_set = datagenerator.new_epoch_set()
 
         # first model call to initialise prior to first update.
+        compute_b = epochs_until_b_update == 0
         for i, x_batch in enumerate(epoch_set):
             if i == 0:
-                results = self.model(x_batch)
+                results = self.model(x_batch, compute_b=compute_b)
             else:
-                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch, compute_b=compute_b))]
 
         # create ConvergenceCalculator to check for new convergences.
         conv_calc = ConvergenceCalculator(self, tf.negative(tf.divide(results[0], n_obs)).numpy())
@@ -166,10 +170,11 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             ############################################
             # 3. calculate new ll, jacs, hessian/fim
+            compute_b = epochs_until_b_update == 0
             for i, x_batch in enumerate(epoch_set):
                 # need new params_copy in model in case we use featurewise without recalculation
-                results = self.model(x_batch) if i == 0 \
-                    else [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                results = self.model(x_batch, compute_b=compute_b) if i == 0 \
+                    else [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch, compute_b=compute_b))]
 
             ############################################
             # 4. check for any new convergences
@@ -221,6 +226,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 logger.warning(log_output)
 
             train_step += 1
+            epochs_until_b_update = b_update_freq if compute_b else epochs_until_b_update - 1
             # store some useful stuff for benchmarking purposes.
             if benchmark:
                 t1_epoch = time.time()

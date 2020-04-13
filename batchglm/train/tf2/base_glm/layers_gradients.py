@@ -6,11 +6,9 @@ class Gradient(tf.keras.layers.Layer):
 
     """Superclass for Jacobians, Hessian, FIM"""
 
-    def __init__(self, model_vars, compute_a, compute_b, dtype):
+    def __init__(self, model_vars, dtype):
         super(Gradient, self).__init__()
         self.model_vars = model_vars
-        self.compute_a = compute_a
-        self.compute_b = compute_b
         self.grad_dtype = dtype
 
     @abc.abstractmethod
@@ -40,7 +38,7 @@ class FIMGLM(Gradient):
     def call(self, inputs, **kwargs):
         return self._fim_analytic(*inputs)
 
-    def _fim_analytic(self, x, design_loc, design_scale, loc, scale, concat=False) -> tf.Tensor:
+    def _fim_analytic(self, x, design_loc, design_scale, loc, scale, concat=False, compute_a=True, compute_b=True) -> tf.Tensor:
         """
         Compute the closed-form of the base_glm_all model fim
         by evalutating its terms grouped by observations.
@@ -87,14 +85,14 @@ class FIMGLM(Gradient):
         # Here, the non-zero model-wise diagonal blocks are computed and returned
         # as a dictionary. The according score function vectors are also returned as a dictionary.
 
-        if self.compute_a and self.compute_b:
+        if compute_a and compute_b:
             fim_a = _a_byobs()
             fim_b = _b_byobs()
 
-        elif self.compute_a and not self.compute_b:
+        elif compute_a and not compute_b:
             fim_a = _a_byobs()
             fim_b = tf.zeros(fim_a.get_shape(), self.grad_dtype)
-        elif not self.compute_a and self.compute_b:
+        elif not compute_a and compute_b:
             fim_a = tf.zeros(fim_a.get_shape(), self.grad_dtype)
             fim_b = _b_byobs()
         else:
@@ -157,7 +155,7 @@ class JacobianGLM(Gradient):
     def call(self, inputs, **kwargs):
         return self._jac_analytic(*inputs)
 
-    def _jac_analytic(self, x, design_loc, design_scale, loc, scale, concat) -> tf.Tensor:
+    def _jac_analytic(self, x, design_loc, design_scale, loc, scale, concat, compute_a=True, compute_b=True) -> tf.Tensor:
         """
         Compute the closed-form of the base_glm_all model jacobian
         by evalutating its terms grouped by observations.
@@ -196,13 +194,13 @@ class JacobianGLM(Gradient):
             jblock = tf.matmul(tf.transpose(w), xh)  # [features, coefficients]
             return jblock
 
-        if self.compute_a and self.compute_b:
+        if compute_a and compute_b:
             j_a = _a_byobs()
             j_b = _b_byobs()
-        elif self.compute_a and not self.compute_b:
+        elif compute_a and not compute_b:
             j_a = _a_byobs()
             j_b = tf.zeros((j_a.get_shape()[0], self.model_vars.b_var.get_shape()[0]), dtype=self.grad_dtype)
-        elif not self.compute_a and self.compute_b:
+        elif not compute_a and compute_b:
             j_b = _b_byobs()
             j_a = tf.zeros((j_b.get_shape()[0], self.model_vars.b_var.get_shape()[0]), dtype=self.grad_dtype)
         else:
@@ -276,7 +274,7 @@ class HessianGLM(Gradient):
     def call(self, inputs, **kwargs):
         return self._hessian_analytic(*inputs)
 
-    def _hessian_analytic(self, x, design_loc, design_scale, loc, scale, concat) -> tf.Tensor:
+    def _hessian_analytic(self, x, design_loc, design_scale, loc, scale, concat, compute_a=True, compute_b=True) -> tf.Tensor:
         """
         Compute the closed-form of the base_glm_all model hessian
         by evaluating its terms grouped by observations.
@@ -342,17 +340,17 @@ class HessianGLM(Gradient):
             hblock = self.create_specific_block(w, xhloc, xhscale)
             return hblock
 
-        if self.compute_a and self.compute_b:
+        if compute_a and compute_b:
             h_aa = _aa_byobs_batched()
             h_bb = _bb_byobs_batched()
             h_ab = _ab_byobs_batched()
             h_ba = tf.transpose(h_ab, perm=[0, 2, 1])
-        elif self.compute_a and not self.compute_b:
+        elif compute_a and not compute_b:
             h_aa = _aa_byobs_batched()
             h_bb = tf.zeros_like(h_aa, dtype=self.grad_dtype)
             h_ab = tf.zeros_like(h_aa, dtype=self.grad_dtype)
             h_ba = tf.zeros_like(h_aa, dtype=self.grad_dtype)
-        elif not self.compute_a and self.compute_b:
+        elif not compute_a and compute_b:
             h_bb = _bb_byobs_batched()
             h_aa = tf.zeros_like(h_bb, dtype=self.grad_dtype)
             h_ab = tf.zeros_like(h_bb, dtype=self.grad_dtype)

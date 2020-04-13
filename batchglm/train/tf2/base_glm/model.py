@@ -62,7 +62,7 @@ class GLM(ModelBase, ProcessModelGLM):
         """
         optimizer = optimizer.lower()
         if optimizer in ['gd', 'adam', 'adagrad', 'rmsprop']:
-            self._calc = self._return_jacobians
+            self._calc = self.calc_jacobians
 
         elif optimizer in ['nr', 'nr_tr']:
             self._calc = self._calc_hessians
@@ -115,10 +115,11 @@ class GLM(ModelBase, ProcessModelGLM):
         log_probs = tf.reduce_sum(log_probs, axis=0)
         return (log_probs, *parameters[2:])
 
-    def _return_jacobians(self, inputs):
-        return self._calc_jacobians(inputs)[-2:]
+    def calc_jacobians(self, inputs, compute_a, compute_b):
 
-    def _calc_jacobians(self, inputs, concat=True, transpose=True):
+        return self._calc_jacobians(inputs, compute_a=compute_a, compute_b=compute_b)[-2:]
+
+    def _calc_jacobians(self, inputs, compute_a, compute_b, concat=True, transpose=True):
         """
         calculates jacobian.
 
@@ -138,8 +139,8 @@ class GLM(ModelBase, ProcessModelGLM):
 
         if self.use_gradient_tape:
 
-            if self.compute_a:
-                if self.compute_b:
+            if compute_a:
+                if compute_b:
                     if concat:
                         jacobians = g.gradient(log_probs, self.params_copy)
                         if not transpose:
@@ -168,20 +169,20 @@ class GLM(ModelBase, ProcessModelGLM):
         else:
 
             if concat:
-                jacobians = self.jacobian([*inputs[0:3], loc, scale, True])
+                jacobians = self.jacobian([*inputs[0:3], loc, scale, True, compute_a, compute_b])
                 if transpose:
                     jacobians = tf.transpose(jacobians)
             else:
-                jac_a, jac_b = self.jacobian([*inputs[0:3], loc, scale, False])
+                jac_a, jac_b = self.jacobian([*inputs[0:3], loc, scale, compute_a, compute_b])
 
         del g
         if concat:
             return loc, scale, log_probs, tf.negative(jacobians)
         return loc, scale, log_probs, tf.negative(jac_a), tf.negative(jac_b)
 
-    def _calc_hessians(self, inputs):
+    def _calc_hessians(self, inputs, compute_a, compute_b):
         # with tf.GradientTape(persistent=True) as g2:
-        loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, transpose=False)
+        loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, compute_a=compute_a, compute_b=compute_b, transpose=False)
         '''
         autograd not yet working. TODO: Search error in the following code:
 
@@ -209,24 +210,28 @@ class GLM(ModelBase, ProcessModelGLM):
             ), perm=[2, 1, 0])
             hessians = tf.negative(hessians)
         '''
-        hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
+        hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True, compute_a, compute_b]))
         return log_probs, jacobians, hessians
 
-    def _calc_fim(self, inputs):
+    def _calc_fim(self, inputs, compute_a, compute_b):
         loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(
             inputs,
+            compute_a=compute_a,
+            compute_b=compute_b,
             concat=False,
             transpose=False)
-        fim_a, fim_b = self.fim([*inputs[0:3], loc, scale, False])
+        fim_a, fim_b = self.fim([*inputs[0:3], loc, scale, False, compute_a, compute_b])
         return log_probs, jac_a, jac_b, fim_a, fim_b
 
-    def call(self, inputs):
+    def call(self, inputs, compute_a=True, compute_b=None):
         """
         Wrapper method to call this model. Depending on the desired calculations specified by the
         `optimizer` arg to `__init__`, it will forward the call to the necessary function to perform
         the right calculations and return all the results.
         """
-        return self._calc(inputs)
+        if compute_b is None:
+            compute_b = self.compute_b
+        return self._calc(inputs, compute_a, compute_b)
 
 class LossGLM(LossBase):
 
