@@ -74,7 +74,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             featurewise: bool = True,
             benchmark: bool = False,
             optim_algo: str = "adam",
-            b_update_freq = 0
+            b_update_freq = 1
     ):
         # define some useful shortcuts here
         n_obs = self.input_data.num_observations
@@ -84,7 +84,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         optim = optim_algo.lower()
         self.irls_algo = optim in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar_tr']
         self.nr_algo = optim in ['nr', 'nr_tr']
-        epochs_until_b_update = b_update_freq
 
         ################################################
         # INIT Step 1: Consistency Checks
@@ -97,6 +96,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         if not self._initialized:
             raise RuntimeError("Cannot train the model: Estimator not initialized. \
                 Did you forget to call estimator.initialize() ?")
+
+        if b_update_freq == 0:
+            b_update_freq = 1
 
         if autograd and optim_algo.lower() in ['nr', 'nr_tr']:
             logger.warning(
@@ -119,6 +121,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         epoch_set = datagenerator.new_epoch_set()
 
         # first model call to initialise prior to first update.
+        epochs_until_b_update = b_update_freq - 1
         compute_b = epochs_until_b_update == 0
         for i, x_batch in enumerate(epoch_set):
             if i == 0:
@@ -149,6 +152,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ####
 
         while convergence_decision(num_converged, train_step):
+
             if benchmark:
                 t0_epoch = time.time()
 
@@ -160,17 +164,17 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 # using featurewise.
                 epoch_set = datagenerator.new_epoch_set(batch_features=batch_features)
                 if pkg_constants.FEATUREWISE_RECALCULATE:
-                    for i, x_batch in enumerate(epoch_set):
+                    for i, x_batch in enumerate(epoch_set, compute_b=compute_b):
                         results = self.model(x_batch) if i == 0 else \
-                            [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                            [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch, compute_b=compute_b))]
 
             ############################################
             # 2. Update the parameters
-            self.update(results, epoch_set, batch_features)
+            self.update(results, epoch_set, batch_features, epochs_until_b_update == 0)
 
             ############################################
             # 3. calculate new ll, jacs, hessian/fim
-            compute_b = epochs_until_b_update == 0
+            compute_b = epochs_until_b_update < 2
             for i, x_batch in enumerate(epoch_set):
                 # need new params_copy in model in case we use featurewise without recalculation
                 results = self.model(x_batch, compute_b=compute_b) if i == 0 \
@@ -226,7 +230,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 logger.warning(log_output)
 
             train_step += 1
-            epochs_until_b_update = b_update_freq if compute_b else epochs_until_b_update - 1
+            epochs_until_b_update = (epochs_until_b_update + b_update_freq - 1) % b_update_freq
             # store some useful stuff for benchmarking purposes.
             if benchmark:
                 t1_epoch = time.time()
