@@ -15,8 +15,6 @@ class IRLS_LS(IRLS):
 
         if name.startswith('irls_gd'):
             self.update_b_func = self.update_b_gd
-            if intercept_scale:
-                self.delta_f_actual_b = self.intercept_delta_f_actual_b
         elif name in ['irls_ar_tr', 'irls_ar']:
             assert intercept_scale, "Line search (IRLS_AR_TR) is only available" \
                 "for scale models with a single coefficient (intercept scale)."
@@ -41,7 +39,7 @@ class IRLS_LS(IRLS):
         ), axis=0)
         return pred_cost_gain
 
-    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False, maxiter=20):
+    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False, maxiter=1):
 
         assert compute_a ^ compute_b, \
             "IRLS_LS computes either loc or scale model updates, not both nor none at the same time."
@@ -50,22 +48,24 @@ class IRLS_LS(IRLS):
             super(IRLS_LS, self).perform_parameter_update(
                 inputs, compute_a, compute_b, batch_features, is_batched)
         else:
-            self.model.model_vars.update_b = np.zeros(self.model.model_vars.n_features, dtype=np.bool)
             # global_step = tf.zeros_like(self.model.model_vars.remaining_features)
             results = inputs[1:4]
             x_batches = inputs[0]
             iteration = 0
-            not_converged = np.zeros(self.model.model_vars.remaining_features, dtype=np.bool)
+            not_converged = np.zeros_like(self.model.model_vars.remaining_features)
+            updated_b = np.zeros_like(self.model.model_vars.updated_b)
             while True:
                 iteration += 1
                 step = self.update_b_func([x_batches, *results], batch_features, is_batched)
-                not_converged = step.numpy() > pkg_constants.XTOL_BY_FEATURE_SCALE
-                if tf.reduce_any(not_converged) or iteration == maxiter:
+                not_converged = tf.abs(step).numpy() > pkg_constants.XTOL_BY_FEATURE_SCALE
+                updated_b |= self.model.model_vars.updated_b
+                if not tf.reduce_any(not_converged) or iteration == maxiter:
                     break
                 for i, x_batch in enumerate(inputs[0]):
-                    results = self.model.calc_jacobians(x_batch, compute_a=False) if i == 0 else \
+                    results = self.model.calc_jacobians(x_batch, concat=False, compute_a=False) if i == 0 else \
                         [tf.math.add(results[i], x) for
-                         i, x in enumerate(self.calc_jacobians(x_batch, compute_a=False))]
+                         i, x in enumerate(self.calc_jacobians(x_batch, concat=False, compute_a=False))]
+            self.model.model_vars.updated_b = updated_b
 
     def gett1t2(self):
         t1 = tf.constant(pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE, dtype=self._dtype)
@@ -138,7 +138,7 @@ class IRLS_LS(IRLS):
                 is_batched=is_batched
             )
 
-            return tf.where(update_theta, tr_update_b, tf.zeros_like(tr_update_b))
+            return tf.where(update_theta, tr_proposed_vector_b, tf.zeros_like(tr_proposed_vector_b))
 
     def update_b_ar(self, inputs, batch_features, is_batched, alpha0=None):
 
@@ -152,7 +152,7 @@ class IRLS_LS(IRLS):
         if alpha0 is None:
             alpha0 = tf.ones_like(jac_b) * pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE # self.tr_radius_b
         original_params_b_copy = self.model.params_copy[-1]
-        print(direction[0].numpy(), jac_b[0].numpy())
+        #print(direction[0].numpy(), jac_b[0].numpy())
         def phi(alpha):
             multiplier = tf.multiply(alpha, direction)
             new_scale_params = tf.add(original_params_b_copy, multiplier)
