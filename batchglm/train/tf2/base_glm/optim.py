@@ -124,7 +124,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             increase_radius = tf.scatter_nd(indices, update_theta, shape=(n_features,))
 
         if compute_b and not compute_a:
-            self.model.model_vars.updated_b |= increase_radius.numpy()  # needs to be |= if maxiter > 1
+            self.model.model_vars.updated_b = increase_radius.numpy()
         else:
             self.model.model_vars.updated = increase_radius.numpy()
 
