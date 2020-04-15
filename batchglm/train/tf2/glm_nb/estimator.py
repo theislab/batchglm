@@ -97,7 +97,9 @@ class Estimator(GLMEstimator, ProcessModel):
             stopping_criteria: int = 1000,
             autograd: bool = False,
             featurewise: bool = True,
-            benchmark: bool = False
+            benchmark: bool = False,
+            maxiter: int = 1,
+            b_update_freq = 5
     ):
         if self.model is None:
             self.model = NBGLM(
@@ -116,8 +118,7 @@ class Estimator(GLMEstimator, ProcessModel):
         self.optimizer = optimizer_object
         if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr']:
             self.update = self.update_separated
-            self.b_update_freq = 0
-            self.epochs_until_b_update = self.b_update_freq
+            self.maxiter = maxiter
 
         super(Estimator, self)._train(
             noise_model="nb",
@@ -129,7 +130,8 @@ class Estimator(GLMEstimator, ProcessModel):
             autograd=autograd,
             featurewise=featurewise,
             benchmark=benchmark,
-            optim_algo=optim_algo
+            optim_algo=optim_algo,
+            b_update_freq = b_update_freq
         )
 
     def get_optimizer_object(self, optimizer, learning_rate, intercept_scale):
@@ -144,27 +146,27 @@ class Estimator(GLMEstimator, ProcessModel):
                 intercept_scale=intercept_scale)
         return super().get_optimizer_object(optimizer, learning_rate)
 
-    def update_separated(self, results, batches, batch_features):
+    def update_separated(self, results, batches, batch_features, compute_b):
 
-        if self.epochs_until_b_update == 0:
-            self.model.model_vars.updated_b = False
+        self.optimizer.perform_parameter_update(
+            inputs=[batches, *results],
+            compute_a=True,
+            compute_b=False,
+            batch_features=batch_features,
+            is_batched=False
+        )
+        if compute_b:
             self.optimizer.perform_parameter_update(
                 inputs=[batches, *results],
                 compute_a=False,
                 compute_b=True,
                 batch_features=batch_features,
-                is_batched=False
+                is_batched=False,
+                maxiter=self.maxiter
             )
-            self.epochs_until_b_update = self.b_update_freq
         else:
-            self.epochs_until_b_update -= 1
-            self.optimizer.perform_parameter_update(
-                inputs=[batches, *results],
-                compute_a=True,
-                compute_b=False,
-                batch_features=batch_features,
-                is_batched=False
-            )
+            self.model.model_vars.updated_b = np.zeros_like(self.model.model_vars.updated_b)
+
 
     def get_model_container(
             self,
