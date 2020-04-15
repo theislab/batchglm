@@ -115,9 +115,10 @@ class GLM(ModelBase, ProcessModelGLM):
         log_probs = tf.reduce_sum(log_probs, axis=0)
         return (log_probs, *parameters[2:])
 
-    def calc_jacobians(self, inputs, compute_a, compute_b):
-
-        return self._calc_jacobians(inputs, compute_a=compute_a, compute_b=compute_b)[-2:]
+    def calc_jacobians(self, inputs, compute_a=True, compute_b=None, concat=True):
+        if compute_b is None:
+            compute_b = self.compute_b
+        return self._calc_jacobians(inputs, compute_a=compute_a, compute_b=compute_b, concat=concat)[2:]
 
     def _calc_jacobians(self, inputs, compute_a, compute_b, concat=True, transpose=True):
         """
@@ -173,7 +174,7 @@ class GLM(ModelBase, ProcessModelGLM):
                 if transpose:
                     jacobians = tf.transpose(jacobians)
             else:
-                jac_a, jac_b = self.jacobian([*inputs[0:3], loc, scale, compute_a, compute_b])
+                jac_a, jac_b = self.jacobian([*inputs[0:3], loc, scale, False, compute_a, compute_b])
 
         del g
         if concat:
