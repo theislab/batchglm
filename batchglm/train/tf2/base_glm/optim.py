@@ -33,11 +33,6 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
         self.add_slot(var_list[0], 'mu_r')
 
-    def gett1t2(self):
-        t1 = tf.constant(pkg_constants.TRUST_REGION_T1, dtype=self._dtype)
-        t2 = tf.constant(pkg_constants.TRUST_REGION_T2, dtype=self._dtype)
-        return t1, t2
-
     def _trust_region_ops(
             self,
             x_batches,
@@ -47,7 +42,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             compute_a,
             compute_b,
             batch_features,
-            is_batched
+            is_batched,
     ):
         # Load hyper-parameters:
         # assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
@@ -59,8 +54,14 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         # Set trust region hyper-parameters
         eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=self._dtype)
         # eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=self._dtype)
-        t1, t2 = self.gett1t2()
-
+        if compute_b and not compute_a:
+            t1 = pkg_constants.TRUST_REGION_T1
+            t2 = pkg_constants.TRUST_REGION_T2
+        else:
+            t1 = pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE
+            t2 = pkg_constants.TRUST_REGIONT_T2_IRLS_GD_TR_SCALE
+        t1 = tf.constant(t1, dtype=self._dtype)
+        t2 = tf.constant(t2, dtype=self._dtype)
         upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=self._dtype)
 
         # Phase I: Perform a trial update.
@@ -88,6 +89,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         """
         original_params_copy = tf.identity(self.model.params_copy)
         self.model.params_copy.assign_sub(proposed_vector)
+
         for i, x_batch in enumerate(x_batches):
             log_likelihood = self.model.calc_ll([*x_batch])[0]
             if i == 0:
@@ -111,7 +113,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         # Compute parameter updates.g
         update_theta = delta_f_actual > eta0
         self.model.params_copy.assign(tf.where(update_theta, self.model.params_copy, original_params_copy))
-
+        update_theta |= tf.sqrt(tf.reduce_sum(tf.square(proposed_vector), axis=0)) < pkg_constants.TRTOL_BY_FEATURE_LOC
         #update_theta_numeric = tf.expand_dims(tf.cast(update_theta, self._dtype), axis=0)
         #keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
 
@@ -127,6 +129,7 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
             self.model.model_vars.updated_b = increase_radius.numpy()
         else:
             self.model.model_vars.updated = increase_radius.numpy()
+
 
         # Update trusted region accordingly:
 
