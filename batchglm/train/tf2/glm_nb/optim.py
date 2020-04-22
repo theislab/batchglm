@@ -64,7 +64,7 @@ class IRLS_LS(IRLS):
                 for i, x_batch in enumerate(inputs[0]):
                     results = self.model.calc_jacobians(x_batch, concat=False, compute_a=False) if i == 0 else \
                         [tf.math.add(results[i], x) for
-                         i, x in enumerate(self.calc_jacobians(x_batch, concat=False, compute_a=False))]
+                         i, x in enumerate(self.model.calc_jacobians(x_batch, concat=False, compute_a=False))]
             self.model.model_vars.updated_b = updated_b
 
     def gett1t2(self):
