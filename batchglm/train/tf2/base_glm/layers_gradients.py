@@ -7,9 +7,8 @@ class Gradient(tf.keras.layers.Layer):
     """Superclass for Jacobians, Hessian, FIM"""
 
     def __init__(self, model_vars, dtype):
-        super(Gradient, self).__init__()
+        super(Gradient, self).__init__(dtype=dtype)
         self.model_vars = model_vars
-        self.grad_dtype = dtype
 
     @abc.abstractmethod
     def call(self, inputs, **kwargs):
@@ -91,13 +90,13 @@ class FIMGLM(Gradient):
 
         elif compute_a and not compute_b:
             fim_a = _a_byobs()
-            fim_b = tf.zeros(fim_a.get_shape(), self.grad_dtype)
+            fim_b = tf.zeros(fim_a.get_shape(), self.dtype)
         elif not compute_a and compute_b:
-            fim_a = tf.zeros(fim_a.get_shape(), self.grad_dtype)
+            fim_a = tf.zeros(fim_a.get_shape(), self.dtype)
             fim_b = _b_byobs()
         else:
-            fim_a = tf.zeros_like(self.model_vars.a_var, dtype=self.grad_dtype)
-            fim_b = tf.zeros_like(self.model_vars.b_var, dtype=self.grad_dtype)
+            fim_a = tf.zeros_like(self.model_vars.a_var, dtype=self.dtype)
+            fim_b = tf.zeros_like(self.model_vars.b_var, dtype=self.dtype)
 
         if concat:
             fim = tf.concat([fim_a, fim_b], axis=1)
@@ -199,13 +198,13 @@ class JacobianGLM(Gradient):
             j_b = _b_byobs()
         elif compute_a and not compute_b:
             j_a = _a_byobs()
-            j_b = tf.zeros((j_a.get_shape()[0], self.model_vars.b_var.get_shape()[0]), dtype=self.grad_dtype)
+            j_b = tf.zeros((j_a.get_shape()[0], self.model_vars.b_var.get_shape()[0]), dtype=self.dtype)
         elif not compute_a and compute_b:
             j_b = _b_byobs()
-            j_a = tf.zeros((j_b.get_shape()[0], self.model_vars.b_var.get_shape()[0]), dtype=self.grad_dtype)
+            j_a = tf.zeros((j_b.get_shape()[0], self.model_vars.b_var.get_shape()[0]), dtype=self.dtype)
         else:
-            j_a = tf.transpose(tf.zeros_like(self.model_vars.a_var, dtype=self.grad_dtype))
-            j_b = tf.transpose(tf.zeros_like(self.model_vars.b_var, dtype=self.grad_dtype))
+            j_a = tf.transpose(tf.zeros_like(self.model_vars.a_var, dtype=self.dtype))
+            j_b = tf.transpose(tf.zeros_like(self.model_vars.b_var, dtype=self.dtype))
 
         if concat:
             j = tf.concat([j_a, j_b], axis=1)
@@ -347,19 +346,19 @@ class HessianGLM(Gradient):
             h_ba = tf.transpose(h_ab, perm=[0, 2, 1])
         elif compute_a and not compute_b:
             h_aa = _aa_byobs_batched()
-            h_bb = tf.zeros_like(h_aa, dtype=self.grad_dtype)
-            h_ab = tf.zeros_like(h_aa, dtype=self.grad_dtype)
-            h_ba = tf.zeros_like(h_aa, dtype=self.grad_dtype)
+            h_bb = tf.zeros_like(h_aa, dtype=self.dtype)
+            h_ab = tf.zeros_like(h_aa, dtype=self.dtype)
+            h_ba = tf.zeros_like(h_aa, dtype=self.dtype)
         elif not compute_a and compute_b:
             h_bb = _bb_byobs_batched()
-            h_aa = tf.zeros_like(h_bb, dtype=self.grad_dtype)
-            h_ab = tf.zeros_like(h_bb, dtype=self.grad_dtype)
-            h_ba = tf.zeros_like(h_bb, dtype=self.grad_dtype)
+            h_aa = tf.zeros_like(h_bb, dtype=self.dtype)
+            h_ab = tf.zeros_like(h_bb, dtype=self.dtype)
+            h_ba = tf.zeros_like(h_bb, dtype=self.dtype)
         else:
-            h_aa = tf.zeros((), dtype=self.grad_dtype)
-            h_bb = tf.zeros((), dtype=self.grad_dtype)
-            h_ab = tf.zeros((), dtype=self.grad_dtype)
-            h_ba = tf.zeros((), dtype=self.grad_dtype)
+            h_aa = tf.zeros((), dtype=self.dtype)
+            h_bb = tf.zeros((), dtype=self.dtype)
+            h_ab = tf.zeros((), dtype=self.dtype)
+            h_ba = tf.zeros((), dtype=self.dtype)
 
         if concat:
             h = tf.concat(
