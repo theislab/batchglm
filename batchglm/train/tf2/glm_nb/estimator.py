@@ -27,7 +27,7 @@ class Estimator(GLMEstimator, ProcessModel):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
-            dtype="float64",
+            dtype="float32",
     ):
         """
         Performs initialisation and creates a new estimator.
@@ -116,7 +116,7 @@ class Estimator(GLMEstimator, ProcessModel):
         intercept_scale = len(self.model.model_vars.idx_train_scale) == 1
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate, intercept_scale)
         self.optimizer = optimizer_object
-        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr']:
+        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr', 'irls_tr_gd_tr']:
             self.update = self.update_separated
             self.maxiter = maxiter
 
@@ -131,12 +131,12 @@ class Estimator(GLMEstimator, ProcessModel):
             featurewise=featurewise,
             benchmark=benchmark,
             optim_algo=optim_algo,
-            b_update_freq = b_update_freq
+            b_update_freq=b_update_freq
         )
 
     def get_optimizer_object(self, optimizer, learning_rate, intercept_scale):
         optim = optimizer.lower()
-        if optim in ['irls_gd_tr', 'irls_gd', 'irls_ar_tr']:
+        if optim in ['irls_gd_tr', 'irls_gd', 'irls_ar_tr', 'irls_tr_gd_tr']:
             return IRLS_LS(
                 dtype=self.dtype,
                 tr_mode=optim.endswith('tr'),

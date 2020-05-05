@@ -6,14 +6,13 @@ class IRLS_LS(IRLS):
 
     def __init__(self, dtype, tr_mode, model, name, n_obs, intercept_scale):
 
-        super(IRLS_LS, self).__init__(
-            dtype=dtype,
-            trusted_region_mode=tr_mode,
-            model=model,
-            name=name,
-            n_obs=n_obs)
-
-        if name.startswith('irls_gd'):
+        parent_tr_mode = False
+        self.tr_mode_b = False
+        if name.startswith('irls_tr'):
+            parent_tr_mode = True  # for loc model
+            if name.startswith('irls_tr_gd'):
+                self.update_b_func = self.update_b_gd
+        elif name.startswith('irls_gd'):
             self.update_b_func = self.update_b_gd
         elif name in ['irls_ar_tr', 'irls_ar']:
             assert intercept_scale, "Line search (IRLS_AR_TR) is only available" \
@@ -21,12 +20,19 @@ class IRLS_LS(IRLS):
             self.update_b_func = self.update_b_ar
         else:
             assert False, "Unrecognized method for optimization given."
+        super(IRLS_LS, self).__init__(
+            dtype=dtype,
+            tr_mode=parent_tr_mode,
+            model=model,
+            name=name,
+            n_obs=n_obs)
 
         if tr_mode:
             n_features = self.model.model_vars.n_features
             self.tr_radius_b = tf.Variable(
                 np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE,
                 dtype=self._dtype, trainable=False)
+            self.tr_mode_b = True
 
     def _trust_region_linear_cost_gain(
             self,
@@ -39,8 +45,15 @@ class IRLS_LS(IRLS):
         ), axis=0)
         return pred_cost_gain
 
-    def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False, maxiter=1):
-
+    def perform_parameter_update(
+        self,
+        inputs,
+        compute_a=True,
+        compute_b=True,
+        batch_features=False,
+        is_batched=False,
+        maxiter=1
+    ):
         assert compute_a ^ compute_b, \
             "IRLS_LS computes either loc or scale model updates, not both nor none at the same time."
 
@@ -97,15 +110,24 @@ class IRLS_LS(IRLS):
         x_batches, log_probs, _, jac_b = inputs
 
         update_b = tf.transpose(jac_b)
-        if not self.trusted_region_mode:
+        if not self.tr_mode_b:
             update = self._pad_updates(
                 update_raw=update_b,
                 compute_a=False,
                 compute_b=True
             )
+
+            update_theta = self._trial_update(
+                x_batches=x_batches,
+                log_probs=log_probs,
+                proposed_vector=update,
+                is_batched=is_batched,
+                compute_a=False,
+                compute_b=True
+            )
             self.model.params_copy.assign_sub(update)
 
-            return update
+            return tf.where(update_theta, update, tf.zeros_like(update))
 
         else:
             if batch_features:
@@ -127,16 +149,21 @@ class IRLS_LS(IRLS):
             )
 
             # perform update
-            update_theta = self._trust_region_ops(
+            update_theta = self._trial_update(
                 x_batches=x_batches,
                 log_probs=log_probs,
                 proposed_vector=tr_update_b,
-                proposed_gain=None,  # TODO remove completely, not needed any longer
+                is_batched=is_batched,
+                compute_a=False,
+                compute_b=True)
+            self._trust_region_ops(
+                proposed_vector=tr_update_b,
                 compute_a=False,
                 compute_b=True,
                 batch_features=batch_features,
-                is_batched=is_batched
-            )
+                update_theta=update_theta)
+
+            #print(self.tr_radius_b[self.model.model_vars.remaining_features])
 
             return tf.where(update_theta, tr_proposed_vector_b, tf.zeros_like(tr_proposed_vector_b))
 
