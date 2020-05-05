@@ -82,7 +82,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # set necessary attributes
         self.noise_model = noise_model
         optim = optim_algo.lower()
-        self.irls_algo = optim in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar_tr']
+        self.irls_algo = optim in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar_tr', 'irls_tr_gd_tr']
         self.nr_algo = optim in ['nr', 'nr_tr']
 
         ################################################
@@ -231,6 +231,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             train_step += 1
             epochs_until_b_update = (epochs_until_b_update + b_update_freq - 1) % b_update_freq
+            #print(np.where(self.model.model_vars.remaining_features)[0])
+            if np.all(self.model.model_vars.converged):
+                epochs_until_b_update = 0
             # store some useful stuff for benchmarking purposes.
             if benchmark:
                 t1_epoch = time.time()
@@ -348,7 +351,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 "dtype": self.dtype,
                 "model": self.model,
                 "name": optimizer,
-                "trusted_region_mode": tr_mode,
+                "tr_mode": tr_mode,
                 "n_obs": self.input_data.num_observations
             }
             if optimizer.startswith('irls'):
