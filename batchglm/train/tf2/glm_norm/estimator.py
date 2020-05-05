@@ -6,7 +6,7 @@ from typing import Union
 from .external import closedform_norm_glm_logsd
 from .external import InputDataGLM, Model
 from .external import Estimator as GLMEstimator
-from .model import NormGLM, LossGLMNorm
+from .model import NormGLM
 from .processModel import ProcessModel
 from .vars import ModelVars
 from .training_strategies import TrainingStrategies
@@ -22,7 +22,6 @@ class Estimator(GLMEstimator, ProcessModel):
     """
 
     model: NormGLM
-    loss: LossGLMNorm
 
     def __init__(
             self,
@@ -30,7 +29,7 @@ class Estimator(GLMEstimator, ProcessModel):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
-            dtype="float64",
+            dtype="float32",
     ):
         """
         Performs initialisation and creates a new estimator.
@@ -114,8 +113,6 @@ class Estimator(GLMEstimator, ProcessModel):
             )
         else:
             self.model.setMethod(optim_algo)
-
-        self._loss = LossGLMNorm()
 
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
 
