@@ -124,16 +124,16 @@ class ConvergenceCalculator:
 
         # In case we use irls_tr/irls_gd_tr or nr_tr, we can also utilize the trusted region radius.
         # For now it must not be below the threshold for the X step of the loc model.
-        if hasattr(optimizer_object, 'trusted_region_mode') \
-                and optimizer_object.trusted_region_mode:
+        if hasattr(optimizer_object, 'tr_mode') and optimizer_object.tr_mode:
             converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
-            if hasattr(optimizer_object, 'tr_radius_b') and self.estimator._train_scale:
-                converged_tr_b = \
-                    optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
-                epoch_tr_converged_b = not_converged_b & converged_tr_b
-                epoch_step_converged_b |= epoch_tr_converged_b
+            print(converged_tr[self.estimator.model.model_vars.remaining_features])
             epoch_tr_converged = not_converged_a & converged_tr
             epoch_step_converged_a |= epoch_tr_converged
+        if hasattr(optimizer_object, 'tr_mode_b') and optimizer_object.tr_mode_b and self.estimator._train_scale:
+            converged_tr_b = optimizer_object.tr_radius_b.numpy() < pkg_constants.TRTOL_BY_FEATURE_SCALE
+            epoch_tr_converged_b = not_converged_b & converged_tr_b
+            epoch_step_converged_b |= epoch_tr_converged_b
+
         # print('tr: ', epoch_tr_converged[0], epoch_tr_converged_b[0])
         # print(self.estimator.model.model_vars.converged[0], self.estimator.model.model_vars.updated[0])
         # print(self.estimator.model.model_vars.converged_b[0], self.estimator.model.model_vars.updated_b[0])
