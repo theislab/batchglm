@@ -1,13 +1,9 @@
-from .external import pkg_constants
-from .model import ModelBase, LossBase
-
-import numpy as np
+from .model import ModelBase
 import tensorflow as tf
 
 
 class TFEstimator:
     model: ModelBase
-    loss: LossBase
 
     def __init__(self, input_data, dtype):
 
