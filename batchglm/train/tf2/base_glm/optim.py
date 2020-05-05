@@ -35,37 +35,75 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
 
     def _trust_region_ops(
             self,
-            x_batches,
-            log_probs,
             proposed_vector,
-            proposed_gain,
             compute_a,
             compute_b,
             batch_features,
-            is_batched,
+            update_theta,
     ):
-        # Load hyper-parameters:
-        # assert pkg_constants.TRUST_REGION_ETA0 < pkg_constants.TRUST_REGION_ETA1, \
-        #    "eta0 must be smaller than eta1"
-        # assert pkg_constants.TRUST_REGION_ETA1 <= pkg_constants.TRUST_REGION_ETA2, \
-        #    "eta1 must be smaller than or equal to eta2"
-        # assert pkg_constants.TRUST_REGION_T1 <= 1, "t1 must be smaller than 1"
-        # assert pkg_constants.TRUST_REGION_T2 >= 1, "t1 must be larger than 1"
-        # Set trust region hyper-parameters
-        eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=self._dtype)
-        # eta2 = tf.constant(pkg_constants.TRUST_REGION_ETA2, dtype=self._dtype)
         if compute_b and not compute_a:
-            t1 = pkg_constants.TRUST_REGION_T1
-            t2 = pkg_constants.TRUST_REGION_T2
-        else:
             t1 = pkg_constants.TRUST_REGIONT_T1_IRLS_GD_TR_SCALE
             t2 = pkg_constants.TRUST_REGIONT_T2_IRLS_GD_TR_SCALE
+        else:
+            t1 = pkg_constants.TRUST_REGION_T1
+            t2 = pkg_constants.TRUST_REGION_T2
         t1 = tf.constant(t1, dtype=self._dtype)
         t2 = tf.constant(t2, dtype=self._dtype)
         upper_bound = tf.constant(pkg_constants.TRUST_REGION_UPPER_BOUND, dtype=self._dtype)
 
         # Phase I: Perform a trial update.
         # Propose parameter update:
+
+        coeffs = self.model.model_vars.idx_train_loc if compute_b and not compute_a else self.model.model_vars.idx_train_scale
+        if compute_b:
+            idx_stop = self.model.model_vars.idx_train_scale[-1] + 1
+            if compute_a:
+                idx_start = 0
+            else:
+                idx_start = self.model.model_vars.idx_train_loc[-1] + 1
+        else:
+            idx_start = 0
+            idx_stop = self.model.model_vars.idx_train_loc[-1] + 1
+        update_vector_length = tf.sqrt(tf.reduce_sum(tf.square(proposed_vector[idx_start:idx_stop]), axis=0))
+        update_theta_full = update_theta
+        if batch_features:
+            n_features = self.model.model_vars.n_features
+            indices = tf.where(self.model.model_vars.remaining_features)
+            update_theta_full = tf.scatter_nd(indices, update_theta, shape=(n_features,))
+            update_vector_length = tf.scatter_nd(indices, update_vector_length, shape=(n_features,))
+
+        tr_radius = self.tr_radius_b if compute_b and not compute_a else self.tr_radius
+
+        increase_radius = update_theta_full
+        decrease_radius = tf.logical_not(update_theta_full)
+
+        if compute_a:
+            increase_radius = tf.logical_and(increase_radius, update_vector_length > 0.9 * tr_radius)
+            decrease_radius = tf.logical_or(decrease_radius, update_vector_length < 0.5 * tr_radius)
+
+        if compute_b and not compute_a:
+            self.model.model_vars.updated_b = update_theta_full.numpy()
+        else:
+            self.model.model_vars.updated = update_theta_full.numpy()
+
+        # Update trusted region accordingly:
+
+        keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
+                                     tf.logical_not(increase_radius))
+        radius_update = tf.add_n([
+            tf.multiply(t1, tf.cast(decrease_radius, self._dtype)),
+            tf.multiply(t2, tf.cast(increase_radius, self._dtype)),
+            tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, self._dtype))
+        ])
+
+        radius_new = tf.minimum(tf.multiply(tr_radius, radius_update), upper_bound)
+        tr_radius.assign(radius_new)
+
+        return update_theta
+
+    def _trial_update(self, x_batches, log_probs, proposed_vector, is_batched, compute_a, compute_b):
+
+        eta0 = tf.constant(pkg_constants.TRUST_REGION_ETA0, dtype=self._dtype)
         """
         Current likelihood refers to the likelihood that has been calculated in the last model call.
         We are always evaluating on the full model, so if we train on the batched model (is_batched),
@@ -113,61 +151,27 @@ class SecondOrderOptim(OptimizerBase, metaclass=abc.ABCMeta):
         # Compute parameter updates.g
         update_theta = delta_f_actual > eta0
         self.model.params_copy.assign(tf.where(update_theta, self.model.params_copy, original_params_copy))
-        update_theta |= tf.sqrt(tf.reduce_sum(tf.square(proposed_vector), axis=0)) < pkg_constants.TRTOL_BY_FEATURE_LOC
-        #update_theta_numeric = tf.expand_dims(tf.cast(update_theta, self._dtype), axis=0)
-        #keep_theta_numeric = tf.ones_like(update_theta_numeric) - update_theta_numeric
-
-        decrease_radius = tf.math.logical_not(update_theta)
-        increase_radius = update_theta
-        if batch_features:
-            n_features = self.model.model_vars.n_features
-            indices = tf.where(self.model.model_vars.remaining_features)
-            decrease_radius = tf.scatter_nd(indices, decrease_radius, shape=(n_features,))
-            increase_radius = tf.scatter_nd(indices, update_theta, shape=(n_features,))
-
-        if compute_b and not compute_a:
-            self.model.model_vars.updated_b = increase_radius.numpy()
-        else:
-            self.model.model_vars.updated = increase_radius.numpy()
-
-
-        # Update trusted region accordingly:
-
-        keep_radius = tf.logical_and(tf.logical_not(decrease_radius),
-                                     tf.logical_not(increase_radius))
-        radius_update = tf.add_n([
-            tf.multiply(t1, tf.cast(decrease_radius, self._dtype)),
-            tf.multiply(t2, tf.cast(increase_radius, self._dtype)),
-            tf.multiply(tf.ones_like(t1), tf.cast(keep_radius, self._dtype))
-        ])
-
-        if compute_b and not compute_a:
-            tr_radius = self.tr_radius_b
-        else:
-            tr_radius = self.tr_radius
-
-        radius_new = tf.minimum(tf.multiply(tr_radius, radius_update), upper_bound)
-        tr_radius.assign(radius_new)
 
         return update_theta
 
-    def __init__(self, dtype: tf.dtypes.DType, trusted_region_mode: bool, model: tf.keras.Model, name: str, n_obs: int):
+    def __init__(self, dtype: tf.dtypes.DType, tr_mode: bool, model: tf.keras.Model, name: str, n_obs: int):
 
         super(SecondOrderOptim, self).__init__(name)
 
         self.model = model
         self._dtype = dtype
         self.n_obs = tf.cast(n_obs, dtype=self._dtype)
-        self.trusted_region_mode = trusted_region_mode
+        self.tr_mode = tr_mode
 
-        if trusted_region_mode:
-            n_features = self.model.model_vars.n_features
+        n_features = self.model.model_vars.n_features
+        if tr_mode:
             self.tr_radius = tf.Variable(
                 np.zeros(shape=[n_features]) + pkg_constants.TRUST_REGION_RADIUS_INIT,
                 dtype=self._dtype, trainable=False)
 
         else:
             self.tr_radius = tf.Variable(np.array([np.inf]), dtype=self._dtype, trainable=False)
+            self.model.model_vars.updated = np.repeat(a=True, repeats=n_features)
 
     @abc.abstractmethod
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
@@ -286,17 +290,18 @@ class NR(SecondOrderOptim):
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         x_batches, log_probs, jacobians, hessians = inputs
+        tr_mode = self.tr_mode
         if compute_b:
             if not compute_a:
                 self.model.model_vars.updated_b = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to is updated.
+                tr_mode = self.tr_mode_b
 
         assert (compute_a or compute_b), "Nothing can be trained. Please make sure" \
             "at least one of train_mu and train_r is set to True."
 
         update_raw, update = self._get_updates(hessians, jacobians, compute_a, compute_b)
 
-        if self.trusted_region_mode:
-
+        if tr_mode:
             if batch_features:
                 radius_container = tf.boolean_mask(
                     tensor=self.tr_radius,
@@ -307,31 +312,43 @@ class NR(SecondOrderOptim):
                 update_raw=update_raw,
                 radius_container=radius_container
             )
-            tr_pred_cost_gain = self._trust_region_newton_cost_gain(
+            #tr_pred_cost_gain = self._trust_region_newton_cost_gain(
+            #    proposed_vector=tr_proposed_vector,
+            #    neg_jac=jacobians,
+            #    hessian_fim=hessians
+            #)
+
+            #tr_proposed_vector_pad = self._pad_updates(
+            #    update_raw=tr_proposed_vector,
+            #    compute_a=compute_a,
+            #    compute_b=compute_b
+            #)
+            update_theta = self._trial_update(
+                x_batches=x_batches,
+                log_probs=log_probs,
                 proposed_vector=tr_proposed_vector,
-                neg_jac=jacobians,
-                hessian_fim=hessians
+                is_batched=is_batched,
+                compute_a=compute_a,
+                compute_b=compute_b)
+            self._trust_region_ops(
+                proposed_vector=tr_proposed_vector,
+                compute_a=compute_a,
+                compute_b=compute_b,
+                batch_features=batch_features,
+                update_theta=update_theta
             )
 
-            tr_proposed_vector_pad = self._pad_updates(
-                update_raw=tr_proposed_vector,
+        else:
+            update_theta = self._trial_update(
+                x_batches=x_batches,
+                log_probs=log_probs,
+                proposed_vector=update,
+                is_batched=is_batched,
                 compute_a=compute_a,
                 compute_b=compute_b
             )
 
-            self._trust_region_ops(
-                x_batches=x_batches,
-                log_probs=log_probs,
-                proposed_vector=tr_proposed_vector_pad,
-                proposed_gain=tr_pred_cost_gain,
-                compute_a=compute_a,
-                compute_b=compute_b,
-                batch_features=batch_features,
-                is_batched=is_batched
-            )
-
-        else:
-            self.model.params_copy.assign_sub(update)
+            #self.model.params_copy.assign_sub(update)
 
 
 class IRLS(SecondOrderOptim):
@@ -364,21 +381,23 @@ class IRLS(SecondOrderOptim):
             radius_container=radius_container
         )
 
-        pred_cost_gain_x = self._trust_region_newton_cost_gain(
-            proposed_vector=proposed_vector_x,
-            neg_jac=neg_jac_x,
-            hessian_fim=fim_x
-        )
+        #pred_cost_gain_x = self._trust_region_newton_cost_gain(
+        #    proposed_vector=proposed_vector_x,
+        #    neg_jac=neg_jac_x,
+        #    hessian_fim=fim_x
+        #)
 
-        return proposed_vector_x, pred_cost_gain_x
+        return proposed_vector_x, None#pred_cost_gain_x
 
 
     def perform_parameter_update(self, inputs, compute_a=True, compute_b=True, batch_features=False, is_batched=False):
 
         x_batches, log_probs, jac_a, jac_b, fim_a, fim_b = inputs
+        tr_mode = self.tr_mode
         if compute_b:
             if not compute_a:
                 self.model.model_vars.updated_b = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to is updated.
+                tr_mode = self.tr_mode_b
 
         assert (compute_a or compute_b), "Nothing can be trained. Please make sure" \
             "at least one of train_mu and train_r is set to True."
@@ -401,7 +420,7 @@ class IRLS(SecondOrderOptim):
                 rhs=jac_b
             )
 
-        if not self.trusted_region_mode:
+        if not tr_mode:
             if compute_a:
                 if compute_b:
                     update_raw = tf.concat([update_a, update_b], axis=0)
@@ -416,18 +435,16 @@ class IRLS(SecondOrderOptim):
                 compute_b=compute_b
             )
 
-            if batch_features:
-                indices = tf.where(self.model.model_vars.remaining_features)
-                update_var = tf.transpose(
-                    tf.scatter_nd(
-                        indices,
-                        tf.transpose(update),
-                        shape=(self.model.model_vars.n_features, update.get_shape()[0])
-                    )
-                )
-            else:
-                update_var = update
-            self.model.params_copy.assign_sub(update_var)
+            update_theta = self._trial_update(
+                x_batches=x_batches,
+                log_probs=log_probs,
+                proposed_vector=update,
+                is_batched=is_batched,
+                compute_a=compute_a,
+                compute_b=compute_b
+            )
+            #print(update_theta)
+            #self.model.params_copy.assign_sub(update_var)
 
         else:
             # put together update_raw based on proposed vector and cost gain depending on train_r and train_mu
@@ -446,12 +463,12 @@ class IRLS(SecondOrderOptim):
                         update_a, radius_container, jac_a, fim_a)
 
                     tr_update_raw = tf.concat([tr_proposed_vector_a, tr_proposed_vector_b], axis=0)
-                    tr_pred_cost_gain = tf.add(tr_pred_cost_gain_a, tr_pred_cost_gain_b)
+                    #tr_pred_cost_gain = tf.add(tr_pred_cost_gain_a, tr_pred_cost_gain_b)
                 else:
                     # directly apply output of calc_proposed_vector_and_pred_cost_gain to tr_update_raw
                     # and tr_pred_cost_gain
                     tr_update_raw = tr_proposed_vector_b
-                    tr_pred_cost_gain = tr_pred_cost_gain_b
+                    #tr_pred_cost_gain = tr_pred_cost_gain_b
             else:
                 # here train_r is False AND train_mu is true, so the output of the function can directly be applied to
                 # tr_update_raw and tr_pred_cost_gain, similar to train_r = True and train_mu = False
@@ -463,18 +480,22 @@ class IRLS(SecondOrderOptim):
                 compute_a=compute_a,
                 compute_b=compute_b
             )
-
             # perform update
-            self._trust_region_ops(
+            update_theta = self._trial_update(
                 x_batches=x_batches,
                 log_probs=log_probs,
                 proposed_vector=tr_update,
-                proposed_gain=tr_pred_cost_gain,
+                is_batched=is_batched,
+                compute_a=compute_a,
+                compute_b=compute_b)
+            self._trust_region_ops(
+                proposed_vector=tr_update,
                 compute_a=compute_a,
                 compute_b=compute_b,
                 batch_features=batch_features,
-                is_batched=is_batched
+                update_theta=update_theta
             )
+            print(self.tr_radius[self.model.model_vars.remaining_features])
 
     def calc_delta_f_actual(self, current_likelihood, new_likelihood, jacobian):
         eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)
