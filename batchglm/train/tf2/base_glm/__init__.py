@@ -1,5 +1,5 @@
 from .processModel import ProcessModelGLM
-from .model import GLM, LossGLM
+from .model import GLM
 
 from .estimator import Estimator
 from .vars import ModelVarsGLM
