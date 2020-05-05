@@ -6,7 +6,7 @@ import numpy as np
 from .external import closedform_beta_glm_logitmean, closedform_beta_glm_logsamplesize
 from .external import InputDataGLM, Model
 from .external import Estimator as GLMEstimator
-from .model import BetaGLM, LossGLMBeta
+from .model import BetaGLM
 from .processModel import ProcessModel
 from .vars import ModelVars
 from .training_strategies import TrainingStrategies
@@ -26,7 +26,7 @@ class Estimator(GLMEstimator, ProcessModel):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
-            dtype="float64",
+            dtype="float32",
     ):
         """
         Performs initialisation and creates a new estimator.
@@ -111,8 +111,6 @@ class Estimator(GLMEstimator, ProcessModel):
             )
         else:
             self.model.setMethod(optim_algo)
-
-        self._loss = LossGLMBeta()
 
         optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
 
