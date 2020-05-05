@@ -29,8 +29,8 @@ XTOL_BY_FEATURE_SCALE = 1e-6
 GTOL_BY_FEATURE_LOC = 1e-8
 GTOL_BY_FEATURE_SCALE = 1e-8
 
-TRTOL_BY_FEATURE_LOC = 1e-12
-TRTOL_BY_FEATURE_SCALE = 1e-12
+TRTOL_BY_FEATURE_LOC = 1e-8
+TRTOL_BY_FEATURE_SCALE = 1e-6
 
 FEATUREWISE_THRESHOLD = 10  # the minimal number of features to converge before next featurewise batch
 FEATUREWISE_RECALCULATE = False # if set to True, recalculate the results from the previous train step
