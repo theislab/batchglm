@@ -1,37 +1,32 @@
+from importlib import import_module
 import logging
 import tensorflow as tf
-import numpy as np
-from .external import ModelBase, LossBase
+from .external import ModelBase
 from .processModel import ProcessModelGLM
 logger = logging.getLogger("batchglm")
 
 
 class GLM(ModelBase, ProcessModelGLM):
-
     """
     base GLM class containg the model call.
     """
 
-    compute_a: bool = True
-    compute_b: bool = True
-
     def __init__(
             self,
             model_vars,
-            unpack_params: tf.keras.layers.Layer,
-            linear_loc: tf.keras.layers.Layer,
-            linear_scale: tf.keras.layers.Layer,
-            linker_loc: tf.keras.layers.Layer,
-            linker_scale: tf.keras.layers.Layer,
-            likelihood: tf.keras.layers.Layer,
-            jacobian: tf.keras.layers.Layer,
-            hessian: tf.keras.layers.Layer,
-            fim: tf.keras.layers.Layer,
             optimizer: str,
+            noise_module: str,
             use_gradient_tape: bool = False,
+            compute_a: bool = True,
+            compute_b: bool = True,
+            dtype: str = "float32",
     ):
-        super(GLM, self).__init__()
+        super(GLM, self).__init__(dtype=dtype)
+
         self.model_vars = model_vars
+        self.use_gradient_tape = use_gradient_tape
+        self.compute_a = compute_a
+        self.compute_b = compute_b
         self.params = tf.Variable(tf.concat(
             [
                 model_vars.init_a_clipped,
@@ -39,18 +34,20 @@ class GLM(ModelBase, ProcessModelGLM):
             ],
             axis=0
         ), name="params", trainable=True)
-
-        self.unpack_params = unpack_params
-        self.linear_loc = linear_loc
-        self.linear_scale = linear_scale
-        self.linker_loc = linker_loc
-        self.linker_scale = linker_scale
-        self.likelihood = likelihood
-        self.jacobian = jacobian
-        self.hessian = hessian
-        self.fim = fim
-        self.use_gradient_tape = use_gradient_tape
         self.params_copy = self.params
+
+        # import and add noise model specific layers.
+        layers = import_module('...' + noise_module + '.layers', __name__)
+        grad_layers = import_module('...' + noise_module + '.layers_gradients', __name__)
+        self.unpack_params = layers.UnpackParams(dtype=dtype)
+        self.linear_loc = layers.LinearLoc(dtype=dtype)
+        self.linear_scale = layers.LinearScale(dtype=dtype)
+        self.linker_loc = layers.LinkerLoc(dtype=dtype)
+        self.linker_scale = layers.LinkerScale(dtype=dtype)
+        self.likelihood = layers.Likelihood(dtype=dtype)
+        self.jacobian = grad_layers.Jacobian(model_vars=model_vars, dtype=dtype)
+        self.hessian = grad_layers.Hessian(model_vars=model_vars, dtype=dtype)
+        self.fim = grad_layers.FIM(model_vars=model_vars, dtype=dtype)
 
         self.setMethod(optimizer)
 
@@ -67,7 +64,7 @@ class GLM(ModelBase, ProcessModelGLM):
         elif optimizer in ['nr', 'nr_tr']:
             self._calc = self._calc_hessians
 
-        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_ar_tr']:
+        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_ar_tr', 'irls_tr_gd_tr']:
             self._calc = self._calc_fim
         else:
             assert False, ("Unrecognized optimizer: %s", optimizer)
@@ -233,14 +230,3 @@ class GLM(ModelBase, ProcessModelGLM):
         if compute_b is None:
             compute_b = self.compute_b
         return self._calc(inputs, compute_a, compute_b)
-
-class LossGLM(LossBase):
-
-    def norm_log_likelihood(self, log_probs):
-        return tf.reduce_mean(log_probs, axis=0, name="log_likelihood")
-
-    def norm_neg_log_likelihood(self, log_probs):
-        return - self.norm_log_likelihood(log_probs)
-
-    def call(self, y_true, log_probs):
-        return tf.reduce_sum(self.norm_neg_log_likelihood(log_probs))
