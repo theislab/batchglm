@@ -38,15 +38,15 @@ class Likelihood(LikelihoodGLM, ProcessModel):
     def _ll(self, eta_loc, eta_scale, loc, scale, x):
 
         if isinstance(x, tf.SparseTensor):
-            one_minus_x = -tf.sparse.add(x, -tf.ones_like(loc))
+            one_minus_x = tf.negative(tf.sparse.add(x, tf.negative(tf.ones_like(loc))))
         else:
             one_minus_x = 1 - x
 
         one_minus_loc = 1 - loc
         log_probs = tf.math.lgamma(scale) - tf.math.lgamma(loc * scale) \
-                    - tf.math.lgamma(one_minus_loc * scale) \
-                    + (scale * loc - 1) * tf.math.log(x) \
-                    + (one_minus_loc * scale - 1) * tf.math.log(one_minus_x)
+            - tf.math.lgamma(one_minus_loc * scale) \
+            + (scale * loc - 1) * tf.math.log(x) \
+            + (one_minus_loc * scale - 1) * tf.math.log(one_minus_x)
 
         log_probs = self.tf_clip_param(log_probs, "log_probs")
 
