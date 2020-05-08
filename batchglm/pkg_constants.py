@@ -37,6 +37,7 @@ FEATUREWISE_RECALCULATE = False # if set to True, recalculate the results from t
 
 WOLFE_C1 = 1e-3
 WOLFE_C2 = 0.99
+ALPHA0 = 100
 
 try:
     import tensorflow as tf
