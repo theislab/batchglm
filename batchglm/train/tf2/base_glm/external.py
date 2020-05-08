@@ -1,5 +1,5 @@
 from batchglm.train.tf2.base import ProcessModelBase, ModelBase, TFEstimator
-from batchglm.train.tf2.base import OptimizerBase, LossBase
+from batchglm.train.tf2.base import OptimizerBase
 #from batchglm.train.tf2.glm_nb import NR, IRLS
 
 from batchglm.models.base_glm import InputDataGLM, _ModelGLM, _EstimatorGLM

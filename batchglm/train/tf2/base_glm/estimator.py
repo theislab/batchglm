@@ -25,6 +25,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
     noise_model: str
     irls_algo: bool = False
     nr_algo: bool = False
+    optimizer = None
 
     def initialize(self, **kwargs):
         self.values = []
@@ -33,6 +34,10 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.lls = []
         self._initialized = True
         self.model = None
+
+    def update(self, results, *args):
+        self.optimizer.apply_gradients([(results[1], self.model.params_copy)])
+        self.model.model_vars.updated = ~self.model.model_vars.converged
 
     def finalize(self, **kwargs):
         """
@@ -68,15 +73,17 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             autograd: bool = False,
             featurewise: bool = True,
             benchmark: bool = False,
-            optim_algo: str = "adam"
+            optim_algo: str = "adam",
+            b_update_freq = 1
     ):
         # define some useful shortcuts here
         n_obs = self.input_data.num_observations
         n_features = self.input_data.num_features
         # set necessary attributes
         self.noise_model = noise_model
-        self.irls_algo = optim_algo.lower() in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']
-        self.nr_algo = optim_algo.lower() in ['nr', 'nr_tr']
+        optim = optim_algo.lower()
+        self.irls_algo = optim.startswith('irls')
+        self.nr_algo = optim in ['nr', 'nr_tr']
 
         ################################################
         # INIT Step 1: Consistency Checks
@@ -89,6 +96,9 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         if not self._initialized:
             raise RuntimeError("Cannot train the model: Estimator not initialized. \
                 Did you forget to call estimator.initialize() ?")
+
+        if b_update_freq == 0:
+            b_update_freq = 1
 
         if autograd and optim_algo.lower() in ['nr', 'nr_tr']:
             logger.warning(
@@ -105,19 +115,19 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ################################################
         # INIT Step 2: Intialise training loop.
         #
-        update_func = optimizer_object.perform_parameter_update \
-            if self.irls_algo or self.nr_algo else optimizer_object.apply_gradients
 
         # create a tensorflow dataset using the DataGenerator
         datagenerator = DataGenerator(self, noise_model, is_batched, batch_size)
         epoch_set = datagenerator.new_epoch_set()
 
         # first model call to initialise prior to first update.
+        epochs_until_b_update = b_update_freq - 1
+        compute_b = epochs_until_b_update == 0
         for i, x_batch in enumerate(epoch_set):
             if i == 0:
-                results = self.model(x_batch)
+                results = self.model(x_batch, compute_b=compute_b)
             else:
-                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                results = [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch, compute_b=compute_b))]
 
         # create ConvergenceCalculator to check for new convergences.
         conv_calc = ConvergenceCalculator(self, tf.negative(tf.divide(results[0], n_obs)).numpy())
@@ -142,6 +152,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         ####
 
         while convergence_decision(num_converged, train_step):
+
             if benchmark:
                 t0_epoch = time.time()
 
@@ -153,20 +164,20 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 # using featurewise.
                 epoch_set = datagenerator.new_epoch_set(batch_features=batch_features)
                 if pkg_constants.FEATUREWISE_RECALCULATE:
-                    for i, x_batch in enumerate(epoch_set):
+                    for i, x_batch in enumerate(epoch_set, compute_b=compute_b):
                         results = self.model(x_batch) if i == 0 else \
-                            [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                            [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch, compute_b=compute_b))]
 
             ############################################
             # 2. Update the parameters
-            self.update_params(epoch_set, results, batch_features, update_func)
-
+            self.update(results, epoch_set, batch_features, epochs_until_b_update == 0)
             ############################################
             # 3. calculate new ll, jacs, hessian/fim
+            compute_b = epochs_until_b_update < 2
             for i, x_batch in enumerate(epoch_set):
                 # need new params_copy in model in case we use featurewise without recalculation
-                results = self.model(x_batch) if i == 0 \
-                    else [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch))]
+                results = self.model(x_batch, compute_b=compute_b) if i == 0 \
+                    else [tf.math.add(results[i], x) for i, x in enumerate(self.model(x_batch, compute_b=compute_b))]
 
             ############################################
             # 4. check for any new convergences
@@ -198,7 +209,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                         batch_features = True
                         self.model.batch_features = batch_features
                     conv_diff = num_converged - n_conv_last_featurewise_batch
-
+                    if pkg_constants.FEATUREWISE_THRESHOLD < 1:
+                        conv_diff /= n_features-n_conv_last_featurewise_batch
                     # Update params if number of new convergences since last
                     # featurewise batch is reached again.
                     if conv_diff >= pkg_constants.FEATUREWISE_THRESHOLD:
@@ -217,6 +229,14 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 logger.warning(log_output)
 
             train_step += 1
+            epochs_until_b_update = (epochs_until_b_update + b_update_freq - 1) % b_update_freq
+
+            # make sure loc is not updated any longer if completely converged
+            if b_update_freq > 1 and epochs_until_b_update > 1:
+                if np.all(self.model.model_vars.converged):
+                    epochs_until_b_update = 1  # must not be 0: scale grads not yet calculated
+                    b_update_freq = 1  # from now on, calc scale grads in each step
+
             # store some useful stuff for benchmarking purposes.
             if benchmark:
                 t1_epoch = time.time()
@@ -244,7 +264,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self.model.hessian.compute_b = True  # since self._train_scale could be False.
 
         # need new set here with full feature space
-        # TODO: only ineeded if batch_features, maybe put this in the above if switch later
+        # TODO: only needed if batch_features, maybe put this in the above if switch later
         final_set = datagenerator.new_epoch_set()
         for i, x_batch in enumerate(final_set):
             results = self.model(x_batch) if i == 0 else \
@@ -253,7 +273,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # store all the final results in this estimator instance.
         self._log_likelihood = results[0].numpy()
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / n_obs), axis=1)
-        self._hessian = -results[2].numpy()
+        self._hessian = - results[2].numpy()
         # TODO: maybe report fisher inf here in the future instead of inverted hessian.
         fisher_inv = np.zeros_like(self._hessian)
         invertible = np.where(np.linalg.cond(self._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
@@ -261,8 +281,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         if num_non_invertible > 0:
             logger.warning(f"fisher_inv could not be calculated for {num_non_invertible} features.")
         fisher_inv[invertible] = np.linalg.inv(- self._hessian[invertible])
-
-
         self.model.hessian.compute_b = self.model.compute_b  # reset if not self._train_scale
 
     def update_params(self, batches, results, batch_features, update_func):
@@ -335,7 +353,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
                 "dtype": self.dtype,
                 "model": self.model,
                 "name": optimizer,
-                "trusted_region_mode": tr_mode,
+                "tr_mode": tr_mode,
                 "n_obs": self.input_data.num_observations
             }
             if optimizer.startswith('irls'):

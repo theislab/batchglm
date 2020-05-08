@@ -7,6 +7,6 @@ from batchglm.models.glm_norm.utils import closedform_norm_glm_mean, closedform_
 from batchglm.utils.linalg import groupwise_solve_lm
 from batchglm import pkg_constants
 
-from batchglm.train.tf2.base_glm import ProcessModelGLM, GLM, LossGLM, Estimator, ModelVarsGLM
+from batchglm.train.tf2.base_glm import ProcessModelGLM, GLM, Estimator, ModelVarsGLM
 from batchglm.train.tf2.base_glm import LinearLocGLM, LinearScaleGLM, LinkerLocGLM, LinkerScaleGLM, LikelihoodGLM, UnpackParamsGLM
 from batchglm.train.tf2.base_glm import FIMGLM, JacobianGLM, HessianGLM

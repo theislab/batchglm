@@ -2,8 +2,6 @@ from typing import Union
 
 import abc
 import tensorflow as tf
-tf.keras.backend.set_floatx("float64")
-
 from .processModel import ProcessModelGLM
 
 
@@ -13,8 +11,8 @@ class UnpackParamsGLM(tf.keras.layers.Layer, ProcessModelGLM):
     Layer that slices the parameter tensor into mean and variance block.
     """
 
-    def __init__(self):
-        super(UnpackParamsGLM, self).__init__()
+    def __init__(self, dtype):
+        super(UnpackParamsGLM, self).__init__(dtype=dtype)
 
     def call(self, inputs, **kwargs):
         """
@@ -40,8 +38,8 @@ class LinearLocGLM(tf.keras.layers.Layer, ProcessModelGLM):
     Computes the dot product between the design matrix of the mean model and the mean block of the parameter matrix.
     """
 
-    def __init__(self):
-        super(LinearLocGLM, self).__init__()
+    def __init__(self, dtype):
+        super(LinearLocGLM, self).__init__(dtype=dtype)
 
     def _eta_loc(
             self,
@@ -111,8 +109,8 @@ class LinearScaleGLM(tf.keras.layers.Layer, ProcessModelGLM):
     and the variance block of the parameter matrix.
     """
 
-    def __init__(self):
-        super(LinearScaleGLM, self).__init__()
+    def __init__(self, dtype):
+        super(LinearScaleGLM, self).__init__(dtype=dtype)
 
     def _eta_scale(
             self,
@@ -166,8 +164,8 @@ class LinkerLocGLM(tf.keras.layers.Layer):
     Translation from linker to data space for the mean model.
     """
 
-    def __init__(self):
-        super(LinkerLocGLM, self).__init__()
+    def __init__(self, dtype):
+        super(LinkerLocGLM, self).__init__(dtype=dtype)
 
     @abc.abstractmethod
     def _inv_linker(self, loc: tf.Tensor):
@@ -202,8 +200,8 @@ class LinkerScaleGLM(tf.keras.layers.Layer):
     Translation from linker to data space for the variance model.
     """
 
-    def __init__(self):
-        super(LinkerScaleGLM, self).__init__()
+    def __init__(self, dtype):
+        super(LinkerScaleGLM, self).__init__(dtype=dtype)
 
     @abc.abstractmethod
     def _inv_linker(self, scale: tf.Tensor):
@@ -230,8 +228,7 @@ class LikelihoodGLM(tf.keras.layers.Layer, ProcessModelGLM):
     """
 
     def __init__(self, dtype):
-        super(LikelihoodGLM, self).__init__()
-        self.ll_dtype = dtype
+        super(LikelihoodGLM, self).__init__(dtype=dtype)
 
     @abc.abstractmethod
     def _ll(self, eta_loc, eta_scale, loc, scale, x):

@@ -8,21 +8,11 @@ logger = logging.getLogger(__name__)
 
 class ModelBase(tf.keras.Model, metaclass=abc.ABCMeta):
 
-    def __init__(self):
-        super(ModelBase, self).__init__()
+    def __init__(self, dtype):
+        super(ModelBase, self).__init__(dtype=dtype)
 
     @abc.abstractmethod
     def call(self, inputs, training=False, mask=None):
-        pass
-
-
-class LossBase(tf.keras.losses.Loss, metaclass=abc.ABCMeta):
-
-    def __init__(self):
-        super(LossBase, self).__init__()
-
-    @abc.abstractmethod
-    def call(self, y_true, y_pred):
         pass
 
 

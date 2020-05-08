@@ -1,37 +1,32 @@
+from importlib import import_module
 import logging
 import tensorflow as tf
-import numpy as np
-from .external import ModelBase, LossBase
+from .external import ModelBase
 from .processModel import ProcessModelGLM
 logger = logging.getLogger("batchglm")
 
 
 class GLM(ModelBase, ProcessModelGLM):
-
     """
     base GLM class containg the model call.
     """
 
-    compute_a: bool = True
-    compute_b: bool = True
-
     def __init__(
             self,
             model_vars,
-            unpack_params: tf.keras.layers.Layer,
-            linear_loc: tf.keras.layers.Layer,
-            linear_scale: tf.keras.layers.Layer,
-            linker_loc: tf.keras.layers.Layer,
-            linker_scale: tf.keras.layers.Layer,
-            likelihood: tf.keras.layers.Layer,
-            jacobian: tf.keras.layers.Layer,
-            hessian: tf.keras.layers.Layer,
-            fim: tf.keras.layers.Layer,
             optimizer: str,
+            noise_module: str,
             use_gradient_tape: bool = False,
+            compute_a: bool = True,
+            compute_b: bool = True,
+            dtype: str = "float32",
     ):
-        super(GLM, self).__init__()
+        super(GLM, self).__init__(dtype=dtype)
+
         self.model_vars = model_vars
+        self.use_gradient_tape = use_gradient_tape
+        self.compute_a = compute_a
+        self.compute_b = compute_b
         self.params = tf.Variable(tf.concat(
             [
                 model_vars.init_a_clipped,
@@ -39,18 +34,20 @@ class GLM(ModelBase, ProcessModelGLM):
             ],
             axis=0
         ), name="params", trainable=True)
-
-        self.unpack_params = unpack_params
-        self.linear_loc = linear_loc
-        self.linear_scale = linear_scale
-        self.linker_loc = linker_loc
-        self.linker_scale = linker_scale
-        self.likelihood = likelihood
-        self.jacobian = jacobian
-        self.hessian = hessian
-        self.fim = fim
-        self.use_gradient_tape = use_gradient_tape
         self.params_copy = self.params
+
+        # import and add noise model specific layers.
+        layers = import_module('...' + noise_module + '.layers', __name__)
+        grad_layers = import_module('...' + noise_module + '.layers_gradients', __name__)
+        self.unpack_params = layers.UnpackParams(dtype=dtype)
+        self.linear_loc = layers.LinearLoc(dtype=dtype)
+        self.linear_scale = layers.LinearScale(dtype=dtype)
+        self.linker_loc = layers.LinkerLoc(dtype=dtype)
+        self.linker_scale = layers.LinkerScale(dtype=dtype)
+        self.likelihood = layers.Likelihood(dtype=dtype)
+        self.jacobian = grad_layers.Jacobian(model_vars=model_vars, dtype=dtype)
+        self.hessian = grad_layers.Hessian(model_vars=model_vars, dtype=dtype)
+        self.fim = grad_layers.FIM(model_vars=model_vars, dtype=dtype)
 
         self.setMethod(optimizer)
 
@@ -62,12 +59,12 @@ class GLM(ModelBase, ProcessModelGLM):
         """
         optimizer = optimizer.lower()
         if optimizer in ['gd', 'adam', 'adagrad', 'rmsprop']:
-            self._calc = self._return_jacobians
+            self._calc = self.calc_jacobians
 
         elif optimizer in ['nr', 'nr_tr']:
             self._calc = self._calc_hessians
 
-        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr']:
+        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_tr_ar', 'irls_tr_gd_tr']:
             self._calc = self._calc_fim
         else:
             assert False, ("Unrecognized optimizer: %s", optimizer)
@@ -115,10 +112,12 @@ class GLM(ModelBase, ProcessModelGLM):
         log_probs = tf.reduce_sum(log_probs, axis=0)
         return (log_probs, *parameters[2:])
 
-    def _return_jacobians(self, inputs):
-        return self._calc_jacobians(inputs)[-2:]
+    def calc_jacobians(self, inputs, compute_a=True, compute_b=None, concat=True):
+        if compute_b is None:
+            compute_b = self.compute_b
+        return self._calc_jacobians(inputs, compute_a=compute_a, compute_b=compute_b, concat=concat)[2:]
 
-    def _calc_jacobians(self, inputs, concat=True, transpose=True):
+    def _calc_jacobians(self, inputs, compute_a, compute_b, concat=True, transpose=True):
         """
         calculates jacobian.
 
@@ -138,8 +137,8 @@ class GLM(ModelBase, ProcessModelGLM):
 
         if self.use_gradient_tape:
 
-            if self.compute_a:
-                if self.compute_b:
+            if compute_a:
+                if compute_b:
                     if concat:
                         jacobians = g.gradient(log_probs, self.params_copy)
                         if not transpose:
@@ -168,20 +167,20 @@ class GLM(ModelBase, ProcessModelGLM):
         else:
 
             if concat:
-                jacobians = self.jacobian([*inputs[0:3], loc, scale, True])
+                jacobians = self.jacobian([*inputs[0:3], loc, scale, True, compute_a, compute_b])
                 if transpose:
                     jacobians = tf.transpose(jacobians)
             else:
-                jac_a, jac_b = self.jacobian([*inputs[0:3], loc, scale, False])
+                jac_a, jac_b = self.jacobian([*inputs[0:3], loc, scale, False, compute_a, compute_b])
 
         del g
         if concat:
             return loc, scale, log_probs, tf.negative(jacobians)
         return loc, scale, log_probs, tf.negative(jac_a), tf.negative(jac_b)
 
-    def _calc_hessians(self, inputs):
+    def _calc_hessians(self, inputs, compute_a, compute_b):
         # with tf.GradientTape(persistent=True) as g2:
-        loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, transpose=False)
+        loc, scale, log_probs, jacobians = self._calc_jacobians(inputs, compute_a=compute_a, compute_b=compute_b, transpose=False)
         '''
         autograd not yet working. TODO: Search error in the following code:
 
@@ -209,32 +208,25 @@ class GLM(ModelBase, ProcessModelGLM):
             ), perm=[2, 1, 0])
             hessians = tf.negative(hessians)
         '''
-        hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True]))
+        hessians = tf.negative(self.hessian([*inputs[0:3], loc, scale, True, compute_a, compute_b]))
         return log_probs, jacobians, hessians
 
-    def _calc_fim(self, inputs):
+    def _calc_fim(self, inputs, compute_a, compute_b):
         loc, scale, log_probs, jac_a, jac_b = self._calc_jacobians(
             inputs,
+            compute_a=compute_a,
+            compute_b=compute_b,
             concat=False,
             transpose=False)
-        fim_a, fim_b = self.fim([*inputs[0:3], loc, scale, False])
+        fim_a, fim_b = self.fim([*inputs[0:3], loc, scale, False, compute_a, compute_b])
         return log_probs, jac_a, jac_b, fim_a, fim_b
 
-    def call(self, inputs):
+    def call(self, inputs, compute_a=True, compute_b=None):
         """
         Wrapper method to call this model. Depending on the desired calculations specified by the
         `optimizer` arg to `__init__`, it will forward the call to the necessary function to perform
         the right calculations and return all the results.
         """
-        return self._calc(inputs)
-
-class LossGLM(LossBase):
-
-    def norm_log_likelihood(self, log_probs):
-        return tf.reduce_mean(log_probs, axis=0, name="log_likelihood")
-
-    def norm_neg_log_likelihood(self, log_probs):
-        return - self.norm_log_likelihood(log_probs)
-
-    def call(self, y_true, log_probs):
-        return tf.reduce_sum(self.norm_neg_log_likelihood(log_probs))
+        if compute_b is None:
+            compute_b = self.compute_b
+        return self._calc(inputs, compute_a, compute_b)

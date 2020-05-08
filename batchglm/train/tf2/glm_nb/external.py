@@ -14,5 +14,8 @@ from batchglm.train.tf2.base_glm import ProcessModelGLM, ModelVarsGLM
 from batchglm.train.tf2.base_glm import LinearLocGLM, LinearScaleGLM, LinkerLocGLM
 from batchglm.train.tf2.base_glm import LinkerScaleGLM, LikelihoodGLM, UnpackParamsGLM
 from batchglm.train.tf2.base_glm import FIMGLM, JacobianGLM, HessianGLM
-from batchglm.train.tf2.base_glm import LossGLM
 from batchglm.train.tf2.base_glm import Estimator
+
+# these are needed for nb specific irls_ls_tr training
+from batchglm.train.tf2.base_glm import IRLS
+from batchglm.train.tf2.base_glm import DataGenerator, ConvergenceCalculator

@@ -43,7 +43,7 @@ class Likelihood(LikelihoodGLM, ProcessModel):
         if isinstance(x, tf.SparseTensor):
             log_probs_sparse = x.__mul__(eta_loc - log_r_plus_mu)
             log_probs_dense = tf.math.lgamma(tf.sparse.add(x, scale)) - \
-                              tf.math.lgamma(tf.sparse.add(x, tf.ones(shape=x.dense_shape, dtype=self.ll_dtype))) - \
+                              tf.math.lgamma(tf.sparse.add(x, tf.ones(shape=x.dense_shape, dtype=self.dtype))) - \
                               tf.math.lgamma(scale) + \
                               tf.multiply(scale, eta_scale - log_r_plus_mu)
             log_probs = tf.sparse.add(log_probs_sparse, log_probs_dense)

@@ -4,12 +4,14 @@ import numpy as np
 
 from .external import InputDataGLM, Model
 from .external import closedform_nb_glm_logmu, closedform_nb_glm_logphi
-
-from .model import NBGLM, LossGLMNB
+from .model import NBGLM
 from .vars import ModelVars
 from .processModel import ProcessModel
 from .external import Estimator as GLMEstimator
 from .training_strategies import TrainingStrategies
+
+# needed for train_irls_ls_tr
+from .optim import IRLS_LS
 
 
 class Estimator(GLMEstimator, ProcessModel):
@@ -25,7 +27,7 @@ class Estimator(GLMEstimator, ProcessModel):
             init_a: Union[np.ndarray, str] = "AUTO",
             init_b: Union[np.ndarray, str] = "AUTO",
             quick_scale: bool = False,
-            dtype="float64",
+            dtype="float32",
     ):
         """
         Performs initialisation and creates a new estimator.
@@ -95,7 +97,9 @@ class Estimator(GLMEstimator, ProcessModel):
             stopping_criteria: int = 1000,
             autograd: bool = False,
             featurewise: bool = True,
-            benchmark: bool = False
+            benchmark: bool = False,
+            maxiter: int = 1,
+            b_update_freq = 5
     ):
         if self.model is None:
             self.model = NBGLM(
@@ -109,9 +113,12 @@ class Estimator(GLMEstimator, ProcessModel):
         else:
             self.model.setMethod(optim_algo)
 
-        self._loss = LossGLMNB()
-
-        optimizer_object = self.get_optimizer_object(optim_algo, learning_rate)
+        intercept_scale = len(self.model.model_vars.idx_train_scale) == 1
+        optimizer_object = self.get_optimizer_object(optim_algo, learning_rate, intercept_scale)
+        self.optimizer = optimizer_object
+        if optim_algo.lower() in ['irls_gd_tr', 'irls_ar_tr', 'irls_tr_gd_tr']:
+            self.update = self.update_separated
+            self.maxiter = maxiter
 
         super(Estimator, self)._train(
             noise_model="nb",
@@ -123,8 +130,43 @@ class Estimator(GLMEstimator, ProcessModel):
             autograd=autograd,
             featurewise=featurewise,
             benchmark=benchmark,
-            optim_algo=optim_algo
+            optim_algo=optim_algo,
+            b_update_freq=b_update_freq
         )
+
+    def get_optimizer_object(self, optimizer, learning_rate, intercept_scale):
+        optim = optimizer.lower()
+        if optim in ['irls_gd_tr', 'irls_gd', 'irls_ar_tr', 'irls_tr_gd_tr']:
+            return IRLS_LS(
+                dtype=self.dtype,
+                tr_mode=optim.endswith('tr'),
+                model=self.model,
+                name=optim,
+                n_obs=self.input_data.num_observations,
+                intercept_scale=intercept_scale)
+        return super().get_optimizer_object(optimizer, learning_rate)
+
+    def update_separated(self, results, batches, batch_features, compute_b):
+
+        self.optimizer.perform_parameter_update(
+            inputs=[batches, *results],
+            compute_a=True,
+            compute_b=False,
+            batch_features=batch_features,
+            is_batched=False
+        )
+        if compute_b:
+            self.optimizer.perform_parameter_update(
+                inputs=[batches, *results],
+                compute_a=False,
+                compute_b=True,
+                batch_features=batch_features,
+                is_batched=False,
+                maxiter=self.maxiter
+            )
+        else:
+            self.model.model_vars.updated_b = np.zeros_like(self.model.model_vars.updated_b)
+
 
     def get_model_container(
             self,
