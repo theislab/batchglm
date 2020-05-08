@@ -10,12 +10,10 @@ class IRLS_LS(IRLS):
         self.tr_mode_b = False
         if name.startswith('irls_tr'):
             parent_tr_mode = True  # for loc model
-            if name.startswith('irls_tr_gd'):
-                self.update_b_func = self.update_b_gd
-        elif name.startswith('irls_gd'):
+        if name in ['irls_tr_gd_tr', 'irls_gd_tr', 'irls_gd', 'irls_tr_gd']:
             self.update_b_func = self.update_b_gd
-        elif name in ['irls_ar_tr', 'irls_ar']:
-            assert intercept_scale, "Line search (IRLS_AR_TR) is only available" \
+        elif name in ['irls_ar', 'irls_tr_ar']:
+            assert intercept_scale, "Line search (armijo) is only available" \
                 "for scale models with a single coefficient (intercept scale)."
             self.update_b_func = self.update_b_ar
         else:
@@ -163,23 +161,18 @@ class IRLS_LS(IRLS):
                 batch_features=batch_features,
                 update_theta=update_theta)
 
-            #print(self.tr_radius_b[self.model.model_vars.remaining_features])
-
             return tf.where(update_theta, tr_proposed_vector_b, tf.zeros_like(tr_proposed_vector_b))
 
     def update_b_ar(self, inputs, batch_features, is_batched, alpha0=None):
 
-
-        c1 = pkg_constants.TRUST_REGION_ETA1
         x_batches, log_probs, _, jac_b = inputs
         jac_b = tf.reshape(jac_b, [jac_b.shape[0]])
-        #jac_b = tf.negative(jac_b)
         direction = -tf.sign(jac_b)
         derphi0 = jac_b / self.n_obs
         if alpha0 is None:
-            alpha0 = tf.ones_like(jac_b) * pkg_constants.TRUST_REGION_RADIUS_INIT_SCALE # self.tr_radius_b
+            alpha0 = tf.ones_like(jac_b) * pkg_constants.ALPHA0
         original_params_b_copy = self.model.params_copy[-1]
-        #print(direction[0].numpy(), jac_b[0].numpy())
+
         def phi(alpha):
             multiplier = tf.multiply(alpha, direction)
             new_scale_params = tf.add(original_params_b_copy, multiplier)
@@ -187,14 +180,15 @@ class IRLS_LS(IRLS):
             new_likelihood = None
             for i, x_batch in enumerate(x_batches):
                 log_likelihood = self.model.calc_ll([*x_batch])[0]
-                new_likelihood = log_likelihood if i == 0 else tf.math.add(new_likelihood, log_likelihood)
+                new_likelihood = log_likelihood if i == 0 else \
+                    tf.math.add(new_likelihood, log_likelihood)
             new_likelihood = self._norm_neg_log_likelihood(new_likelihood)
             return new_likelihood
-        current_likelihood = self._norm_neg_log_likelihood(log_probs)
 
+        current_likelihood = self._norm_neg_log_likelihood(log_probs)
         new_likelihood = phi(alpha0)
-        #print(new_likelihood, current_likelihood)
         beneficial = self.wolfe1(current_likelihood, new_likelihood, alpha0, derphi0)
+
         if tf.reduce_all(beneficial):  # are all beneficial?
             updated = beneficial
             if batch_features:
@@ -202,15 +196,13 @@ class IRLS_LS(IRLS):
                 indices = tf.where(self.model.model_vars.remaining_features)
                 updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
             self.model.model_vars.updated_b = updated
-            # self.tr_radius_b.assign(alpha0)
             return tf.multiply(alpha0, direction)
 
-        alpha1 = tf.negative(derphi0) * alpha0**2 / 2 / (new_likelihood - current_likelihood - derphi0 * alpha0)
+        divisor = new_likelihood - current_likelihood - derphi0 * alpha0
+        alpha1 = tf.negative(derphi0) * alpha0**2 / 2 / divisor
         alpha1 = tf.where(beneficial, alpha0, alpha1)
         new_likelihood2 = phi(alpha1)
-        #print(new_likelihood2, current_likelihood)
         beneficial = self.wolfe1(current_likelihood, new_likelihood2, alpha1, derphi0)
-        #print(beneficial)
         if tf.reduce_all(beneficial):
             updated = beneficial
             if batch_features:
@@ -218,10 +210,17 @@ class IRLS_LS(IRLS):
                 indices = tf.where(self.model.model_vars.remaining_features)
                 updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
             self.model.model_vars.updated_b = updated
-            # self.tr_radius_b.assign(alpha1)
             return tf.multiply(alpha1, direction)
 
-        while tf.reduce_any(alpha1 > 0):
+        if not tf.reduce_any(alpha1 > pkg_constants.XTOL_BY_FEATURE_SCALE):
+            # catch in case it doesn't enter the loop.
+            new_scale_params = tf.where(beneficial, self.model.params_copy[-1], original_params_b_copy)
+            self.model.params_copy[-1].assign(new_scale_params)
+            self.model.model_vars.updated_b = np.ones_like(self.model.model_vars.updated_b)
+            return tf.multiply(alpha1, direction)
+
+        while tf.reduce_any(alpha1 > pkg_constants.XTOL_BY_FEATURE_SCALE):
+
             factor = alpha0**2 * alpha1**2 * (alpha1-alpha0)
             a = alpha0**2 * (new_likelihood2 - current_likelihood - derphi0 * alpha1) - \
                 alpha1**2 * (new_likelihood - current_likelihood - derphi0 * alpha0)
@@ -233,16 +232,11 @@ class IRLS_LS(IRLS):
 
             alpha2 = (-b + tf.sqrt(tf.abs(tf.square(b) - 3 * a * derphi0))) / (3 * a)
             alpha2 = tf.where(beneficial, alpha1, alpha2)
-            alpha2 = tf.clip_by_value(alpha2, clip_value_min=0, clip_value_max=np.inf)
-            #print(alpha2)
-            if tf.reduce_all(alpha2 == 0):
-                #print('Minimum allowed step size reached for all features.')
-                self.model.model_vars.updated_b = np.zeros(self.model.model_vars.n_features, dtype=np.bool)
-            #print(alpha2)
+            idx_to_clip = tf.logical_or(tf.math.is_nan(alpha2), alpha2 < 0)
+            alpha2 = tf.where(idx_to_clip, tf.zeros_like(alpha2), alpha2)
             new_likelihood3 = phi(alpha2)
-            #print(new_likelihood3, current_likelihood)
             beneficial = self.wolfe1(current_likelihood, new_likelihood3, alpha2, derphi0)
-            #print(beneficial)
+
             if tf.reduce_all(beneficial):
                 updated = beneficial
                 if batch_features:
@@ -250,23 +244,19 @@ class IRLS_LS(IRLS):
                     indices = tf.where(self.model.model_vars.remaining_features)
                     updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
                 self.model.model_vars.updated_b = updated
-                # self.tr_radius_b.assign(alpha1)
                 return tf.multiply(alpha2, direction)
 
             step_diff_greater_half_alpha1 = (alpha1 - alpha2) > alpha1 / 2
             ratio = (1 - alpha2/alpha1) < 0.96
             set_back = tf.logical_or(step_diff_greater_half_alpha1, ratio)
             alpha2 = tf.where(set_back, alpha1 / 2, alpha2)
-            alpha2 = tf.clip_by_value(alpha2, clip_value_min=0, clip_value_max=np.inf)
-            #if step_diff or ratio:
-            #    alpha2 = alpha1 / 2
+            alpha2 = tf.where(tf.logical_or(tf.math.is_nan(alpha2), alpha2 < 0), tf.zeros_like(alpha2), alpha2)
 
             alpha0 = alpha1
             alpha1 = alpha2
             new_likelihood = new_likelihood2
             new_likelihood2 = new_likelihood3
 
-        # self.tr_radius_b.assign(alpha2)
         new_scale_params = tf.where(beneficial, self.model.params_copy[-1], original_params_b_copy)
         self.model.params_copy[-1].assign(new_scale_params)
         updated = beneficial
@@ -274,7 +264,7 @@ class IRLS_LS(IRLS):
             n_features = self.model.model_vars.n_features
             indices = tf.where(self.model.model_vars.remaining_features)
             updated = tf.scatter_nd(indices, beneficial, shape=(n_features,))
-        self.model.model_vars.updated_b |= updated.numpy()
+        self.model.model_vars.updated_b = np.ones_like(self.model.model_vars.updated_b)
         return tf.multiply(alpha2, direction)
 
     def wolfe1(self, current_likelihood, new_likelihood, alpha, jacobian):
