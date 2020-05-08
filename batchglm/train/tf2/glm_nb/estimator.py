@@ -99,7 +99,7 @@ class Estimator(GLMEstimator, ProcessModel):
             featurewise: bool = True,
             benchmark: bool = False,
             maxiter: int = 1,
-            b_update_freq = 5
+            b_update_freq = 1
     ):
         if self.model is None:
             self.model = NBGLM(
