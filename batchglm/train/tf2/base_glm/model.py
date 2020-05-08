@@ -64,7 +64,7 @@ class GLM(ModelBase, ProcessModelGLM):
         elif optimizer in ['nr', 'nr_tr']:
             self._calc = self._calc_hessians
 
-        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_ar_tr', 'irls_tr_gd_tr']:
+        elif optimizer in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar', 'irls_tr_ar', 'irls_tr_gd_tr']:
             self._calc = self._calc_fim
         else:
             assert False, ("Unrecognized optimizer: %s", optimizer)
