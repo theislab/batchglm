@@ -82,7 +82,7 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         # set necessary attributes
         self.noise_model = noise_model
         optim = optim_algo.lower()
-        self.irls_algo = optim in ['irls', 'irls_tr', 'irls_gd', 'irls_gd_tr', 'irls_ar_tr', 'irls_tr_gd_tr']
+        self.irls_algo = optim.startswith('irls')
         self.nr_algo = optim in ['nr', 'nr_tr']
 
         ################################################
@@ -171,7 +171,6 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             ############################################
             # 2. Update the parameters
             self.update(results, epoch_set, batch_features, epochs_until_b_update == 0)
-
             ############################################
             # 3. calculate new ll, jacs, hessian/fim
             compute_b = epochs_until_b_update < 2
@@ -231,9 +230,13 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
 
             train_step += 1
             epochs_until_b_update = (epochs_until_b_update + b_update_freq - 1) % b_update_freq
-            #print(np.where(self.model.model_vars.remaining_features)[0])
-            if np.all(self.model.model_vars.converged):
-                epochs_until_b_update = 0
+
+            # make sure loc is not updated any longer if completely converged
+            if b_update_freq > 1 and epochs_until_b_update > 1:
+                if np.all(self.model.model_vars.converged):
+                    epochs_until_b_update = 1  # must not be 0: scale grads not yet calculated
+                    b_update_freq = 1  # from now on, calc scale grads in each step
+
             # store some useful stuff for benchmarking purposes.
             if benchmark:
                 t1_epoch = time.time()
