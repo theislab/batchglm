@@ -274,12 +274,12 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         self._log_likelihood = results[0].numpy()
         self._jacobian = tf.reduce_sum(tf.abs(results[1] / n_obs), axis=1)
         self._hessian = - results[2].numpy()
-        # TODO: maybe report fisher inf here in the future instead of inverted hessian.
+
         fisher_inv = np.zeros_like(self._hessian)
         invertible = np.where(np.linalg.cond(self._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
         num_non_invertible = n_features - len(invertible)
         if num_non_invertible > 0:
-            logger.warning(f"fisher_inv could not be calculated for {num_non_invertible} features.")
+            logger.warning(f"fisher_inv could not be calculated for {num_non_invertible} features!")
         fisher_inv[invertible] = np.linalg.inv(-self._hessian[invertible])
         self._fisher_inv = fisher_inv.copy()
         self.model.hessian.compute_b = self.model.compute_b  # reset if not self._train_scale
