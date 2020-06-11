@@ -280,7 +280,8 @@ class Estimator(TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
         num_non_invertible = n_features - len(invertible)
         if num_non_invertible > 0:
             logger.warning(f"fisher_inv could not be calculated for {num_non_invertible} features.")
-        fisher_inv[invertible] = np.linalg.inv(- self._hessian[invertible])
+        fisher_inv[invertible] = np.linalg.inv(-self._hessian[invertible])
+        self._fisher_inv = fisher_inv.copy()
         self.model.hessian.compute_b = self.model.compute_b  # reset if not self._train_scale
 
     def update_params(self, batches, results, batch_features, update_func):
