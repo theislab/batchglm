@@ -235,12 +235,16 @@ def constraint_system_from_star(
         if isinstance(dmat, pd.DataFrame):
             coef_names = dmat.columns
             dmat = dmat.values
+        else:
+            coef_names = dmat.design_info.column_names
     elif constraints is None:
         cmat = None
         term_names = None
         if isinstance(dmat, pd.DataFrame):
             coef_names = dmat.columns
             dmat = dmat.values
+        else:
+            coef_names = dmat.design_info.column_names
     else:
         raise ValueError("constraint format %s not recognized" % type(constraints))
 
