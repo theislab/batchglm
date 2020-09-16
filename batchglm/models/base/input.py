@@ -3,7 +3,8 @@ import logging
 import numpy as np
 import scipy.sparse
 import sparse
-from typing import List, Union, Optional, TypeAlias
+from typing import List, Union, Optional
+from .external.types import ArrayLike, InputType
 
 try:
     import anndata
@@ -16,9 +17,6 @@ except ImportError:
     Raw = None
 
 logger = logging.getLogger(__name__)
-
-ArrayLike = TypeAlias(Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array])
-InputType = TypeAlias(Union[ArrayLike, anndata.AnnData, "InputDataBase"])
 
 
 class InputDataBase:
@@ -81,8 +79,14 @@ class InputDataBase:
         if self.w.ndim == 2:
             self.w = self.w.squeeze(1)
 
+        # sanity checks
         assert self.w.shape == (self.x.shape[0],), "invalid weight shape %s" % self.w.shape
         assert issubclass(self.w.dtype.type, np.floating)
+
+        if self.observations is not None:
+            assert len(self.observations) == self.x.shape[0]
+        if self.features is not None:
+            assert len(self.features) == self.x.shape[1]
 
         if as_dask:
             if isinstance(self.x, dask.array.core.Array):

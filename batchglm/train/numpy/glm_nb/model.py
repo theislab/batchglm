@@ -3,7 +3,6 @@ import logging
 import numpy as np
 import scipy.sparse
 import scipy.special
-import sparse
 
 from .external import Model, ModelIwls, InputDataGLM
 from .processModel import ProcessModel
@@ -41,7 +40,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: observations x features
         """
-        return - self.location * self.scale / (self.scale + self.location)
+        return - self.w * self.location * self.scale / (self.scale + self.location)
 
     @property
     def ybar(self) -> np.ndarray:
@@ -56,7 +55,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: observations x features
         """
-        return - self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
+        return - self.w * self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
 
     def ybar_j(self, j) -> np.ndarray:
         """
@@ -89,7 +88,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         const1 = scipy.special.digamma(scale_plus_x) - scipy.special.digamma(scale)
         const2 = - scale_plus_x / r_plus_mu
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
-        return scale * (const1 + const2 + const3)
+        return self.w * scale * (const1 + const2 + const3)
 
     def jac_weight_b_j(self, j):
         """
@@ -111,7 +110,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         const1 = scipy.special.digamma(scale_plus_x) - scipy.special.digamma(scale)
         const2 = - scale_plus_x / r_plus_mu
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
-        return scale * (const1 + const2 + const3)
+        return self.w * scale * (const1 + const2 + const3)
 
     @property
     def fim_ab(self) -> np.ndarray:
@@ -150,6 +149,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         scale = self.scale
         loc = self.location
         return np.multiply(
+            self.w,
             loc * scale,
             np.asarray(self.x - loc) / np.square(loc + scale)
         )
@@ -163,7 +163,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         else:
             x_by_scale_plus_one = np.asarray(self.x.divide(scale) + np.ones_like(scale))
 
-        return - loc * x_by_scale_plus_one / np.square((loc / scale) + np.ones_like(loc))
+        return - self.w * loc * x_by_scale_plus_one / np.square((loc / scale) + np.ones_like(loc))
 
     @property
     def hessian_weight_bb(self):
@@ -176,7 +176,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         const2 = - scipy.special.digamma(scale) + scale * scipy.special.polygamma(n=1, x=scale)
         const3 = - loc * scale_plus_x + np.ones_like(scale) * 2. * scale * scale_plus_loc / np.square(scale_plus_loc)
         const4 = np.log(scale) + np.ones_like(scale) * 2. - np.log(scale_plus_loc)
-        return scale * (const1 + const2 + const3 + const4)
+        return self.w * scale * (const1 + const2 + const3 + const4)
 
     @property
     def ll(self):
@@ -198,7 +198,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
                 np.asarray(self.x.multiply(self.eta_loc - log_r_plus_mu) +
                            np.multiply(scale, self.eta_scale - log_r_plus_mu))
             ll = np.asarray(ll)
-        return self.np_clip_param(ll, "ll")
+        return self.np_clip_param(self.w * ll, "ll")
 
     def ll_j(self, j):
         # Make sure that dimensionality of sliced array is kept:
@@ -222,10 +222,11 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
                  np.asarray(self.x[:, j].multiply(self.eta_loc_j(j=j) - log_r_plus_mu) +
                             np.multiply(scale, self.eta_scale_j(j=j) - log_r_plus_mu))
             ll = np.asarray(ll)
-        return self.np_clip_param(ll, "ll")
+        return self.np_clip_param(self.w * ll, "ll")
 
+    # TODO: not used
     def ll_handle(self):
-        def fun(x, eta_loc, b_var, xh_scale):
+        def fun(x, w, eta_loc, b_var, xh_scale):
             eta_scale = np.matmul(xh_scale, b_var)
             scale = np.exp(eta_scale)
             loc = np.exp(eta_loc)
@@ -239,11 +240,12 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
                      np.multiply(scale, eta_scale - log_r_plus_mu)
             else:
                 raise ValueError("type x %s not supported" % type(x))
-            return self.np_clip_param(ll, "ll")
+            return self.np_clip_param(w * ll, "ll")
         return fun
 
+    # TODO: not used
     def jac_b_handle(self):
-        def fun(x, eta_loc, b_var, xh_scale):
+        def fun(x, w, eta_loc, b_var, xh_scale):
             scale = np.exp(b_var)
             loc = np.exp(eta_loc)
             scale_plus_x = scale + x
@@ -253,6 +255,6 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             const1 = scipy.special.digamma(scale_plus_x) - scipy.special.digamma(scale)
             const2 = - scale_plus_x / r_plus_mu
             const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
-            return scale * (const1 + const2 + const3)
+            return w * scale * (const1 + const2 + const3)
 
         return fun

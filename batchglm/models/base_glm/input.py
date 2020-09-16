@@ -7,11 +7,11 @@ import dask.array
 import numpy as np
 import pandas as pd
 import patsy
-import scipy.sparse
 from typing import Union
 
 from .utils import parse_constraints, parse_design
 from .external import InputDataBase
+from .external.types import InputType
 
 
 class InputDataGLM(InputDataBase):
@@ -25,7 +25,7 @@ class InputDataGLM(InputDataBase):
 
     def __init__(
             self,
-            data: Union[np.ndarray, anndata.AnnData, scipy.sparse.csr_matrix],
+            data: InputType,
             design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
             design_loc_names: Union[list, np.ndarray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
