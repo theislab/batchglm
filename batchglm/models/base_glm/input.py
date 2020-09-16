@@ -11,7 +11,7 @@ from typing import Union
 
 from .utils import parse_constraints, parse_design
 from .external import InputDataBase
-from .external.types import InputType
+from .external import types as T
 
 
 class InputDataGLM(InputDataBase):
@@ -25,7 +25,7 @@ class InputDataGLM(InputDataBase):
 
     def __init__(
             self,
-            data: InputType,
+            data: T.InputType,
             design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
             design_loc_names: Union[list, np.ndarray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,

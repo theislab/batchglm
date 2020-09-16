@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse
 import sparse
 from typing import List, Union, Optional
-from .external.types import ArrayLike, InputType
+from .external import types as T
 
 try:
     import anndata
@@ -30,8 +30,8 @@ class InputDataBase:
 
     def __init__(
             self,
-            data: InputType,
-            weights: Optional[Union[ArrayLike, str]] = None,
+            data: T.InputType,
+            weights: Optional[Union[T.ArrayLike, str]] = None,
             observation_names: Optional[List[str]] = None,
             feature_names: Optional[List[str]] = None,
             chunk_size_cells: int = 100000,
