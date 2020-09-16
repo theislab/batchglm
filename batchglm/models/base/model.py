@@ -26,6 +26,10 @@ class _ModelBase(metaclass=abc.ABCMeta):
     def x(self):
         return self.input_data.x
 
+    @property
+    def w(self):
+        return self.input_data.w
+
     def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
         """
         Returns the values specified by key.

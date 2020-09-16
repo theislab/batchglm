@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import scipy.sparse
 import sparse
-from typing import List
+from typing import List, Union, Optional, TypeAlias
 
 try:
     import anndata
@@ -17,6 +17,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+ArrayLike = TypeAlias(Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array])
+InputType = TypeAlias(Union[ArrayLike, anndata.AnnData, "InputDataBase"])
+
 
 class InputDataBase:
     """
@@ -29,13 +32,14 @@ class InputDataBase:
 
     def __init__(
             self,
-            data,
-            observation_names=None,
-            feature_names=None,
+            data: InputType,
+            weights: Optional[Union[ArrayLike, str]] = None,
+            observation_names: Optional[List[str]] = None,
+            feature_names: Optional[List[str]] = None,
             chunk_size_cells: int = 100000,
             chunk_size_genes: int = 100,
             as_dask: bool = True,
-            cast_dtype=None
+            cast_dtype: Optional[np.dtype] = None
     ):
         """
         Create a new InputData object.
@@ -53,22 +57,38 @@ class InputDataBase:
         """
         self.observations = observation_names
         self.features = feature_names
+        self.w = weights
+
         if isinstance(data, np.ndarray) or \
                 isinstance(data, scipy.sparse.csr_matrix) or \
                 isinstance(data, dask.array.core.Array):
             self.x = data
         elif isinstance(data, anndata.AnnData) or isinstance(data, Raw):
             self.x = data.X
+            if isinstance(weights, str):
+                self.w = data.obs[weights].values
         elif isinstance(data, InputDataBase):
             self.x = data.x
+            self.w = data.w
         else:
             raise ValueError("type of data %s not recognized" % type(data))
+
+        if self.w is None:
+            self.w = np.ones(self.x.shape[0], dtype=self.x.dtype)
+
+        if scipy.sparse.issparse(self.w):
+            self.w = self.w.toarray()
+        if self.w.ndim == 2:
+            self.w = self.w.squeeze(1)
+
+        assert self.w.shape == (self.x.shape[0],), "invalid weight shape %s" % self.w.shape
+        assert issubclass(self.w.dtype.type, np.floating)
 
         if as_dask:
             if isinstance(self.x, dask.array.core.Array):
                 self.x = self.x.compute()
             # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
-            if isinstance(self.x, scipy.sparse.spmatrix):
+            if scipy.sparse.issparse(self.x):
                 self.x = dask.array.from_array(
                     sparse.COO.from_scipy_sparse(
                         self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
@@ -81,11 +101,21 @@ class InputDataBase:
                     self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
                     chunks=(chunk_size_cells, chunk_size_genes),
                 )
+
+            if isinstance(self.w, dask.array.core.Array):
+                self.w = self.w.compute()
+            self.w = dask.array.from_array(
+                self.w.astype(cast_dtype if cast_dtype is not None else self.w.dtype),
+                chunks=(chunk_size_cells,),
+            )
         else:
             if isinstance(self.x, dask.array.core.Array):
                 self.x = self.x.compute()
+            if isinstance(self.w, dask.array.core.Array):
+                self.w = self.w.compute()
             if cast_dtype is not None:
                 self.x = self.x.astype(cast_dtype)
+                self.w = self.w.astype(cast_dtype)
 
         self._feature_allzero = np.sum(self.x, axis=0) == 0
         self.chunk_size_cells = chunk_size_cells

@@ -1,12 +1,11 @@
 import dask.array
 import numpy as np
-import scipy.sparse
 import abc
 
 
 class ModelVarsGlm:
     """
-    Build variables to be optimzed and their constraints.
+    Build variables to be optimized and their constraints.
 
     """
 

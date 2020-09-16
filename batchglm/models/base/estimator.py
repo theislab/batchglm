@@ -77,6 +77,10 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         return self.input_data.x
 
     @property
+    def w(self) -> np.ndarray:
+        return self.input_data.w
+
+    @property
     def a_var(self):
         if isinstance(self.model.a_var, dask.array.core.Array):
             return self.model.a_var.compute()
