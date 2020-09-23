@@ -48,6 +48,7 @@ class InputDataBase:
             - np.ndarray: NumPy array containing the raw data
             - anndata.AnnData: AnnData object containing the count data and optional the design models
                 stored as data.obsm[design_loc] and data.obsm[design_scale]
+        :param weights: (optional) observation weights
         :param observation_names: (optional) names of the observations.
         :param feature_names: (optional) names of the features.
         :param cast_dtype: data type of all data; should be either float32 or float64
@@ -72,16 +73,16 @@ class InputDataBase:
             raise ValueError("type of data %s not recognized" % type(data))
 
         if self.w is None:
-            self.w = np.ones(self.x.shape[0], dtype=self.x.dtype)
+            self.w = np.ones(self.x.shape[0], dtype=np.float32 if not issubclass(self.x.dtype, np.floating) else self.x.dtype)
 
         if scipy.sparse.issparse(self.w):
             self.w = self.w.toarray()
-        if self.w.ndim == 2:
-            self.w = self.w.squeeze(1)
+        if self.w.ndim == 1:
+            self.w = self.w.reshape((-1, 1))
 
         # sanity checks
-        assert self.w.shape == (self.x.shape[0],), "invalid weight shape %s" % self.w.shape
-        assert issubclass(self.w.dtype.type, np.floating)
+        assert self.w.shape == (self.x.shape[0], 1), "invalid weight shape %s" % self.w.shape
+        assert issubclass(self.w.dtype.type, np.floating), "invalid weight type %s" % self.w.dtype
 
         if self.observations is not None:
             assert len(self.observations) == self.x.shape[0]

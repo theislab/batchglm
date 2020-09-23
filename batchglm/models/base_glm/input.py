@@ -7,7 +7,7 @@ import dask.array
 import numpy as np
 import pandas as pd
 import patsy
-from typing import Union
+from typing import Union, Optional
 
 from .utils import parse_constraints, parse_design
 from .external import InputDataBase
@@ -26,6 +26,7 @@ class InputDataGLM(InputDataBase):
     def __init__(
             self,
             data: T.InputType,
+            weights: Optional[Union[T.ArrayLike, str]] = None,
             design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
             design_loc_names: Union[list, np.ndarray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
@@ -48,6 +49,7 @@ class InputDataGLM(InputDataBase):
                 - np.ndarray: NumPy array containing the raw data
                 - anndata.AnnData: AnnData object containing the count data and optional the design models
                     stored as data.obsm[design_loc] and data.obsm[design_scale]
+        :param weights: (optional) observation weights
         :param design_loc: Some matrix format (observations x mean model parameters)
             The location design model. Optional if already specified in `data`
         :param design_loc_names: (optional)
@@ -83,6 +85,7 @@ class InputDataGLM(InputDataBase):
         InputDataBase.__init__(
             self=self,
             data=data,
+            weights=weights,
             observation_names=observation_names,
             feature_names=feature_names,
             chunk_size_cells=chunk_size_cells,
