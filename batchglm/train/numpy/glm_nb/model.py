@@ -191,16 +191,22 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
                  self.x * (self.eta_loc - log_r_plus_mu) + \
                  np.multiply(scale, self.eta_scale - log_r_plus_mu)
         else:
-            # sparse scipy
-            # The inner np.asarray (self.x.multiply(...)) is there because dask
-            # does not yet support fancy nd indexing
+            # sparse scipy, assuming self.x is also a dask array
+
+            # if not, it can be fixed as follows:
+            # the inner np.asarray: ... + (self.x.multiply(np.asarray(...))).tocsr()
+            # is there because dask does not yet support fancy nd indexing
             # tocsr because TypeError: 'coo_matrix' object is not subscriptable
+            # when computing the values in `ll = np.asarray(ll)`
+            #
+            # however, the estimator code will be broken, since it calls: self.model.ll_byfeature.compute()
+            # which requires this property, which will not be a dask array
 
             ll = scipy.special.gammaln(np.asarray(scale + self.x)) - \
                 scipy.special.gammaln(self.x + np.ones_like(scale)) - \
                 scipy.special.gammaln(scale) + \
-                self.x.multiply(np.asarray(self.eta_loc - log_r_plus_mu +
-                           np.multiply(scale, self.eta_scale - log_r_plus_mu))).tocsr()
+                np.asarray(self.x.multiply(self.eta_loc - log_r_plus_mu +
+                           np.multiply(scale, self.eta_scale - log_r_plus_mu)))
             ll = np.asarray(ll)
         return self.np_clip_param(self.w * ll, "ll")
 

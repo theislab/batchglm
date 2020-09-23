@@ -115,6 +115,9 @@ class InputDataBase:
                 chunks=(chunk_size_cells, 1),
             )
         else:
+            if scipy.sparse.issparse(self.x):
+                raise TypeError(f"For sparse matrices, only dask is supported.")
+
             if isinstance(self.x, dask.array.core.Array):
                 self.x = self.x.compute()
             if isinstance(self.w, dask.array.core.Array):
