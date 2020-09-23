@@ -205,8 +205,8 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             ll = scipy.special.gammaln(np.asarray(scale + self.x)) - \
                 scipy.special.gammaln(self.x + np.ones_like(scale)) - \
                 scipy.special.gammaln(scale) + \
-                np.asarray(self.x.multiply(self.eta_loc - log_r_plus_mu +
-                           np.multiply(scale, self.eta_scale - log_r_plus_mu)))
+                np.asarray(self.x.multiply(self.eta_loc - log_r_plus_mu) +
+                           np.multiply(scale, self.eta_scale - log_r_plus_mu))
             ll = np.asarray(ll)
         return self.np_clip_param(self.w * ll, "ll")
 
