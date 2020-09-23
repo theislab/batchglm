@@ -192,11 +192,15 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
                  np.multiply(scale, self.eta_scale - log_r_plus_mu)
         else:
             # sparse scipy
+            # The inner np.asarray (self.x.multiply(...)) is there because dask
+            # does not yet support fancy nd indexing
+            # tocsr because TypeError: 'coo_matrix' object is not subscriptable
+
             ll = scipy.special.gammaln(np.asarray(scale + self.x)) - \
                 scipy.special.gammaln(self.x + np.ones_like(scale)) - \
                 scipy.special.gammaln(scale) + \
-                np.asarray(self.x.multiply(self.eta_loc - log_r_plus_mu) +
-                           np.multiply(scale, self.eta_scale - log_r_plus_mu))
+                self.x.multiply(np.asarray(self.eta_loc - log_r_plus_mu +
+                           np.multiply(scale, self.eta_scale - log_r_plus_mu))).tocsr()
             ll = np.asarray(ll)
         return self.np_clip_param(self.w * ll, "ll")
 

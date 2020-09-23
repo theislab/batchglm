@@ -1,3 +1,5 @@
+from typing import Union
+
 import dask.array
 import numpy as np
 import abc
@@ -23,8 +25,8 @@ class ModelVarsGlm:
             self,
             init_a: np.ndarray,
             init_b: np.ndarray,
-            constraints_loc: np.ndarray,
-            constraints_scale: np.ndarray,
+            constraints_loc: Union[np.ndarray, dask.array.core.Array],
+            constraints_scale: Union[np.ndarray, dask.array.core.Array],
             chunk_size_genes: int,
             dtype: str
     ):
@@ -41,13 +43,12 @@ class ModelVarsGlm:
 
         init_a_clipped = self.np_clip_param(np.asarray(init_a, dtype=dtype), "a_var")
         init_b_clipped = self.np_clip_param(np.asarray(init_b, dtype=dtype), "b_var")
-        self.params = dask.array.from_array(np.concatenate(
-            [
-                init_a_clipped,
-                init_b_clipped,
-            ],
-            axis=0
-        ), chunks=(1000, chunk_size_genes))
+
+        self.params = np.concatenate([init_a_clipped, init_b_clipped], axis=0)
+        # TODO: being not a dask array breaks a lot of things
+        if True or isinstance(constraints_loc, dask.array.core.Array):
+            self.params = dask.array.from_array(self.params, chunks=(1000, chunk_size_genes))
+
         self.npar_a = init_a_clipped.shape[0]
 
         # Properties to follow gene-wise convergence.

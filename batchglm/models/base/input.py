@@ -73,7 +73,8 @@ class InputDataBase:
             raise ValueError("type of data %s not recognized" % type(data))
 
         if self.w is None:
-            self.w = np.ones(self.x.shape[0], dtype=np.float32 if not issubclass(self.x.dtype, np.floating) else self.x.dtype)
+            self.w = np.ones(self.x.shape[0],
+                             dtype=np.float32 if not issubclass(type(self.x.dtype.type), np.floating) else self.x.dtype)
 
         if scipy.sparse.issparse(self.w):
             self.w = self.w.toarray()
@@ -111,7 +112,7 @@ class InputDataBase:
                 self.w = self.w.compute()
             self.w = dask.array.from_array(
                 self.w.astype(cast_dtype if cast_dtype is not None else self.w.dtype),
-                chunks=(chunk_size_cells,),
+                chunks=(chunk_size_cells, 1),
             )
         else:
             if isinstance(self.x, dask.array.core.Array):
