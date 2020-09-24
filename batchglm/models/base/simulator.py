@@ -1,16 +1,10 @@
 import abc
-import dask.array
-import os
 import logging
 import numpy as np
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 from .input import InputDataBase
 from .model import _ModelBase
+from .external import maybe_compute
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +18,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     convention: N features with M observations each => (M, N) matrix
     """
+    # TODO: why?
     nobs: int
     nfeatures: int
 
@@ -32,9 +27,9 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            model,
-            num_observations,
-            num_features
+            model: _ModelBase,
+            num_observations: int,
+            num_features: int
     ):
         self.nobs = num_observations
         self.nfeatures = num_features
@@ -42,7 +37,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         self.input_data = None
         self.model = model
 
-    def generate(self):
+    def generate(self) -> None:
         """
         First generates the parameter set, then observations random data using these parameters
         """
@@ -63,9 +58,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         """
         pass
 
+    # TODO: computed property (self.input_data.x should not change)?
     @property
     def x(self) -> np.ndarray:
-        if isinstance(self.input_data.x, dask.array.core.Array):
-            return self.input_data.x.compute()
-        else:
-            return self.input_data.x
+        return maybe_compute(self.input_data.x)

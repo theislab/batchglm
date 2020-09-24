@@ -9,7 +9,6 @@ import scipy.optimize
 import sparse
 import sys
 import time
-from typing import Tuple
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
@@ -65,7 +64,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         of the location model is tracked with self.model.converged. This is re-set after a scale model update, as this
         convergence only holds conditioned on a particular scale model value.
         Full convergence of a feature wise model is evaluated after each scale model update: If the loss function based
-        convergence criterium holds across the cumulative updates of the sequence of location updates and last scale
+        convergence criterion holds across the cumulative updates of the sequence of location updates and last scale
         model update, the feature is considered converged. For this, the loss value at the last scale model update is
         save in ll_last_b_update. Full convergence is saved in fully_converged.
 

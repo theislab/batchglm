@@ -7,11 +7,11 @@ import dask.array
 import numpy as np
 import pandas as pd
 import patsy
-import scipy.sparse
-from typing import Union
+from typing import Union, Optional
 
 from .utils import parse_constraints, parse_design
 from .external import InputDataBase
+from .external import types as T
 
 
 class InputDataGLM(InputDataBase):
@@ -25,7 +25,8 @@ class InputDataGLM(InputDataBase):
 
     def __init__(
             self,
-            data: Union[np.ndarray, anndata.AnnData, scipy.sparse.csr_matrix],
+            data: T.InputType,
+            weights: Optional[Union[T.ArrayLike, str]] = None,
             design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
             design_loc_names: Union[list, np.ndarray] = None,
             design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
@@ -48,6 +49,7 @@ class InputDataGLM(InputDataBase):
                 - np.ndarray: NumPy array containing the raw data
                 - anndata.AnnData: AnnData object containing the count data and optional the design models
                     stored as data.obsm[design_loc] and data.obsm[design_scale]
+        :param weights: (optional) observation weights
         :param design_loc: Some matrix format (observations x mean model parameters)
             The location design model. Optional if already specified in `data`
         :param design_loc_names: (optional)
@@ -83,6 +85,7 @@ class InputDataGLM(InputDataBase):
         InputDataBase.__init__(
             self=self,
             data=data,
+            weights=weights,
             observation_names=observation_names,
             feature_names=feature_names,
             chunk_size_cells=chunk_size_cells,
@@ -142,21 +145,23 @@ class InputDataGLM(InputDataBase):
         self._loc_names = loc_names
         self._scale_names = scale_names
 
+        self.size_factors = None
+
         if size_factors is not None:
-            if len(size_factors.shape) == 1:
-                size_factors = np.expand_dims(np.asarray(size_factors), axis=-1)
-            elif len(size_factors.shape) == 2:
-                pass
+            size_factors = np.asarray(size_factors)
+
+            if size_factors.ndim == 1:
+                size_factors = size_factors.reshape((-1, 1))
+            if size_factors.ndim != 2:
+                raise ValueError("received size factors with dimension=%i" % size_factors.ndim)
+
+            if as_dask:
+                self.size_factors = dask.array.from_array(
+                    size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                    chunks=(chunk_size_cells, 1),
+                )
             else:
-                raise ValueError("received size factors with dimension=%i" % len(size_factors.shape))
-        if as_dask:
-            self.size_factors = dask.array.from_array(
-                size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-                chunks=(chunk_size_cells, 1),
-            ) if size_factors is not None else None
-        else:
-            self.size_factors =  size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype) \
-                if size_factors is not None else None
+                self.size_factors = size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
 
     @property
     def design_loc_names(self):
