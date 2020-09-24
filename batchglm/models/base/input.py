@@ -56,7 +56,7 @@ class InputDataBase:
         """
         self.observations = observation_names
         self.features = feature_names
-        self.w = weights
+        self.w = None
 
         if isinstance(data, np.ndarray) or \
                 isinstance(data, scipy.sparse.csr_matrix) or \
@@ -72,9 +72,11 @@ class InputDataBase:
         else:
             raise ValueError("type of data %s not recognized" % type(data))
 
+        self._cast_type = cast_dtype if cast_dtype is not None else self.x.dtype
+        self._cast_type_float = np.float32 if not issubclass(type(self._cast_type), np.floating) else self._cast_type
+
         if self.w is None:
-            self.w = np.ones(self.x.shape[0],
-                             dtype=np.float32 if not issubclass(type(self.x.dtype.type), np.floating) else self.x.dtype)
+            self.w = np.ones(self.x.shape[0], dtype=self._cast_type_float)
 
         if scipy.sparse.issparse(self.w):
             self.w = self.w.toarray()
@@ -96,25 +98,21 @@ class InputDataBase:
             # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
             if scipy.sparse.issparse(self.x):
                 self.x = dask.array.from_array(
-                    sparse.COO.from_scipy_sparse(
-                        self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
-                    ),
+                    sparse.COO.from_scipy_sparse(self.x.astype(self._cast_type)),
                     chunks=(chunk_size_cells, chunk_size_genes),
                     asarray=False
                 )
             else:
                 self.x = dask.array.from_array(
-                    self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                    self.x.astype(self._cast_type),
                     chunks=(chunk_size_cells, chunk_size_genes),
                 )
 
             if isinstance(self.w, dask.array.core.Array):
                 self.w = self.w.compute()
-            self.w = dask.array.from_array(
-                self.w.astype(cast_dtype if cast_dtype is not None else self.w.dtype),
-                chunks=(chunk_size_cells, 1),
-            )
+            self.w = dask.array.from_array(self.w.astype(self._cast_type_float), chunks=(chunk_size_cells, 1))
         else:
+            # TODO: fix this
             if scipy.sparse.issparse(self.x):
                 raise TypeError(f"For sparse matrices, only dask is supported.")
 
@@ -122,9 +120,9 @@ class InputDataBase:
                 self.x = self.x.compute()
             if isinstance(self.w, dask.array.core.Array):
                 self.w = self.w.compute()
-            if cast_dtype is not None:
-                self.x = self.x.astype(cast_dtype)
-                self.w = self.w.astype(cast_dtype)
+
+            self.x = self.x.astype(self._cast_type)
+            self.w = self.w.astype(self._cast_type)
 
         self._feature_allzero = np.sum(self.x, axis=0) == 0
         self.chunk_size_cells = chunk_size_cells

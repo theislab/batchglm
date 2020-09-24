@@ -4,6 +4,8 @@ import dask.array
 import numpy as np
 import abc
 
+from .external import isdask
+
 
 class ModelVarsGlm:
     """
@@ -45,8 +47,7 @@ class ModelVarsGlm:
         init_b_clipped = self.np_clip_param(np.asarray(init_b, dtype=dtype), "b_var")
 
         self.params = np.concatenate([init_a_clipped, init_b_clipped], axis=0)
-        # TODO: being not a dask array breaks a lot of things
-        if True or isinstance(constraints_loc, dask.array.core.Array):
+        if isdask(constraints_loc):
             self.params = dask.array.from_array(self.params, chunks=(1000, chunk_size_genes))
 
         self.npar_a = init_a_clipped.shape[0]
