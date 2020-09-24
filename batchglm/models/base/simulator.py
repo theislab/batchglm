@@ -1,12 +1,6 @@
 import abc
-import dask.array
 import logging
 import numpy as np
-
-try:
-    import anndata
-except ImportError:
-    anndata = None
 
 from .input import InputDataBase
 from .model import _ModelBase
@@ -24,6 +18,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     convention: N features with M observations each => (M, N) matrix
     """
+    # TODO: why?
     nobs: int
     nfeatures: int
 
@@ -32,9 +27,9 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            model,
-            num_observations,
-            num_features
+            model: _ModelBase,
+            num_observations: int,
+            num_features: int
     ):
         self.nobs = num_observations
         self.nfeatures = num_features
@@ -42,7 +37,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         self.input_data = None
         self.model = model
 
-    def generate(self):
+    def generate(self) -> None:
         """
         First generates the parameter set, then observations random data using these parameters
         """

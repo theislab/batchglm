@@ -6,7 +6,7 @@ import sparse
 from typing import List, Union, Optional, Tuple
 from .external import types as T, maybe_compute
 
-# TODO: make this nicer
+# TODO: make this nicer (i.e. top-level import + function + warning if None)
 try:
     import anndata
     try:

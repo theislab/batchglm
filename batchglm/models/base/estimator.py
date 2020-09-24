@@ -1,8 +1,10 @@
 import abc
 from abc import ABC
+from enum import Enum
+from pathlib import Path
+from typing import Optional, Union
 
 import dask
-from enum import Enum
 import logging
 import numpy as np
 import pandas as pd
@@ -11,7 +13,7 @@ import sys
 
 from .input import InputDataBase
 from .model import _ModelBase
-from .external import maybe_compute
+from .external import maybe_compute, types as T
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
     """
     # TODO: why are these here?
     model: _ModelBase
-    _loss: np.ndarray
+    _loss: np.ndarray  # is this really an array?
     _jacobian: np.ndarray
 
     # TODO: better enums (use the pretty-printing like in CellRank)
@@ -46,16 +48,17 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         self._error_codes = None
         self._niter = None
 
+    # TODO: type
     @property
     def error_codes(self):
         return self._error_codes
 
     @property
-    def niter(self):
+    def niter(self) -> int:
         return self._niter
 
     @property
-    def loss(self):
+    def loss(self) -> np.ndarray:
         return self._loss
 
     @property
@@ -63,13 +66,14 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         return self._log_likelihood
 
     @property
-    def jacobian(self):
+    def jacobian(self) -> np.ndarray:
         return self._jacobian
 
     @property
-    def hessian(self):
+    def hessian(self) -> np.ndarray:
         return self._hessian
 
+    # TODO: type
     @property
     def fisher_inv(self):
         return self._fisher_inv
@@ -97,6 +101,8 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         """
         pass
 
+    # TODO: type training strategy
+    # TODO: docs
     def train_sequence(
             self,
             training_strategy,
@@ -118,6 +124,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
             if np.any([x in list(d.keys()) for x in list(kwargs.keys())]):
                 d = dict([(x, y) for x, y in d.items() if x not in list(kwargs.keys())])
                 for x in [xx for xx in list(d.keys()) if xx in list(kwargs.keys())]:
+                    # TODO: don't use sys
                     sys.stdout.write(
                         "overrding %s from training strategy with value %s with new value %s\n" %
                         (x, str(d[x]), str(kwargs[x]))
@@ -140,20 +147,21 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         """
         pass
 
+    # TODO: make static, not use model?
     def _plot_coef_vs_ref(
             self,
-            true_values: np.ndarray,
-            estim_values: np.ndarray,
-            size=1,
-            log=False,
-            save=None,
-            show=True,
-            ncols=5,
-            row_gap=0.3,
-            col_gap=0.25,
-            title=None,
-            return_axs=False
-    ):
+            true_values: T.ArrayLike,
+            estim_values: T.ArrayLike,
+            size: float = 1,
+            log: bool = False,
+            save: Optional[Union[str, Path]] = None,
+            show: bool = True,
+            ncols: int = 5,
+            row_gap: float = 0.3,
+            col_gap: float = 0.25,
+            title: Optional[str] = None,
+            return_axs: bool = False
+    ) -> Optional['matplotlib.axes.Axes']:
         """
         Plot estimated coefficients against reference (true) coefficients.
 
@@ -175,10 +183,8 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         from matplotlib import gridspec
         from matplotlib import rcParams
 
-        if isinstance(true_values, dask.array.core.Array):
-            true_values = true_values.compute()
-        if isinstance(estim_values, dask.array.core.Array):
-            estim_values = estim_values.compute()
+        true_values = maybe_compute(true_values)
+        estim_values = maybe_compute(estim_values)
 
         plt.ioff()
 
@@ -248,15 +254,16 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         if return_axs:
             return axs
 
+    # TODO: make static, not use model?
     def _plot_deviation(
             self,
-            true_values: np.ndarray,
-            estim_values: np.ndarray,
-            save=None,
-            show=True,
-            title=None,
-            return_axs=False
-    ):
+            true_values: T.ArrayLike,
+            estim_values: T.ArrayLike,
+            save: Optional[Union[str, Path]] = None,
+            show: bool = True,
+            title: Optional[str] = None,
+            return_axs: bool = False
+    ) -> Optional['matplotlib.axes.Axes']:
         """
         Plot estimated coefficients against reference (true) coefficients.
 
@@ -308,8 +315,6 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
         if return_axs:
             return ax
-        else:
-            return
 
 
 class EstimatorBaseTyping(_EstimatorBase, ABC):

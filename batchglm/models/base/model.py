@@ -2,11 +2,8 @@ import abc
 from typing import Union, Any, Dict, Iterable
 import logging
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
+from .external import types as T
+from .input import InputDataBase
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +15,16 @@ class _ModelBase(metaclass=abc.ABCMeta):
 
     def __init__(
             self,
-            input_data
+            input_data: InputDataBase
     ):
         self.input_data = input_data
 
     @property
-    def x(self):
+    def x(self) -> T.ArrayLike:
         return self.input_data.x
 
     @property
-    def w(self):
+    def w(self) -> T.ArrayLike:
         return self.input_data.w
 
     def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
@@ -42,11 +39,11 @@ class _ModelBase(metaclass=abc.ABCMeta):
         elif isinstance(key, Iterable):
             return {s: self.__getattribute__(s) for s in key}
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> Union[Any, Dict[str, Any]]:
         return self.get(item)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__class__.__name__
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
