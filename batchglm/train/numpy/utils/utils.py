@@ -7,12 +7,12 @@ import dask.array
 from .external import ArrayLike
 
 
-def maybe_compute(array: Optional[Union[ArrayLike]]) -> Optional[Union[np.ndarray, spmatrix]]:
+def maybe_compute(array: Optional[Union[ArrayLike]], copy: bool = False) -> Optional[Union[np.ndarray, spmatrix]]:
     if array is None:
         return None
     if isdask(array):
         return array.compute()
-    return array
+    return array.copy() if copy else array
 
 
 def isdask(array: Optional[ArrayLike]) -> bool:

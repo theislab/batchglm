@@ -3,9 +3,10 @@ import logging
 import numpy as np
 import scipy.sparse
 import sparse
-from typing import List, Union, Optional
-from .external import types as T
+from typing import List, Union, Optional, Tuple
+from .external import types as T, maybe_compute
 
+# TODO: make this nicer
 try:
     import anndata
     try:
@@ -84,6 +85,7 @@ class InputDataBase:
             self.w = self.w.reshape((-1, 1))
 
         # sanity checks
+        # TODO: don't use asserts
         assert self.w.shape == (self.x.shape[0], 1), "invalid weight shape %s" % self.w.shape
         assert issubclass(self.w.dtype.type, np.floating), "invalid weight type %s" % self.w.dtype
 
@@ -92,9 +94,10 @@ class InputDataBase:
         if self.features is not None:
             assert len(self.features) == self.x.shape[1]
 
+        self.x = maybe_compute(self.x)
+        self.w = maybe_compute(self.w)
+
         if as_dask:
-            if isinstance(self.x, dask.array.core.Array):
-                self.x = self.x.compute()
             # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
             if scipy.sparse.issparse(self.x):
                 self.x = dask.array.from_array(
@@ -108,18 +111,11 @@ class InputDataBase:
                     chunks=(chunk_size_cells, chunk_size_genes),
                 )
 
-            if isinstance(self.w, dask.array.core.Array):
-                self.w = self.w.compute()
             self.w = dask.array.from_array(self.w.astype(self._cast_type_float), chunks=(chunk_size_cells, 1))
         else:
             # TODO: fix this
             if scipy.sparse.issparse(self.x):
                 raise TypeError(f"For sparse matrices, only dask is supported.")
-
-            if isinstance(self.x, dask.array.core.Array):
-                self.x = self.x.compute()
-            if isinstance(self.w, dask.array.core.Array):
-                self.w = self.w.compute()
 
             self.x = self.x.astype(self._cast_type)
             self.w = self.w.astype(self._cast_type)
@@ -129,27 +125,27 @@ class InputDataBase:
         self.chunk_size_genes = chunk_size_genes
 
     @property
-    def num_observations(self):
+    def num_observations(self) -> int:
         return self.x.shape[0]
 
     @property
-    def num_features(self):
+    def num_features(self) -> int:
         return self.x.shape[1]
 
     @property
-    def feature_isnonzero(self):
+    def feature_isnonzero(self) -> np.ndarray:
         return ~self._feature_allzero
 
     @property
-    def feature_isallzero(self):
+    def feature_isallzero(self) -> np.ndarray:
         return self._feature_allzero
 
-    def fetch_x_dense(self, idx):
+    def fetch_x_dense(self, idx: T.IndexLike) -> np.ndarray:
         assert isinstance(self.x, np.ndarray), "tried to fetch dense from non ndarray"
 
         return self.x[idx, :]
 
-    def fetch_x_sparse(self, idx):
+    def fetch_x_sparse(self, idx: T.IndexLike) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         assert isinstance(self.x, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr_matrix"
 
         data = self.x[idx, :]

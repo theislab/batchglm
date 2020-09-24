@@ -1,4 +1,6 @@
 import abc
+from abc import ABC
+
 import dask
 from enum import Enum
 import logging
@@ -7,25 +9,25 @@ import pandas as pd
 import pprint
 import sys
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 from .input import InputDataBase
 from .model import _ModelBase
+from .external import maybe_compute
 
 logger = logging.getLogger(__name__)
 
 
+# TODO: why abc.Meta instead of abc.ABC
 class _EstimatorBase(metaclass=abc.ABCMeta):
     r"""
     Estimator base class
     """
+    # TODO: why are these here?
     model: _ModelBase
     _loss: np.ndarray
     _jacobian: np.ndarray
 
+    # TODO: better enums (use the pretty-printing like in CellRank)
+    # TODO: don't use nested classes
     class TrainingStrategy(Enum):
         AUTO = None
 
@@ -81,18 +83,12 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         return self.input_data.w
 
     @property
-    def a_var(self):
-        if isinstance(self.model.a_var, dask.array.core.Array):
-            return self.model.a_var.compute()
-        else:
-            return self.model.a_var
+    def a_var(self) -> np.ndarray:
+        return maybe_compute(self.model.a_var)
 
     @property
     def b_var(self) -> np.ndarray:
-        if isinstance(self.model.b_var, dask.array.core.Array):
-            return self.model.b_var.compute()
-        else:
-            return self.model.b_var
+        return maybe_compute(self.model.b_var)
 
     @abc.abstractmethod
     def initialize(self, **kwargs):
@@ -106,6 +102,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
             training_strategy,
             **kwargs
     ):
+        # TODO: better enums (use the pretty-printing like in CellRank)
         if isinstance(training_strategy, Enum):
             training_strategy = training_strategy.value
         elif isinstance(training_strategy, str):
@@ -250,8 +247,6 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
         if return_axs:
             return axs
-        else:
-            return
 
     def _plot_deviation(
             self,
@@ -317,7 +312,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
             return
 
 
-class EstimatorBaseTyping(_EstimatorBase):
+class EstimatorBaseTyping(_EstimatorBase, ABC):
     r"""
     Estimator base class used for typing in other packages.
     """
