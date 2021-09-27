@@ -14,7 +14,7 @@ class TrainingStrategies(Enum):
         {
             "convergence_criteria": "all_converged",
             "use_batching": False,
-            "optim_algo": "irls_gd_tr",
+            "optim_algo": "irls_tr_gd_tr",
         },
     ]
     IRLS_BATCHED = [

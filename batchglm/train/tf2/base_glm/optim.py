@@ -495,7 +495,6 @@ class IRLS(SecondOrderOptim):
                 batch_features=batch_features,
                 update_theta=update_theta
             )
-            print(self.tr_radius[self.model.model_vars.remaining_features])
 
     def calc_delta_f_actual(self, current_likelihood, new_likelihood, jacobian):
         eta1 = tf.constant(pkg_constants.TRUST_REGION_ETA1, dtype=self._dtype)

@@ -126,7 +126,6 @@ class ConvergenceCalculator:
         # For now it must not be below the threshold for the X step of the loc model.
         if hasattr(optimizer_object, 'tr_mode') and optimizer_object.tr_mode:
             converged_tr = optimizer_object.tr_radius.numpy() < pkg_constants.TRTOL_BY_FEATURE_LOC
-            print(converged_tr[self.estimator.model.model_vars.remaining_features])
             epoch_tr_converged = not_converged_a & converged_tr
             epoch_step_converged_a |= epoch_tr_converged
         if hasattr(optimizer_object, 'tr_mode_b') and optimizer_object.tr_mode_b and self.estimator._train_scale:
