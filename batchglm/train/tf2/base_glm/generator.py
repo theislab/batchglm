@@ -74,7 +74,6 @@ class DataGenerator:
         and returns the reduced element."""
 
         not_converged = self.estimator.model.model_vars.remaining_features
-        """
         if self.sparse:
             feature_columns = tf.sparse.split(
                 x_tensor,
@@ -84,8 +83,7 @@ class DataGenerator:
             feature_columns = [feature_columns[i] for i in not_converged_idx]
             x_tensor = tf.sparse.concat(axis=1, sp_inputs=feature_columns)
         else:
-        """
-        x_tensor = tf.boolean_mask(tensor=x_tensor, mask=not_converged, axis=1)
+            x_tensor = tf.boolean_mask(tensor=x_tensor, mask=not_converged, axis=1)
         return x_tensor, dloc, dscale, size_factors
 
     def new_epoch_set(self, batch_features: bool = False):
@@ -93,11 +91,11 @@ class DataGenerator:
         dataset_to_return = self.dataset.take(self.num_batches)
 
         if self.sparse:
-            if batch_features:
-                dataset_to_return = dataset_to_return.map(self._featurewise_batch_sparse)
             dataset_to_return = dataset_to_return.map(
                 lambda ivs_tuple, loc, scale, sf: (tf.SparseTensor(*ivs_tuple), loc, scale, sf)
             )
+            if batch_features:
+                dataset_to_return = dataset_to_return.map(self._featurewise_batch)
         else:
             if batch_features:
                 dataset_to_return = dataset_to_return.map(self._featurewise_batch)
