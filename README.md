@@ -23,3 +23,17 @@ You can install [tensorflow](https://www.tensorflow.org/install/) via pip or via
   
 ### Hardware-optimized tensorflow installation (compiling from source)
 Please refer to https://www.tensorflow.org/install/.
+
+# Development
+Once you have created an isolated environment run
+```
+pip install -r requirements.txt
+```
+Note that you will need python 3.6 or lower in order to be able to run the tests which use `tensorflow` version 1 on a mac.
+
+To run unit tests:
+
+```
+pip install -e .
+python -m unittest
+```

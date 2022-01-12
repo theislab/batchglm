@@ -1,0 +1,15 @@
+jobs:
+  build:
+    runs-on: [ubuntu-latest, macos-latest]
+    strategy:
+      matrix:
+        python-version: [ '3.6' ]
+    name: Python ${{ matrix.python-version }} Tests
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+      - run: python -m unittest
