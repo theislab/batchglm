@@ -13,4 +13,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
-      - run: python -m unittest
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+      - name: Run Tests
+        run: python -m unittest
