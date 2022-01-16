@@ -6,7 +6,7 @@ import patsy
 from typing import Union, Tuple
 
 from .model import _ModelGLM
-from .external import _SimulatorBase
+from .external import SimulatorBase
 
 
 def generate_sample_description(
@@ -48,7 +48,7 @@ def generate_sample_description(
     return patsy.dmatrix("~1+condition+batch", sample_description), sample_description
 
 
-class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
+class SimulatorGLM(SimulatorBase, metaclass=abc.ABCMeta):
     """
     Simulator for Generalized Linear Models (GLMs).
     """
@@ -62,7 +62,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             num_observations,
             num_features
     ):
-        _SimulatorBase.__init__(
+        SimulatorBase.__init__(
             self=self,
             model=model,
             num_observations=num_observations,
@@ -171,6 +171,12 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     @property
     def constraints_scale(self):
         return np.identity(n=self.b_var.shape[0])
+
+    def param_bounds(self, dtype):
+        pass
+
+    def eta_loc_j(self, j) -> np.ndarray:
+        pass
 
     def np_clip_param(
             self,

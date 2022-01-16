@@ -1,11 +1,11 @@
 import numpy as np
 
 from .model import Model
-from .external import _SimulatorGLM, InputDataGLM
+from .external import SimulatorGLM, InputDataGLM
 from .external import pkg_constants
 
 
-class Simulator(_SimulatorGLM, Model):
+class Simulator(SimulatorGLM, Model):
     """
     Simulator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
@@ -20,7 +20,7 @@ class Simulator(_SimulatorGLM, Model):
             self=self,
             input_data=None
         )
-        _SimulatorGLM.__init__(
+        SimulatorGLM.__init__(
             self=self,
             model=None,
             num_observations=num_observations,

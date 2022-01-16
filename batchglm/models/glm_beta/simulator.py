@@ -1,10 +1,10 @@
 import numpy as np
 
 from .model import Model
-from .external import InputDataGLM, _SimulatorGLM
+from .external import InputDataGLM, SimulatorGLM
 
 
-class Simulator(_SimulatorGLM, Model):
+class Simulator(SimulatorGLM, Model):
     """
     Simulator for Generalized Linear Models (GLMs) with beta distributed noise.
     Uses a logit-linker function for loc and a log-linker function for scale.
@@ -15,7 +15,7 @@ class Simulator(_SimulatorGLM, Model):
             num_observations=1000,
             num_features=100
     ):
-        _SimulatorGLM.__init__(
+        SimulatorGLM.__init__(
             self=self,
             model=None,
             num_observations=num_observations,
