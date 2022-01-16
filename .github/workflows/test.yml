@@ -1,7 +1,7 @@
 on: push
 jobs:
   build:
-    runs-on: [ubuntu-latest, macos-latest]
+    runs-on: [ubuntu-20.04, macos-latest]
     strategy:
       matrix:
         python-version: [ '3.6' ]
