@@ -24,12 +24,6 @@ class _TestAccuracyGlmAllEstim:
         else:
             if noise_model == "nb":
                 from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
-            elif noise_model == "norm":
-                logger.info('norm is partially implemented, passing test.')
-                return True
-            elif noise_model == "beta":
-                logger.info('beta is partially implemented, passing test.')
-                return True
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -150,12 +144,6 @@ class _TestAccuracyGlmAll(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.numpy.glm_nb import Simulator
-            elif self.noise_model == "norm":
-                logger.info('norm is partially implemented, passing test.')
-                return True
-            elif self.noise_model == "beta":
-                logger.info('beta is partially implemented, passing test.')
-                return True
             else:
                 raise ValueError("noise_model not recognized")
 

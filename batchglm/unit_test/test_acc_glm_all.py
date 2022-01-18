@@ -24,16 +24,10 @@ class _TestAccuracyGlmAllEstim:
         else:
             if noise_model == "nb":
                 from batchglm.api.models.tf1.glm_nb import Estimator, InputDataGLM
-            # elif noise_model == "norm":
-            #     from batchglm.api.models.tf1.glm_norm import Estimator, InputDataGLM
-            # elif noise_model == "beta":
-            #     from batchglm.api.models.tf1.glm_beta import Estimator, InputDataGLM
             elif noise_model == "norm":
-                logger.info('norm is partially implemented, passing test.')
-                return True
+                from batchglm.api.models.tf1.glm_norm import Estimator, InputDataGLM
             elif noise_model == "beta":
-                logger.info('beta is partially implemented, passing test.')
-                return True
+                from batchglm.api.models.tf1.glm_beta import Estimator, InputDataGLM
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -190,16 +184,10 @@ class _TestAccuracyGlmAll(
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.tf1.glm_nb import Simulator
-            # elif self.noise_model == "norm":
-            #     from batchglm.api.models.tf1.glm_norm import Simulator
-            # elif self.noise_model == "beta":
-            #     from batchglm.api.models.tf1.glm_beta import Simulator
             elif self.noise_model == "norm":
-                logger.info('norm is partially implemented, passing test.')
-                return True
+                from batchglm.api.models.tf1.glm_norm import Simulator
             elif self.noise_model == "beta":
-                logger.info('beta is partially implemented, passing test.')
-                return True
+                from batchglm.api.models.tf1.glm_beta import Simulator
             else:
                 raise ValueError("noise_model not recognized")
 

@@ -20,12 +20,6 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         else:
             if self.noise_model == "nb":
                 from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
-            elif self.noise_model == "norm":
-                logger.info('norm is partially implemented, passing test.')
-                return True
-            elif self.noise_model == "beta":
-                logger.info('beta is partially implemented, passing test.')
-                return True
             else:
                 raise ValueError("noise_model not recognized")
 
