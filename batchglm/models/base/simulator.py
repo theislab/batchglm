@@ -15,7 +15,7 @@ from .model import _ModelBase
 logger = logging.getLogger(__name__)
 
 
-class SimulatorBase(metaclass=abc.ABCMeta):
+class _SimulatorBase(metaclass=abc.ABCMeta):
     r"""
     Simulator base class
 

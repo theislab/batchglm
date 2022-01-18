@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 import batchglm.api as glm
-from batchglm.models.base_glm import SimulatorGLM, InputDataGLM
+from batchglm.models.base_glm import _SimulatorGLM, InputDataGLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class TestSimulationGlmAll:
 
-    sim: SimulatorGLM
+    sim: _SimulatorGLM
     input_data: InputDataGLM
     noise_model: str
 
