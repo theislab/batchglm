@@ -126,10 +126,11 @@ class TestAccuracyXtremeNorm(
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeNorm.test_norm()")
+        logger.info('Normal noise model not implemented for numpy')
 
-        np.random.seed(1)
-        self.noise_model = "norm"
-        self._test_all()
+        # np.random.seed(1)
+        # self.noise_model = "norm"
+        # self._test_all()
 
 
 class TestAccuracyXtremeBeta(
@@ -144,10 +145,11 @@ class TestAccuracyXtremeBeta(
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeBeta.test_beta()")
+        logger.info('Beta noise model not implemented for numpy')
 
-        np.random.seed(1)
-        self.noise_model = "beta"
-        self._test_all()
+        # np.random.seed(1)
+        # self.noise_model = "beta"
+        # self._test_all()
 
 
 if __name__ == '__main__':
