@@ -194,17 +194,18 @@ class Estimator(TFEstimatorGLM, ProcessModel):
                     design_constr = np.matmul(input_data.design_loc, input_data.constraints_loc)
                     # Iterate over genes if X is sparse to avoid large sparse tensor.
                     # If X is dense, the least square problem can be vectorised easily.
+                    # https://numpy.org/doc/1.18/reference/generated/numpy.linalg.lstsq.html supports
+                    # `rcond` argument but https://docs.dask.org/en/latest/generated/dask.array.linalg.lstsq.html
+                    # does not
                     if isinstance(input_data.x, scipy.sparse.csr_matrix):
                         init_a, rmsd_a, _, _ = np.linalg.lstsq(
                             np.matmul(design_constr.T, design_constr),
-                            input_data.x.T.dot(design_constr).T,  # need double .T because of dot product on sparse.
-                            rcond=None
+                            input_data.x.T.dot(design_constr).T  # need double .T because of dot product on sparse.
                         )
                     else:
                         init_a, rmsd_a, _, _ = np.linalg.lstsq(
                             np.matmul(design_constr.T, design_constr),
-                            np.matmul(design_constr.T, input_data.x),
-                            rcond=None
+                            np.matmul(design_constr.T, input_data.x)
                         )
                     groupwise_means = None
                     if is_ols_model:
