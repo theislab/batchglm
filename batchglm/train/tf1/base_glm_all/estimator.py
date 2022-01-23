@@ -350,13 +350,3 @@ class TFEstimatorGLM(_TFEstimator, _EstimatorGLM, metaclass=abc.ABCMeta):
             input_data
     ):
         pass
-
-    @abc.abstractmethod
-    def init_par(
-            self,
-            input_data,
-            init_a,
-            init_b,
-            init_model
-    ):
-        pass
