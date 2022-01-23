@@ -103,19 +103,18 @@ class Test_Jacobians_GLM_ALL(unittest.TestCase):
             else:
                 raise ValueError("noise_model not recognized")
 
-        sample_description = data_utils.sample_description_from_xarray(self.sim.data, dim="observations")
-        design_loc = data_utils.design_matrix(sample_description, formula=design)
-        design_scale = data_utils.design_matrix(sample_description, formula=design)
+        design_loc, _ = data_utils.design_matrix(self.sim.sample_description, formula=design)
+        design_scale, _ = data_utils.design_matrix(self.sim.sample_description, formula=design)
 
         if sparse:
             input_data = InputDataGLM(
-                data=scipy.sparse.csr_matrix(self.sim.X),
+                data=scipy.sparse.csr_matrix(self.sim.input_data.x),
                 design_loc=design_loc,
                 design_scale=design_scale
             )
         else:
             input_data = InputDataGLM(
-                data=self.sim.X,
+                data=self.sim.input_data.x,
                 design_loc=design_loc,
                 design_scale=design_scale
             )

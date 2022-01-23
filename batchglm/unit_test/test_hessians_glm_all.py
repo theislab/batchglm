@@ -100,19 +100,18 @@ class Test_Hessians_GLM_ALL(unittest.TestCase):
         sim.generate_sample_description(num_conditions=num_conditions, num_batches=2)
         sim.generate()
 
-        sample_description = data_utils.sample_description_from_xarray(sim.data, dim="observations")
-        design_loc = data_utils.design_matrix(sample_description, formula="~ 1 + condition + batch")
-        design_scale = data_utils.design_matrix(sample_description, formula="~ 1 + condition")
+        design_loc, _ = data_utils.design_matrix(sim.sample_description, formula="~ 1 + condition + batch")
+        design_scale, _ = data_utils.design_matrix(sim.sample_description, formula="~ 1 + condition")
 
         if sparse:
             input_data = InputDataGLM(
-                data=scipy.sparse.csr_matrix(sim.X),
+                data=scipy.sparse.csr_matrix(sim.input_data.x),
                 design_loc=design_loc,
                 design_scale=design_scale
             )
         else:
             input_data = InputDataGLM(
-                data=sim.X,
+                data=sim.input_data.x,
                 design_loc=design_loc,
                 design_scale=design_scale
             )
