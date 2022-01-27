@@ -28,7 +28,6 @@ GTOL_BY_FEATURE_LOC = 1e-8
 GTOL_BY_FEATURE_SCALE = 1e-8
 
 try:
-    import tensorflow as tf
 
     TF_NUM_THREADS = int(os.environ.get('TF_NUM_THREADS', 0))
     TF_LOOP_PARALLEL_ITERATIONS = int(os.environ.get('TF_LOOP_PARALLEL_ITERATIONS', 10))
