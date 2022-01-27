@@ -1,2 +1,0 @@
-# Classes with conditinoal import statements that yield class properties of desired kind.
-For example: EstimatorGraph receives a child of BasicModelGraphGLM appropriate for the desired noise model. This is necessary in a separate module as the lengthy constructor calls to the noise model specific children of GLM classes would otherwise have to be repeated in the class definition of each noise model.
