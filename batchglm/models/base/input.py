@@ -109,7 +109,6 @@ class InputDataBase:
         return self._feature_allzero
 
     def fetch_x_dense(self, idx):
-        print(idx)
         # Better way than accessing ._meta to check type of dask chunks?
         assert isinstance(self.x, np.ndarray) or isinstance(self.x._meta, np.ndarray), "tried to fetch dense from non ndarray"
 
