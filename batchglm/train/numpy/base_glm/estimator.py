@@ -276,7 +276,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         delta_theta = np.zeros_like(self.model.a_var)
         if isinstance(delta_theta, dask.array.core.Array):
-            delta_theta = delta_theta.compute()
+            # Need to copy to prevent returning an immutable view of the data
+            delta_theta = delta_theta.compute().copy()
 
         if isinstance(a, dask.array.core.Array):
             # Have to use a workaround to solve problems in parallel in dask here. This workaround does
@@ -456,7 +457,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         delta_theta = np.zeros_like(self.model.b_var)
         if isinstance(delta_theta, dask.array.core.Array):
-            delta_theta = delta_theta.compute()
+            # Need to copy to prevent returning an immutable view of the data
+            delta_theta = delta_theta.compute().copy()
 
         xh_scale = np.matmul(self.model.design_scale, self.model.constraints_scale).compute()
         b_var = self.model.b_var.compute()

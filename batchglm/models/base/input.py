@@ -1,3 +1,4 @@
+from operator import indexOf
 import dask.array
 import logging
 import numpy as np
@@ -108,12 +109,13 @@ class InputDataBase:
         return self._feature_allzero
 
     def fetch_x_dense(self, idx):
-        assert isinstance(self.x, np.ndarray), "tried to fetch dense from non ndarray"
+        # Better way than accessing ._meta to check type of dask chunks?
+        assert isinstance(self.x, np.ndarray) or isinstance(self.x._meta, np.ndarray), "tried to fetch dense from non ndarray"
 
         return self.x[idx, :]
 
     def fetch_x_sparse(self, idx):
-        assert isinstance(self.x, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr_matrix"
+        assert isinstance(self.x, scipy.sparse.csr_matrix) or isinstance(self.x._meta, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr_matrix"
 
         data = self.x[idx, :]
 

@@ -172,6 +172,12 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     def constraints_scale(self):
         return np.identity(n=self.b_var.shape[0])
 
+    def param_bounds(self, dtype):
+        pass
+
+    def eta_loc_j(self, j) -> np.ndarray:
+        pass
+
     def np_clip_param(
             self,
             param,
