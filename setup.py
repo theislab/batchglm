@@ -28,10 +28,6 @@ setup(
         'dask'
     ],
     extras_require={
-        'optional': [
-            'tensorflow>=1.14.0',
-            'tensorflow-gpu>=1.14.0'
-        ],
         'plotting_deps': [
              "matplotlib",
              "seaborn"
