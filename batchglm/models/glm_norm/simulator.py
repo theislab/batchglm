@@ -2,6 +2,7 @@ import numpy as np
 
 from .model import Model
 from .external import InputDataGLM, _SimulatorGLM
+from .external import pkg_constants
 
 
 class Simulator(_SimulatorGLM, Model):
@@ -21,6 +22,38 @@ class Simulator(_SimulatorGLM, Model):
             num_observations=num_observations,
             num_features=num_features
         )
+
+    def param_bounds(
+            self,
+            dtype
+    ):
+        dtype = np.dtype(dtype)
+        dmin = np.finfo(dtype).min
+        dmax = np.finfo(dtype).max
+        dtype = dtype.type
+
+        sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
+        bounds_min = {
+            "a_var": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "b_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_loc": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "mean": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "sd": np.nextafter(0, np.inf, dtype=dtype),
+            "probs": dtype(0),
+            "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        }
+        bounds_max = {
+            "a_var": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "mean": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "sd": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "probs": dtype(1),
+            "log_probs": dtype(0),
+        }
+        return bounds_min, bounds_max
 
     def generate_params(
             self,

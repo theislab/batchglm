@@ -32,6 +32,16 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             assert False, "size factors not allowed"
         return eta
 
+    def eta_loc_j(self, j) -> np.ndarray:
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        eta = np.matmul(self.design_loc, self.a[:, j])
+        if self.size_factors is not None:
+            assert False, "size factors not allowed"
+        eta = self.np_clip_param(eta, "eta_loc")
+        return eta
+
     # Re-parameterizations:
 
     @property
