@@ -112,12 +112,12 @@ class InputDataBase:
         # Better way than accessing ._meta to check type of dask chunks?
         assert isinstance(self.x, np.ndarray) or isinstance(self.x._meta, np.ndarray), "tried to fetch dense from non ndarray"
 
-        return self.x[idx.numpy(), :] # Dask did not play well with a tensorflow tensor
+        return self.x[idx, :]
 
     def fetch_x_sparse(self, idx):
         assert isinstance(self.x, scipy.sparse.csr_matrix) or isinstance(self.x._meta, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr_matrix"
 
-        data = self.x[idx.numpy(), :] # Dask did not play well with a tensorflow tensor
+        data = self.x[idx, :]
 
         data_idx = np.asarray(np.vstack(data.nonzero()).T, np.int64)
         data_val = np.asarray(data.data, np.float64)
