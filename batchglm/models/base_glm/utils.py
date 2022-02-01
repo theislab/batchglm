@@ -79,7 +79,7 @@ def parse_constraints(
     else:
         if isinstance(constraints, dask.array.core.Array):
             constraints = constraints.compute()
-        assert isinstance(contraints, np.ndarray), "contraints must be np.ndarray or dask.array.core.Array."
+        assert isinstance(constraints, np.ndarray), "contraints must be np.ndarray or dask.array.core.Array."
         # Cannot use all parameter names if constraint matrix is not identity: Make up new ones.
         # Use variable names that can be mapped (unconstrained).
         if constraint_par_names is not None:
