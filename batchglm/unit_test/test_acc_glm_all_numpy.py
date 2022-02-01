@@ -4,7 +4,7 @@ import scipy.sparse
 import unittest
 
 import batchglm.api as glm
-
+from batchglm.models.base_glm import InputDataGLM
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class _TestAccuracyGlmAllEstim:
             raise ValueError("noise_model is None")
         else:
             if noise_model == "nb":
-                from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
+                from batchglm.api.models.numpy.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 

@@ -9,6 +9,7 @@ import unittest
 import scipy.sparse
 
 import batchglm.api as glm
+from batchglm.models.base_glm import InputDataGLM
 from batchglm.unit_test.test_graph_glm_all import _TestGraphGlmAll
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
@@ -39,9 +40,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
-            if self.noise_model == "nb":
-                from batchglm.api.models.numpy.glm_nb import InputDataGLM
-            else:
+            if not self.noise_model == "nb":
                 raise ValueError("noise_model not recognized")
 
         return InputDataGLM(

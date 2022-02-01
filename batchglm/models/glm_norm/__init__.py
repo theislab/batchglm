@@ -1,3 +1,3 @@
 from .model import Model
-from .external import InputDataGLM, _EstimatorGLM
+from .external import _EstimatorGLM
 from .simulator import Simulator

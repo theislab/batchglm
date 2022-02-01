@@ -1,2 +1,2 @@
-from batchglm.models.glm_nb import InputDataGLM, Model, Simulator
+from batchglm.models.glm_nb import Model, Simulator
 from batchglm.train.numpy.glm_nb import Estimator

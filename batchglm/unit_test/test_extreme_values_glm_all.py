@@ -3,6 +3,7 @@ import numpy as np
 import unittest
 
 import batchglm.api as glm
+from batchglm.models.base_glm import InputDataGLM
 from batchglm.unit_test.test_graph_glm_all import _TestGraphGlmAll
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
@@ -19,7 +20,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
             raise ValueError("noise_model is None")
         else:
             if self.noise_model == "nb":
-                from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
+                from batchglm.api.models.numpy.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -29,7 +30,9 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         input_data = InputDataGLM(
             data=x,
             design_loc=self.sim1.input_data.design_loc,
-            design_scale=self.sim1.input_data.design_scale
+            design_scale=self.sim1.input_data.design_scale,
+            design_loc_names=self.sim1.input_data.design_loc_names,
+            design_scale_names=self.sim1.input_data.design_scale_names
         )
         self.sim1.input_data = input_data
 

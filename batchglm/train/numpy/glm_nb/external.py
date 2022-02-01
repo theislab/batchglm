@@ -1,6 +1,7 @@
 import batchglm.data as data_utils
 
-from batchglm.models.glm_nb import _EstimatorGLM, InputDataGLM, Model
+from batchglm.models.glm_nb import _EstimatorGLM, Model
+from batchglm.models.base_glm import InputDataGLM
 from batchglm.models.base_glm.utils import closedform_glm_mean, closedform_glm_scale
 from batchglm.models.glm_nb.utils import init_par
 
