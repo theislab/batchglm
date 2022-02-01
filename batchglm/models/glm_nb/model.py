@@ -30,6 +30,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         eta = np.matmul(self.design_loc, self.a)
         if self.size_factors is not None:
             eta += self.size_factors
+        eta = self.np_clip_param(eta, "eta_loc")
         return eta
 
     def eta_loc_j(self, j) -> np.ndarray:
@@ -39,6 +40,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         eta = np.matmul(self.design_loc, self.a[:, j])
         if self.size_factors is not None:
             eta += self.size_factors
+        eta = self.np_clip_param(eta, "eta_loc")
         return eta
 
     # Re-parameterizations:

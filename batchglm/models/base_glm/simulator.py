@@ -171,3 +171,16 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     @property
     def constraints_scale(self):
         return np.identity(n=self.b_var.shape[0])
+
+    def np_clip_param(
+            self,
+            param,
+            name
+    ):
+        # TODO: inherit this from somewhere?
+        bounds_min, bounds_max = self.param_bounds(param.dtype)
+        return np.clip(
+            param,
+            bounds_min[name],
+            bounds_max[name]
+        )
