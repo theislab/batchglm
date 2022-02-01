@@ -3,6 +3,7 @@ import logging
 import scipy.sparse
 
 import batchglm.api as glm
+from batchglm.models.base_glm import InputDataGLM
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ class _TestGraphGlmAllEstim:
             raise ValueError("noise_model is None")
         else:
             if noise_model == "nb":
-                from batchglm.api.models.numpy.glm_nb import Estimator, InputDataGLM
+                from batchglm.api.models.numpy.glm_nb import Estimator
             else:
                 raise ValueError("noise_model not recognized")
 
@@ -39,13 +40,17 @@ class _TestGraphGlmAllEstim:
             input_data = InputDataGLM(
                 data=scipy.sparse.csr_matrix(simulator.input_data.x),
                 design_loc=simulator.input_data.design_loc,
-                design_scale=simulator.input_data.design_scale
+                design_scale=simulator.input_data.design_scale,
+                design_loc_names=simulator.input_data.design_loc_names,
+                design_scale_names=simulator.input_data.design_scale_names
             )
         else:
             input_data = InputDataGLM(
                 data=simulator.input_data.x,
                 design_loc=simulator.input_data.design_loc,
-                design_scale=simulator.input_data.design_scale
+                design_scale=simulator.input_data.design_scale,
+                design_loc_names=simulator.input_data.design_loc_names,
+                design_scale_names=simulator.input_data.design_scale_names
             )
 
         estimator = Estimator(

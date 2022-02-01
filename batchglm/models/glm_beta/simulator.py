@@ -1,7 +1,7 @@
 import numpy as np
 
 from .model import Model
-from .external import InputDataGLM, _SimulatorGLM
+from .external import _SimulatorGLM
 from .external import pkg_constants
 
 
@@ -74,7 +74,7 @@ class Simulator(_SimulatorGLM, Model):
             rand_fn_scale=rand_fn_scale,
         )
 
-    def generate_data(self):
+    def generate_data(self, sparse: bool = False):
         """
         Sample random data based on beta distribution and parameters.
         """
@@ -83,10 +83,4 @@ class Simulator(_SimulatorGLM, Model):
             b=self.q,
             size=None
         )
-        self.input_data = InputDataGLM(
-            data=data_matrix,
-            design_loc=self.sim_design_loc,
-            design_scale=self.sim_design_scale,
-            design_loc_names=None,
-            design_scale_names=None
-        )
+        self.assemble_input_data(data_matrix, sparse)

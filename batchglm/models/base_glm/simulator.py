@@ -6,6 +6,7 @@ import patsy
 from typing import Union, Tuple
 
 from .model import _ModelGLM
+from .input import InputDataGLM
 from .external import _SimulatorBase
 
 
@@ -143,6 +144,17 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         self.sim_b_var = np.concatenate([
             rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))
         ], axis=0)
+
+    def assemble_input_data(self, data_matrix: np.ndarray, sparse: bool):
+        if sparse:
+            data_matrix = scipy.sparse.csr_matrix(data_matrix)
+        self.input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=self.sim_design_loc,
+            design_scale=self.sim_design_scale,
+            design_loc_names=None,
+            design_scale_names=None
+        )
 
     @property
     def size_factors(self):

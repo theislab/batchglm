@@ -1,7 +1,7 @@
 import numpy as np
 
 from .model import Model
-from .external import _SimulatorGLM, InputDataGLM
+from .external import _SimulatorGLM
 from .external import pkg_constants
 
 
@@ -42,7 +42,7 @@ class Simulator(_SimulatorGLM, Model):
             rand_fn_scale=rand_fn_scale,
         )
 
-    def generate_data(self):
+    def generate_data(self, sparse: bool = False):
         """
         Sample random data based on negative binomial distribution and parameters.
         """
@@ -51,13 +51,7 @@ class Simulator(_SimulatorGLM, Model):
             p=1 - self.mu / (self.phi + self.mu),
             size=None
         )
-        self.input_data = InputDataGLM(
-            data=data_matrix,
-            design_loc=self.sim_design_loc,
-            design_scale=self.sim_design_scale,
-            design_loc_names=None,
-            design_scale_names=None
-        )
+        self.assemble_input_data(data_matrix, sparse)
 
     def param_bounds(
             self,

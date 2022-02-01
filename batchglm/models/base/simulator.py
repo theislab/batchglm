@@ -42,12 +42,12 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         self.input_data = None
         self.model = model
 
-    def generate(self):
+    def generate(self, sparse: bool = False):
         """
         First generates the parameter set, then observations random data using these parameters
         """
         self.generate_params()
-        self.generate_data()
+        self.generate_data(sparse=sparse)
 
     @abc.abstractmethod
     def generate_data(self, *args, **kwargs):
