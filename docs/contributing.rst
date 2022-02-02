@@ -13,9 +13,9 @@ Here is a list of important resources for contributors:
 - `Code of Conduct`_
 
 .. _BSD license: https://opensource.org/licenses/BSD
-.. _Source Code: https://github.com/picciama/batchglm
+.. _Source Code: https://github.com/theislab/batchglm
 .. _Documentation: https://batchglm.readthedocs.io/
-.. _Issue Tracker: https://github.com/picciama/batchglm/issues
+.. _Issue Tracker: https://github.com/theislab/batchglm/issues
 
 How to report a bug
 -------------------
@@ -111,5 +111,5 @@ To run linting and code formatting checks before committing your change, you can
 It is recommended to open an issue before starting work on anything.
 This will allow a chance to talk it over with the owners and validate your approach.
 
-.. _pull request: https://github.com/picciama/batchglm/pulls
+.. _pull request: https://github.com/theislab/batchglm/pulls
 .. _Code of Conduct: CODE_OF_CONDUCT.rst

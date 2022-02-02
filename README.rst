@@ -9,20 +9,20 @@ batchglm
 .. |Python Version| image:: https://img.shields.io/pypi/pyversions/batchglm
    :target: https://pypi.org/project/batchglm
    :alt: Python Version
-.. |License| image:: https://img.shields.io/github/license/picciama/batchglm
+.. |License| image:: https://img.shields.io/github/license/theislab/batchglm
    :target: https://opensource.org/licenses/BSD
    :alt: License
 .. |Read the Docs| image:: https://img.shields.io/readthedocs/batchglm/latest.svg?label=Read%20the%20Docs
    :target: https://batchglm.readthedocs.io/
    :alt: Read the documentation at https://batchglm.readthedocs.io/
-.. |Build| image:: https://github.com/picciama/batchglm/workflows/Build%20batchglm%20Package/badge.svg
-   :target: https://github.com/picciama/batchglm/actions?workflow=Package
+.. |Build| image:: https://github.com/theislab/batchglm/workflows/Build%20batchglm%20Package/badge.svg
+   :target: https://github.com/theislab/batchglm/actions?workflow=Package
    :alt: Build Package Status
-.. |Tests| image:: https://github.com/picciama/batchglm/workflows/Run%20batchglm%20Tests/badge.svg
-   :target: https://github.com/picciama/batchglm/actions?workflow=Tests
+.. |Tests| image:: https://github.com/theislab/batchglm/workflows/Run%20batchglm%20Tests/badge.svg
+   :target: https://github.com/theislab/batchglm/actions?workflow=Tests
    :alt: Run Tests Status
-.. |Codecov| image:: https://codecov.io/gh/picciama/batchglm/branch/master/graph/badge.svg
-   :target: https://codecov.io/gh/picciama/batchglm
+.. |Codecov| image:: https://codecov.io/gh/theislab/batchglm/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/theislab/batchglm
    :alt: Codecov
 .. |pre-commit| image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
    :target: https://github.com/pre-commit/pre-commit

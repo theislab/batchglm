@@ -33,13 +33,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/picciama/batchglm
+    $ git clone git://github.com/theislab/batchglm
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl -OJL https://github.com/picciama/batchglm/tarball/master
+    $ curl -OJL https://github.com/theislab/batchglm/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -48,6 +48,6 @@ Once you have a copy of the source, you can install it with:
     $ make install
 
 
-.. _Github repo: https://github.com/picciama/batchglm
-.. _tarball: https://github.com/picciama/batchglm/tarball/master
+.. _Github repo: https://github.com/theislab/batchglm
+.. _tarball: https://github.com/theislab/batchglm/tarball/master
 .. _poetry: https://python-poetry.org/
