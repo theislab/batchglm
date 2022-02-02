@@ -20,12 +20,17 @@ classifiers = [
 
 
 [tool.poetry.dependencies]
-python = "^3.8.0"
+python = ">=3.8.0, <3.11.0"
 click = "^8.0.0"
 rich = "^10.3.0"
 PyYAML = "^5.4.1"
 dask = "^2022.1.1"
 numpy = "1.21"
+patsy = "^0.5.2"
+scipy = "^1.7.3"
+pandas = "^1.4.0"
+anndata = "^0.7.8"
+sparse = "^0.13.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.3"
@@ -55,6 +60,7 @@ types-attrs = "^19.1.0"
 sphinx-rtd-dark-mode = "^1.2.3"
 Jinja2 = "^3.0.1"
 mypy = "^0.910"
+matplotlib = "^3.5.1"
 
 [tool.poetry.scripts]
 batchglm = "batchglm.__main__:main"
