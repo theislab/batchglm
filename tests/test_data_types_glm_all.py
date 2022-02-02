@@ -10,7 +10,7 @@ import scipy.sparse
 
 import batchglm.api as glm
 from batchglm.models.base_glm import InputDataGLM
-from batchglm.unit_test.test_graph_glm_all import _TestGraphGlmAll
+from tests.test_graph_glm_all import _TestGraphGlmAll
 
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
