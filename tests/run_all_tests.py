@@ -2,8 +2,8 @@ import unittest
 loader = unittest.TestLoader()
 
 # Run all unit tests.
-# Tests are loaded from all subdirectories of batchglm.unit_test
-start_dir = 'batchglm.unit_test'
+# Tests are loaded from all subdirectories of tests
+start_dir = 'tests'
 suite = loader.discover(start_dir)
 
 runner = unittest.TextTestRunner()
