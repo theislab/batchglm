@@ -3,6 +3,7 @@
     You can adapt this file completely to your liking, but it should at least
     contain the root `toctree` directive.
 
+.. include:: ../README.rst
 
 
 Welcome to batchglm's documentation!
@@ -12,10 +13,15 @@ Welcome to batchglm's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   readme
    installation
    tutorials
    api/index
+   usage
    references
+   contributing
+   authors
+   code_of_conduct
 
 
 Indices and tables

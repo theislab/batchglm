@@ -141,8 +141,12 @@ man_pages = [
      [author], 1)
 ]
 
+autodoc_typehints = "description"
+
+
 # -- Options for Texinfo output ----------------------------------------------
 
+# -- Options for Texinfo output ----------------------------------------
 # Grouping the document tree into Texinfo files. List of tuples
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
