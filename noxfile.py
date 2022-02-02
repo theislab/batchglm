@@ -15,7 +15,7 @@ except ImportError:
     sys.exit(1)
 
 package = "batchglm"
-python_versions = ["3.9"]
+python_versions = ["3.8", "3.9"]
 nox.options.sessions = (
     "pre-commit",
     "safety",
