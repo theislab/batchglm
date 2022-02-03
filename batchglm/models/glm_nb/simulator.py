@@ -10,29 +10,17 @@ class Simulator(_SimulatorGLM, Model):
     Uses the natural logarithm as linker function.
     """
 
-    def __init__(
-            self,
-            num_observations=1000,
-            num_features=100
-    ):
-        Model.__init__(
-            self=self,
-            input_data=None
-        )
-        _SimulatorGLM.__init__(
-            self=self,
-            model=None,
-            num_observations=num_observations,
-            num_features=num_features
-        )
+    def __init__(self, num_observations=1000, num_features=100):
+        Model.__init__(self=self, input_data=None)
+        _SimulatorGLM.__init__(self=self, model=None, num_observations=num_observations, num_features=num_features)
 
     def generate_params(
-            self,
-            rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
-            rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
-            rand_fn_loc=None,
-            rand_fn_scale=None,
-        ):
+        self,
+        rand_fn_ave=lambda shape: np.random.poisson(500, shape) + 1,
+        rand_fn=lambda shape: np.abs(np.random.uniform(0.5, 2, shape)),
+        rand_fn_loc=None,
+        rand_fn_scale=None,
+    ):
         self._generate_params(
             self,
             rand_fn_ave=rand_fn_ave,
@@ -45,17 +33,10 @@ class Simulator(_SimulatorGLM, Model):
         """
         Sample random data based on negative binomial distribution and parameters.
         """
-        data_matrix = np.random.negative_binomial(
-            n=self.phi,
-            p=1 - self.mu / (self.phi + self.mu),
-            size=None
-        )
+        data_matrix = np.random.negative_binomial(n=self.phi, p=1 - self.mu / (self.phi + self.mu), size=None)
         self.assemble_input_data(data_matrix, sparse)
 
-    def param_bounds(
-            self,
-            dtype
-    ):
+    def param_bounds(self, dtype):
         # TODO: inherit this from somewhere?
         dtype = np.dtype(dtype)
         dmin = np.finfo(dtype).min

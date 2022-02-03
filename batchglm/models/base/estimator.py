@@ -30,11 +30,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
     class TrainingStrategy(Enum):
         AUTO = None
 
-    def __init__(
-            self,
-            model: _ModelBase,
-            input_data: InputDataBase
-    ):
+    def __init__(self, model: _ModelBase, input_data: InputDataBase):
         self.model = model
         self.input_data = input_data
         self._loss = None
@@ -98,11 +94,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         """
         pass
 
-    def train_sequence(
-            self,
-            training_strategy,
-            **kwargs
-    ):
+    def train_sequence(self, training_strategy, **kwargs):
         if isinstance(training_strategy, Enum):
             training_strategy = training_strategy.value
         elif isinstance(training_strategy, str):
@@ -119,8 +111,8 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
                 d = dict([(x, y) for x, y in d.items() if x not in list(kwargs.keys())])
                 for x in [xx for xx in list(d.keys()) if xx in list(kwargs.keys())]:
                     sys.stdout.write(
-                        "overrding %s from training strategy with value %s with new value %s\n" %
-                        (x, str(d[x]), str(kwargs[x]))
+                        "overrding %s from training strategy with value %s with new value %s\n"
+                        % (x, str(d[x]), str(kwargs[x]))
                     )
             self.train(**d, **kwargs)
             logger.debug("Training sequence #%d complete", idx + 1)
@@ -141,18 +133,18 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         pass
 
     def _plot_coef_vs_ref(
-            self,
-            true_values: np.ndarray,
-            estim_values: np.ndarray,
-            size=1,
-            log=False,
-            save=None,
-            show=True,
-            ncols=5,
-            row_gap=0.3,
-            col_gap=0.25,
-            title=None,
-            return_axs=False
+        self,
+        true_values: np.ndarray,
+        estim_values: np.ndarray,
+        size=1,
+        log=False,
+        save=None,
+        show=True,
+        ncols=5,
+        row_gap=0.3,
+        col_gap=0.25,
+        title=None,
+        return_axs=False,
     ):
         """
         Plot estimated coefficients against reference (true) coefficients.
@@ -185,17 +177,12 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         ncols = ncols if n_par > ncols else n_par
         nrows = n_par // ncols + (n_par - (n_par // ncols) * ncols)
 
-        gs = gridspec.GridSpec(
-            nrows=nrows,
-            ncols=ncols,
-            hspace=row_gap,
-            wspace=col_gap
-        )
+        gs = gridspec.GridSpec(nrows=nrows, ncols=ncols, hspace=row_gap, wspace=col_gap)
 
         fig = plt.figure(
             figsize=(
-                ncols * rcParams['figure.figsize'][0],  # width in inches
-                nrows * rcParams['figure.figsize'][1] * (1 + row_gap)  # height in inches
+                ncols * rcParams["figure.figsize"][0],  # width in inches
+                nrows * rcParams["figure.figsize"][1] * (1 + row_gap),  # height in inches
             )
         )
 
@@ -214,17 +201,11 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
                 x = np.log(x + 1)
                 y = np.log(y + 1)
 
-            sns.scatterplot(
-                x=x,
-                y=y,
-                size=size,
-                ax=ax,
-                legend=False
-            )
+            sns.scatterplot(x=x, y=y, size=size, ax=ax, legend=False)
             sns.lineplot(
                 x=np.array([np.min([np.min(x), np.min(y)]), np.max([np.max(x), np.max(y)])]),
                 y=np.array([np.min([np.min(x), np.min(y)]), np.max([np.max(x), np.max(y)])]),
-                ax=ax
+                ax=ax,
             )
 
             title_i = title + "_" + str(i)
@@ -236,7 +217,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
         # Save, show and return figure.
         if save is not None:
-            plt.savefig(save + '_parameter_scatter.png')
+            plt.savefig(save + "_parameter_scatter.png")
 
         if show:
             plt.show()
@@ -250,13 +231,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
             return
 
     def _plot_deviation(
-            self,
-            true_values: np.ndarray,
-            estim_values: np.ndarray,
-            save=None,
-            show=True,
-            title=None,
-            return_axs=False
+        self, true_values: np.ndarray, estim_values: np.ndarray, save=None, show=True, title=None, return_axs=False
     ):
         """
         Plot estimated coefficients against reference (true) coefficients.
@@ -280,26 +255,30 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         plt.ioff()
 
         n_par = true_values.shape[0]
-        summary_fit = pd.concat([
-            pd.DataFrame({
-                "deviation": estim_values[i, :] - true_values[i, :],
-                "coefficient": pd.Series(["coef_"+str(i) for x in range(estim_values.shape[1])], dtype="category")
-            }) for i in range(n_par)])
-        summary_fit['coefficient'] = summary_fit['coefficient'].astype("category")
+        summary_fit = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "deviation": estim_values[i, :] - true_values[i, :],
+                        "coefficient": pd.Series(
+                            ["coef_" + str(i) for x in range(estim_values.shape[1])], dtype="category"
+                        ),
+                    }
+                )
+                for i in range(n_par)
+            ]
+        )
+        summary_fit["coefficient"] = summary_fit["coefficient"].astype("category")
 
         fig, ax = plt.subplots()
-        sns.violinplot(
-            x=summary_fit["coefficient"],
-            y=summary_fit["deviation"],
-            ax=ax
-        )
+        sns.violinplot(x=summary_fit["coefficient"], y=summary_fit["deviation"], ax=ax)
 
         if title is not None:
             ax.set_title(title)
 
         # Save, show and return figure.
         if save is not None:
-            plt.savefig(save + '_deviation_violin.png')
+            plt.savefig(save + "_deviation_violin.png")
 
         if show:
             plt.show()

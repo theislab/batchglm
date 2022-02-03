@@ -22,22 +22,14 @@ def stacked_lstsq(L, b, rcond=1e-10):
 
     inv_s = np.reciprocal(s, out=np.zeros_like(s), where=s >= s_min)
 
-    x = np.einsum(
-        '...MK,...MN->...KN',
-        v,
-        np.einsum('...K,...MK,...MN->...KN', inv_s, u, b)
-    )
+    x = np.einsum("...MK,...MN->...KN", v, np.einsum("...K,...MK,...MN->...KN", inv_s, u, b))
 
     # rank = np.sum(s > rcond)
 
     return np.conj(x, out=x)
 
 
-def groupwise_solve_lm(
-        dmat,
-        apply_fun: callable,
-        constraints: np.ndarray
-):
+def groupwise_solve_lm(dmat, apply_fun: callable, constraints: np.ndarray):
     r"""
     Solve GLMs by estimating the distribution parameters of each unique group of observations independently and
     solving then for the design matrix `dmat`.
@@ -102,9 +94,6 @@ def groupwise_solve_lm(
     logger.debug(" ** Solve lstsq problem")
     if np.any(np.isnan(params)):
         raise Warning("entries of params were nan which will throw error in lstsq")
-    x_prime, rmsd, rank, s = np.linalg.lstsq(
-        np.matmul(unique_design, constraints),
-        params
-    )
+    x_prime, rmsd, rank, s = np.linalg.lstsq(np.matmul(unique_design, constraints), params)
 
     return params, x_prime, rmsd, rank, s

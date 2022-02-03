@@ -24,18 +24,14 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     """
 
     def __init__(
-            self,
-            model,
-            input_data,
-            dtype,
+        self,
+        model,
+        input_data,
+        dtype,
     ):
         if input_data.design_scale.shape[1] != 1:
             raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
-        _EstimatorGLM.__init__(
-            self=self,
-            model=model,
-            input_data=input_data
-        )
+        _EstimatorGLM.__init__(self=self, model=model, input_data=input_data)
         self.dtype = dtype
         self.values = []
         self.lls = []
@@ -46,15 +42,15 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         pass
 
     def train(
-            self,
-            max_steps: int = 100,
-            method_b: str = "brent",
-            update_b_freq: int = 5,
-            ftol_b: float = 1e-8,
-            lr_b: float = 1e-2,
-            max_iter_b: int = 1000,
-            nproc: int = 3,
-            **kwargs
+        self,
+        max_steps: int = 100,
+        method_b: str = "brent",
+        update_b_freq: int = 5,
+        ftol_b: float = 1e-8,
+        lr_b: float = 1e-2,
+        max_iter_b: int = 1000,
+        nproc: int = 3,
+        **kwargs
     ):
         """
         Train GLM.
@@ -91,12 +87,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         epochs_until_b_update = update_b_freq
         fully_converged = np.tile(False, self.model.model_vars.n_features)
 
-        ll_current = - self.model.ll_byfeature.compute()
+        ll_current = -self.model.ll_byfeature.compute()
         ll_last_b_update = ll_current.copy()
-        #logging.getLogger("batchglm").info(
+        # logging.getLogger("batchglm").info(
         sys.stdout.write("iter   %i: ll=%f\n" % (0, np.sum(ll_current)))
-        while np.any(np.logical_not(fully_converged)) and \
-                train_step < max_steps:
+        while np.any(np.logical_not(fully_converged)) and train_step < max_steps:
             t0 = time.time()
             # Line search step for scale model:
             # Run this update every update_b_freq iterations.
@@ -105,17 +100,12 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 idx_update = np.where(np.logical_not(fully_converged))[0]
                 if self._train_scale:
                     b_step = self.b_step(
-                        idx_update=idx_update,
-                        method=method_b,
-                        ftol=ftol_b,
-                        lr=lr_b,
-                        max_iter=max_iter_b,
-                        nproc=nproc
+                        idx_update=idx_update, method=method_b, ftol=ftol_b, lr=lr_b, max_iter=max_iter_b, nproc=nproc
                     )
                     # Perform trial update.
                     self.model.b_var = self.model.b_var + b_step
                     # Reverse update by feature if update leads to worse loss:
-                    ll_proposal = - self.model.ll_byfeature_j(j=idx_update).compute()
+                    ll_proposal = -self.model.ll_byfeature_j(j=idx_update).compute()
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
                     if isinstance(self.model.b_var, dask.array.core.Array):
                         b_var_new = self.model.b_var.compute()
@@ -141,7 +131,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     # Perform trial update.
                     self.model.a_var = self.model.a_var + a_step
                     # Reverse update by feature if update leads to worse loss:
-                    ll_proposal = - self.model.ll_byfeature_j(j=idx_update).compute()
+                    ll_proposal = -self.model.ll_byfeature_j(j=idx_update).compute()
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
                     if isinstance(self.model.b_var, dask.array.core.Array):
                         a_var_new = self.model.a_var.compute()
@@ -166,10 +156,12 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 # Update terminal convergence in fully_converged and intermediate convergence in self.model.converged.
                 converged_f = np.logical_or(
                     ll_last_b_update < ll_current,  # loss gets worse
-                    np.abs(ll_last_b_update - ll_current) / np.maximum(  # relative decrease in loss is too small
+                    np.abs(ll_last_b_update - ll_current)
+                    / np.maximum(  # relative decrease in loss is too small
                         np.nextafter(0, np.inf, dtype=ll_previous.dtype),  # catch division by zero
-                        np.abs(ll_last_b_update)
-                    ) < pkg_constants.LLTOL_BY_FEATURE,
+                        np.abs(ll_last_b_update),
+                    )
+                    < pkg_constants.LLTOL_BY_FEATURE,
                 )
                 self.model.converged = np.logical_or(fully_converged, converged_f)
                 ll_last_b_update = ll_current.copy()
@@ -178,10 +170,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 # Update intermediate convergence in self.model.converged.
                 converged_f = np.logical_or(
                     ll_previous < ll_current,  # loss gets worse
-                    np.abs(ll_previous - ll_current) / np.maximum(  # relative decrease in loss is too small
-                        np.nextafter(0, np.inf, dtype=ll_previous.dtype),  # catch division by zero
-                        np.abs(ll_previous)
-                    ) < pkg_constants.LLTOL_BY_FEATURE,
+                    np.abs(ll_previous - ll_current)
+                    / np.maximum(  # relative decrease in loss is too small
+                        np.nextafter(0, np.inf, dtype=ll_previous.dtype), np.abs(ll_previous)  # catch division by zero
+                    )
+                    < pkg_constants.LLTOL_BY_FEATURE,
                 )
                 self.model.converged = np.logical_or(self.model.converged, converged_f)
                 if np.all(self.model.converged):
@@ -191,34 +184,28 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
             # Conclude and report iteration.
             train_step += 1
-            #logging.getLogger("batchglm").info(
+            # logging.getLogger("batchglm").info(
             sys.stdout.write(
-                "iter %s: ll=%f, converged: %.2f%% (loc: %.2f%%, scale update: %s), in %.2fsec\n" %
-                (
+                "iter %s: ll=%f, converged: %.2f%% (loc: %.2f%%, scale update: %s), in %.2fsec\n"
+                % (
                     (" " if train_step < 10 else "") + (" " if train_step < 100 else "") + str(train_step),
                     np.sum(ll_current),
-                    np.mean(fully_converged)*100,
+                    np.mean(fully_converged) * 100,
                     np.mean(self.model.converged) * 100,
                     str(epochs_until_b_update == update_b_freq),
-                    time.time()-t0
+                    time.time() - t0,
                 )
             )
-            #sys.stdout.write(
+            # sys.stdout.write(
             #    '\riter %i: ll=%f, %.2f%% converged' %
             #    (train_step, np.sum(ll_current), np.round(np.mean(delayed_converged)*100, 2))
-            #)
-            #sys.stdout.flush()
+            # )
+            # sys.stdout.flush()
             self.lls.append(ll_current)
-        #sys.stdout.write('\r')
-        #sys.stdout.flush()
+        # sys.stdout.write('\r')
+        # sys.stdout.flush()
 
-    def a_step_gd(
-            self,
-            idx: np.ndarray,
-            ftol: float,
-            max_iter: int,
-            lr: float
-    ) -> np.ndarray:
+    def a_step_gd(self, idx: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
         """
         Not used
 
@@ -228,17 +215,18 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         a_var_old = self.model.a_var.compute()
         converged = np.tile(True, self.model.model_vars.n_features)
         converged[idx] = False
-        ll_current = - self.model.ll_byfeature.compute()
+        ll_current = -self.model.ll_byfeature.compute()
         while np.any(np.logical_not(converged)) and iter < max_iter:
             idx_to_update = np.where(np.logical_not(converged))[0]
             jac = np.zeros_like(self.model.a_var).compute()
             # Use mean jacobian so that learning rate is independent of number of samples.
-            jac[:, idx_to_update] = - self.model.jac_a.compute().T[:, idx_to_update] / \
-                                    self.model.input_data.num_observations
+            jac[:, idx_to_update] = (
+                -self.model.jac_a.compute().T[:, idx_to_update] / self.model.input_data.num_observations
+            )
             self.model._a_var = self.model.a_var.compute() + lr * jac
             # Assess convergence:
             ll_previous = ll_current
-            ll_current = - self.model.ll_byfeature.compute()
+            ll_current = -self.model.ll_byfeature.compute()
             converged_f = (ll_current - ll_previous) / ll_previous > -ftol
             a_var_new = self.model.a_var.compute()
             a_var_new[:, converged_f] = a_var_new[:, converged_f] - lr * jac[:, converged_f]
@@ -246,19 +234,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             converged = np.logical_or(converged, converged_f)
             iter += 1
             logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged location model: %.2f%%" %
-                (
+                "iter %i: ll=%f, converged location model: %.2f%%"
+                % (
                     (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
                     np.sum(ll_current),
-                    np.mean(converged) * 100
+                    np.mean(converged) * 100,
                 )
             )
         return self.model.a_var.compute() - a_var_old
 
-    def iwls_step(
-            self,
-            idx_update: np.ndarray
-    ) -> np.ndarray:
+    def iwls_step(self, idx_update: np.ndarray) -> np.ndarray:
         """
 
         :return: (inferred param x features)
@@ -271,9 +256,9 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         # x=theta: ([features] x inferred param)
         # b=X^T*W*Ybar: ([features] x inferred param)
         xh = np.matmul(self.model.design_loc, self.model.constraints_loc)
-        xhw = np.einsum('ob,of->fob', xh, w)
-        a = np.einsum('fob,oc->fbc', xhw, xh)
-        b = np.einsum('fob,of->fb', xhw, ybar)
+        xhw = np.einsum("ob,of->fob", xh, w)
+        a = np.einsum("fob,oc->fbc", xhw, xh)
+        b = np.einsum("fob,of->fb", xhw, ybar)
 
         delta_theta = np.zeros_like(self.model.a_var)
         if isinstance(delta_theta, dask.array.core.Array):
@@ -285,25 +270,25 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             # not work if there is only a single problem, ie. if the first dimension of a and b has length 1.
             if a.shape[0] != 1:
                 get_cond_number = lambda x: np.expand_dims(np.expand_dims(np.linalg.cond(x, p=None), axis=-1), axis=-1)
-                invertible = np.where(dask.array.map_blocks(
-                    get_cond_number, a, chunks=a.shape
-                ).squeeze().compute() < 1 / sys.float_info.epsilon)[0]
+                invertible = np.where(
+                    dask.array.map_blocks(get_cond_number, a, chunks=a.shape).squeeze().compute()
+                    < 1 / sys.float_info.epsilon
+                )[0]
                 if len(idx_update[invertible]) > 1:
-                    delta_theta[:, idx_update[invertible]] = dask.array.map_blocks(
-                        np.linalg.solve, a[invertible], b[invertible, :, None],
-                        chunks=b[invertible, :, None].shape
-                    ).squeeze().T.compute()
+                    delta_theta[:, idx_update[invertible]] = (
+                        dask.array.map_blocks(
+                            np.linalg.solve, a[invertible], b[invertible, :, None], chunks=b[invertible, :, None].shape
+                        )
+                        .squeeze()
+                        .T.compute()
+                    )
                 elif len(idx_update[invertible]) == 1:
                     delta_theta[:, idx_update[invertible]] = np.expand_dims(
-                        np.linalg.solve(a[invertible[0]], b[invertible[0]]).compute(),
-                        axis=-1
+                        np.linalg.solve(a[invertible[0]], b[invertible[0]]).compute(), axis=-1
                     )
             else:
                 if np.linalg.cond(a.compute(), p=None) < 1 / sys.float_info.epsilon:
-                    delta_theta[:, idx_update] = np.expand_dims(
-                        np.linalg.solve(a[0], b[0]).compute(),
-                        axis=-1
-                    )
+                    delta_theta[:, idx_update] = np.expand_dims(np.linalg.solve(a[0], b[0]).compute(), axis=-1)
                     invertible = np.array([0])
                 else:
                     invertible = np.array([])
@@ -313,53 +298,30 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         if invertible.shape[0] < len(idx_update):
             sys.stdout.write("caught %i linalg singular matrix errors\n" % (len(idx_update) - invertible.shape[0]))
         # Via np.linalg.lsts:
-        #delta_theta[:, idx_update] = np.concatenate([
+        # delta_theta[:, idx_update] = np.concatenate([
         #    np.expand_dims(np.linalg.lstsq(a[i, :, :], b[i, :])[0], axis=-1)
         #    for i in idx_update)
-        #], axis=-1)
+        # ], axis=-1)
         # Via np.linalg.inv:
         # #delta_theta[:, idx_update] = np.concatenate([
         #    np.expand_dims(np.matmul(np.linalg.inv(a[i, :, :]), b[i, :]), axis=-1)
         #    for i in idx_update)
-        #], axis=-1)
+        # ], axis=-1)
         return delta_theta
 
     def b_step(
-            self,
-            idx_update: np.ndarray,
-            method: str,
-            ftol: float,
-            lr: float,
-            max_iter: int,
-            nproc: int
+        self, idx_update: np.ndarray, method: str, ftol: float, lr: float, max_iter: int, nproc: int
     ) -> np.ndarray:
         """
 
         :return:
         """
         if method.lower() in ["gd"]:
-            return self._b_step_gd(
-                idx_update=idx_update,
-                ftol=ftol,
-                lr=lr,
-                max_iter=max_iter
-            )
+            return self._b_step_gd(idx_update=idx_update, ftol=ftol, lr=lr, max_iter=max_iter)
         else:
-            return self._b_step_loop(
-                idx_update=idx_update,
-                method=method,
-                ftol=ftol,
-                max_iter=max_iter,
-                nproc=nproc
-            )
+            return self._b_step_loop(idx_update=idx_update, method=method, ftol=ftol, max_iter=max_iter, nproc=nproc)
 
-    def _b_step_gd(
-            self,
-            idx_update: np.ndarray,
-            ftol: float,
-            max_iter: int,
-            lr: float
-    ) -> np.ndarray:
+    def _b_step_gd(self, idx_update: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
         """
 
         :return:
@@ -368,20 +330,18 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         b_var_old = self.model.b_var.compute()
         converged = np.tile(True, self.model.model_vars.n_features)
         converged[idx_update] = False
-        ll_current = - self.model.ll_byfeature.compute()
+        ll_current = -self.model.ll_byfeature.compute()
         while np.any(np.logical_not(converged)) and iter < max_iter:
             idx_to_update = np.where(np.logical_not(converged))[0]
             jac = np.zeros_like(self.model.b_var).compute()
             # Use mean jacobian so that learning rate is independent of number of samples.
-            jac[:, idx_to_update] = self.model.jac_b_j(j=idx_to_update).compute().T / \
-                                    self.model.input_data.num_observations
-            self.model.b_var_j_setter(
-                value=(self.model.b_var.compute() + lr * jac)[:, idx_to_update],
-                j=idx_to_update
+            jac[:, idx_to_update] = (
+                self.model.jac_b_j(j=idx_to_update).compute().T / self.model.input_data.num_observations
             )
+            self.model.b_var_j_setter(value=(self.model.b_var.compute() + lr * jac)[:, idx_to_update], j=idx_to_update)
             # Assess convergence:
             ll_previous = ll_current
-            ll_current = - self.model.ll_byfeature.compute()
+            ll_current = -self.model.ll_byfeature.compute()
             converged_f = (ll_current - ll_previous) / ll_previous > -ftol
             b_var_new = self.model.b_var.compute()
             b_var_new[:, converged_f] = b_var_new[:, converged_f] - lr * jac[:, converged_f]
@@ -389,24 +349,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             converged = np.logical_or(converged, converged_f)
             iter += 1
             logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged scale model: %.2f%%" %
-                (
+                "iter %i: ll=%f, converged scale model: %.2f%%"
+                % (
                     (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
                     np.sum(ll_current),
-                    np.mean(converged) * 100
+                    np.mean(converged) * 100,
                 )
             )
         return self.model.b_var.compute() - b_var_old
 
-    def optim_handle(
-            self,
-            b_j,
-            data_j,
-            eta_loc_j,
-            xh_scale,
-            max_iter,
-            ftol
-    ):
+    def optim_handle(self, b_j, data_j, eta_loc_j, xh_scale, max_iter, ftol):
         # Need to supply dense numpy array to scipy optimize:
         if isinstance(data_j, sparse.COO) or isinstance(data_j, scipy.sparse.csr_matrix):
             data_j = data_j.todense()
@@ -420,7 +372,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         def cost_b_var(x, data_jj, eta_loc_jj, xh_scale_jj):
             x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
-            return - np.sum(ll(data_jj, eta_loc_jj, x, xh_scale_jj))
+            return -np.sum(ll(data_jj, eta_loc_jj, x, xh_scale_jj))
 
         # jac_b = self.model.jac_b_handle()
         # def cost_b_var_prime(x, data_jj, eta_loc_jj, xh_scale_jj):
@@ -441,17 +393,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             maxiter=max_iter,
             tol=ftol,
             brack=(lb_bracket, ub_bracket),
-            full_output=True
+            full_output=True,
         )
 
-    def _b_step_loop(
-            self,
-            idx_update: np.ndarray,
-            method: str,
-            max_iter: int,
-            ftol: float,
-            nproc: int
-    ) -> np.ndarray:
+    def _b_step_loop(self, idx_update: np.ndarray, method: str, max_iter: int, ftol: float, nproc: int) -> np.ndarray:
         """
 
         :return:
@@ -464,35 +409,27 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         xh_scale = np.matmul(self.model.design_scale, self.model.constraints_scale).compute()
         b_var = self.model.b_var.compute()
         if nproc > 1 and len(idx_update) > nproc:
-            sys.stdout.write('\rFitting %i dispersion models: (progress not available with multiprocessing)' % len(idx_update))
+            sys.stdout.write(
+                "\rFitting %i dispersion models: (progress not available with multiprocessing)" % len(idx_update)
+            )
             sys.stdout.flush()
             with multiprocessing.Pool(processes=nproc) as pool:
                 x = self.x.compute()
                 eta_loc = self.model.eta_loc.compute()
                 results = pool.starmap(
                     self.optim_handle,
-                    [(
-                        b_var[0, j],
-                        x[:, [j]],
-                        eta_loc[:, [j]],
-                        xh_scale,
-                        max_iter,
-                        ftol
-                    ) for j in idx_update]
+                    [(b_var[0, j], x[:, [j]], eta_loc[:, [j]], xh_scale, max_iter, ftol) for j in idx_update],
                 )
                 pool.close()
             delta_theta[0, idx_update] = np.array([x[0] for x in results])
-            sys.stdout.write('\r')
+            sys.stdout.write("\r")
             sys.stdout.flush()
         else:
             t0 = time.time()
             for i, j in enumerate(idx_update):
                 sys.stdout.write(
-                    '\rFitting dispersion models: %.2f%% in %.2fsec' %
-                    (
-                        np.round(i / len(idx_update) * 100., 2),
-                        time.time() - t0
-                    )
+                    "\rFitting dispersion models: %.2f%% in %.2fsec"
+                    % (np.round(i / len(idx_update) * 100.0, 2), time.time() - t0)
                 )
                 sys.stdout.flush()
                 if method.lower() == "brent":
@@ -509,12 +446,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
                     def cost_b_var(x, data_j, eta_loc_j, xh_scale_j):
                         x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
-                        return - np.sum(ll(
-                            data_j,
-                            eta_loc_j,
-                            x,
-                            xh_scale_j
-                        ))
+                        return -np.sum(ll(data_j, eta_loc_j, x, xh_scale_j))
 
                     delta_theta[0, j] = scipy.optimize.brent(
                         func=cost_b_var,
@@ -522,11 +454,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                         maxiter=max_iter,
                         tol=ftol,
                         brack=(lb_bracket, ub_bracket),
-                        full_output=False
+                        full_output=False,
                     )
                 else:
                     raise ValueError("method %s not recognized" % method)
-            sys.stdout.write('\r')
+            sys.stdout.write("\r")
             sys.stdout.flush()
 
         if isinstance(self.model.b_var, dask.array.core.Array):
@@ -544,18 +476,15 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         transfers relevant attributes.
         """
         # Read from numpy-IRLS estimator specific model:
-        self._hessian = - self.model.fim.compute()
+        self._hessian = -self.model.fim.compute()
         fisher_inv = np.zeros_like(self._hessian)
         invertible = np.where(np.linalg.cond(self._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
-        fisher_inv[invertible] = np.linalg.inv(- self._hessian[invertible])
+        fisher_inv[invertible] = np.linalg.inv(-self._hessian[invertible])
         self._fisher_inv = fisher_inv
         self._jacobian = np.sum(np.abs(self.model.jac.compute() / self.model.x.shape[0]), axis=1)
         self._log_likelihood = self.model.ll_byfeature.compute()
         self._loss = np.sum(self._log_likelihood)
 
     @abc.abstractmethod
-    def get_model_container(
-            self,
-            input_data
-    ):
+    def get_model_container(self, input_data):
         pass

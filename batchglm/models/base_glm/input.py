@@ -19,27 +19,28 @@ class InputDataGLM(InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
     """
+
     loc_names: list
     design_loc_names: list
     scale_names: list
     design_scale_names: list
 
     def __init__(
-            self,
-            data: Union[np.ndarray, anndata.AnnData, scipy.sparse.csr_matrix],
-            design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
-            design_loc_names: Union[list, np.ndarray] = None,
-            design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
-            design_scale_names: Union[list, np.ndarray] = None,
-            constraints_loc: Union[np.ndarray] = None,
-            constraints_scale: Union[np.ndarray] = None,
-            size_factors=None,
-            observation_names=None,
-            feature_names=None,
-            chunk_size_cells: int = 1e6,
-            chunk_size_genes: int = 100,
-            as_dask: bool = True,
-            cast_dtype="float64"
+        self,
+        data: Union[np.ndarray, anndata.AnnData, scipy.sparse.csr_matrix],
+        design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
+        design_loc_names: Union[list, np.ndarray] = None,
+        design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
+        design_scale_names: Union[list, np.ndarray] = None,
+        constraints_loc: Union[np.ndarray] = None,
+        constraints_scale: Union[np.ndarray] = None,
+        size_factors=None,
+        observation_names=None,
+        feature_names=None,
+        chunk_size_cells: int = 1e6,
+        chunk_size_genes: int = 100,
+        as_dask: bool = True,
+        cast_dtype="float64",
     ):
         """
         Create a new InputData object.
@@ -89,17 +90,11 @@ class InputDataGLM(InputDataBase):
             chunk_size_cells=chunk_size_cells,
             chunk_size_genes=chunk_size_genes,
             cast_dtype=cast_dtype,
-            as_dask=as_dask
+            as_dask=as_dask,
         )
 
-        design_loc, design_loc_names = parse_design(
-            design_matrix=design_loc,
-            param_names=design_loc_names
-        )
-        design_scale, design_scale_names = parse_design(
-            design_matrix=design_scale,
-            param_names=design_scale_names
-        )
+        design_loc, design_loc_names = parse_design(design_matrix=design_loc, param_names=design_loc_names)
+        design_scale, design_scale_names = parse_design(design_matrix=design_scale, param_names=design_scale_names)
 
         if as_dask:
             self.design_loc = dask.array.from_array(
@@ -117,16 +112,13 @@ class InputDataGLM(InputDataBase):
         self._design_scale_names = design_scale_names
 
         constraints_loc, loc_names = parse_constraints(
-            dmat=design_loc,
-            dmat_par_names=design_loc_names,
-            constraints=constraints_loc,
-            constraint_par_names=None
+            dmat=design_loc, dmat_par_names=design_loc_names, constraints=constraints_loc, constraint_par_names=None
         )
         constraints_scale, scale_names = parse_constraints(
             dmat=design_scale,
             dmat_par_names=design_scale_names,
             constraints=constraints_scale,
-            constraint_par_names=None
+            constraint_par_names=None,
         )
         if as_dask:
             self.constraints_loc = dask.array.from_array(
@@ -151,13 +143,20 @@ class InputDataGLM(InputDataBase):
             else:
                 raise ValueError("received size factors with dimension=%i" % len(size_factors.shape))
         if as_dask:
-            self.size_factors = dask.array.from_array(
-                size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
-                chunks=(chunk_size_cells, 1),
-            ) if size_factors is not None else None
+            self.size_factors = (
+                dask.array.from_array(
+                    size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                    chunks=(chunk_size_cells, 1),
+                )
+                if size_factors is not None
+                else None
+            )
         else:
-            self.size_factors =  size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype) \
-                if size_factors is not None else None
+            self.size_factors = (
+                size_factors.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
+                if size_factors is not None
+                else None
+            )
 
     @property
     def design_loc_names(self):

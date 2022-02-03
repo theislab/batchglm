@@ -10,22 +10,10 @@ class Simulator(_SimulatorGLM, Model):
     Uses a logit-linker function for loc and a log-linker function for scale.
     """
 
-    def __init__(
-            self,
-            num_observations=1000,
-            num_features=100
-    ):
-        _SimulatorGLM.__init__(
-            self=self,
-            model=None,
-            num_observations=num_observations,
-            num_features=num_features
-        )
+    def __init__(self, num_observations=1000, num_features=100):
+        _SimulatorGLM.__init__(self=self, model=None, num_observations=num_observations, num_features=num_features)
 
-    def param_bounds(
-            self,
-            dtype
-    ):
+    def param_bounds(self, dtype):
 
         dtype = np.dtype(dtype)
         dmin = np.finfo(dtype).min
@@ -37,9 +25,9 @@ class Simulator(_SimulatorGLM, Model):
 
         sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
         bounds_min = {
-            "a_var": np.log(zero/(1-zero)) / sf,
+            "a_var": np.log(zero / (1 - zero)) / sf,
             "b_var": np.log(zero) / sf,
-            "eta_loc": np.log(zero/(1-zero)) / sf,
+            "eta_loc": np.log(zero / (1 - zero)) / sf,
             "eta_scale": np.log(zero) / sf,
             "mean": np.nextafter(0, np.inf, dtype=dtype),
             "samplesize": np.nextafter(0, np.inf, dtype=dtype),
@@ -47,9 +35,9 @@ class Simulator(_SimulatorGLM, Model):
             "log_probs": np.log(zero),
         }
         bounds_max = {
-            "a_var": np.log(one/(1-one)) / sf,
+            "a_var": np.log(one / (1 - one)) / sf,
             "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "eta_loc": np.log(one/(1-one)) / sf,
+            "eta_loc": np.log(one / (1 - one)) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mean": one,
             "samplesize": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
@@ -59,12 +47,12 @@ class Simulator(_SimulatorGLM, Model):
         return bounds_min, bounds_max
 
     def generate_params(
-            self,
-            rand_fn_ave=lambda shape: np.random.uniform(0.2, 0.8, shape),
-            rand_fn=None,
-            rand_fn_loc=lambda shape: np.random.uniform(0.05, 0.15, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(0.2, 0.5, shape),
-        ):
+        self,
+        rand_fn_ave=lambda shape: np.random.uniform(0.2, 0.8, shape),
+        rand_fn=None,
+        rand_fn_loc=lambda shape: np.random.uniform(0.05, 0.15, shape),
+        rand_fn_scale=lambda shape: np.random.uniform(0.2, 0.5, shape),
+    ):
         self._generate_params(
             self,
             rand_fn_ave=rand_fn_ave,
@@ -77,9 +65,5 @@ class Simulator(_SimulatorGLM, Model):
         """
         Sample random data based on beta distribution and parameters.
         """
-        data_matrix = np.random.beta(
-            a=self.p,
-            b=self.q,
-            size=None
-        )
+        data_matrix = np.random.beta(a=self.p, b=self.q, size=None)
         self.assemble_input_data(data_matrix, sparse)

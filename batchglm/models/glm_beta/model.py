@@ -15,10 +15,10 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     """
 
     def link_loc(self, data):
-        return np.log(1/(1/data-1))
+        return np.log(1 / (1 / data - 1))
 
     def inverse_link_loc(self, data):
-        return 1/(1+np.exp(-data))
+        return 1 / (1 + np.exp(-data))
 
     def link_scale(self, data):
         return np.log(data)

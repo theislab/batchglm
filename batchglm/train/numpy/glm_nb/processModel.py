@@ -4,11 +4,7 @@ from .external import ProcessModelGlm, pkg_constants
 
 
 class ProcessModel(ProcessModelGlm):
-
-    def param_bounds(
-            self,
-            dtype
-    ):
+    def param_bounds(self, dtype):
         dtype = np.dtype(dtype)
         dmin = np.finfo(dtype).min
         dmax = np.finfo(dtype).max

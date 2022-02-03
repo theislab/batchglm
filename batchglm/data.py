@@ -7,6 +7,7 @@ import patsy
 
 try:
     import anndata
+
     try:
         from anndata.base import Raw
     except ImportError:
@@ -17,11 +18,11 @@ except ImportError:
 
 
 def design_matrix(
-        sample_description: Union[pd.DataFrame, None] = None,
-        formula: Union[str, None] = None,
-        as_categorical: Union[bool, list] = True,
-        dmat: Union[pd.DataFrame, None] = None,
-        return_type: str = "patsy",
+    sample_description: Union[pd.DataFrame, None] = None,
+    formula: Union[str, None] = None,
+    as_categorical: Union[bool, list] = True,
+    dmat: Union[pd.DataFrame, None] = None,
+    return_type: str = "patsy",
 ) -> Tuple[Union[patsy.design_info.DesignMatrix, pd.DataFrame], List[str]]:
     """
     Create a design matrix from some sample description.
@@ -47,8 +48,7 @@ def design_matrix(
         - "dataframe": return pd.DataFrame with observations as rows and params as columns
     :return: a model design matrix
     """
-    if (dmat is None and sample_description is None) or \
-            (dmat is not None and sample_description is not None):
+    if (dmat is None and sample_description is None) or (dmat is not None and sample_description is not None):
         raise ValueError("supply either dmat or sample_description")
 
     if dmat is None:
@@ -84,9 +84,7 @@ def design_matrix(
             raise ValueError("return type %s not recognized" % return_type)
 
 
-def view_coef_names(
-        dmat: Union[patsy.design_info.DesignMatrix, pd.DataFrame]
-) -> np.ndarray:
+def view_coef_names(dmat: Union[patsy.design_info.DesignMatrix, pd.DataFrame]) -> np.ndarray:
     """
     Show names of coefficient in dmat.
 
@@ -104,9 +102,7 @@ def view_coef_names(
 
 
 def preview_coef_names(
-        sample_description: pd.DataFrame,
-        formula: str,
-        as_categorical: Union[bool, list] = True
+    sample_description: pd.DataFrame, formula: str, as_categorical: Union[bool, list] = True
 ) -> List[str]:
     """
     Return coefficient names of model.
@@ -128,21 +124,18 @@ def preview_coef_names(
     :return: A list of coefficient names.
     """
     _, coef_names = design_matrix(
-        sample_description=sample_description,
-        formula=formula,
-        as_categorical=as_categorical,
-        return_type="patsy"
+        sample_description=sample_description, formula=formula, as_categorical=as_categorical, return_type="patsy"
     )
     return coef_names
 
 
 def constraint_system_from_star(
-        dmat: Union[None, patsy.design_info.DesignMatrix, pd.DataFrame] = None,
-        sample_description: Union[None, pd.DataFrame] = None,
-        formula: Union[None, str] = None,
-        as_categorical: Union[bool, list] = True,
-        constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
-        return_type: str = "patsy"
+    dmat: Union[None, patsy.design_info.DesignMatrix, pd.DataFrame] = None,
+    sample_description: Union[None, pd.DataFrame] = None,
+    formula: Union[None, str] = None,
+    as_categorical: Union[bool, list] = True,
+    constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
+    return_type: str = "patsy",
 ) -> Tuple:
     """
     Wrap different constraint matrix building formats with building of design matrix.
@@ -205,12 +198,12 @@ def constraint_system_from_star(
         raise ValueError("supply either sample_description or dmat")
 
     if dmat is None and not isinstance(constraints, dict):
-       dmat, coef_names = design_matrix(
+        dmat, coef_names = design_matrix(
             sample_description=sample_description,
             formula=formula,
             as_categorical=as_categorical,
             dmat=None,
-            return_type=return_type
+            return_type=return_type,
         )
     elif dmat is not None and isinstance(constraints, dict):
         raise ValueError("dmat was supplied even though constraints were given as dict")
@@ -221,13 +214,11 @@ def constraint_system_from_star(
             formula=formula,
             as_categorical=as_categorical,
             constraints=constraints,
-            return_type="patsy"
+            return_type="patsy",
         )
     elif isinstance(constraints, tuple) or isinstance(constraints, list):
         cmat, coef_names = constraint_matrix_from_string(
-            dmat=dmat,
-            coef_names=dmat.design_info.column_names,
-            constraints=constraints
+            dmat=dmat, coef_names=dmat.design_info.column_names, constraints=constraints
         )
         term_names = None  # not supported yet.
     elif isinstance(constraints, np.ndarray):
@@ -253,25 +244,24 @@ def constraint_system_from_star(
     if cmat is None:
         if np.linalg.matrix_rank(dmat) != dmat.shape[1]:
             raise ValueError(
-                "constrained design matrix is not full rank: %i %i" %
-                (np.linalg.matrix_rank(dmat), dmat.shape[1])
+                "constrained design matrix is not full rank: %i %i" % (np.linalg.matrix_rank(dmat), dmat.shape[1])
             )
     else:
         if np.linalg.matrix_rank(np.matmul(dmat, cmat)) != cmat.shape[1]:
             raise ValueError(
-                "constrained design matrix is not full rank: %i %i" %
-                (np.linalg.matrix_rank(np.matmul(dmat, cmat)), cmat.shape[1])
+                "constrained design matrix is not full rank: %i %i"
+                % (np.linalg.matrix_rank(np.matmul(dmat, cmat)), cmat.shape[1])
             )
 
     return dmat, coef_names, cmat, term_names
 
 
 def constraint_matrix_from_dict(
-        sample_description: pd.DataFrame,
-        formula: str,
-        as_categorical: Union[bool, list] = True,
-        constraints: dict = {},
-        return_type: str = "patsy"
+    sample_description: pd.DataFrame,
+    formula: str,
+    as_categorical: Union[bool, list] = True,
+    constraints: dict = {},
+    return_type: str = "patsy",
 ) -> Tuple:
     """
     Create a design matrix from some sample description and a constraint matrix
@@ -332,10 +322,7 @@ def constraint_matrix_from_dict(
     coef_names = dmat.design_info.column_names
     term_names = dmat.design_info.term_names
 
-    constraints_ls = string_constraints_from_dict(
-        sample_description=sample_description,
-        constraints=constraints
-    )
+    constraints_ls = string_constraints_from_dict(sample_description=sample_description, constraints=constraints)
     for i, x in enumerate(constraints.keys()):
         assert isinstance(x, str), "constrained should contain strings"
         dmat_constrained_temp = patsy.highlevel.dmatrix("0+" + x, sample_description)
@@ -344,11 +331,7 @@ def constraint_matrix_from_dict(
         term_names.extend(dmat_constrained_temp.design_info.term_names)
 
     # Build constraint matrix.
-    constraints_ar = constraint_matrix_from_string(
-        dmat=dmat,
-        coef_names=coef_names,
-        constraints=constraints_ls
-    )
+    constraints_ar = constraint_matrix_from_string(dmat=dmat, coef_names=coef_names, constraints=constraints_ls)
 
     # Format return type
     if return_type == "dataframe":
@@ -356,10 +339,7 @@ def constraint_matrix_from_dict(
     return dmat, coef_names, constraints_ar, term_names
 
 
-def string_constraints_from_dict(
-        sample_description: pd.DataFrame,
-        constraints: Union[None, dict] = {}
-):
+def string_constraints_from_dict(sample_description: pd.DataFrame, constraints: Union[None, dict] = {}):
     r"""
     Create string-encoded constraints from dictionary encoded constraints and sample description.
 
@@ -391,13 +371,16 @@ def string_constraints_from_dict(
                 grouping = dmat_grouping_temp[:, j]
                 idx_constrained_group = np.where(np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0)[0]
                 # Assert that required grouping is nested.
-                assert np.all(np.logical_xor(
-                    np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0,
-                    np.sum(dmat_constrained_temp[grouping == 0, :], axis=0) > 0
-                )), "proposed grouping of constraints is not nested, read docstrings"
+                assert np.all(
+                    np.logical_xor(
+                        np.sum(dmat_constrained_temp[grouping == 1, :], axis=0) > 0,
+                        np.sum(dmat_constrained_temp[grouping == 0, :], axis=0) > 0,
+                    )
+                ), "proposed grouping of constraints is not nested, read docstrings"
                 # Add new string-encoded equality constraint.
                 constraints_ls.append(
-                    "+".join(list(np.asarray(dmat_constrained_temp.design_info.column_names)[idx_constrained_group])) + "=0"
+                    "+".join(list(np.asarray(dmat_constrained_temp.design_info.column_names)[idx_constrained_group]))
+                    + "=0"
                 )
 
         logging.getLogger("batchglm").warning("Built constraints: " + ", ".join(constraints_ls))
@@ -407,11 +390,7 @@ def string_constraints_from_dict(
     return constraints_ls
 
 
-def constraint_matrix_from_string(
-        dmat: np.ndarray,
-        coef_names: list,
-        constraints: Union[Tuple[str, str], List[str]]
-):
+def constraint_matrix_from_string(dmat: np.ndarray, coef_names: list, constraints: Union[Tuple[str, str], List[str]]):
     r"""
     Create constraint matrix form string encoded equality constraints.
 
@@ -434,9 +413,7 @@ def constraint_matrix_from_string(
             raise ValueError("a zero-equality constraint only involved one parameter: remove this parameter")
     idx_constr = np.asarray([np.where(x == 1)[0][0] for x in constraint_ls])
     idx_depending = [np.where(x == 1)[0][1:] for x in constraint_ls]
-    idx_unconstr = np.asarray(list(
-        set(np.asarray(range(n_par_all))) - set(idx_constr)
-    ))
+    idx_unconstr = np.asarray(list(set(np.asarray(range(n_par_all))) - set(idx_constr)))
 
     constraint_mat = np.zeros([n_par_all, n_par_free])
     for i in range(n_par_all):
@@ -453,17 +430,15 @@ def constraint_matrix_from_string(
     # Test unconstrained subset design matrix for being full rank before returning constraints:
     if np.linalg.matrix_rank(dmat[:, idx_unconstr]) != np.linalg.matrix_rank(dmat[:, idx_unconstr].T):
         raise ValueError(
-            "unconstrained sub-design matrix is not full rank" %
-            np.linalg.matrix_rank(dmat[:, idx_unconstr]), np.linalg.matrix_rank(dmat[:, idx_unconstr].T)
+            "unconstrained sub-design matrix is not full rank" % np.linalg.matrix_rank(dmat[:, idx_unconstr]),
+            np.linalg.matrix_rank(dmat[:, idx_unconstr].T),
         )
 
     return constraint_mat
 
 
 def bin_continuous_covariate(
-        sample_description: pd.DataFrame,
-        factor_to_bin: str,
-        bins: Union[int, list, np.ndarray, Tuple]
+    sample_description: pd.DataFrame, factor_to_bin: str, bins: Union[int, list, np.ndarray, Tuple]
 ):
     r"""
     Bin a continuous covariate.
@@ -482,7 +457,6 @@ def bin_continuous_covariate(
         bins = np.arange(0, 1, 1 / bins)
 
     sample_description[factor_to_bin + "_binned"] = np.digitize(
-        np.argsort(np.argsort(sample_description[factor_to_bin].values)) / sample_description.shape[0],
-        bins
+        np.argsort(np.argsort(sample_description[factor_to_bin].values)) / sample_description.shape[0], bins
     )
     return sample_description

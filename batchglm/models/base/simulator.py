@@ -31,12 +31,7 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
     input_data: InputDataBase
     model: _ModelBase
 
-    def __init__(
-            self,
-            model,
-            num_observations,
-            num_features
-    ):
+    def __init__(self, model, num_observations, num_features):
         self.nobs = num_observations
         self.nfeatures = num_features
 

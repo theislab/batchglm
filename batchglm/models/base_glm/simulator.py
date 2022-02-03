@@ -12,12 +12,9 @@ from .model import _ModelGLM
 
 
 def generate_sample_description(
-        num_observations,
-        num_conditions: int = 2,
-        num_batches: int = 4,
-        shuffle_assignments=False
+    num_observations, num_conditions: int = 2, num_batches: int = 4, shuffle_assignments=False
 ) -> Tuple[patsy.DesignMatrix, pandas.DataFrame]:
-    """ Build a sample description.
+    """Build a sample description.
 
     :param num_observations: Number of observations to simulate.
     :param num_conditions: number of conditions; will be repeated like [1,2,3,1,2,3]
@@ -37,10 +34,7 @@ def generate_sample_description(
     reps_batches = math.ceil(num_observations / num_batches)
     batches = np.repeat(range(num_batches), reps_batches)
     batches = batches[range(num_observations)].astype(str)
-    sample_description = pandas.DataFrame({
-        "condition": conditions,
-        "batch": batches
-    })
+    sample_description = pandas.DataFrame({"condition": conditions, "batch": batches})
 
     if shuffle_assignments:
         sample_description = sample_description.isel(
@@ -54,22 +48,13 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     """
     Simulator for Generalized Linear Models (GLMs).
     """
+
     design_loc: patsy.design_info.DesignMatrix
     design_scale: patsy.design_info.DesignMatrix
     sample_description: pandas.DataFrame
 
-    def __init__(
-            self,
-            model: Union[_ModelGLM, None],
-            num_observations,
-            num_features
-    ):
-        _SimulatorBase.__init__(
-            self=self,
-            model=model,
-            num_observations=num_observations,
-            num_features=num_features
-        )
+    def __init__(self, model: Union[_ModelGLM, None], num_observations, num_features):
+        _SimulatorBase.__init__(self=self, model=model, num_observations=num_observations, num_features=num_features)
         self.sim_design_loc = None
         self.sim_design_scale = None
         self.sample_description = None
@@ -77,33 +62,16 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         self.sim_b_var = None
         self._size_factors = None
 
-    def generate_sample_description(
-            self,
-            num_conditions=2,
-            num_batches=4,
-            intercept_scale: bool = False,
-            **kwargs
-    ):
+    def generate_sample_description(self, num_conditions=2, num_batches=4, intercept_scale: bool = False, **kwargs):
         self.sim_design_loc, self.sample_description = generate_sample_description(
-            self.nobs,
-            num_conditions=num_conditions,
-            num_batches=num_batches,
-            **kwargs
+            self.nobs, num_conditions=num_conditions, num_batches=num_batches, **kwargs
         )
         if intercept_scale:
             self.sim_design_scale = patsy.dmatrix("~1", self.sample_description)
         else:
             self.sim_design_scale = self.sim_design_loc
 
-    def _generate_params(
-            self,
-            *args,
-            rand_fn_ave=None,
-            rand_fn=None,
-            rand_fn_loc=None,
-            rand_fn_scale=None,
-            **kwargs
-    ):
+    def _generate_params(self, *args, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, **kwargs):
         """
         Generate all necessary parameters
 
@@ -138,13 +106,14 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         if self.sim_design_scale is None:
             self.sim_design_scale = self.sim_design_loc
 
-        self.sim_a_var = np.concatenate([
-            self.link_loc(np.expand_dims(rand_fn_ave([self.nfeatures]), axis=0)),  # intercept
-            rand_fn_loc((self.sim_design_loc.shape[1] - 1, self.nfeatures))
-        ], axis=0)
-        self.sim_b_var = np.concatenate([
-            rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))
-        ], axis=0)
+        self.sim_a_var = np.concatenate(
+            [
+                self.link_loc(np.expand_dims(rand_fn_ave([self.nfeatures]), axis=0)),  # intercept
+                rand_fn_loc((self.sim_design_loc.shape[1] - 1, self.nfeatures)),
+            ],
+            axis=0,
+        )
+        self.sim_b_var = np.concatenate([rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))], axis=0)
 
     def assemble_input_data(self, data_matrix: np.ndarray, sparse: bool):
         if sparse:
@@ -154,7 +123,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             design_loc=self.sim_design_loc,
             design_scale=self.sim_design_scale,
             design_loc_names=None,
-            design_scale_names=None
+            design_scale_names=None,
         )
 
     @property
@@ -191,15 +160,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     def eta_loc_j(self, j) -> np.ndarray:
         pass
 
-    def np_clip_param(
-            self,
-            param,
-            name
-    ):
+    def np_clip_param(self, param, name):
         # TODO: inherit this from somewhere?
         bounds_min, bounds_max = self.param_bounds(param.dtype)
-        return np.clip(
-            param,
-            bounds_min[name],
-            bounds_max[name]
-        )
+        return np.clip(param, bounds_min[name], bounds_max[name])

@@ -11,16 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class _TestGraphGlmAllEstim:
-
-    def __init__(
-            self,
-            simulator,
-            quick_scale,
-            algo,
-            batched,
-            noise_model,
-            sparse
-    ):
+    def __init__(self, simulator, quick_scale, algo, batched, noise_model, sparse):
         if noise_model is None:
             raise ValueError("noise_model is None")
         else:
@@ -31,9 +22,16 @@ class _TestGraphGlmAllEstim:
 
         batch_size = 200
         provide_optimizers = {
-            "gd": False, "adam": False, "adagrad": False, "rmsprop": False,
-            "nr": False, "nr_tr": False,
-            "irls": False, "irls_gd": False, "irls_tr": False, "irls_gd_tr": False
+            "gd": False,
+            "adam": False,
+            "adagrad": False,
+            "rmsprop": False,
+            "nr": False,
+            "nr_tr": False,
+            "irls": False,
+            "irls_gd": False,
+            "irls_tr": False,
+            "irls_gd_tr": False,
         }
         provide_optimizers[algo.lower()] = True
 
@@ -43,7 +41,7 @@ class _TestGraphGlmAllEstim:
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale,
                 design_loc_names=simulator.input_data.design_loc_names,
-                design_scale_names=simulator.input_data.design_scale_names
+                design_scale_names=simulator.input_data.design_scale_names,
             )
         else:
             input_data = InputDataGLM(
@@ -51,7 +49,7 @@ class _TestGraphGlmAllEstim:
                 design_loc=simulator.input_data.design_loc,
                 design_scale=simulator.input_data.design_scale,
                 design_loc_names=simulator.input_data.design_loc_names,
-                design_scale_names=simulator.input_data.design_scale_names
+                design_scale_names=simulator.input_data.design_scale_names,
             )
 
         estimator = Estimator(
@@ -60,27 +58,26 @@ class _TestGraphGlmAllEstim:
             quick_scale=quick_scale,
             provide_optimizers=provide_optimizers,
             provide_batched=batched,
-            optim_algos=[algo.lower()]
+            optim_algos=[algo.lower()],
         )
         self.estimator = estimator
         self.sim = simulator
         self.algo = algo.lower()
 
-    def estimate(
-            self,
-            batched
-        ):
+    def estimate(self, batched):
         self.estimator.initialize()
 
-        self.estimator.train_sequence(training_strategy=[
-            {
-                "learning_rate": 1,
-                "convergence_criteria": "step",
-                "stopping_criteria": 1,
-                "use_batching": batched,
-                "optim_algo": self.algo,
-            },
-        ])
+        self.estimator.train_sequence(
+            training_strategy=[
+                {
+                    "learning_rate": 1,
+                    "convergence_criteria": "step",
+                    "stopping_criteria": 1,
+                    "use_batching": batched,
+                    "optim_algo": self.algo,
+                },
+            ]
+        )
 
 
 class _TestGraphGlmAll:
@@ -102,6 +99,7 @@ class _TestGraphGlmAll:
         - train a model only: test_batched_global_a_only()
         - train b model only: test_batched_global_b_only()
     """
+
     noise_model: str
 
     def simulate(self):
@@ -135,33 +133,20 @@ class _TestGraphGlmAll:
         else:
             return self.sim2
 
-    def basic_test_one_algo(
-            self,
-            batched,
-            train_loc,
-            train_scale,
-            algo,
-            sparse
-    ):
+    def basic_test_one_algo(self, batched, train_loc, train_scale, algo, sparse):
         estimator = _TestGraphGlmAllEstim(
             simulator=self.simulator(train_loc=train_loc),
             quick_scale=False if train_scale else True,
             algo=algo,
             batched=batched,
             noise_model=self.noise_model,
-            sparse=sparse
+            sparse=sparse,
         )
         estimator.estimate(batched=batched)
         estimator.estimator.finalize()
         return True
 
-    def basic_test(
-            self,
-            batched,
-            train_loc,
-            train_scale,
-            sparse
-    ):
+    def basic_test(self, batched, train_loc, train_scale, sparse):
         if self.noise_model == "nb":
             algos = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR", "IRLS", "IRLS_GD", "IRLS_TR", "IRLS_GD_TR"]
         elif self.noise_model == "norm":
@@ -173,60 +158,26 @@ class _TestGraphGlmAll:
         for algo in algos:
             logger.info("algorithm: %s" % algo)
             self.basic_test_one_algo(
-                batched=batched,
-                train_loc=train_loc,
-                train_scale=train_scale,
-                algo=algo,
-                sparse=sparse
+                batched=batched, train_loc=train_loc, train_scale=train_scale, algo=algo, sparse=sparse
             )
 
     def _test_full_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=sparse)
 
     def _test_full_a_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
+        return self.basic_test(batched=False, train_loc=True, train_scale=False, sparse=sparse)
 
     def _test_full_b_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=False, train_loc=False, train_scale=True, sparse=sparse)
 
     def _test_batched_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=True,
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=True, train_loc=True, train_scale=True, sparse=sparse)
 
     def _test_batched_a_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
+        return self.basic_test(batched=True, train_loc=True, train_scale=False, sparse=sparse)
 
     def _test_batched_b_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=True, train_loc=False, train_scale=True, sparse=sparse)
 
     def _test_full(self, sparse):
         self.simulate()
@@ -241,10 +192,7 @@ class _TestGraphGlmAll:
         self._test_batched_b_only(sparse=sparse)
 
 
-class TestGraphGlmNb(
-    _TestGraphGlmAll,
-    unittest.TestCase
-):
+class TestGraphGlmNb(_TestGraphGlmAll, unittest.TestCase):
     """
     Test whether training graphs work for negative binomial noise.
     """
@@ -268,10 +216,7 @@ class TestGraphGlmNb(
         self._test_batched(sparse=True)
 
 
-class TestGraphGlmNorm(
-    _TestGraphGlmAll,
-    unittest.TestCase
-):
+class TestGraphGlmNorm(_TestGraphGlmAll, unittest.TestCase):
     """
     Test whether training graphs work for normally distributed noise.
     """
@@ -281,7 +226,7 @@ class TestGraphGlmNorm(
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestGraphGlmNorm.test_full_norm()")
 
-        logger.info('Normal noise model not implemented for numpy')
+        logger.info("Normal noise model not implemented for numpy")
 
         # self.noise_model = "norm"
         # self._test_full(sparse=False)
@@ -292,17 +237,14 @@ class TestGraphGlmNorm(
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestGraphGlmNorm.test_batched_norm()")
 
-        logger.info('Normal noise model not implemented for numpy')
+        logger.info("Normal noise model not implemented for numpy")
 
         # self.noise_model = "norm"
         # self._test_batched(sparse=False)
         # self._test_batched(sparse=True)
 
 
-class TestGraphGlmBeta(
-    _TestGraphGlmAll,
-    unittest.TestCase
-):
+class TestGraphGlmBeta(_TestGraphGlmAll, unittest.TestCase):
     """
     Test whether training graphs work for beta distributed noise.
     """
@@ -312,7 +254,7 @@ class TestGraphGlmBeta(
         logging.getLogger("batchglm").setLevel(logging.ERROR)
         logger.error("TestGraphGlmBeta.test_full_beta()")
 
-        logger.info('Beta noise model not implemented for numpy')
+        logger.info("Beta noise model not implemented for numpy")
 
         # self.noise_model = "beta"
         # self._test_full(sparse=False)
@@ -323,12 +265,12 @@ class TestGraphGlmBeta(
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestGraphGlmBeta.test_batched_beta()")
 
-        logger.info('Beta noise model not implemented for numpy')
+        logger.info("Beta noise model not implemented for numpy")
 
         # self.noise_model = "beta"
         # self._test_batched(sparse=False)
         # self._test_batched(sparse=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

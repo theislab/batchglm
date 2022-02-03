@@ -12,15 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class _TestAccuracyGlmAllEstim:
-
-    def __init__(
-            self,
-            simulator,
-            quick_scale,
-            noise_model,
-            sparse,
-            init_mode
-    ):
+    def __init__(self, simulator, quick_scale, noise_model, sparse, init_mode):
         if noise_model is None:
             raise ValueError("noise_model is None")
         else:
@@ -40,7 +32,7 @@ class _TestAccuracyGlmAllEstim:
                 constraints_scale=simulator.input_data.constraints_scale,
                 size_factors=simulator.input_data.size_factors,
                 chunk_size_cells=int(1e9),
-                chunk_size_genes=2
+                chunk_size_genes=2,
             )
         else:
             input_data = InputDataGLM(
@@ -53,28 +45,17 @@ class _TestAccuracyGlmAllEstim:
                 constraints_scale=simulator.input_data.constraints_scale,
                 size_factors=simulator.input_data.size_factors,
                 chunk_size_cells=int(1e9),
-                chunk_size_genes=2
+                chunk_size_genes=2,
             )
 
-        self.estimator = Estimator(
-            input_data=input_data,
-            quick_scale=quick_scale,
-            init_a=init_mode,
-            init_b=init_mode
-        )
+        self.estimator = Estimator(input_data=input_data, quick_scale=quick_scale, init_a=init_mode, init_b=init_mode)
         self.sim = simulator
 
-    def estimate(
-            self
-    ):
+    def estimate(self):
         self.estimator.initialize()
         self.estimator.train_sequence(training_strategy="DEFAULT")
 
-    def eval_estimation(
-            self,
-            train_loc,
-            train_scale
-    ):
+    def eval_estimation(self, train_loc, train_scale):
         threshold_dev_a = 0.2
         threshold_dev_b = 0.2
         threshold_std_a = 1
@@ -103,9 +84,7 @@ class _TestAccuracyGlmAllEstim:
         return success
 
 
-class _TestAccuracyGlmAll(
-    unittest.TestCase
-):
+class _TestAccuracyGlmAll(unittest.TestCase):
     """
     Test whether optimizers yield exact results.
 
@@ -133,6 +112,7 @@ class _TestAccuracyGlmAll(
 
     IRLS_TR: Needs slow TR collapse to converge.
     """
+
     noise_model: str
     optims_tested: dict
 
@@ -187,7 +167,7 @@ class _TestAccuracyGlmAll(
         self.sim1.generate_params(
             rand_fn_ave=lambda shape: rand_fn_ave(shape),
             rand_fn_loc=lambda shape: rand_fn_loc(shape),
-            rand_fn_scale=lambda shape: rand_fn_scale(shape)
+            rand_fn_scale=lambda shape: rand_fn_scale(shape),
         )
         self.sim1.generate_data()
 
@@ -208,7 +188,7 @@ class _TestAccuracyGlmAll(
             if self.noise_model in ["nb", "norm"]:
                 theta = np.ones(shape)
             elif self.noise_model in ["beta"]:
-                theta = np.zeros(shape)+0.05
+                theta = np.zeros(shape) + 0.05
             else:
                 raise ValueError("noise model not recognized")
             return theta
@@ -227,7 +207,7 @@ class _TestAccuracyGlmAll(
         self.sim2.generate_params(
             rand_fn_ave=lambda shape: rand_fn_ave(shape),
             rand_fn_loc=lambda shape: rand_fn_loc(shape),
-            rand_fn_scale=lambda shape: rand_fn_scale(shape)
+            rand_fn_scale=lambda shape: rand_fn_scale(shape),
         )
         self.sim2.generate_data()
 
@@ -237,18 +217,8 @@ class _TestAccuracyGlmAll(
         else:
             return self.sim2
 
-    def basic_test(
-            self,
-            batched,
-            train_loc,
-            train_scale,
-            sparse
-    ):
-        self.optims_tested = {
-            "nb": ["IRLS"],
-            "beta": ["IRLS"],
-            "norm": ["IRLS"]
-        }
+    def basic_test(self, batched, train_loc, train_scale, sparse):
+        self.optims_tested = {"nb": ["IRLS"], "beta": ["IRLS"], "norm": ["IRLS"]}
         init_mode = "standard"
 
         for algo in self.optims_tested[self.noise_model]:
@@ -266,7 +236,7 @@ class _TestAccuracyGlmAll(
                 quick_scale=False if train_scale else True,
                 noise_model=self.noise_model,
                 sparse=sparse,
-                init_mode=init_mode
+                init_mode=init_mode,
             )
             estimator.estimate()
             estimator.estimator.finalize()
@@ -279,52 +249,22 @@ class _TestAccuracyGlmAll(
         return True
 
     def _test_full_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=sparse)
 
     def _test_full_a_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
+        return self.basic_test(batched=False, train_loc=True, train_scale=False, sparse=sparse)
 
     def _test_full_b_only(self, sparse):
-        return self.basic_test(
-            batched=False,
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=False, train_loc=False, train_scale=True, sparse=sparse)
 
     def _test_batched_a_and_b(self, sparse):
-        return self.basic_test(
-            batched=True,
-            train_loc=True,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=True, train_loc=True, train_scale=True, sparse=sparse)
 
     def _test_batched_a_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            train_loc=True,
-            train_scale=False,
-            sparse=sparse
-        )
+        return self.basic_test(batched=True, train_loc=True, train_scale=False, sparse=sparse)
 
     def _test_batched_b_only(self, sparse):
-        return self.basic_test(
-            batched=True,
-            train_loc=False,
-            train_scale=True,
-            sparse=sparse
-        )
+        return self.basic_test(batched=True, train_loc=False, train_scale=True, sparse=sparse)
 
     def _test_full(self, sparse):
         self._test_full_a_and_b(sparse=sparse)
@@ -337,10 +277,7 @@ class _TestAccuracyGlmAll(
         self._test_batched_b_only(sparse=sparse)
 
 
-class TestAccuracyGlmNb(
-    _TestAccuracyGlmAll,
-    unittest.TestCase
-):
+class TestAccuracyGlmNb(_TestAccuracyGlmAll, unittest.TestCase):
     """
     Test whether optimizers yield exact results for negative binomial distributed data.
     """
@@ -356,5 +293,5 @@ class TestAccuracyGlmNb(
         self._test_full(sparse=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -9,12 +9,12 @@ from .external import closedform_glm_mean, closedform_glm_scale
 
 
 def closedform_nb_glm_logmu(
-        x: Union[np.ndarray, scipy.sparse.csr_matrix],
-        design_loc: np.ndarray,
-        constraints_loc,
-        size_factors=None,
-        link_fn=np.log,
-        inv_link_fn=np.exp
+    x: Union[np.ndarray, scipy.sparse.csr_matrix],
+    design_loc: np.ndarray,
+    constraints_loc,
+    size_factors=None,
+    link_fn=np.log,
+    inv_link_fn=np.exp,
 ):
     r"""
     Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
@@ -34,18 +34,18 @@ def closedform_nb_glm_logmu(
         constraints=constraints_loc,
         size_factors=size_factors,
         link_fn=link_fn,
-        inv_link_fn=inv_link_fn
+        inv_link_fn=inv_link_fn,
     )
 
 
 def closedform_nb_glm_logphi(
-        x: Union[np.ndarray, scipy.sparse.csr_matrix],
-        design_scale: np.ndarray,
-        constraints=None,
-        size_factors=None,
-        groupwise_means=None,
-        link_fn=np.log,
-        invlink_fn=np.exp
+    x: Union[np.ndarray, scipy.sparse.csr_matrix],
+    design_scale: np.ndarray,
+    constraints=None,
+    size_factors=None,
+    groupwise_means=None,
+    link_fn=np.log,
+    invlink_fn=np.exp,
 ):
     r"""
     Calculates a closed-form solution for the log-scale parameters of negative-binomial GLMs.
@@ -72,16 +72,11 @@ def closedform_nb_glm_logphi(
         groupwise_means=groupwise_means,
         link_fn=link_fn,
         inv_link_fn=invlink_fn,
-        compute_scales_fun=compute_scales_fun
+        compute_scales_fun=compute_scales_fun,
     )
 
 
-def init_par(
-        input_data,
-        init_a,
-        init_b,
-        init_model
-):
+def init_par(input_data, init_a, init_b, init_model):
     r"""
     standard:
     Only initialise intercept and keep other coefficients as zero.
@@ -112,9 +107,11 @@ def init_par(
                     dloc = input_data.design_loc.compute()
                 else:
                     dloc = input_data.design_loc
-                one_hot = len(np.unique(dloc)) == 2 and \
-                    np.abs(np.min(dloc) - 0.) == 0. and \
-                    np.abs(np.max(dloc) - 1.) == 0.
+                one_hot = (
+                    len(np.unique(dloc)) == 2
+                    and np.abs(np.min(dloc) - 0.0) == 0.0
+                    and np.abs(np.max(dloc) - 1.0) == 0.0
+                )
                 init_a = "standard" if not one_hot else "closed_form"
 
             if init_a.lower() == "closed_form":
@@ -123,7 +120,7 @@ def init_par(
                     design_loc=input_data.design_loc,
                     constraints_loc=input_data.constraints_loc,
                     size_factors=input_data.size_factors,
-                    link_fn=lambda mu: np.log(mu+np.nextafter(0, 1, dtype=mu.dtype))
+                    link_fn=lambda mu: np.log(mu + np.nextafter(0, 1, dtype=mu.dtype)),
                 )
 
                 # train mu, if the closed-form solution is inaccurate
@@ -154,7 +151,7 @@ def init_par(
                     constraints=input_data.constraints_scale[[0], :][:, [0]],
                     size_factors=input_data.size_factors,
                     groupwise_means=None,
-                    link_fn=lambda r: np.log(r+np.nextafter(0, 1, dtype=r.dtype))
+                    link_fn=lambda r: np.log(r + np.nextafter(0, 1, dtype=r.dtype)),
                 )
                 init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
                 init_b[0, :] = init_b_intercept
@@ -170,8 +167,9 @@ def init_par(
                         inits_unequal = True
 
                 if inits_unequal or dmats_unequal:
-                    raise ValueError("cannot use closed_form init for scale model " +
-                                     "if scale model differs from loc model")
+                    raise ValueError(
+                        "cannot use closed_form init for scale model " + "if scale model differs from loc model"
+                    )
 
                 groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
                     x=input_data.x,
@@ -179,7 +177,7 @@ def init_par(
                     constraints=input_data.constraints_scale,
                     size_factors=input_data.size_factors,
                     groupwise_means=groupwise_means,
-                    link_fn=lambda r: np.log(r)
+                    link_fn=lambda r: np.log(r),
                 )
             elif init_b.lower() == "all_zero":
                 init_b = np.zeros([input_data.num_scale_params, input_data.x.shape[1]])

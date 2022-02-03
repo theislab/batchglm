@@ -1,9 +1,9 @@
 import logging
 import sys
 
-logger = logging.getLogger('.'.join(__name__.split('.')[:-1]))
+logger = logging.getLogger(".".join(__name__.split(".")[:-1]))
 
-_is_interactive = bool(getattr(sys, 'ps1', sys.flags.interactive))
+_is_interactive = bool(getattr(sys, "ps1", sys.flags.interactive))
 
 
 def unconfigure_logging():
@@ -34,6 +34,7 @@ def setup_logging(verbosity="WARNING", stream=None, format=logging.BASIC_FORMAT)
         handler = logging.StreamHandler(stream)
         handler.setFormatter(logging.Formatter(format, None))
         logger.addHandler(handler)
+
 
 # If we are in an interactive environment (like Jupyter), set loglevel to INFO and pipe the output to stdout.
 if _is_interactive:

@@ -16,10 +16,7 @@ class _ModelBase(metaclass=abc.ABCMeta):
     Model base class
     """
 
-    def __init__(
-            self,
-            input_data
-    ):
+    def __init__(self, input_data):
         self.input_data = input_data
 
     @property

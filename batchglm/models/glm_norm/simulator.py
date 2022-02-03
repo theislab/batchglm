@@ -10,22 +10,10 @@ class Simulator(_SimulatorGLM, Model):
     Uses the identity as linker function for loc and a log-linker function for scale.
     """
 
-    def __init__(
-            self,
-            num_observations=1000,
-            num_features=100
-    ):
-        _SimulatorGLM.__init__(
-            self=self,
-            model=None,
-            num_observations=num_observations,
-            num_features=num_features
-        )
+    def __init__(self, num_observations=1000, num_features=100):
+        _SimulatorGLM.__init__(self=self, model=None, num_observations=num_observations, num_features=num_features)
 
-    def param_bounds(
-            self,
-            dtype
-    ):
+    def param_bounds(self, dtype):
         dtype = np.dtype(dtype)
         dmin = np.finfo(dtype).min
         dmax = np.finfo(dtype).max
@@ -55,12 +43,12 @@ class Simulator(_SimulatorGLM, Model):
         return bounds_min, bounds_max
 
     def generate_params(
-            self,
-            rand_fn_ave=lambda shape: np.random.uniform(10, 1000, shape),
-            rand_fn=None,
-            rand_fn_loc=lambda shape: np.random.uniform(50, 100, shape),
-            rand_fn_scale=lambda shape: np.random.uniform(1.5, 10, shape),
-        ):
+        self,
+        rand_fn_ave=lambda shape: np.random.uniform(10, 1000, shape),
+        rand_fn=None,
+        rand_fn_loc=lambda shape: np.random.uniform(50, 100, shape),
+        rand_fn_scale=lambda shape: np.random.uniform(1.5, 10, shape),
+    ):
         self._generate_params(
             self,
             rand_fn_ave=rand_fn_ave,
@@ -73,9 +61,5 @@ class Simulator(_SimulatorGLM, Model):
         """
         Sample random data based on normal distribution and parameters.
         """
-        data_matrix = np.random.normal(
-            loc=self.mean,
-            scale=self.sd,
-            size=None
-        )
+        data_matrix = np.random.normal(loc=self.mean, scale=self.sd, size=None)
         self.assemble_input_data(data_matrix, sparse)

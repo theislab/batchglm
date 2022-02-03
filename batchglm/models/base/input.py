@@ -9,6 +9,7 @@ import sparse
 
 try:
     import anndata
+
     try:
         from anndata.base import Raw
     except ImportError:
@@ -24,20 +25,21 @@ class InputDataBase:
     """
     Base class for all input data types.
     """
+
     features: List[str]
     observations: List[str]
     chunk_size_cells: int
     chunk_size_genes: int
 
     def __init__(
-            self,
-            data,
-            observation_names=None,
-            feature_names=None,
-            chunk_size_cells: int = 100000,
-            chunk_size_genes: int = 100,
-            as_dask: bool = True,
-            cast_dtype=None
+        self,
+        data,
+        observation_names=None,
+        feature_names=None,
+        chunk_size_cells: int = 100000,
+        chunk_size_genes: int = 100,
+        as_dask: bool = True,
+        cast_dtype=None,
     ):
         """
         Create a new InputData object.
@@ -55,9 +57,11 @@ class InputDataBase:
         """
         self.observations = observation_names
         self.features = feature_names
-        if isinstance(data, np.ndarray) or \
-                isinstance(data, scipy.sparse.csr_matrix) or \
-                isinstance(data, dask.array.core.Array):
+        if (
+            isinstance(data, np.ndarray)
+            or isinstance(data, scipy.sparse.csr_matrix)
+            or isinstance(data, dask.array.core.Array)
+        ):
             self.x = data
         elif isinstance(data, anndata.AnnData) or isinstance(data, Raw):
             self.x = data.X
@@ -72,11 +76,9 @@ class InputDataBase:
             # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
             if isinstance(self.x, scipy.sparse.spmatrix):
                 self.x = dask.array.from_array(
-                    sparse.COO.from_scipy_sparse(
-                        self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)
-                    ),
+                    sparse.COO.from_scipy_sparse(self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)),
                     chunks=(chunk_size_cells, chunk_size_genes),
-                    asarray=False
+                    asarray=False,
                 )
             else:
                 self.x = dask.array.from_array(
@@ -111,12 +113,16 @@ class InputDataBase:
 
     def fetch_x_dense(self, idx):
         # Better way than accessing ._meta to check type of dask chunks?
-        assert isinstance(self.x, np.ndarray) or isinstance(self.x._meta, np.ndarray), "tried to fetch dense from non ndarray"
+        assert isinstance(self.x, np.ndarray) or isinstance(
+            self.x._meta, np.ndarray
+        ), "tried to fetch dense from non ndarray"
 
         return self.x[idx, :]
 
     def fetch_x_sparse(self, idx):
-        assert isinstance(self.x, scipy.sparse.csr_matrix) or isinstance(self.x._meta, scipy.sparse.csr_matrix), "tried to fetch sparse from non csr_matrix"
+        assert isinstance(self.x, scipy.sparse.csr_matrix) or isinstance(
+            self.x._meta, scipy.sparse.csr_matrix
+        ), "tried to fetch sparse from non csr_matrix"
 
         data = self.x[idx, :]
 

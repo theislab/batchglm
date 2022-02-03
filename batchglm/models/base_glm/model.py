@@ -27,14 +27,8 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         - design_loc, design_scale: design matrices
     """
 
-    def __init__(
-            self,
-            input_data: InputDataGLM
-    ):
-        _ModelBase.__init__(
-            self=self,
-            input_data=input_data
-        )
+    def __init__(self, input_data: InputDataGLM):
+        _ModelBase.__init__(self=self, input_data=input_data)
         self._a_var = None
         self._b_var = None
 

@@ -32,14 +32,10 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
         - Dense X in anndata: test_anndata_dense()
         - Sparse X in anndata: test_anndata_sparse()
     """
+
     noise_model: str
 
-    def input_data(
-            self,
-            data,
-            design_loc,
-            design_scale
-    ):
+    def input_data(self, data, design_loc, design_scale):
         if self.noise_model is None:
             raise ValueError("noise_model is None")
         else:
@@ -62,13 +58,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
             x = scipy.sparse.csr_matrix(x)
         self.sim1.input_data.x = x
 
-        return self.basic_test_one_algo(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            algo="IRLS",
-            sparse=False
-        )
+        return self.basic_test_one_algo(batched=False, train_loc=True, train_scale=True, algo="IRLS", sparse=False)
 
     def _test_anndata(self, sparse):
         self.simulate1()
@@ -77,13 +67,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
             x = scipy.sparse.csr_matrix(x)
         self.sim1.input_data.x = anndata.AnnData(X=x)
 
-        return self.basic_test_one_algo(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            algo="IRLS",
-            sparse=False
-        )
+        return self.basic_test_one_algo(batched=False, train_loc=True, train_scale=True, algo="IRLS", sparse=False)
 
     def _test_anndata_raw(self, sparse):
         self.simulate1()
@@ -93,19 +77,10 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
         self.sim1.input_data.x = anndata.AnnData(X=x)
         self.sim1.input_data.x = Raw(self.sim1.input_data.x)
 
-        return self.basic_test_one_algo(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            algo="IRLS",
-            sparse=False
-        )
+        return self.basic_test_one_algo(batched=False, train_loc=True, train_scale=True, algo="IRLS", sparse=False)
 
 
-class Test_DataTypes_GLM_NB(
-    _TestDataTypesGlmAll,
-    unittest.TestCase
-):
+class Test_DataTypes_GLM_NB(_TestDataTypesGlmAll, unittest.TestCase):
     """
     Test whether training graphs work for negative binomial noise.
     """
@@ -137,5 +112,5 @@ class Test_DataTypes_GLM_NB(
         return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

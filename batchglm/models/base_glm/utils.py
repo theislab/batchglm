@@ -18,8 +18,8 @@ from .external import groupwise_solve_lm
 
 
 def parse_design(
-        design_matrix: Union[pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array, np.ndarray],
-        param_names: List[str] = None
+    design_matrix: Union[pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array, np.ndarray],
+    param_names: List[str] = None,
 ) -> Tuple[np.ndarray, List[str]]:
     r"""
     Parser for design matrices.
@@ -51,17 +51,18 @@ def parse_design(
     else:
         assert False, f"Datatype for design_matrix not understood: {type(design_matrix)}"
     if params is None:
-        raise ValueError('Provide names when passing design_matrix as np.ndarray or dask.array.core.Array!')
-    assert len(params) == dmat.shape[1], "Length of provided param_names is not equal to " \
-        "number of coefficients in design_matrix."
+        raise ValueError("Provide names when passing design_matrix as np.ndarray or dask.array.core.Array!")
+    assert len(params) == dmat.shape[1], (
+        "Length of provided param_names is not equal to " "number of coefficients in design_matrix."
+    )
     return dmat, params
 
 
 def parse_constraints(
-        dmat: np.ndarray,
-        dmat_par_names: List[str],
-        constraints: Optional[Union[np.ndarray, dask.array.core.Array, None]] = None,
-        constraint_par_names: Optional[Union[List[str], None]] = None
+    dmat: np.ndarray,
+    dmat_par_names: List[str],
+    constraints: Optional[Union[np.ndarray, dask.array.core.Array, None]] = None,
+    constraint_par_names: Optional[Union[List[str], None]] = None,
 ) -> Tuple[np.ndarray, List[str]]:
     r"""
     Parser for constraint matrices.
@@ -86,21 +87,24 @@ def parse_constraints(
             assert len(constraint_params) == len(constraint_par_names)
             constraint_params = constraint_par_names
         else:
-            constraint_params = ["var_"+str(i) if np.sum(constraints[:, i] != 0) > 1
-                                 else dmat_par_names[np.where(constraints[:, i] != 0)[0][0]]
-                                 for i in range(constraints.shape[1])]
+            constraint_params = [
+                "var_" + str(i)
+                if np.sum(constraints[:, i] != 0) > 1
+                else dmat_par_names[np.where(constraints[:, i] != 0)[0][0]]
+                for i in range(constraints.shape[1])
+            ]
         assert constraints.shape[0] == dmat.shape[1], "constraint dimension mismatch"
 
     return constraints, constraint_params
 
 
 def closedform_glm_mean(
-        x: Union[np.ndarray, scipy.sparse.csr_matrix],
-        dmat: np.ndarray,
-        constraints=None,
-        size_factors=None,
-        link_fn: Union[callable, None] = None,
-        inv_link_fn: Union[callable, None] = None
+    x: Union[np.ndarray, scipy.sparse.csr_matrix],
+    dmat: np.ndarray,
+    constraints=None,
+    size_factors=None,
+    link_fn: Union[callable, None] = None,
+    inv_link_fn: Union[callable, None] = None,
 ):
     r"""
     Calculates a closed-form solution for the mean parameters of GLMs.
@@ -118,19 +122,16 @@ def closedform_glm_mean(
         x = np.divide(x, size_factors)
 
     def apply_fun(grouping):
-        groupwise_means = np.asarray(np.vstack([
-            np.mean(x[np.where(grouping == g)[0], :], axis=0)
-            for g in np.unique(grouping)
-        ]))
+        groupwise_means = np.asarray(
+            np.vstack([np.mean(x[np.where(grouping == g)[0], :], axis=0) for g in np.unique(grouping)])
+        )
         if link_fn is None:
             return groupwise_means
         else:
             return link_fn(groupwise_means)
 
     linker_groupwise_means, mu, rmsd, rank, s = groupwise_solve_lm(
-        dmat=dmat,
-        apply_fun=apply_fun,
-        constraints=constraints
+        dmat=dmat, apply_fun=apply_fun, constraints=constraints
     )
     if inv_link_fn is not None:
         return inv_link_fn(linker_groupwise_means), mu, rmsd
@@ -139,14 +140,14 @@ def closedform_glm_mean(
 
 
 def closedform_glm_scale(
-        x: Union[np.ndarray, scipy.sparse.csr_matrix],
-        design_scale: np.ndarray,
-        constraints=None,
-        size_factors=None,
-        groupwise_means=None,
-        link_fn=None,
-        inv_link_fn=None,
-        compute_scales_fun=None
+    x: Union[np.ndarray, scipy.sparse.csr_matrix],
+    design_scale: np.ndarray,
+    constraints=None,
+    size_factors=None,
+    groupwise_means=None,
+    link_fn=None,
+    inv_link_fn=None,
+    compute_scales_fun=None,
 ):
     r"""
     Calculates a closed-form solution for the scale parameters of GLMs.
@@ -166,22 +167,26 @@ def closedform_glm_scale(
     def apply_fun(grouping):
         # Calculate group-wise means if not supplied. These are required for variance and MME computation.
         if provided_groupwise_means is None:
-            gw_means = np.asarray(np.vstack([
-                np.mean(x[np.where(grouping == g)[0], :], axis=0)
-                for g in np.unique(grouping)
-            ]))
+            gw_means = np.asarray(
+                np.vstack([np.mean(x[np.where(grouping == g)[0], :], axis=0) for g in np.unique(grouping)])
+            )
         else:
             gw_means = provided_groupwise_means
 
         # calculated variance via E(x)^2 or directly depending on whether `mu` was specified
         if isinstance(x, scipy.sparse.csr_matrix):
-            expect_xsq = np.asarray(np.vstack([
-                np.asarray(np.mean(x[np.where(grouping == g)[0], :].power(2), axis=0))
-                for g in np.unique(grouping)]
-            ))
+            expect_xsq = np.asarray(
+                np.vstack(
+                    [
+                        np.asarray(np.mean(x[np.where(grouping == g)[0], :].power(2), axis=0))
+                        for g in np.unique(grouping)
+                    ]
+                )
+            )
         else:
-            expect_xsq = np.vstack([np.mean(np.square(x[np.where(grouping == g)[0], :]), axis=0)
-                                    for g in np.unique(grouping)])
+            expect_xsq = np.vstack(
+                [np.mean(np.square(x[np.where(grouping == g)[0], :]), axis=0) for g in np.unique(grouping)]
+            )
         expect_x_sq = np.square(gw_means)
         variance = expect_xsq - expect_x_sq
 
@@ -196,9 +201,7 @@ def closedform_glm_scale(
             return groupwise_scales
 
     linker_groupwise_scales, scaleparam, rmsd, rank, _ = groupwise_solve_lm(
-        dmat=design_scale,
-        apply_fun=apply_fun,
-        constraints=constraints
+        dmat=design_scale, apply_fun=apply_fun, constraints=constraints
     )
     if inv_link_fn is not None:
         return inv_link_fn(linker_groupwise_scales), scaleparam, rmsd

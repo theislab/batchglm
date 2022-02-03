@@ -1,17 +1,17 @@
 import multiprocessing
 import os
 
-ACCURACY_MARGIN_RELATIVE_TO_LIMIT = float(os.environ.get('BATCHGLM_ACCURACY_MARGIN', 2.5))
-FIM_MODE = str(os.environ.get('FIM_MODE', "analytic"))
-HESSIAN_MODE = str(os.environ.get('HESSIAN_MODE', "analytic"))
-JACOBIAN_MODE = str(os.environ.get('JACOBIAN_MODE', "analytic"))
+ACCURACY_MARGIN_RELATIVE_TO_LIMIT = float(os.environ.get("BATCHGLM_ACCURACY_MARGIN", 2.5))
+FIM_MODE = str(os.environ.get("FIM_MODE", "analytic"))
+HESSIAN_MODE = str(os.environ.get("HESSIAN_MODE", "analytic"))
+JACOBIAN_MODE = str(os.environ.get("JACOBIAN_MODE", "analytic"))
 CHOLESKY_LSTSQS = False
 CHOLESKY_LSTSQS_BATCHED = False
 EVAL_ON_BATCHED = False
 
 # Trust region hyper parameters:
-TRUST_REGION_RADIUS_INIT = 100.
-TRUST_REGION_ETA0 = 0.
+TRUST_REGION_RADIUS_INIT = 100.0
+TRUST_REGION_ETA0 = 0.0
 TRUST_REGION_ETA1 = 0.25
 TRUST_REGION_ETA2 = 0.25
 TRUST_REGION_T1 = 0.5  # Fast collapse to avoid trailing.

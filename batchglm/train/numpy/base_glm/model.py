@@ -7,19 +7,15 @@ logger = logging.getLogger("batchglm")
 
 
 class ModelIwls:
-
-    def __init__(
-            self,
-            model_vars
-    ):
+    def __init__(self, model_vars):
         self.model_vars = model_vars
-        #self.params = np.concatenate(
+        # self.params = np.concatenate(
         #    [
         #        model_vars.init_a_clipped,
         #        model_vars.init_b_clipped,
         #    ],
         #    axis=0
-        #)
+        # )
 
     @property
     def converged(self):
@@ -108,11 +104,7 @@ class ModelIwls:
         # w: (observations x features)
         # fim: (features x inferred param x inferred param)
         xh = np.matmul(self.design_loc, self.constraints_loc)
-        return np.einsum(
-            'fob,oc->fbc',
-            np.einsum('ob,of->fob', xh, w),
-            xh
-        )
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
     @abc.abstractmethod
     def fim_ab(self) -> np.ndarray:
@@ -133,10 +125,9 @@ class ModelIwls:
         fim_bb = self.fim_bb
         fim_ab = self.fim_ab
         fim_ba = np.transpose(fim_ab, axes=[0, 2, 1])
-        return - np.concatenate([
-            np.concatenate([fim_aa, fim_ab], axis=2),
-            np.concatenate([fim_ba, fim_bb], axis=2)
-        ], axis=1)
+        return -np.concatenate(
+            [np.concatenate([fim_aa, fim_ab], axis=2), np.concatenate([fim_ba, fim_bb], axis=2)], axis=1
+        )
 
     @abc.abstractmethod
     def hessian_weight_aa(self) -> np.ndarray:
@@ -150,11 +141,7 @@ class ModelIwls:
         """
         w = self.hessian_weight_aa
         xh = np.matmul(self.design_loc, self.constraints_loc)
-        return np.einsum(
-            'fob,oc->fbc',
-            np.einsum('ob,of->fob', xh, w),
-            xh
-        )
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
     @abc.abstractmethod
     def hessian_weight_ab(self) -> np.ndarray:
@@ -168,9 +155,9 @@ class ModelIwls:
         """
         w = self.hessian_weight_ab
         return np.einsum(
-            'fob,oc->fbc',
-            np.einsum('ob,of->fob', np.matmul(self.design_loc, self.constraints_loc), w),
-            np.matmul(self.design_scale, self.constraints_scale)
+            "fob,oc->fbc",
+            np.einsum("ob,of->fob", np.matmul(self.design_loc, self.constraints_loc), w),
+            np.matmul(self.design_scale, self.constraints_scale),
         )
 
     @abc.abstractmethod
@@ -185,11 +172,7 @@ class ModelIwls:
         """
         w = self.hessian_weight_bb
         xh = np.matmul(self.design_scale, self.constraints_scale)
-        return np.einsum(
-            'fob,oc->fbc',
-            np.einsum('ob,of->fob', xh, w),
-            xh
-        )
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
     @property
     def hessian(self) -> np.ndarray:
@@ -201,10 +184,7 @@ class ModelIwls:
         h_bb = self.hessian_bb
         h_ab = self.hessian_ab
         h_ba = np.transpose(h_ab, axes=[0, 2, 1])
-        return np.concatenate([
-            np.concatenate([h_aa, h_ab], axis=2),
-            np.concatenate([h_ba, h_bb], axis=2)
-        ], axis=1)
+        return np.concatenate([np.concatenate([h_aa, h_ab], axis=2), np.concatenate([h_ba, h_bb], axis=2)], axis=1)
 
     @property
     def jac(self) -> np.ndarray:
@@ -219,11 +199,7 @@ class ModelIwls:
         w = self.fim_weight_aa  # (observations x features)
         ybar = self.ybar  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
-        return np.einsum(
-            'fob,of->fb',
-            np.einsum('ob,of->fob', xh, w),
-            ybar
-        )
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
 
     def jac_a_j(self, j) -> np.ndarray:
         """
@@ -236,11 +212,7 @@ class ModelIwls:
         w = self.fim_weight_aa_j(j=j)  # (observations x features)
         ybar = self.ybar_j(j=j)  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
-        return np.einsum(
-            'fob,of->fb',
-            np.einsum('ob,of->fob', xh, w),
-            ybar
-        )
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
 
     @property
     def jac_b(self) -> np.ndarray:
@@ -250,11 +222,7 @@ class ModelIwls:
         """
         w = self.jac_weight_b  # (observations x features)
         xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
-        return np.einsum(
-            'fob,of->fb',
-            np.einsum('ob,of->fob', xh, w),
-            xh
-        )
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
 
     def jac_b_j(self, j) -> np.ndarray:
         """
@@ -266,8 +234,4 @@ class ModelIwls:
             j = [j]
             w = self.jac_weight_b_j(j=j)  # (observations x features)
             xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
-            return np.einsum(
-                'fob,of->fb',
-                np.einsum('ob,of->fob', xh, w),
-                xh
-            )
+            return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)

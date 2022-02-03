@@ -33,63 +33,33 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
             design_loc=self.sim1.input_data.design_loc,
             design_scale=self.sim1.input_data.design_scale,
             design_loc_names=self.sim1.input_data.design_loc_names,
-            design_scale_names=self.sim1.input_data.design_scale_names
+            design_scale_names=self.sim1.input_data.design_scale_names,
         )
         self.sim1.input_data = input_data
 
     def _test_low_values_a_and_b(self):
-        self._modify_sim(idx=0, val=0.)
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=False
-        )
+        self._modify_sim(idx=0, val=0.0)
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_low_values_a_only(self):
-        self._modify_sim(idx=0, val=0.)
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=False
-        )
+        self._modify_sim(idx=0, val=0.0)
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_low_values_b_only(self):
-        self._modify_sim(idx=0, val=0.)
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=False
-        )
+        self._modify_sim(idx=0, val=0.0)
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_zero_variance_a_and_b(self):
-        self._modify_sim(idx=0, val=5.)
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=False
-        )
+        self._modify_sim(idx=0, val=5.0)
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_zero_variance_a_only(self):
-        self._modify_sim(idx=0, val=5.)
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=False
-    )
+        self._modify_sim(idx=0, val=5.0)
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_zero_variance_b_only(self):
-        self._modify_sim(idx=0, val=5.)
-        return self.basic_test(
-            batched=False,
-            train_loc=True,
-            train_scale=True,
-            sparse=False
-        )
+        self._modify_sim(idx=0, val=5.0)
+        return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_all(self):
         self._test_low_values_a_and_b()
@@ -100,10 +70,7 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         self._test_zero_variance_b_only()
 
 
-class TestAccuracyXtremeNb(
-    _TestAccuracyXtremeAll,
-    unittest.TestCase
-):
+class TestAccuracyXtremeNb(_TestAccuracyXtremeAll, unittest.TestCase):
     """
     Test whether optimizers yield exact results for negative binomial distributed data.
     """
@@ -118,10 +85,7 @@ class TestAccuracyXtremeNb(
         self._test_all()
 
 
-class TestAccuracyXtremeNorm(
-    _TestAccuracyXtremeAll,
-    unittest.TestCase
-):
+class TestAccuracyXtremeNorm(_TestAccuracyXtremeAll, unittest.TestCase):
     """
     Test whether optimizers yield exact results for normal distributed data.
     """
@@ -130,17 +94,14 @@ class TestAccuracyXtremeNorm(
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeNorm.test_norm()")
-        logger.info('Normal noise model not implemented for numpy')
+        logger.info("Normal noise model not implemented for numpy")
 
         # np.random.seed(1)
         # self.noise_model = "norm"
         # self._test_all()
 
 
-class TestAccuracyXtremeBeta(
-    _TestAccuracyXtremeAll,
-    unittest.TestCase
-):
+class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll, unittest.TestCase):
     """
     Test whether optimizers yield exact results for beta distributed data.
     """
@@ -149,12 +110,12 @@ class TestAccuracyXtremeBeta(
         logging.getLogger("tensorflow").setLevel(logging.ERROR)
         logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeBeta.test_beta()")
-        logger.info('Beta noise model not implemented for numpy')
+        logger.info("Beta noise model not implemented for numpy")
 
         # np.random.seed(1)
         # self.noise_model = "beta"
         # self._test_all()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
