@@ -1,10 +1,12 @@
 import logging
+import unittest
+
 import numpy as np
 import scipy.sparse
-import unittest
 
 import batchglm.api as glm
 from batchglm.models.base_glm import InputDataGLM
+
 glm.setup_logging(verbosity="WARNING", stream="STDOUT")
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
+from typing import Union
+
 import numpy as np
 import scipy.sparse
-from typing import Union
 
 from .external import closedform_glm_mean, closedform_glm_scale
 

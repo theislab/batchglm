@@ -1,8 +1,8 @@
-import sys
 import inspect
 import logging
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from sphinx.application import Sphinx
@@ -275,7 +275,7 @@ from typing import Dict, List, Tuple
 
 from docutils import nodes
 from sphinx import addnodes
-from sphinx.domains.python import PyTypedField, PyObject
+from sphinx.domains.python import PyObject, PyTypedField
 from sphinx.environment import BuildEnvironment
 
 

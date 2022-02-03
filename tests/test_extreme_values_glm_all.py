@@ -1,6 +1,7 @@
 import logging
-import numpy as np
 import unittest
+
+import numpy as np
 
 import batchglm.api as glm
 from batchglm.models.base_glm import InputDataGLM

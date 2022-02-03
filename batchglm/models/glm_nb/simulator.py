@@ -1,8 +1,7 @@
 import numpy as np
 
+from .external import _SimulatorGLM, pkg_constants
 from .model import Model
-from .external import _SimulatorGLM
-from .external import pkg_constants
 
 
 class Simulator(_SimulatorGLM, Model):

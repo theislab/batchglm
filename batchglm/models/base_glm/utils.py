@@ -1,6 +1,6 @@
-from typing import List, Tuple, Union, Optional
-
 import logging
+from typing import List, Optional, Tuple, Union
+
 logger = logging.getLogger("batchglm")
 
 try:

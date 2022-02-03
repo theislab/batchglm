@@ -1,4 +1,5 @@
 import abc
+
 import numpy as np
 
 
@@ -19,4 +20,3 @@ class ProcessModelGlm:
             bounds_min[name],
             bounds_max[name]
         )
-

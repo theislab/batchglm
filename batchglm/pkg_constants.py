@@ -1,5 +1,5 @@
-import os
 import multiprocessing
+import os
 
 ACCURACY_MARGIN_RELATIVE_TO_LIMIT = float(os.environ.get('BATCHGLM_ACCURACY_MARGIN', 2.5))
 FIM_MODE = str(os.environ.get('FIM_MODE', "analytic"))

@@ -1,10 +1,11 @@
-from operator import indexOf
-import dask.array
 import logging
+from operator import indexOf
+from typing import List
+
+import dask.array
 import numpy as np
 import scipy.sparse
 import sparse
-from typing import List
 
 try:
     import anndata

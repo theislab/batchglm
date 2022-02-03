@@ -1,7 +1,6 @@
 import numpy as np
 
-from .external import ProcessModelGlm
-from .external import pkg_constants
+from .external import ProcessModelGlm, pkg_constants
 
 
 class ProcessModel(ProcessModelGlm):

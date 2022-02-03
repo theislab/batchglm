@@ -1,6 +1,6 @@
 import abc
-from typing import Union, Any, Dict, Iterable
 import logging
+from typing import Any, Dict, Iterable, Union
 
 try:
     import anndata

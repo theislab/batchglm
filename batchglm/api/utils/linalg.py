@@ -1,1 +1,1 @@
-from batchglm.utils.linalg import stacked_lstsq, groupwise_solve_lm
+from batchglm.utils.linalg import groupwise_solve_lm, stacked_lstsq

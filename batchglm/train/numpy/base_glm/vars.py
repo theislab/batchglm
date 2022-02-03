@@ -1,7 +1,8 @@
+import abc
+
 import dask.array
 import numpy as np
 import scipy.sparse
-import abc
 
 
 class ModelVarsGlm:

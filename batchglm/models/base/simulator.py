@@ -1,7 +1,8 @@
 import abc
-import dask.array
-import os
 import logging
+import os
+
+import dask.array
 import numpy as np
 
 try:

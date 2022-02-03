@@ -1,8 +1,9 @@
 import logging
-import patsy
-import pandas as pd
+from typing import List, Tuple, Union
+
 import numpy as np
-from typing import Union, Tuple, List
+import pandas as pd
+import patsy
 
 try:
     import anndata
@@ -29,15 +30,15 @@ def design_matrix(
 
     :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
     :param formula: model formula as string, describing the relations of the explanatory variables.
-    
+
         E.g. '~ 1 + batch + confounder'
     :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
-        
+
         If True, all values in 'sample_description' will be treated as categorical values.
-        
+
         If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
         is True.
-        
+
         Set to false, if columns should not be changed.
     :param dmat: a model design matrix as a pd.DataFrame
     :param return_type: type of the returned value.

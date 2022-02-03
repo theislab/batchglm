@@ -1,12 +1,11 @@
-from typing import Tuple, Union
-import numpy as np
 import sys
+from typing import Tuple, Union
 
-from .external import InputDataGLM, Model, EstimatorGlm
-from .external import init_par
+import numpy as np
 
-from .vars import ModelVars
+from .external import EstimatorGlm, InputDataGLM, Model, init_par
 from .model import ModelIwlsNb
+from .vars import ModelVars
 
 
 class Estimator(EstimatorGlm):

@@ -3,15 +3,16 @@ try:
 except ImportError:
     anndata = None
 
+from typing import Union
+
 import dask.array
 import numpy as np
 import pandas as pd
 import patsy
 import scipy.sparse
-from typing import Union
 
-from .utils import parse_constraints, parse_design
 from .external import InputDataBase
+from .utils import parse_constraints, parse_design
 
 
 class InputDataGLM(InputDataBase):

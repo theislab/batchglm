@@ -1,15 +1,16 @@
 import abc
-import dask.array
 import logging
 import multiprocessing
-import numpy as np
-import scipy
-import scipy.sparse
-import scipy.optimize
-import sparse
 import sys
 import time
 from typing import Tuple
+
+import dask.array
+import numpy as np
+import scipy
+import scipy.optimize
+import scipy.sparse
+import sparse
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies

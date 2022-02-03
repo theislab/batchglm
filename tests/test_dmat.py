@@ -1,9 +1,11 @@
 import unittest
-import numpy as np
+from typing import List, Union
+
 import dask
+import numpy as np
 import pandas as pd
 import patsy
-from typing import Union, List
+
 from batchglm.models.base_glm.utils import parse_design
 
 

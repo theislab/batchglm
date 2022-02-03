@@ -1,6 +1,8 @@
 import abc
-import numpy as np
 from typing import Union
+
+import numpy as np
+
 try:
     import anndata
 except ImportError:

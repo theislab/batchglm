@@ -1,11 +1,12 @@
-import dask.array
 import logging
+
+import dask.array
 import numpy as np
 import scipy.sparse
 import scipy.special
 import sparse
 
-from .external import Model, ModelIwls, InputDataGLM
+from .external import InputDataGLM, Model, ModelIwls
 from .processModel import ProcessModel
 
 logger = logging.getLogger(__name__)

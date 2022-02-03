@@ -1,11 +1,14 @@
 import anndata
+
 try:
     from anndata.base import Raw
 except ImportError:
     from anndata import Raw
+
 import logging
-import numpy as np
 import unittest
+
+import numpy as np
 import scipy.sparse
 
 import batchglm.api as glm

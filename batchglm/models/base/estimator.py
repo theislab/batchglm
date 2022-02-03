@@ -1,11 +1,12 @@
 import abc
-import dask
-from enum import Enum
 import logging
-import numpy as np
-import pandas as pd
 import pprint
 import sys
+from enum import Enum
+
+import dask
+import numpy as np
+import pandas as pd
 
 try:
     import anndata
@@ -169,10 +170,9 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        import seaborn as sns
         import matplotlib.pyplot as plt
-        from matplotlib import gridspec
-        from matplotlib import rcParams
+        import seaborn as sns
+        from matplotlib import gridspec, rcParams
 
         if isinstance(true_values, dask.array.core.Array):
             true_values = true_values.compute()
@@ -269,8 +269,8 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         :param return_axs: Whether to return axis objects.
         :return: Matplotlib axis objects.
         """
-        import seaborn as sns
         import matplotlib.pyplot as plt
+        import seaborn as sns
 
         if isinstance(true_values, dask.array.core.Array):
             true_values = true_values.compute()
@@ -317,4 +317,3 @@ class EstimatorBaseTyping(_EstimatorBase):
     r"""
     Estimator base class used for typing in other packages.
     """
-

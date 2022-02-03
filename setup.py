@@ -1,4 +1,5 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
+
 import versioneer
 
 author = 'David S. Fischer, Florian R. Hölzlwimmer, Sabrina Richter'

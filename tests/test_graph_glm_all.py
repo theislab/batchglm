@@ -1,5 +1,6 @@
-import unittest
 import logging
+import unittest
+
 import scipy.sparse
 
 import batchglm.api as glm

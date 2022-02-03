@@ -1,13 +1,14 @@
 import abc
 import math
+from typing import Tuple, Union
+
 import numpy as np
 import pandas
 import patsy
-from typing import Union, Tuple
 
-from .model import _ModelGLM
-from .input import InputDataGLM
 from .external import _SimulatorBase
+from .input import InputDataGLM
+from .model import _ModelGLM
 
 
 def generate_sample_description(

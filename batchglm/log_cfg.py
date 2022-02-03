@@ -1,6 +1,5 @@
-import sys
-
 import logging
+import sys
 
 logger = logging.getLogger('.'.join(__name__.split('.')[:-1]))
 

@@ -1,7 +1,7 @@
+import logging
+
 import dask.array
 import numpy as np
-
-import logging
 
 logger = logging.getLogger("batchglm")
 
@@ -108,5 +108,3 @@ def groupwise_solve_lm(
     )
 
     return params, x_prime, rmsd, rank, s
-
-
