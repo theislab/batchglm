@@ -39,7 +39,7 @@ class Simulator(_SimulatorGLM, Model):
     def param_bounds(self, dtype):
         # TODO: inherit this from somewhere?
         dtype = np.dtype(dtype)
-        dmin = np.finfo(dtype).min
+        # dmin = np.finfo(dtype).min
         dmax = np.finfo(dtype).max
         dtype = dtype.type
 

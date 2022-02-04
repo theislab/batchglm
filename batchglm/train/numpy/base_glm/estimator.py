@@ -269,9 +269,14 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             # Have to use a workaround to solve problems in parallel in dask here. This workaround does
             # not work if there is only a single problem, ie. if the first dimension of a and b has length 1.
             if a.shape[0] != 1:
-                get_cond_number = lambda x: np.expand_dims(np.expand_dims(np.linalg.cond(x, p=None), axis=-1), axis=-1)
                 invertible = np.where(
-                    dask.array.map_blocks(get_cond_number, a, chunks=a.shape).squeeze().compute()
+                    dask.array.map_blocks(
+                        lambda x: np.expand_dims(np.expand_dims(np.linalg.cond(x, p=None), axis=-1), axis=-1),
+                        a,
+                        chunks=a.shape,
+                    )
+                    .squeeze()
+                    .compute()
                     < 1 / sys.float_info.epsilon
                 )[0]
                 if len(idx_update[invertible]) > 1:

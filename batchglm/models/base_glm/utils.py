@@ -1,13 +1,6 @@
 import logging
 from typing import List, Optional, Tuple, Union
 
-logger = logging.getLogger("batchglm")
-
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 import dask.array
 import numpy as np
 import pandas as pd
@@ -15,6 +8,13 @@ import patsy
 import scipy.sparse
 
 from .external import groupwise_solve_lm
+
+try:
+    import anndata
+except ImportError:
+    anndata = None
+
+logger = logging.getLogger("batchglm")
 
 
 def parse_design(
@@ -49,7 +49,7 @@ def parse_design(
         dmat = design_matrix
         params = param_names
     else:
-        assert False, f"Datatype for design_matrix not understood: {type(design_matrix)}"
+        raise AssertionError(f"Datatype for design_matrix not understood: {type(design_matrix)}")
     if params is None:
         raise ValueError("Provide names when passing design_matrix as np.ndarray or dask.array.core.Array!")
     assert len(params) == dmat.shape[1], (
@@ -107,7 +107,8 @@ def closedform_glm_mean(
     inv_link_fn: Union[callable, None] = None,
 ):
     r"""
-    Calculates a closed-form solution for the mean parameters of GLMs.
+    Calculate a closed-form solution for the mean parameters of GLMs.
+
     :param x: The input data array
     :param dmat: some design matrix
     :param constraints: tensor (all parameters x dependent parameters)
@@ -116,6 +117,7 @@ def closedform_glm_mean(
         This form of constraints is used in vector generalized linear models (VGLMs).
     :param size_factors: size factors for X
     :param link_fn: linker function for GLM
+    :param inv_link_fn: inverse linker function for GLM
     :return: tuple: (groupwise_means, mu, rmsd)
     """
     if size_factors is not None:
@@ -150,12 +152,16 @@ def closedform_glm_scale(
     compute_scales_fun=None,
 ):
     r"""
-    Calculates a closed-form solution for the scale parameters of GLMs.
+    Calculate a closed-form solution for the scale parameters of GLMs.
+
     :param x: The sample data
     :param design_scale: design matrix for scale
     :param constraints: some design constraints
     :param size_factors: size factors for X
     :param groupwise_means: optional, in case if already computed this can be specified to spare double-calculation
+    :param compute_scales_fun: TODO
+    :param inv_link_fn: TODO
+    :param link_fn: TODO
     :return: tuple (groupwise_scales, logphi, rmsd)
     """
     if size_factors is not None:

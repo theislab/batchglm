@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -260,7 +260,7 @@ def constraint_matrix_from_dict(
     sample_description: pd.DataFrame,
     formula: str,
     as_categorical: Union[bool, list] = True,
-    constraints: dict = {},
+    constraints: Optional[dict] = None,
     return_type: str = "patsy",
 ) -> Tuple:
     """
@@ -301,6 +301,8 @@ def constraint_matrix_from_dict(
         - model design matrix
         - term_names to allow slicing by factor if return type cannot be patsy.DesignMatrix
     """
+    if constraints is None:
+        constraints = {}
     assert len(constraints) > 0, "supply constraints"
     sample_description: pd.DataFrame = sample_description.copy()
 
@@ -323,7 +325,7 @@ def constraint_matrix_from_dict(
     term_names = dmat.design_info.term_names
 
     constraints_ls = string_constraints_from_dict(sample_description=sample_description, constraints=constraints)
-    for i, x in enumerate(constraints.keys()):
+    for x in constraints.keys():
         assert isinstance(x, str), "constrained should contain strings"
         dmat_constrained_temp = patsy.highlevel.dmatrix("0+" + x, sample_description)
         dmat = np.hstack([dmat, dmat_constrained_temp])
@@ -339,7 +341,7 @@ def constraint_matrix_from_dict(
     return dmat, coef_names, constraints_ar, term_names
 
 
-def string_constraints_from_dict(sample_description: pd.DataFrame, constraints: Union[None, dict] = {}):
+def string_constraints_from_dict(sample_description: pd.DataFrame, constraints: Optional[dict] = None):
     r"""
     Create string-encoded constraints from dictionary encoded constraints and sample description.
 

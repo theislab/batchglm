@@ -97,6 +97,7 @@ class _TestAccuracyGlmAll(unittest.TestCase):
         - train a and b model: test_full_global_a_and_b()
         - train a model only: test_full_global_a_only()
         - train b model only: test_full_global_b_only()
+
     - batched data model
         - train a and b model: test_batched_global_a_and_b()
         - train a model only: test_batched_global_a_only()
@@ -224,7 +225,7 @@ class _TestAccuracyGlmAll(unittest.TestCase):
         for algo in self.optims_tested[self.noise_model]:
             logger.info("algorithm: %s" % algo)
 
-            acc = 1e-14
+            # acc = 1e-14
             glm.pkg_constants.TRUST_REGION_T1 = 0.5
             glm.pkg_constants.TRUST_REGION_T2 = 1.5
             glm.pkg_constants.CHOLESKY_LSTSQS = True

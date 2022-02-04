@@ -80,7 +80,7 @@ class _TestDataTypesGlmAll(_TestGraphGlmAll):
         return self.basic_test_one_algo(batched=False, train_loc=True, train_scale=True, algo="IRLS", sparse=False)
 
 
-class Test_DataTypes_GLM_NB(_TestDataTypesGlmAll, unittest.TestCase):
+class TestDataTypesGlmNB(_TestDataTypesGlmAll, unittest.TestCase):
     """
     Test whether training graphs work for negative binomial noise.
     """

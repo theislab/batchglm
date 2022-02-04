@@ -94,6 +94,7 @@ class _TestGraphGlmAll:
         - train a and b model: test_full_global_a_and_b()
         - train a model only: test_full_global_a_only()
         - train b model only: test_full_global_b_only()
+
     - batched data model
         - train a and b model: test_batched_global_a_and_b()
         - train a model only: test_batched_global_a_only()

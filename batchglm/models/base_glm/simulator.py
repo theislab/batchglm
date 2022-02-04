@@ -5,6 +5,7 @@ from typing import Tuple, Union
 import numpy as np
 import pandas
 import patsy
+import scipy
 
 from .external import _SimulatorBase
 from .input import InputDataGLM

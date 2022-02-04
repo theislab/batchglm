@@ -1,6 +1,5 @@
 import abc
 import logging
-import os
 
 import dask.array
 import numpy as np
@@ -18,13 +17,14 @@ logger = logging.getLogger(__name__)
 
 class _SimulatorBase(metaclass=abc.ABCMeta):
     r"""
-    Simulator base class
+    Simulator base class.
 
     Classes implementing `BasicSimulator` should be able to generate a
     2D-matrix of sample data, as well as a dict of corresponding parameters.
 
     convention: N features with M observations each => (M, N) matrix
     """
+
     nobs: int
     nfeatures: int
 
@@ -40,7 +40,9 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     def generate(self, sparse: bool = False):
         """
-        First generates the parameter set, then observations random data using these parameters
+        First generates the parameter set, then observations random data using these parameters.
+
+        :param sparse: Description of parameter `sparse`.
         """
         self.generate_params()
         self.generate_data(sparse=sparse)
@@ -49,6 +51,9 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
     def generate_data(self, *args, **kwargs):
         """
         Should sample random data based on distribution and parameters.
+
+        :param type args: TODO.
+        :param type kwargs: TODO.
         """
         pass
 
@@ -56,6 +61,11 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
     def generate_params(self, *args, **kwargs):
         """
         Should generate all necessary parameters.
+
+        :param type args: TODO.
+        :param type kwargs: TODO.
+        :return: Description of returned object.
+        :rtype: type
         """
         pass
 

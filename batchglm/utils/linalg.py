@@ -61,7 +61,7 @@ def groupwise_solve_lm(dmat, apply_fun: callable, constraints: np.ndarray):
         This form of constraints is used in vector generalized linear models (VGLMs).
 
     :return: tuple of (apply_fun(grouping), x_prime, rmsd, rank, s) where x_prime is the parameter matrix solved for
-    `dmat`.
+        `dmat`.
     """
     # Get unqiue rows of design matrix and vector with group assignments:
     if isinstance(dmat, dask.array.core.Array):  # axis argument not supported by dask in .unique()

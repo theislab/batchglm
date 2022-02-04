@@ -50,6 +50,7 @@ class InputDataBase:
             - np.ndarray: NumPy array containing the raw data
             - anndata.AnnData: AnnData object containing the count data and optional the design models
                 stored as data.obsm[design_loc] and data.obsm[design_scale]
+
         :param observation_names: (optional) names of the observations.
         :param feature_names: (optional) names of the features.
         :param cast_dtype: data type of all data; should be either float32 or float64
