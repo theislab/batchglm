@@ -31,9 +31,10 @@ class _ModelBase(metaclass=abc.ABCMeta):
         :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
         """
         if isinstance(key, str):
-            return self.__getattribute__(key)
+            attrib = self.__getattribute__(key)
         elif isinstance(key, Iterable):
-            return {s: self.__getattribute__(s) for s in key}
+            attrib = {s: self.__getattribute__(s) for s in key}
+        return attrib
 
     def __getitem__(self, item):
         return self.get(item)

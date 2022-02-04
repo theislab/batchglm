@@ -21,13 +21,13 @@ class ModelIwls:
     def converged(self):
         return self.model_vars.converged
 
-    @property
-    def idx_not_converged(self):
-        return self.model_vars.idx_not_converged
-
     @converged.setter
     def converged(self, value):
         self.model_vars.converged = value
+
+    @property
+    def idx_not_converged(self):
+        return self.model_vars.idx_not_converged
 
     @property
     def a_var(self):

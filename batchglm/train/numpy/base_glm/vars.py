@@ -14,8 +14,6 @@ class ModelVarsGlm:
     constraints_loc: np.ndarray
     constraints_scale: np.ndarray
     params: np.ndarray
-    a_var: np.ndarray
-    b_var: np.ndarray
     converged: np.ndarray
     npar_a: int
     dtype: str

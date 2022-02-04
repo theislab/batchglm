@@ -16,10 +16,12 @@ except ImportError:
     anndata = None
     Raw = None
 
+logger = logging.getLogger("batchglm")
+
 
 def design_matrix(
-    sample_description: Union[pd.DataFrame, None] = None,
-    formula: Union[str, None] = None,
+    sample_description: Optional[pd.DataFrame] = None,
+    formula: Optional[str] = None,
     as_categorical: Union[bool, list] = True,
     dmat: Union[pd.DataFrame, None] = None,
     return_type: str = "patsy",
@@ -29,7 +31,8 @@ def design_matrix(
 
     This function defaults to perform formatting if dmat is directly supplied as a pd.DataFrame.
 
-    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as
+        columns. Ignored if dmat is provided.
     :param formula: model formula as string, describing the relations of the explanatory variables.
 
         E.g. '~ 1 + batch + confounder'
@@ -48,27 +51,22 @@ def design_matrix(
         - "dataframe": return pd.DataFrame with observations as rows and params as columns
     :return: a model design matrix
     """
-    if (dmat is None and sample_description is None) or (dmat is not None and sample_description is not None):
-        raise ValueError("supply either dmat or sample_description")
-
     if dmat is None:
-        sample_description: pd.DataFrame = sample_description.copy()
+        if sample_description is None:
+            raise ValueError("Provide a sample_description if dmat is None.")
+        if isinstance(as_categorical, bool):
+            as_categorical = [as_categorical] * sample_description_copy.columns.size
+        sample_description_copy: pd.DataFrame = sample_description.copy()
+        columns = sample_description_copy.columns[as_categorical]
+        sample_description_copy[columns] = sample_description_copy[columns].apply(lambda col: col.astype("category"))
 
-        if type(as_categorical) is not bool or as_categorical:
-            if type(as_categorical) is bool and as_categorical:
-                as_categorical = np.repeat(True, sample_description.columns.size)
-
-            for to_cat, col in zip(as_categorical, sample_description):
-                if to_cat:
-                    sample_description[col] = sample_description[col].astype("category")
-
-        dmat = patsy.dmatrix(formula, sample_description)
+        dmat = patsy.dmatrix(formula, sample_description_copy)
         coef_names = dmat.design_info.column_names
 
         if return_type == "dataframe":
             df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
-            df = pd.concat([df, sample_description], axis=1)
-            df.set_index(list(sample_description.columns), inplace=True)
+            df = pd.concat([df, sample_description_copy], axis=1)
+            df.set_index(list(sample_description_copy.columns), inplace=True)
 
             return df
         elif return_type == "patsy":
@@ -76,6 +74,8 @@ def design_matrix(
         else:
             raise ValueError("return type %s not recognized" % return_type)
     else:
+        if sample_description is not None:
+            logger.warning("Both dmat and sample_description were given. Ignoring sample_description.")
         if return_type == "dataframe":
             return dmat, dmat.columns
         elif return_type == "patsy":
@@ -132,7 +132,7 @@ def preview_coef_names(
 def constraint_system_from_star(
     dmat: Union[None, patsy.design_info.DesignMatrix, pd.DataFrame] = None,
     sample_description: Union[None, pd.DataFrame] = None,
-    formula: Union[None, str] = None,
+    formula: Optional[str] = None,
     as_categorical: Union[bool, list] = True,
     constraints: Union[None, List[str], Tuple[str], dict, np.ndarray] = None,
     return_type: str = "patsy",
@@ -145,6 +145,7 @@ def constraint_system_from_star(
     :param formula: model formula as string, describing the relations of the explanatory variables.
 
         E.g. '~ 1 + batch + confounder'
+        Only required if
     :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
 
         If True, all values in 'sample_description' will be treated as categorical values.
@@ -209,6 +210,8 @@ def constraint_system_from_star(
         raise ValueError("dmat was supplied even though constraints were given as dict")
 
     if isinstance(constraints, dict):
+        if formula is None:
+            raise ValueError("Provide a formula when providing constraints as dict.")
         dmat, coef_names, cmat, term_names = constraint_matrix_from_dict(
             sample_description=sample_description,
             formula=formula,

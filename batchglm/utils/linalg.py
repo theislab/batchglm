@@ -3,6 +3,8 @@ import logging
 import dask.array
 import numpy as np
 
+from typing import Callable
+
 logger = logging.getLogger("batchglm")
 
 
@@ -29,7 +31,7 @@ def stacked_lstsq(L, b, rcond=1e-10):
     return np.conj(x, out=x)
 
 
-def groupwise_solve_lm(dmat, apply_fun: callable, constraints: np.ndarray):
+def groupwise_solve_lm(dmat: np.ndarray, apply_fun: Callable, constraints: np.ndarray):
     r"""
     Solve GLMs by estimating the distribution parameters of each unique group of observations independently and
     solving then for the design matrix `dmat`.
@@ -73,7 +75,7 @@ def groupwise_solve_lm(dmat, apply_fun: callable, constraints: np.ndarray):
         raise ValueError("large least-square problem in init, likely defined a numeric predictor as categorical")
 
     full_rank = constraints.shape[1]
-    if isinstance(dmat, dask.array.core.Array):  # matrix_rank not supported by dask
+    if isinstance(unique_design, dask.array.core.Array):  # matrix_rank not supported by dask
         rank = np.linalg.matrix_rank(np.matmul(unique_design.compute(), constraints.compute()))
     else:
         rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
