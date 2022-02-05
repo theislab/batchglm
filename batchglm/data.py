@@ -55,18 +55,18 @@ def design_matrix(
         if sample_description is None:
             raise ValueError("Provide a sample_description if dmat is None.")
         if isinstance(as_categorical, bool):
-            as_categorical = [as_categorical] * sample_description_copy.columns.size
-        sample_description_copy: pd.DataFrame = sample_description.copy()
-        columns = sample_description_copy.columns[as_categorical]
-        sample_description_copy[columns] = sample_description_copy[columns].apply(lambda col: col.astype("category"))
+            as_categorical = [as_categorical] * sample_description.columns.size
+        sample_description = sample_description.copy()
+        columns = sample_description.columns[as_categorical]
+        sample_description[columns] = sample_description[columns].apply(lambda col: col.astype("category"))
 
-        dmat = patsy.dmatrix(formula, sample_description_copy)
+        dmat = patsy.dmatrix(formula, sample_description)
         coef_names = dmat.design_info.column_names
 
         if return_type == "dataframe":
             df = pd.DataFrame(dmat, columns=dmat.design_info.column_names)
-            df = pd.concat([df, sample_description_copy], axis=1)
-            df.set_index(list(sample_description_copy.columns), inplace=True)
+            df = pd.concat([df, sample_description], axis=1)
+            df.set_index(list(sample_description.columns), inplace=True)
 
             return df
         elif return_type == "patsy":
