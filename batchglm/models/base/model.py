@@ -2,7 +2,7 @@ import abc
 import logging
 from typing import Any, Dict, Iterable, Union
 
-from batchglm.models.base_glm.input import InputDataGLM
+from .input import InputDataBase
 
 try:
     import anndata
@@ -22,7 +22,7 @@ class _ModelBase(metaclass=abc.ABCMeta):
         Input data
     """
 
-    def __init__(self, input_data: InputDataGLM):
+    def __init__(self, input_data: InputDataBase):
         self.input_data = input_data
 
     @property
