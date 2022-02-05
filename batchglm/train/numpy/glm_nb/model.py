@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 
 import dask.array
 import numpy as np
@@ -10,8 +11,6 @@ from .external import InputDataGLM, Model, ModelIwls
 from .processModel import ProcessModel
 
 logger = logging.getLogger(__name__)
-
-from typing import Union
 
 
 class ModelIwlsNb(ModelIwls, Model, ProcessModel):

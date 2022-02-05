@@ -1,14 +1,11 @@
 import abc
 import logging
-
-import numpy as np
-
-logger = logging.getLogger("batchglm")
-
-
 from typing import Union
 
 import dask.array
+import numpy as np
+
+logger = logging.getLogger("batchglm")
 
 
 class ModelIwls:
