@@ -4,12 +4,12 @@ try:
     import anndata
 except ImportError:
     anndata = None
+from typing import Union
+
+import dask.array
 import numpy as np
 
 from .external import _ModelGLM
-import dask.array
-
-from typing import Union
 
 
 class Model(_ModelGLM, metaclass=abc.ABCMeta):

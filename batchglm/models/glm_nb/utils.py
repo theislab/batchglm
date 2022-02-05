@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Optional, Callable
+from typing import Callable, Optional, Union
 
 import dask
 import numpy as np

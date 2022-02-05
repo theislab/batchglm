@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Dict, Iterable, Union, Optional
+from typing import Any, Dict, Iterable, Optional, Union
 
 try:
     import anndata
@@ -8,7 +8,6 @@ except ImportError:
     anndata = None
 
 from .input import InputDataBase
-
 
 logger = logging.getLogger(__name__)
 

@@ -13,10 +13,10 @@ try:
 except ImportError:
     anndata = None
 
+from typing import Union
+
 from .input import InputDataBase
 from .model import _ModelBase
-
-from typing import Union
 
 logger = logging.getLogger(__name__)
 

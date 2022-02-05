@@ -3,7 +3,7 @@ try:
 except ImportError:
     anndata = None
 
-from typing import Union, Optional
+from typing import Optional, Union
 
 import dask.array
 import numpy as np
@@ -28,9 +28,13 @@ class InputDataGLM(InputDataBase):
     def __init__(
         self,
         data: Union[np.ndarray, anndata.AnnData, anndata.Raw, scipy.sparse.csr_matrix, dask.array.core.Array],
-        design_loc: Optional[Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]] = None,
+        design_loc: Optional[
+            Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]
+        ] = None,
         design_loc_names: Optional[Union[list, np.ndarray]] = None,
-        design_scale: Optional[Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]] = None,
+        design_scale: Optional[
+            Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]
+        ] = None,
         design_scale_names: Optional[Union[list, np.ndarray]] = None,
         constraints_loc: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
         constraints_scale: Optional[Union[np.ndarray, dask.array.core.Array]] = None,

@@ -1,10 +1,9 @@
 import abc
+from typing import Union
 
 import dask.array
 import numpy as np
 import scipy.sparse
-
-from typing import Union
 
 
 class ModelVarsGlm:

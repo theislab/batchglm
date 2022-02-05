@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple, Union, Callable
+from typing import Callable, List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np

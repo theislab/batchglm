@@ -7,7 +7,9 @@ logger = logging.getLogger("batchglm")
 
 
 from typing import Union
+
 import dask.array
+
 
 class ModelIwls:
     def __init__(self, model_vars):

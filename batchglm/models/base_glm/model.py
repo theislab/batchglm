@@ -1,9 +1,8 @@
 import abc
-from typing import Union, Optional
-
-import numpy as np
+from typing import Optional, Union
 
 import dask.array
+import numpy as np
 
 try:
     import anndata
