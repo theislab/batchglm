@@ -9,9 +9,6 @@ try:
 except ImportError:
     anndata = None
 
-from .input import InputDataBase
-from .model import _ModelBase
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +27,6 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         Number of observations
     nfeatures : int
         Number of features
-    model : batchglm.models.input._ModelBase
 
     chunk_size_cells : int
         dask chunk size for cells
@@ -40,12 +36,10 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
 
     nobs: int
     nfeatures: int
-    model: _ModelBase
 
-    def __init__(self, model: _ModelBase, num_observations: int, num_features: int):
+    def __init__(self, num_observations: int, num_features: int):
         self.nobs = num_observations
         self.nfeatures = num_features
-        self.model = model
 
     def generate(self, sparse: bool = False):
         """

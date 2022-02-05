@@ -54,8 +54,8 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     design_scale: patsy.design_info.DesignMatrix
     sample_description: pandas.DataFrame
 
-    def __init__(self, model: Union[_ModelGLM, None], num_observations, num_features):
-        _SimulatorBase.__init__(self=self, model=model, num_observations=num_observations, num_features=num_features)
+    def __init__(self, num_observations, num_features):
+        _SimulatorBase.__init__(self=self, num_observations=num_observations, num_features=num_features)
         self.sim_design_loc = None
         self.sim_design_scale = None
         self.sample_description = None
