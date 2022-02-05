@@ -205,44 +205,6 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         # sys.stdout.write('\r')
         # sys.stdout.flush()
 
-    def a_step_gd(self, idx: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
-        """
-        Not used
-
-        :return:
-        """
-        iter = 0
-        a_var_old = self.model.a_var.compute()
-        converged = np.tile(True, self.model.model_vars.n_features)
-        converged[idx] = False
-        ll_current = -self.model.ll_byfeature.compute()
-        while np.any(np.logical_not(converged)) and iter < max_iter:
-            idx_to_update = np.where(np.logical_not(converged))[0]
-            jac = np.zeros_like(self.model.a_var).compute()
-            # Use mean jacobian so that learning rate is independent of number of samples.
-            jac[:, idx_to_update] = (
-                -self.model.jac_a.compute().T[:, idx_to_update] / self.model.input_data.num_observations
-            )
-            self.model._a_var = self.model.a_var.compute() + lr * jac
-            # Assess convergence:
-            ll_previous = ll_current
-            ll_current = -self.model.ll_byfeature.compute()
-            converged_f = (ll_current - ll_previous) / ll_previous > -ftol
-            a_var_new = self.model.a_var.compute()
-            a_var_new[:, converged_f] = a_var_new[:, converged_f] - lr * jac[:, converged_f]
-            self.model.a_var = a_var_new
-            converged = np.logical_or(converged, converged_f)
-            iter += 1
-            logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged location model: %.2f%%"
-                % (
-                    (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
-                    np.sum(ll_current),
-                    np.mean(converged) * 100,
-                )
-            )
-        return self.model.a_var.compute() - a_var_old
-
     def iwls_step(self, idx_update: np.ndarray) -> np.ndarray:
         """
 
