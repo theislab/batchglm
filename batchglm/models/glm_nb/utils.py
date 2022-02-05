@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Union, Optional, Callable
 
 import dask
 import numpy as np
@@ -9,12 +9,12 @@ from .external import closedform_glm_mean, closedform_glm_scale
 
 
 def closedform_nb_glm_logmu(
-    x: Union[np.ndarray, scipy.sparse.csr_matrix],
-    design_loc: np.ndarray,
-    constraints_loc,
-    size_factors=None,
-    link_fn=np.log,
-    inv_link_fn=np.exp,
+    x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
+    design_loc: Union[np.ndarray, dask.array.core.Array],
+    constraints_loc: Union[np.ndarray, dask.array.core.Array],
+    size_factors: Optional[np.ndarray] = None,
+    link_fn: Callable = np.log,
+    inv_link_fn: Callable = np.exp,
 ):
     r"""
     Calculates a closed-form solution for the `mu` parameters of negative-binomial GLMs.
@@ -39,13 +39,13 @@ def closedform_nb_glm_logmu(
 
 
 def closedform_nb_glm_logphi(
-    x: Union[np.ndarray, scipy.sparse.csr_matrix],
-    design_scale: np.ndarray,
-    constraints=None,
-    size_factors=None,
-    groupwise_means=None,
-    link_fn=np.log,
-    invlink_fn=np.exp,
+    x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
+    design_scale: Union[np.ndarray, dask.array.core.Array],
+    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    size_factors: Optional[np.ndarray] = None,
+    groupwise_means: Optional[np.ndarray] = None,
+    link_fn: Callable = np.log,
+    invlink_fn: Callable = np.exp,
 ):
     r"""
     Calculates a closed-form solution for the log-scale parameters of negative-binomial GLMs.

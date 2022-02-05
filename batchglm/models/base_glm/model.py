@@ -1,7 +1,9 @@
 import abc
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
+
+import dask.array
 
 try:
     import anndata
@@ -27,34 +29,34 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         - design_loc, design_scale: design matrices
     """
 
-    def __init__(self, input_data: InputDataGLM):
+    def __init__(self, input_data: Optional[InputDataGLM] = None):
         _ModelBase.__init__(self=self, input_data=input_data)
         self._a_var = None
         self._b_var = None
 
     @property
-    def design_loc(self) -> np.ndarray:
+    def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         if self.input_data is None:
             return None
         else:
             return self.input_data.design_loc
 
     @property
-    def design_scale(self) -> np.ndarray:
+    def design_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         if self.input_data is None:
             return None
         else:
             return self.input_data.design_scale
 
     @property
-    def constraints_loc(self) -> np.ndarray:
+    def constraints_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         if self.input_data is None:
             return None
         else:
             return self.input_data.constraints_loc
 
     @property
-    def constraints_scale(self) -> np.ndarray:
+    def constraints_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         if self.input_data is None:
             return None
         else:
@@ -89,11 +91,11 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
             return self.input_data.scale_names
 
     @abc.abstractmethod
-    def eta_loc(self) -> np.ndarray:
+    def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
-    def eta_scale(self) -> np.ndarray:
+    def eta_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         eta = np.matmul(self.design_scale, self.b)
         eta = self.np_clip_param(eta, "eta_scale")
         return eta
@@ -107,10 +109,10 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         return self.inverse_link_scale(self.eta_scale)
 
     @abc.abstractmethod
-    def eta_loc_j(self, j) -> np.ndarray:
+    def eta_loc_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
-    def eta_scale_j(self, j) -> np.ndarray:
+    def eta_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
@@ -138,11 +140,11 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         return self._b_var
 
     @property
-    def a(self) -> np.ndarray:
+    def a(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.dot(self.constraints_loc, self.a_var)
 
     @property
-    def b(self) -> np.ndarray:
+    def b(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.dot(self.constraints_scale, self.b_var)
 
     @abc.abstractmethod

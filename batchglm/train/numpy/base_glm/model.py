@@ -6,6 +6,9 @@ import numpy as np
 logger = logging.getLogger("batchglm")
 
 
+from typing import Union
+import dask.array
+
 class ModelIwls:
     def __init__(self, model_vars):
         self.model_vars = model_vars
@@ -61,10 +64,10 @@ class ModelIwls:
         pass
 
     @property
-    def ll_byfeature(self) -> np.ndarray:
+    def ll_byfeature(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.sum(self.ll, axis=0)
 
-    def ll_byfeature_j(self, j) -> np.ndarray:
+    def ll_byfeature_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         return np.sum(self.ll_j(j=j), axis=0)
 
     @abc.abstractmethod
@@ -72,7 +75,7 @@ class ModelIwls:
         pass
 
     @abc.abstractmethod
-    def ybar(self) -> np.ndarray:
+    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @abc.abstractmethod
@@ -88,11 +91,11 @@ class ModelIwls:
         pass
 
     @abc.abstractmethod
-    def ybar_j(self, j) -> np.ndarray:
+    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
-    def fim_aa(self) -> np.ndarray:
+    def fim_aa(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Location-location coefficient block of FIM
 
@@ -115,7 +118,7 @@ class ModelIwls:
         pass
 
     @property
-    def fim(self) -> np.ndarray:
+    def fim(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Full FIM
 
@@ -175,7 +178,7 @@ class ModelIwls:
         return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
     @property
-    def hessian(self) -> np.ndarray:
+    def hessian(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param x inferred param)
@@ -187,11 +190,11 @@ class ModelIwls:
         return np.concatenate([np.concatenate([h_aa, h_ab], axis=2), np.concatenate([h_ba, h_bb], axis=2)], axis=1)
 
     @property
-    def jac(self) -> np.ndarray:
+    def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.concatenate([self.jac_a, self.jac_b], axis=-1)
 
     @property
-    def jac_a(self) -> np.ndarray:
+    def jac_a(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param)
@@ -215,7 +218,7 @@ class ModelIwls:
         return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
 
     @property
-    def jac_b(self) -> np.ndarray:
+    def jac_b(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param)

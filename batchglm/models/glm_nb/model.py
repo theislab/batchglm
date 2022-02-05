@@ -7,6 +7,9 @@ except ImportError:
 import numpy as np
 
 from .external import _ModelGLM
+import dask.array
+
+from typing import Union
 
 
 class Model(_ModelGLM, metaclass=abc.ABCMeta):
@@ -27,14 +30,14 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         return np.exp(data)
 
     @property
-    def eta_loc(self) -> np.ndarray:
+    def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         eta = np.matmul(self.design_loc, self.a)
         if self.size_factors is not None:
             eta += self.size_factors
         eta = self.np_clip_param(eta, "eta_loc")
         return eta
 
-    def eta_loc_j(self, j) -> np.ndarray:
+    def eta_loc_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]

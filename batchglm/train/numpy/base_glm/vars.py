@@ -4,6 +4,8 @@ import dask.array
 import numpy as np
 import scipy.sparse
 
+from typing import Union
+
 
 class ModelVarsGlm:
     """
@@ -11,9 +13,9 @@ class ModelVarsGlm:
 
     """
 
-    constraints_loc: np.ndarray
-    constraints_scale: np.ndarray
-    params: np.ndarray
+    constraints_loc: Union[np.ndarray, dask.array.core.Array]
+    constraints_scale: Union[np.ndarray, dask.array.core.Array]
+    params: Union[np.ndarray, dask.array.core.Array]
     converged: np.ndarray
     npar_a: int
     dtype: str
@@ -21,10 +23,10 @@ class ModelVarsGlm:
 
     def __init__(
         self,
-        init_a: np.ndarray,
-        init_b: np.ndarray,
-        constraints_loc: np.ndarray,
-        constraints_scale: np.ndarray,
+        init_a: Union[np.ndarray, dask.array.core.Array],
+        init_b: Union[np.ndarray, dask.array.core.Array],
+        constraints_loc: Union[np.ndarray, dask.array.core.Array],
+        constraints_scale: Union[np.ndarray, dask.array.core.Array],
         chunk_size_genes: int,
         dtype: str,
     ):

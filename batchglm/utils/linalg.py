@@ -3,7 +3,7 @@ import logging
 import dask.array
 import numpy as np
 
-from typing import Callable
+from typing import Callable, Union
 
 logger = logging.getLogger("batchglm")
 
@@ -31,7 +31,11 @@ def stacked_lstsq(L, b, rcond=1e-10):
     return np.conj(x, out=x)
 
 
-def groupwise_solve_lm(dmat: np.ndarray, apply_fun: Callable, constraints: np.ndarray):
+def groupwise_solve_lm(
+    dmat: Union[np.ndarray, dask.array.core.Array],
+    apply_fun: Callable,
+    constraints: Union[np.ndarray, dask.array.core.Array]
+):
     r"""
     Solve GLMs by estimating the distribution parameters of each unique group of observations independently and
     solving then for the design matrix `dmat`.

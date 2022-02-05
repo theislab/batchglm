@@ -16,6 +16,8 @@ except ImportError:
 from .input import InputDataBase
 from .model import _ModelBase
 
+from typing import Union
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +72,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         return self._fisher_inv
 
     @property
-    def x(self) -> np.ndarray:
+    def x(self) -> Union[np.ndarray, dask.array.core.Array]:
         return self.input_data.x
 
     @property

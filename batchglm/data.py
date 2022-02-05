@@ -130,7 +130,7 @@ def preview_coef_names(
 
 
 def constraint_system_from_star(
-    dmat: Union[None, patsy.design_info.DesignMatrix, pd.DataFrame] = None,
+    dmat: Optional[patsy.design_info.DesignMatrix, pd.DataFrame] = None,
     sample_description: Union[None, pd.DataFrame] = None,
     formula: Optional[str] = None,
     as_categorical: Union[bool, list] = True,

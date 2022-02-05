@@ -1,11 +1,13 @@
 import abc
 import logging
-from typing import Any, Dict, Iterable, Union
+from typing import Any, Dict, Iterable, Union, Optional
 
 try:
     import anndata
 except ImportError:
     anndata = None
+
+from .input import InputDataBase
 
 
 logger = logging.getLogger(__name__)
@@ -16,7 +18,7 @@ class _ModelBase(metaclass=abc.ABCMeta):
     Model base class
     """
 
-    def __init__(self, input_data):
+    def __init__(self, input_data: Optional[InputDataBase] = None):
         self.input_data = input_data
 
     @property
