@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class _SimulatorBase(metaclass=abc.ABCMeta):
-    r"""
+    """
     Simulator base class.
 
     Classes implementing `BasicSimulator` should be able to generate a

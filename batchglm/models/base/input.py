@@ -24,6 +24,19 @@ logger = logging.getLogger(__name__)
 class InputDataBase:
     """
     Base class for all input data types.
+
+    Attributes
+    ----------
+    features : List[str]
+        Names of the features
+    observations : List[str]
+        Names of the observations
+    x : Union[np.ndarray, dask.array.core.Array, scipy.sparse.csr_matrix, batchglm.models.input.InputDataBase]
+        An observations x features matrix-like object (see possible types).  Note that this can be dense or sparse.
+    chunk_size_cells : int
+        dask chunk size for cells
+    chunk_size_genes : int
+        dask chunk size for genes
     """
 
     features: List[str]
@@ -111,28 +124,3 @@ class InputDataBase:
     @property
     def feature_isallzero(self):
         return self._feature_allzero
-
-    def fetch_x_dense(self, idx):
-        # Better way than accessing ._meta to check type of dask chunks?
-        assert isinstance(self.x, np.ndarray) or isinstance(
-            self.x._meta, np.ndarray
-        ), "tried to fetch dense from non ndarray"
-
-        return self.x[idx, :]
-
-    def fetch_x_sparse(self, idx):
-        assert isinstance(self.x, scipy.sparse.csr_matrix) or isinstance(
-            self.x._meta, scipy.sparse.csr_matrix
-        ), "tried to fetch sparse from non csr_matrix"
-
-        data = self.x[idx, :]
-
-        data_idx = np.asarray(np.vstack(data.nonzero()).T, np.int64)
-        data_val = np.asarray(data.data, np.float64)
-        data_shape = np.asarray(data.shape, np.int64)
-
-        if idx.shape[0] == 1:
-            data_val = np.squeeze(data_val, axis=0)
-            data_idx = np.squeeze(data_idx, axis=0)
-
-        return data_idx, data_val, data_shape
