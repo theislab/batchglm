@@ -50,10 +50,6 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     Simulator for Generalized Linear Models (GLMs).
     """
 
-    design_loc: patsy.design_info.DesignMatrix
-    design_scale: patsy.design_info.DesignMatrix
-    sample_description: pandas.DataFrame
-
     def __init__(self, num_observations, num_features):
         _SimulatorBase.__init__(self=self, num_observations=num_observations, num_features=num_features)
         self.sim_design_loc = None
@@ -140,11 +136,11 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         return self.sim_b_var
 
     @property
-    def design_loc(self) -> np.ndarray:
+    def design_loc(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
         return self.sim_design_loc
 
     @property
-    def design_scale(self) -> np.ndarray:
+    def design_scale(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
         return self.sim_design_scale
 
     @property
