@@ -13,8 +13,9 @@ from .model import _ModelGLM
 
 
 class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
-    r"""
+    """
     Estimator base class for generalized linear models (GLMs).
+    Inherites from batchglm.models.base.estimator._EstimatorBase
     """
     model: _ModelGLM
     input_data: InputDataGLM

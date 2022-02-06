@@ -28,9 +28,9 @@ class InputDataBase:
     Attributes
     ----------
     features : List[str]
-        Names of the features
+        Names of the features' names
     observations : List[str]
-        Names of the observations
+        Names of the observations' names
     x : Union[np.ndarray, dask.array.core.Array, scipy.sparse.csr_matrix, batchglm.models.input.InputDataBase]
         An observations x features matrix-like object (see possible types).  Note that this can be dense or sparse.
     chunk_size_cells : int

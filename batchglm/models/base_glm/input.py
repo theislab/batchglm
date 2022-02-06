@@ -3,7 +3,7 @@ try:
 except ImportError:
     anndata = None
 
-from typing import Union
+from typing import List, Union
 
 import dask.array
 import numpy as np
@@ -18,12 +18,8 @@ from .utils import parse_constraints, parse_design
 class InputDataGLM(InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
+    Inherites from batchglm.models.base.input.InputDataBase
     """
-
-    loc_names: list
-    design_loc_names: list
-    scale_names: list
-    design_scale_names: list
 
     def __init__(
         self,
@@ -32,15 +28,15 @@ class InputDataGLM(InputDataBase):
         design_loc_names: Union[list, np.ndarray] = None,
         design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
         design_scale_names: Union[list, np.ndarray] = None,
-        constraints_loc: Union[np.ndarray] = None,
-        constraints_scale: Union[np.ndarray] = None,
-        size_factors=None,
-        observation_names=None,
-        feature_names=None,
+        constraints_loc: np.ndarray = None,
+        constraints_scale: np.ndarray = None,
+        size_factors: np.ndarray =None,
+        observation_names: List[str] =None,
+        feature_names: List[str] =None,
         chunk_size_cells: int = 1e6,
         chunk_size_genes: int = 100,
         as_dask: bool = True,
-        cast_dtype="float64",
+        cast_dtype: str ="float64",
     ):
         """
         Create a new InputData object.
