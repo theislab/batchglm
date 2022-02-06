@@ -19,12 +19,6 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     Every GLM contains parameters for a location and a scale model
     in a parameter specific linker space and a design matrix for
     each location and scale model.
-
-        - par_link_loc, par_link_scale: Model parameters in linker space.
-        - location, scale: Model parameters in output space.
-        - link_loc, link_scale: Transform output support to model parameter support.
-        - inverse_link_loc: Transform model parameter support to output support.
-        - design_loc, design_scale: design matrices
     """
 
     def __init__(self, input_data: InputDataGLM):

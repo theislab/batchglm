@@ -30,13 +30,13 @@ class InputDataGLM(InputDataBase):
         design_scale_names: Union[list, np.ndarray] = None,
         constraints_loc: np.ndarray = None,
         constraints_scale: np.ndarray = None,
-        size_factors: np.ndarray =None,
-        observation_names: List[str] =None,
-        feature_names: List[str] =None,
+        size_factors: np.ndarray = None,
+        observation_names: List[str] = None,
+        feature_names: List[str] = None,
         chunk_size_cells: int = 1e6,
         chunk_size_genes: int = 100,
         as_dask: bool = True,
-        cast_dtype: str ="float64",
+        cast_dtype: str = "float64",
     ):
         """
         Create a new InputData object.
@@ -186,11 +186,28 @@ class InputDataGLM(InputDataBase):
     def num_scale_params(self):
         return self.constraints_scale.shape[1]
 
-    def fetch_design_loc(self, idx):
+    def fetch_design_loc(
+        self, idx: Union[np.ndarray, List[bool]]
+    ) -> Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix]:
+        """
+        Obtain a selection of observations from the location design matrix.
+        :param idx: A boolean mask to index a subset selection from the location design matrix
+        :returns: Requested rows of the location design matrix
+        """
         return self.design_loc[idx, :]
 
     def fetch_design_scale(self, idx):
+        """
+        Obtain a selection of observations from the scale design matrix.
+        :param idx: A boolean mask to index a subset selection from the scale design matrix
+        :returns: Requested rows of the scale design matrix
+        """
         return self.design_scale[idx, :]
 
     def fetch_size_factors(self, idx):
+        """
+        Obtain a selection of size factors from the size factors matrix.
+        :param idx: A boolean mask to index a subset selection from the size factors matrix
+        :returns: Requested rows of the size factor matrix
+        """
         return self.size_factors[idx, :]
