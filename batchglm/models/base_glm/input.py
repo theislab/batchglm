@@ -176,34 +176,42 @@ class InputDataGLM(InputDataBase):
 
     @property
     def design_loc_names(self):
+        """Names of the location design matrix columns"""
         return self._design_loc_names
 
     @property
     def design_scale_names(self):
+        """Names of the scale design matrix columns"""
         return self._design_scale_names
 
     @property
     def loc_names(self):
+        """Names of the location design matrix columns subject to constraints"""
         return self._loc_names
 
     @property
     def scale_names(self):
+        """Names of the scale design matrix columns subject to constraints"""
         return self._scale_names
 
     @property
     def num_design_loc_params(self):
+         """Number of columns of the location design matrix"""
         return self.design_loc.shape[1]
 
     @property
     def num_design_scale_params(self):
+        """Number of columns of the scale design matrix"""
         return self.design_scale.shape[1]
 
     @property
     def num_loc_params(self):
+        """Number of columns of the location design matrix subject to constraints"""
         return self.constraints_loc.shape[1]
 
     @property
     def num_scale_params(self):
+        """Number of columns of the scale design matrix subject to constraints"""
         return self.constraints_scale.shape[1]
 
     def fetch_design_loc(

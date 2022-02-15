@@ -16,11 +16,25 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
     """
     Estimator base class for generalized linear models (GLMs).
     Inherites from batchglm.models.base.estimator._EstimatorBase
+    Adds plotting functionality.
+
+    Attributes
+    ----------
+    model : _ModelGLM
+        Model to fit
+    input_data : InputDataGLM
+        Data to be fit on
     """
     model: _ModelGLM
     input_data: InputDataGLM
 
     def __init__(self, model: _ModelGLM, input_data: InputDataGLM):
+        """
+        Create a new _EstimatorGLM object.
+
+        :param data: Some data object.
+        :param model: Model to fit
+        """
         _EstimatorBase.__init__(self=self, model=model, input_data=input_data)
 
     def plot_coef_a_vs_ref(
