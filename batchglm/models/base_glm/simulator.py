@@ -48,6 +48,25 @@ def generate_sample_description(
 class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     """
     Simulator for Generalized Linear Models (GLMs).
+    Simulator base class.
+
+    Classes implementing `BasicSimulator` should be able to generate a
+    2D-matrix of sample data, as well as a dict of corresponding parameters.
+
+    convention: N features with M observations each => (M, N) matrix
+
+    Attributes
+    ----------
+    sim_design_loc : patsy.dmatrix
+        Simulated design martix for location model
+    sim_design_scale : int
+        Simulated design martix for scale model
+    sample_description : pandas.DataFrame
+        A dataframe of data in terms of batch and condition
+    sim_a_var : np.ndarray
+        Location model parameters
+    sim_b_var : np.ndarray
+        Scale model parameters
     """
 
     def __init__(self, num_observations, num_features):
@@ -57,7 +76,6 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         self.sample_description = None
         self.sim_a_var = None
         self.sim_b_var = None
-        self._size_factors = None
 
     def generate_sample_description(self, num_conditions=2, num_batches=4, intercept_scale: bool = False, **kwargs):
         self.sim_design_loc, self.sample_description = generate_sample_description(
@@ -122,10 +140,6 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
             design_loc_names=None,
             design_scale_names=None,
         )
-
-    @property
-    def size_factors(self):
-        return self._size_factors
 
     @property
     def a_var(self):
