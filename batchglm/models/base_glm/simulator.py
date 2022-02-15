@@ -57,9 +57,9 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
 
     Attributes
     ----------
-    sim_design_loc : patsy.dmatrix
+    sim_design_loc : patsy.DesignMatrix
         Simulated design martix for location model
-    sim_design_scale : int
+    sim_design_scale : patsy.DesignMatrix
         Simulated design martix for scale model
     sample_description : pandas.DataFrame
         A dataframe of data in terms of batch and condition
@@ -69,15 +69,23 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         Scale model parameters
     """
 
+    sim_design_loc: patsy.DesignMatrix = None
+    sim_design_scale: patsy.DesignMatrix = None
+    sample_description: pandas.DataFrame  = None
+    sim_a_var: np.ndarray = None
+    sim_b_var: np.ndarray = None
+
     def __init__(self, num_observations, num_features):
         _SimulatorBase.__init__(self=self, num_observations=num_observations, num_features=num_features)
-        self.sim_design_loc = None
-        self.sim_design_scale = None
-        self.sample_description = None
-        self.sim_a_var = None
-        self.sim_b_var = None
 
     def generate_sample_description(self, num_conditions=2, num_batches=4, intercept_scale: bool = False, **kwargs):
+        """
+        Generate a sample description for the simulator including patsy design matrices and fake batch/condition data
+
+        :param num_conditions: Number of conditions for the design matrix.
+        :param num_batches: Number of batches for the design matrix.
+        :param intercept_scale: Whether or not to provide an intercept for the scale model (otherwise just use the location design matrix).
+        """
         self.sim_design_loc, self.sample_description = generate_sample_description(
             self.nobs, num_conditions=num_conditions, num_batches=num_batches, **kwargs
         )

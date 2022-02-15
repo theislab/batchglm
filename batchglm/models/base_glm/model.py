@@ -21,10 +21,11 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     each location and scale model.
     """
 
+    _a_var: np.ndarray = None
+    _b_var: np.ndarray = None
+
     def __init__(self, input_data: InputDataGLM):
         _ModelBase.__init__(self=self, input_data=input_data)
-        self._a_var = None
-        self._b_var = None
 
     @property
     def design_loc(self) -> np.ndarray:

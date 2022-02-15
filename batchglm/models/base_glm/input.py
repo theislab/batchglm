@@ -18,7 +18,27 @@ from .utils import parse_constraints, parse_design
 class InputDataGLM(InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
-    Inherites from batchglm.models.base.input.InputDataBase
+    Inherits from batchglm.models.base.input.InputDataBase.
+    Contains additional information that is specific to GLM's like design matrices and constraints.
+
+    Attributes
+    ----------
+    design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix]
+        The location design model.
+    design_scale:  Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix]
+        The scale design model.
+    constraints_loc: np.ndarray
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This tensor describes this relation for the mean model.
+        This form of constraints is used in vector generalized linear models (VGLMs).
+    constraints_scale: np.ndarray
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This tensor describes this relation for the dispersion model.
+        This form of constraints is used in vector generalized linear models (VGLMs).
+    size_factors: np.ndarray
+        Constant scale factors of the mean model in the linker space.
     """
 
     def __init__(
