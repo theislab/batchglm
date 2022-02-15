@@ -166,7 +166,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
 
     @property
     def design_scale(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
-         """"simulated scale model design matrix"""
+        """"simulated scale model design matrix"""
         return self.sim_design_scale
 
     @property
@@ -176,13 +176,15 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
 
     @property
     def constraints_scale(self):
-         """"simulated constraints on scale model"""
+        """"simulated constraints on scale model"""
         return np.identity(n=self.b_var.shape[0])
 
     def param_bounds(self, dtype):
+        """"method to be implemented that allows models to constrain certain parameters like means or fitted coefficients"""
         pass
 
     def eta_loc_j(self, j) -> np.ndarray:
+        """"method to be implemented that allows fast access to a given observation's eta"""
         pass
 
     def np_clip_param(self, param, name):

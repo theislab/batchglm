@@ -97,32 +97,51 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def eta_scale(self) -> np.ndarray:
+        """eta from scale model"""
         eta = np.matmul(self.design_scale, self.b)
         eta = self.np_clip_param(eta, "eta_scale")
         return eta
 
     @property
     def location(self):
+        """the inverse link function applied to eta for the location model (i.e the fitted location)"""
         return self.inverse_link_loc(self.eta_loc)
 
     @property
     def scale(self):
+        """the inverse link function applied to eta for the scale model (i.e the fitted location)"""
         return self.inverse_link_scale(self.eta_scale)
 
     @abc.abstractmethod
     def eta_loc_j(self, j) -> np.ndarray:
+        """
+        Method to be implemented that allows fast access to a given observation's eta in the location model
+        :param j: The index of the observation sought
+        """
         pass
 
     def eta_scale_j(self, j) -> np.ndarray:
+        """"
+        Allows fast access to a given observation's eta in the location model
+        :param j: The index of the observation sought
+        """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
         return np.matmul(self.design_scale, self.b[:, j])
 
     def location_j(self, j):
+        """
+        Allows fast access to a given observation's fitted location
+        :param j: The index of the observation sought
+        """
         return self.inverse_link_loc(self.eta_loc_j(j=j))
 
     def scale_j(self, j):
+        """
+        Allows fast access to a given observation's fitted scale
+        :param j: The index of the observation sought
+        """
         return self.inverse_link_scale(self.eta_scale_j(j=j))
 
     @property
@@ -155,16 +174,20 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def link_loc(self, data):
+        """link function for location model"""
         pass
 
     @abc.abstractmethod
     def link_scale(self, data):
+        """link function for scale model"""
         pass
 
     @abc.abstractmethod
     def inverse_link_loc(self, data):
+        """inverse link function for location model"""
         pass
 
     @abc.abstractmethod
     def inverse_link_scale(self, data):
+        """inverse link function for scale model"""
         pass
