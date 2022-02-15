@@ -1,6 +1,6 @@
 import logging
 from operator import indexOf
-from typing import List
+from typing import List, Union
 
 import dask.array
 import numpy as np
@@ -43,6 +43,7 @@ class InputDataBase:
     observations: List[str]
     chunk_size_cells: int
     chunk_size_genes: int
+    x: Union[dask.array.core.Array, scipy.sparse.spmatrix, np.ndarray]
 
     def __init__(
         self,
@@ -111,16 +112,20 @@ class InputDataBase:
 
     @property
     def num_observations(self):
+        """Number of observations derived from x."""
         return self.x.shape[0]
 
     @property
     def num_features(self):
+        """Number of features derived from x."""
         return self.x.shape[1]
 
     @property
     def feature_isnonzero(self):
+        """Boolean whether or not all features are zero"""
         return ~self._feature_allzero
 
     @property
     def feature_isallzero(self):
+        """Boolean whether or not all features are zero"""
         return self._feature_allzero
