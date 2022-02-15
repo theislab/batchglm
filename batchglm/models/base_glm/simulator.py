@@ -151,26 +151,32 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
 
     @property
     def a_var(self):
+        """"simulated location model parameters"""
         return self.sim_a_var
 
     @property
     def b_var(self):
+        """"simulated scale model parameters"""
         return self.sim_b_var
 
     @property
     def design_loc(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
+        """"simulated location model design matrix"""
         return self.sim_design_loc
 
     @property
     def design_scale(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
+         """"simulated scale model design matrix"""
         return self.sim_design_scale
 
     @property
     def constraints_loc(self):
+        """"simulated constraints on location model"""
         return np.identity(n=self.a_var.shape[0])
 
     @property
     def constraints_scale(self):
+         """"simulated constraints on scale model"""
         return np.identity(n=self.b_var.shape[0])
 
     def param_bounds(self, dtype):

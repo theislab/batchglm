@@ -29,6 +29,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def design_loc(self) -> np.ndarray:
+        """location design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -36,6 +37,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def design_scale(self) -> np.ndarray:
+        """scale design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -43,6 +45,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def constraints_loc(self) -> np.ndarray:
+        """constrainted location design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -50,6 +53,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def constraints_scale(self) -> np.ndarray:
+        """constrained scale design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -57,6 +61,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def design_loc_names(self) -> list:
+        """column names from location design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -64,6 +69,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def design_scale_names(self) -> list:
+        """column names from scale design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -71,6 +77,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def loc_names(self) -> list:
+        """column names from constratined location design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -78,6 +85,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def scale_names(self) -> list:
+        """column names from constrained scale design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -119,6 +127,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def size_factors(self) -> Union[np.ndarray, None]:
+        """"Constant scale factors of the mean model in the linker space"""
         if self.input_data is None:
             return None
         else:
@@ -126,18 +135,22 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def a_var(self) -> np.ndarray:
+        """"Fitted location model parameters"""
         return self._a_var
 
     @property
     def b_var(self) -> np.ndarray:
+        """"Fitted scale model parameters"""
         return self._b_var
 
     @property
     def a(self) -> np.ndarray:
+        """"prediction of the location model i.e dot product of design matrix and fitted parameters"""
         return np.dot(self.constraints_loc, self.a_var)
 
     @property
     def b(self) -> np.ndarray:
+        """"prediction of the scale model i.e dot product of design matrix and fitted parameters"""
         return np.dot(self.constraints_scale, self.b_var)
 
     @abc.abstractmethod
