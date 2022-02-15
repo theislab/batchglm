@@ -12,6 +12,7 @@ import scipy.optimize
 import scipy.sparse
 import sparse
 
+from .model import ModelIwlsNb
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
 
@@ -21,19 +22,32 @@ logger = logging.getLogger("batchglm")
 class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs).
+    Attributes
+    ----------
+    dtype : str
+    lls : List
+        A list of all log likelihood updates
     """
 
     def __init__(
         self,
-        model,
-        input_data,
-        dtype,
+        model: ModelIwlsNb,
+        input_data: InputDataGLM,
+        dtype: str,
     ):
+        """
+        Performs initialisation and creates a new estimator.
+        :param model
+            The IWLS model to be fit
+        :param input_data
+            The input data for the model
+        :param dtype
+            i.e float64
+        """
         if input_data.design_scale.shape[1] != 1:
             raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
         _EstimatorGLM.__init__(self=self, model=model, input_data=input_data)
         self.dtype = dtype
-        self.values = []
         self.lls = []
 
         self.TrainingStrategies = TrainingStrategies
@@ -207,7 +221,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def iwls_step(self, idx_update: np.ndarray) -> np.ndarray:
         """
-
+        A single step in IWLS
         :return: (inferred param x features)
         """
         w = self.model.fim_weight_aa_j(j=idx_update)  # (observations x features)
@@ -280,7 +294,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         self, idx_update: np.ndarray, method: str, ftol: float, lr: float, max_iter: int, nproc: int
     ) -> np.ndarray:
         """
-
+        A single step for the scale model
         :return:
         """
         if method.lower() in ["gd"]:
@@ -290,7 +304,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def _b_step_gd(self, idx_update: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
         """
-
+        A single gradient descent stop for the scale model
         :return:
         """
         iter = 0
@@ -365,7 +379,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def _b_step_loop(self, idx_update: np.ndarray, method: str, max_iter: int, ftol: float, nproc: int) -> np.ndarray:
         """
-
+        A single loop step for the scale model
         :return:
         """
         delta_theta = np.zeros_like(self.model.b_var)

@@ -14,8 +14,6 @@ class Estimator(EstimatorGlm):
     Uses the natural logarithm as linker function.
     """
 
-    model: ModelIwlsNb
-
     def __init__(
         self,
         input_data: InputDataGLM,
