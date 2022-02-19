@@ -36,7 +36,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
-         """location design matrix"""
+        """location design matrix"""
         if self.input_data is None:
             return None
         else:
@@ -44,7 +44,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def design_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-         """scale design matrix"""
+        """scale design matrix"""
         if self.input_data is None:
             return None
         else:
