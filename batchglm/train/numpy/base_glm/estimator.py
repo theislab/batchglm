@@ -13,7 +13,7 @@ import scipy.sparse
 import sparse
 
 from ....models.base_glm import InputDataGLM
-from .model import ModelIwlsNb
+from .model import ModelIwls
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
 
@@ -33,7 +33,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def __init__(
         self,
-        model: ModelIwlsNb,
+        model: ModelIwls,
         input_data: InputDataGLM,
         dtype: str,
     ):
