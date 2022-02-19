@@ -12,7 +12,7 @@ class Simulator(_SimulatorGLM, Model):
 
     def __init__(self, num_observations=1000, num_features=100):
         Model.__init__(self=self, input_data=None)
-        _SimulatorGLM.__init__(self=self, model=None, num_observations=num_observations, num_features=num_features)
+        _SimulatorGLM.__init__(self=self, num_observations=num_observations, num_features=num_features)
 
     def generate_params(
         self,

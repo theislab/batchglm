@@ -2,6 +2,8 @@ import abc
 import logging
 from typing import Any, Dict, Iterable, Optional, Union
 
+from .input import InputDataBase
+
 try:
     import anndata
 except ImportError:
@@ -13,15 +15,25 @@ logger = logging.getLogger(__name__)
 
 
 class _ModelBase(metaclass=abc.ABCMeta):
-    r"""
+    """
     Model base class
+    Attributes
+    ----------
+    input_data : batchglm.models.input.InputDataBase
+        Input data
     """
 
     def __init__(self, input_data: Optional[InputDataBase] = None):
+        """
+        Create a new _SimulatorBase object.
+
+        :param input_data: Inpute data for the model
+        """
         self.input_data = input_data
 
     @property
     def x(self):
+        """Get the `x` attribute of the InputDataBase from the constructor"""
         return self.input_data.x
 
     def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:

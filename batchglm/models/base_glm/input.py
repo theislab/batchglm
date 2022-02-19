@@ -2,9 +2,7 @@ try:
     import anndata
 except ImportError:
     anndata = None
-
-from typing import Optional, Union
-
+from typing import List, Optional, Union
 import dask.array
 import numpy as np
 import pandas as pd
@@ -18,12 +16,28 @@ from .utils import parse_constraints, parse_design
 class InputDataGLM(InputDataBase):
     """
     Input data for Generalized Linear Models (GLMs).
-    """
+    Inherits from batchglm.models.base.input.InputDataBase.
+    Contains additional information that is specific to GLM's like design matrices and constraints.
 
-    loc_names: list
-    design_loc_names: list
-    scale_names: list
-    design_scale_names: list
+    Attributes
+    ----------
+    design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix]
+        The location design model.
+    design_scale:  Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix]
+        The scale design model.
+    constraints_loc: np.ndarray
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This tensor describes this relation for the mean model.
+        This form of constraints is used in vector generalized linear models (VGLMs).
+    constraints_scale: np.ndarray
+        Tensor that encodes how complete parameter set which includes dependent
+        parameters arises from indepedent parameters: all = <constraints, indep>.
+        This tensor describes this relation for the dispersion model.
+        This form of constraints is used in vector generalized linear models (VGLMs).
+    size_factors: np.ndarray
+        Constant scale factors of the mean model in the linker space.
+    """
 
     def __init__(
         self,
@@ -44,7 +58,7 @@ class InputDataGLM(InputDataBase):
         chunk_size_cells: int = 1000000,
         chunk_size_genes: int = 100,
         as_dask: bool = True,
-        cast_dtype="float64",
+        cast_dtype: str = "float64",
     ):
         """
         Create a new InputData object.
@@ -164,41 +178,66 @@ class InputDataGLM(InputDataBase):
 
     @property
     def design_loc_names(self):
+        """Names of the location design matrix columns"""
         return self._design_loc_names
 
     @property
     def design_scale_names(self):
+        """Names of the scale design matrix columns"""
         return self._design_scale_names
 
     @property
     def loc_names(self):
+        """Names of the location design matrix columns subject to constraints"""
         return self._loc_names
 
     @property
     def scale_names(self):
+        """Names of the scale design matrix columns subject to constraints"""
         return self._scale_names
 
     @property
     def num_design_loc_params(self):
+        """Number of columns of the location design matrix"""
         return self.design_loc.shape[1]
 
     @property
     def num_design_scale_params(self):
+        """Number of columns of the scale design matrix"""
         return self.design_scale.shape[1]
 
     @property
     def num_loc_params(self):
+        """Number of columns of the location design matrix subject to constraints"""
         return self.constraints_loc.shape[1]
 
     @property
     def num_scale_params(self):
+        """Number of columns of the scale design matrix subject to constraints"""
         return self.constraints_scale.shape[1]
 
-    def fetch_design_loc(self, idx):
+    def fetch_design_loc(
+        self, idx: Union[np.ndarray, List[bool]]
+    ) -> Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix]:
+        """
+        Obtain a selection of observations from the location design matrix.
+        :param idx: A boolean mask to index a subset selection from the location design matrix
+        :returns: Requested rows of the location design matrix
+        """
         return self.design_loc[idx, :]
 
     def fetch_design_scale(self, idx):
+        """
+        Obtain a selection of observations from the scale design matrix.
+        :param idx: A boolean mask to index a subset selection from the scale design matrix
+        :returns: Requested rows of the scale design matrix
+        """
         return self.design_scale[idx, :]
 
     def fetch_size_factors(self, idx):
+        """
+        Obtain a selection of size factors from the size factors matrix.
+        :param idx: A boolean mask to index a subset selection from the size factors matrix
+        :returns: Requested rows of the size factor matrix
+        """
         return self.size_factors[idx, :]

@@ -9,34 +9,43 @@ try:
 except ImportError:
     anndata = None
 
-from .input import InputDataBase
-from .model import _ModelBase
-
 logger = logging.getLogger(__name__)
 
 
 class _SimulatorBase(metaclass=abc.ABCMeta):
-    r"""
+    """
     Simulator base class.
 
     Classes implementing `BasicSimulator` should be able to generate a
     2D-matrix of sample data, as well as a dict of corresponding parameters.
 
     convention: N features with M observations each => (M, N) matrix
+
+    Attributes
+    ----------
+    nobs : int
+        Number of observations
+    nfeatures : int
+        Number of features
+
+    chunk_size_cells : int
+        dask chunk size for cells
+    chunk_size_genes : int
+        dask chunk size for genes
     """
 
     nobs: int
     nfeatures: int
 
-    input_data: InputDataBase
-    model: _ModelBase
+    def __init__(self, num_observations: int, num_features: int):
+        """
+        Create a new _SimulatorBase object.
 
-    def __init__(self, model, num_observations, num_features):
+        :param num_observations: Number of observations
+        :param num_features: Number of featurews
+        """
         self.nobs = num_observations
         self.nfeatures = num_features
-
-        self.input_data = None
-        self.model = model
 
     def generate(self, sparse: bool = False):
         """
@@ -68,10 +77,3 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
         :rtype: type
         """
         pass
-
-    @property
-    def x(self) -> np.ndarray:
-        if isinstance(self.input_data.x, dask.array.core.Array):
-            return self.input_data.x.compute()
-        else:
-            return self.input_data.x

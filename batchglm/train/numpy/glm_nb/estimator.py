@@ -12,9 +12,12 @@ class Estimator(EstimatorGlm):
     """
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
-    """
 
-    model: ModelIwlsNb
+    Attributes
+    ----------
+    model_vars : ModelVars
+        model variables
+    """
 
     def __init__(
         self,
@@ -80,8 +83,7 @@ class Estimator(EstimatorGlm):
             input_data=input_data,
             model_vars=self.model_vars,
             compute_mu=self._train_loc,
-            compute_r=not self._train_scale,
-            dtype=dtype,
+            compute_r=not self._train_scale
         )
         super(Estimator, self).__init__(input_data=input_data, model=model, dtype=dtype)
 

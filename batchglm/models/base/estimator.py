@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class _EstimatorBase(metaclass=abc.ABCMeta):
-    r"""
+    """
     Estimator base class
     """
     model: _ModelBase
@@ -33,6 +33,12 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         AUTO = None
 
     def __init__(self, model: _ModelBase, input_data: InputDataBase):
+        """
+        Create a new _EstimatorBase object.
+
+        :param model: A model to estimate
+        :param input_data: Input data for the model
+        """
         self.model = model
         self.input_data = input_data
         self._loss = None
@@ -40,43 +46,40 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         self._jacobian = None
         self._hessian = None
         self._fisher_inv = None
-        self._error_codes = None
-        self._niter = None
 
     @property
-    def error_codes(self):
-        return self._error_codes
-
-    @property
-    def niter(self):
-        return self._niter
-
-    @property
-    def loss(self):
+    def loss(self) -> np.ndarray:
+        """Current loss"""
         return self._loss
 
     @property
-    def log_likelihood(self):
+    def log_likelihood(self) -> np.ndarray:
+        """Current log likelihood"""
         return self._log_likelihood
 
     @property
-    def jacobian(self):
+    def jacobian(self) -> np.ndarray:
+        """"Current Jacobian of the log likelihood"""
         return self._jacobian
 
     @property
-    def hessian(self):
+    def hessian(self) -> np.ndarray:
+        """"Current Hessian of the log likelihood"""
         return self._hessian
 
     @property
-    def fisher_inv(self):
+    def fisher_inv(self) -> np.ndarray:
+        """"Current Fisher Inverse Matrix"""
         return self._fisher_inv
 
     @property
     def x(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """"Data Matrix"""
         return self.input_data.x
 
     @property
     def a_var(self):
+        """"Fit location parameter"""
         if isinstance(self.model.a_var, dask.array.core.Array):
             return self.model.a_var.compute()
         else:
@@ -84,6 +87,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
     @property
     def b_var(self) -> np.ndarray:
+        """Fit scale parameter"""
         if isinstance(self.model.b_var, dask.array.core.Array):
             return self.model.b_var.compute()
         else:

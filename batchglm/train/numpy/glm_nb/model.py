@@ -15,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
+    """
+    Class for maintaining state of Negative Binomial IWLS updates.
+
+    Attributes
+    ----------
+    compute_mu : bool
+    compute_r : bool
+    """
+
     compute_mu: bool
     compute_r: bool
 
@@ -24,7 +33,6 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         model_vars,
         compute_mu,
         compute_r,
-        dtype,
     ):
         self.compute_mu = compute_mu
         self.compute_r = compute_r
@@ -35,7 +43,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
     @property
     def fim_weight_aa(self):
         """
-
+        Fisher inverse matrix weights
         :return: observations x features
         """
         return -self.location * self.scale / (self.scale + self.location)
@@ -43,21 +51,19 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
     @property
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
-
         :return: observations x features
         """
         return np.asarray(self.x - self.location) / self.location
 
     def fim_weight_aa_j(self, j):
         """
-
+        Fisher inverse matrix weights at j
         :return: observations x features
         """
         return -self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
 
     def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
-
         :return: observations x features
         """
         # Make sure that dimensionality of sliced array is kept:
@@ -71,7 +77,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
     @property
     def jac_weight_b(self):
         """
-
+        Dispersion model jacobian
         :return: observations x features
         """
         scale = self.scale
@@ -90,7 +96,8 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
     def jac_weight_b_j(self, j):
         """
-
+        Dispersion model jacobian at location j
+        :param j: Location
         :return: observations x features
         """
         # Make sure that dimensionality of sliced array is kept:
@@ -144,12 +151,14 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
     @property
     def hessian_weight_ab(self):
+        """scale-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
         return np.multiply(loc * scale, np.asarray(self.x - loc) / np.square(loc + scale))
 
     @property
     def hessian_weight_aa(self):
+        """location-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
         if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
@@ -161,6 +170,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
     @property
     def hessian_weight_bb(self):
+        """scale-scale block of the hessian matrix"""
         scale = self.scale
         loc = self.location
         scale_plus_x = np.asarray(self.x + scale)
@@ -174,6 +184,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
     @property
     def ll(self):
+        """log-likelihood"""
         scale = self.scale
         loc = self.location
         log_r_plus_mu = np.log(scale + loc)
@@ -200,6 +211,10 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return self.np_clip_param(ll, "ll")
 
     def ll_j(self, j):
+        """
+        Log likelhiood for observation j
+        :param j: observation
+        """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]

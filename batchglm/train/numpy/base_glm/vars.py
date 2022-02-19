@@ -10,6 +10,29 @@ class ModelVarsGlm:
     """
     Build variables to be optimzed and their constraints.
 
+    Attributes
+    ----------
+    constraints_scale : Union[np.ndarray, dask.array.core.Array]
+        Scale model constraints for VGLM fitting
+    constraints_loc : Union[np.ndarray, dask.array.core.Array]
+        Location model constraints for VGLM fitting
+    a_var : np.ndarray
+        Location model parameters
+    b_var : np.ndarray
+        Scale model parameters
+    converged : np.ndarray
+        Whether or not given parameters are converged
+    params : Union[np.ndarray, dask.array.core.Array]
+        Model parameters
+    converged : np.ndarray
+        Whether or not a parameter has converged
+    npar_a : int
+    dtype : str
+    n_features : int
+    idx_train_loc : np.ndarray
+        Training indices for location model
+    idx_train_scale : np.ndarray
+        Training indices for scale model
     """
 
     constraints_loc: Union[np.ndarray, dask.array.core.Array]
@@ -30,12 +53,18 @@ class ModelVarsGlm:
         dtype: str,
     ):
         """
-
-        :param init_a: nd.array (mean model size x features)
-            Initialisation for all parameters of mean model.
-        :param init_b: nd.array (dispersion model size x features)
-            Initialisation for all parameters of dispersion model.
-        :param dtype: Precision used in tensorflow.
+        :param init_a:
+            Initialisation for all parameters of mean model. (mean model size x features)
+        :param init_b:
+            Initialisation for all parameters of dispersion model. (dispersion model size x features)
+        :param constraints_scale:
+            Scale model constraints for VGLM fitting
+        :param constraints_loc:
+            Location model constraints for VGLM fitting
+        :param chunk_size_genes:
+            chunk size for dask
+        :param dtype:
+            Precision used in tensorflow.
         """
         self.constraints_loc = np.asarray(constraints_loc, dtype)
         self.constraints_scale = np.asarray(constraints_scale, dtype)
@@ -64,10 +93,12 @@ class ModelVarsGlm:
 
     @property
     def idx_not_converged(self):
+        """Find which features are not converged"""
         return np.where(np.logical_not(self.converged))[0]
 
     @property
     def a_var(self):
+        """Location parameters"""
         a_var = self.params[0 : self.npar_a]
         return self.np_clip_param(a_var, "a_var")
 
@@ -85,6 +116,7 @@ class ModelVarsGlm:
 
     @property
     def b_var(self):
+        """Scale parameters"""
         b_var = self.params[self.npar_a :]
         return self.np_clip_param(b_var, "b_var")
 
@@ -101,6 +133,7 @@ class ModelVarsGlm:
             self.params[self.npar_a :] = value
 
     def b_var_j_setter(self, value, j):
+        """Setter ofr a specific b_var value."""
         # Threshold new entry:
         value = self.np_clip_param(value, "b_var")
         # Write either new dask array or into numpy array:

@@ -12,6 +12,8 @@ import scipy.optimize
 import scipy.sparse
 import sparse
 
+from ....models.base_glm import InputDataGLM
+from .model import ModelIwls
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
 
@@ -21,19 +23,33 @@ logger = logging.getLogger("batchglm")
 class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs).
+
+    Attributes
+    ----------
+    dtype : str
+    lls : List
+        A list of all log likelihood updates
     """
 
     def __init__(
         self,
-        model,
-        input_data,
-        dtype,
+        model: ModelIwls,
+        input_data: InputDataGLM,
+        dtype: str,
     ):
+        """
+        Performs initialisation and creates a new estimator.
+        :param model:
+            The IWLS model to be fit
+        :param input_data:
+            The input data for the model
+        :param dtype:
+            i.e float64
+        """
         if input_data.design_scale.shape[1] != 1:
             raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
         _EstimatorGLM.__init__(self=self, model=model, input_data=input_data)
         self.dtype = dtype
-        self.values = []
         self.lls = []
 
         self.TrainingStrategies = TrainingStrategies
@@ -205,48 +221,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         # sys.stdout.write('\r')
         # sys.stdout.flush()
 
-    def a_step_gd(self, idx: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
-        """
-        Not used
-
-        :return:
-        """
-        iter = 0
-        a_var_old = self.model.a_var.compute()
-        converged = np.tile(True, self.model.model_vars.n_features)
-        converged[idx] = False
-        ll_current = -self.model.ll_byfeature.compute()
-        while np.any(np.logical_not(converged)) and iter < max_iter:
-            idx_to_update = np.where(np.logical_not(converged))[0]
-            jac = np.zeros_like(self.model.a_var).compute()
-            # Use mean jacobian so that learning rate is independent of number of samples.
-            jac[:, idx_to_update] = (
-                -self.model.jac_a.compute().T[:, idx_to_update] / self.model.input_data.num_observations
-            )
-            self.model._a_var = self.model.a_var.compute() + lr * jac
-            # Assess convergence:
-            ll_previous = ll_current
-            ll_current = -self.model.ll_byfeature.compute()
-            converged_f = (ll_current - ll_previous) / ll_previous > -ftol
-            a_var_new = self.model.a_var.compute()
-            a_var_new[:, converged_f] = a_var_new[:, converged_f] - lr * jac[:, converged_f]
-            self.model.a_var = a_var_new
-            converged = np.logical_or(converged, converged_f)
-            iter += 1
-            logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged location model: %.2f%%"
-                % (
-                    (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
-                    np.sum(ll_current),
-                    np.mean(converged) * 100,
-                )
-            )
-        return self.model.a_var.compute() - a_var_old
-
     def iwls_step(self, idx_update: np.ndarray) -> np.ndarray:
         """
-
-        :return: (inferred param x features)
+        A single step in IWLS
+        :return: np.ndarray  (inferred param x features)
         """
         w = self.model.fim_weight_aa_j(j=idx_update)  # (observations x features)
         ybar = self.model.ybar_j(j=idx_update)  # (observations x features)
@@ -318,7 +296,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         self, idx_update: np.ndarray, method: str, ftol: float, lr: float, max_iter: int, nproc: int
     ) -> np.ndarray:
         """
-
+        A single step for the scale model
         :return:
         """
         if method.lower() in ["gd"]:
@@ -328,7 +306,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def _b_step_gd(self, idx_update: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
         """
-
+        A single gradient descent stop for the scale model
         :return:
         """
         iter = 0
@@ -403,7 +381,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
     def _b_step_loop(self, idx_update: np.ndarray, method: str, max_iter: int, ftol: float, nproc: int) -> np.ndarray:
         """
-
+        A single loop step for the scale model
         :return:
         """
         delta_theta = np.zeros_like(self.model.b_var)

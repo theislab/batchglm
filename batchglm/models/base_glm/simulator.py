@@ -48,22 +48,50 @@ def generate_sample_description(
 class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     """
     Simulator for Generalized Linear Models (GLMs).
+    Simulator base class.
+
+    Classes implementing `BasicSimulator` should be able to generate a
+    2D-matrix of sample data, as well as a dict of corresponding parameters.
+
+    convention: N features with M observations each => (M, N) matrix
+
+    Attributes
+    ----------
+    sim_design_loc : patsy.DesignMatrix
+        Simulated design martix for location model
+    sim_design_scale : patsy.DesignMatrix
+        Simulated design martix for scale model
+    sample_description : pandas.DataFrame
+        A dataframe of data in terms of batch and condition
+    sim_a_var : np.ndarray
+        Location model parameters
+    sim_b_var : np.ndarray
+        Scale model parameters
     """
 
-    design_loc: patsy.design_info.DesignMatrix
-    design_scale: patsy.design_info.DesignMatrix
-    sample_description: pandas.DataFrame
+    sim_design_loc: patsy.DesignMatrix = None
+    sim_design_scale: patsy.DesignMatrix = None
+    sample_description: pandas.DataFrame  = None
+    sim_a_var: np.ndarray = None
+    sim_b_var: np.ndarray = None
 
-    def __init__(self, model: Union[_ModelGLM, None], num_observations, num_features):
-        _SimulatorBase.__init__(self=self, model=model, num_observations=num_observations, num_features=num_features)
-        self.sim_design_loc = None
-        self.sim_design_scale = None
-        self.sample_description = None
-        self.sim_a_var = None
-        self.sim_b_var = None
-        self._size_factors = None
+    def __init__(self, num_observations, num_features):
+        """
+        Create a new _SimulatorGLM object.
+
+        :param num_observations: Number of observations
+        :param num_features: Number of featurews
+        """
+        _SimulatorBase.__init__(self=self, num_observations=num_observations, num_features=num_features)
 
     def generate_sample_description(self, num_conditions=2, num_batches=4, intercept_scale: bool = False, **kwargs):
+        """
+        Generate a sample description for the simulator including patsy design matrices and fake batch/condition data
+
+        :param num_conditions: Number of conditions for the design matrix.
+        :param num_batches: Number of batches for the design matrix.
+        :param intercept_scale: Whether or not to provide an intercept for the scale model (otherwise just use the location design matrix).
+        """
         self.sim_design_loc, self.sample_description = generate_sample_description(
             self.nobs, num_conditions=num_conditions, num_batches=num_batches, **kwargs
         )
@@ -128,37 +156,41 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         )
 
     @property
-    def size_factors(self):
-        return self._size_factors
-
-    @property
     def a_var(self):
+        """"simulated location model parameters"""
         return self.sim_a_var
 
     @property
     def b_var(self):
+        """"simulated scale model parameters"""
         return self.sim_b_var
 
     @property
-    def design_loc(self) -> np.ndarray:
+    def design_loc(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
+        """"simulated location model design matrix"""
         return self.sim_design_loc
 
     @property
-    def design_scale(self) -> np.ndarray:
+    def design_scale(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
+        """"simulated scale model design matrix"""
         return self.sim_design_scale
 
     @property
     def constraints_loc(self):
+        """"simulated constraints on location model"""
         return np.identity(n=self.a_var.shape[0])
 
     @property
     def constraints_scale(self):
+        """"simulated constraints on scale model"""
         return np.identity(n=self.b_var.shape[0])
 
     def param_bounds(self, dtype):
+        """"method to be implemented that allows models to constrain certain parameters like means or fitted coefficients"""
         pass
 
     def eta_loc_j(self, j) -> np.ndarray:
+        """"method to be implemented that allows fast access to a given observation's eta"""
         pass
 
     def np_clip_param(self, param, name):
