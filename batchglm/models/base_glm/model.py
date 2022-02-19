@@ -176,7 +176,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def b(self) -> Union[np.ndarray, dask.array.core.Array]:
-         """"dot product of scale constraints with scale parameter giving new constrained parameters"""
+        """"dot product of scale constraints with scale parameter giving new constrained parameters"""
         return np.dot(self.constraints_scale, self.b_var)
 
     @abc.abstractmethod

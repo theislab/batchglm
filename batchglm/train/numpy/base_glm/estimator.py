@@ -12,7 +12,7 @@ import scipy.optimize
 import scipy.sparse
 import sparse
 
-from ....models import InputDataGLM
+from ....models.base_glm import InputDataGLM
 from .model import ModelIwlsNb
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
