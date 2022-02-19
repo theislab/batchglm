@@ -2,9 +2,7 @@ try:
     import anndata
 except ImportError:
     anndata = None
-
-from typing import List, Union
-
+from typing import List, Optional, Union
 import dask.array
 import numpy as np
 import pandas as pd
@@ -43,17 +41,21 @@ class InputDataGLM(InputDataBase):
 
     def __init__(
         self,
-        data: Union[np.ndarray, anndata.AnnData, scipy.sparse.csr_matrix],
-        design_loc: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
-        design_loc_names: Union[list, np.ndarray] = None,
-        design_scale: Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix] = None,
-        design_scale_names: Union[list, np.ndarray] = None,
-        constraints_loc: np.ndarray = None,
-        constraints_scale: np.ndarray = None,
-        size_factors: np.ndarray = None,
-        observation_names: List[str] = None,
-        feature_names: List[str] = None,
-        chunk_size_cells: int = 1e6,
+        data: Union[np.ndarray, anndata.AnnData, anndata.Raw, scipy.sparse.csr_matrix, dask.array.core.Array],
+        design_loc: Optional[
+            Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]
+        ] = None,
+        design_loc_names: Optional[Union[list, np.ndarray]] = None,
+        design_scale: Optional[
+            Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]
+        ] = None,
+        design_scale_names: Optional[Union[list, np.ndarray]] = None,
+        constraints_loc: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+        constraints_scale: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+        size_factors=None,
+        observation_names=None,
+        feature_names=None,
+        chunk_size_cells: int = 1000000,
         chunk_size_genes: int = 100,
         as_dask: bool = True,
         cast_dtype: str = "float64",

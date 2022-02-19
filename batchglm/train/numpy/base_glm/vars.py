@@ -1,4 +1,5 @@
 import abc
+from typing import Union
 
 import dask.array
 import numpy as np
@@ -11,9 +12,9 @@ class ModelVarsGlm:
 
     Attributes
     ----------
-    constraints_scale : np.ndarray
+    constraints_scale : Union[np.ndarray, dask.array.core.Array]
         Scale model constraints for VGLM fitting
-    constraints_loc : np.ndarray
+    constraints_loc : Union[np.ndarray, dask.array.core.Array]
         Location model constraints for VGLM fitting
     a_var : np.ndarray
         Location model parameters
@@ -21,6 +22,10 @@ class ModelVarsGlm:
         Scale model parameters
     converged : np.ndarray
         Whether or not given parameters are converged
+    params : Union[np.ndarray, dask.array.core.Array]
+        Model parameters
+    converged : np.ndarray
+        Whether or not a parameter has converged
     npar_a : int
     dtype : str
     n_features : int
@@ -30,12 +35,20 @@ class ModelVarsGlm:
         Training indices for scale model
     """
 
+    constraints_loc: Union[np.ndarray, dask.array.core.Array]
+    constraints_scale: Union[np.ndarray, dask.array.core.Array]
+    params: Union[np.ndarray, dask.array.core.Array]
+    converged: np.ndarray
+    npar_a: int
+    dtype: str
+    n_features: int
+
     def __init__(
         self,
-        init_a: np.ndarray,
-        init_b: np.ndarray,
-        constraints_loc: np.ndarray,
-        constraints_scale: np.ndarray,
+        init_a: Union[np.ndarray, dask.array.core.Array],
+        init_b: Union[np.ndarray, dask.array.core.Array],
+        constraints_loc: Union[np.ndarray, dask.array.core.Array],
+        constraints_scale: Union[np.ndarray, dask.array.core.Array],
         chunk_size_genes: int,
         dtype: str,
     ):

@@ -13,6 +13,8 @@ try:
 except ImportError:
     anndata = None
 
+from typing import Union
+
 from .input import InputDataBase
 from .model import _ModelBase
 
@@ -71,7 +73,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         return self._fisher_inv
 
     @property
-    def x(self) -> np.ndarray:
+    def x(self) -> Union[np.ndarray, dask.array.core.Array]:
         """"Data Matrix"""
         return self.input_data.x
 

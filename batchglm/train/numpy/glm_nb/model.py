@@ -1,4 +1,5 @@
 import logging
+from typing import Union
 
 import dask.array
 import numpy as np
@@ -48,7 +49,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return -self.location * self.scale / (self.scale + self.location)
 
     @property
-    def ybar(self) -> np.ndarray:
+    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """
@@ -61,7 +62,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         """
         return -self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
 
-    def ybar_j(self, j) -> np.ndarray:
+    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """

@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Dict, Iterable, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 from .input import InputDataBase
 
@@ -9,6 +9,7 @@ try:
 except ImportError:
     anndata = None
 
+from .input import InputDataBase
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class _ModelBase(metaclass=abc.ABCMeta):
         Input data
     """
 
-    def __init__(self, input_data: InputDataBase):
+    def __init__(self, input_data: Optional[InputDataBase] = None):
         """
         Create a new _SimulatorBase object.
 
@@ -43,9 +44,10 @@ class _ModelBase(metaclass=abc.ABCMeta):
         :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
         """
         if isinstance(key, str):
-            return self.__getattribute__(key)
+            attrib = self.__getattribute__(key)
         elif isinstance(key, Iterable):
-            return {s: self.__getattribute__(s) for s in key}
+            attrib = {s: self.__getattribute__(s) for s in key}
+        return attrib
 
     def __getitem__(self, item):
         return self.get(item)

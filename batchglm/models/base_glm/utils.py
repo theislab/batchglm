@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np
@@ -61,8 +61,8 @@ def parse_design(
 def parse_constraints(
     dmat: np.ndarray,
     dmat_par_names: List[str],
-    constraints: Optional[Union[np.ndarray, dask.array.core.Array, None]] = None,
-    constraint_par_names: Optional[Union[List[str], None]] = None,
+    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    constraint_par_names: Optional[List[str]] = None,
 ) -> Tuple[np.ndarray, List[str]]:
     r"""
     Parser for constraint matrices.
@@ -99,12 +99,12 @@ def parse_constraints(
 
 
 def closedform_glm_mean(
-    x: Union[np.ndarray, scipy.sparse.csr_matrix],
-    dmat: np.ndarray,
-    constraints=None,
-    size_factors=None,
-    link_fn: Union[callable, None] = None,
-    inv_link_fn: Union[callable, None] = None,
+    x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
+    dmat: Union[np.ndarray, dask.array.core.Array],
+    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    size_factors: Optional[np.ndarray] = None,
+    link_fn: Optional[Callable] = None,
+    inv_link_fn: Optional[Callable] = None,
 ):
     r"""
     Calculate a closed-form solution for the mean parameters of GLMs.
@@ -142,14 +142,14 @@ def closedform_glm_mean(
 
 
 def closedform_glm_scale(
-    x: Union[np.ndarray, scipy.sparse.csr_matrix],
-    design_scale: np.ndarray,
-    constraints=None,
-    size_factors=None,
-    groupwise_means=None,
-    link_fn=None,
-    inv_link_fn=None,
-    compute_scales_fun=None,
+    x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
+    design_scale: Union[np.ndarray, dask.array.core.Array],
+    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    size_factors: Optional[np.ndarray] = None,
+    groupwise_means: Optional[np.ndarray] = None,
+    link_fn: Optional[Callable] = None,
+    inv_link_fn: Optional[Callable] = None,
+    compute_scales_fun: Optional[Callable] = None,
 ):
     r"""
     Calculate a closed-form solution for the scale parameters of GLMs.

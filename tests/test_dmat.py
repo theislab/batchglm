@@ -74,12 +74,6 @@ class TestParseDesign(unittest.TestCase):
         # check patsy
         if not (check_pd_patsy(dmat=patsy.dmatrix("~1 + coef_0 + coef_1", pd_coef), params=coef_list)):
             return False
-        # check wrong datatype
-        try:
-            parse_design(design_matrix=list(dmat), param_names=coef_list)
-        except AssertionError as ae:
-            if not str(ae).startswith("Datatype for design_matrix not understood"):
-                raise
         return True
 
 

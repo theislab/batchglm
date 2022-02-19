@@ -1,6 +1,7 @@
 import abc
-from typing import Union
+from typing import Optional, Union
 
+import dask.array
 import numpy as np
 
 try:
@@ -24,7 +25,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     _a_var: np.ndarray = None
     _b_var: np.ndarray = None
 
-    def __init__(self, input_data: InputDataGLM):
+    def __init__(self, input_data: Optional[InputDataGLM] = None):
         """
         Create a new _ModelGLM object.
 
@@ -34,23 +35,23 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         _ModelBase.__init__(self=self, input_data=input_data)
 
     @property
-    def design_loc(self) -> np.ndarray:
-        """location design matrix"""
+    def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
+         """location design matrix"""
         if self.input_data is None:
             return None
         else:
             return self.input_data.design_loc
 
     @property
-    def design_scale(self) -> np.ndarray:
-        """scale design matrix"""
+    def design_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
+         """scale design matrix"""
         if self.input_data is None:
             return None
         else:
             return self.input_data.design_scale
 
     @property
-    def constraints_loc(self) -> np.ndarray:
+    def constraints_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         """constrainted location design matrix"""
         if self.input_data is None:
             return None
@@ -58,7 +59,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
             return self.input_data.constraints_loc
 
     @property
-    def constraints_scale(self) -> np.ndarray:
+    def constraints_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """constrained scale design matrix"""
         if self.input_data is None:
             return None
@@ -98,11 +99,11 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
             return self.input_data.scale_names
 
     @abc.abstractmethod
-    def eta_loc(self) -> np.ndarray:
+    def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
-    def eta_scale(self) -> np.ndarray:
+    def eta_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """eta from scale model"""
         eta = np.matmul(self.design_scale, self.b)
         eta = self.np_clip_param(eta, "eta_scale")
@@ -119,14 +120,14 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         return self.inverse_link_scale(self.eta_scale)
 
     @abc.abstractmethod
-    def eta_loc_j(self, j) -> np.ndarray:
+    def eta_loc_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Method to be implemented that allows fast access to a given observation's eta in the location model
         :param j: The index of the observation sought
         """
         pass
 
-    def eta_scale_j(self, j) -> np.ndarray:
+    def eta_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """"
         Allows fast access to a given observation's eta in the location model
         :param j: The index of the observation sought
@@ -169,13 +170,13 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         return self._b_var
 
     @property
-    def a(self) -> np.ndarray:
+    def a(self) -> Union[np.ndarray, dask.array.core.Array]:
         """"dot product of location constraints with location parameter giving new constrained parameters"""
         return np.dot(self.constraints_loc, self.a_var)
 
     @property
-    def b(self) -> np.ndarray:
-        """"dot product of scale constraints with scale parameter giving new constrained parameters"""
+    def b(self) -> Union[np.ndarray, dask.array.core.Array]:
+         """"dot product of scale constraints with scale parameter giving new constrained parameters"""
         return np.dot(self.constraints_scale, self.b_var)
 
     @abc.abstractmethod
