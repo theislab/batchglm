@@ -12,6 +12,7 @@ import scipy.optimize
 import scipy.sparse
 import sparse
 
+from ....models import InputDataGLM
 from .model import ModelIwlsNb
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
@@ -22,6 +23,7 @@ logger = logging.getLogger("batchglm")
 class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     """
     Estimator for Generalized Linear Models (GLMs).
+
     Attributes
     ----------
     dtype : str
@@ -37,11 +39,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     ):
         """
         Performs initialisation and creates a new estimator.
-        :param model
+        :param model:
             The IWLS model to be fit
-        :param input_data
+        :param input_data:
             The input data for the model
-        :param dtype
+        :param dtype:
             i.e float64
         """
         if input_data.design_scale.shape[1] != 1:
@@ -222,7 +224,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def iwls_step(self, idx_update: np.ndarray) -> np.ndarray:
         """
         A single step in IWLS
-        :return: (inferred param x features)
+        :return: np.ndarray  (inferred param x features)
         """
         w = self.model.fim_weight_aa_j(j=idx_update)  # (observations x features)
         ybar = self.model.ybar_j(j=idx_update)  # (observations x features)

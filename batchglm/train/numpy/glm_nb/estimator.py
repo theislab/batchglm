@@ -12,6 +12,11 @@ class Estimator(EstimatorGlm):
     """
     Estimator for Generalized Linear Models (GLMs) with negative binomial noise.
     Uses the natural logarithm as linker function.
+
+    Attributes
+    ----------
+    model_vars : ModelVars
+        model variables
     """
 
     def __init__(

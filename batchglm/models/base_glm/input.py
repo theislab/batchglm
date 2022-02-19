@@ -196,7 +196,7 @@ class InputDataGLM(InputDataBase):
 
     @property
     def num_design_loc_params(self):
-         """Number of columns of the location design matrix"""
+        """Number of columns of the location design matrix"""
         return self.design_loc.shape[1]
 
     @property

@@ -23,6 +23,11 @@ class _ModelBase(metaclass=abc.ABCMeta):
     """
 
     def __init__(self, input_data: InputDataBase):
+        """
+        Create a new _SimulatorBase object.
+
+        :param input_data: Inpute data for the model
+        """
         self.input_data = input_data
 
     @property

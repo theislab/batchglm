@@ -76,6 +76,12 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     sim_b_var: np.ndarray = None
 
     def __init__(self, num_observations, num_features):
+        """
+        Create a new _SimulatorGLM object.
+
+        :param num_observations: Number of observations
+        :param num_features: Number of featurews
+        """
         _SimulatorBase.__init__(self=self, num_observations=num_observations, num_features=num_features)
 
     def generate_sample_description(self, num_conditions=2, num_batches=4, intercept_scale: bool = False, **kwargs):

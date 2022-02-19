@@ -31,6 +31,12 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
         AUTO = None
 
     def __init__(self, model: _ModelBase, input_data: InputDataBase):
+        """
+        Create a new _EstimatorBase object.
+
+        :param model: A model to estimate
+        :param input_data: Input data for the model
+        """
         self.model = model
         self.input_data = input_data
         self._loss = None

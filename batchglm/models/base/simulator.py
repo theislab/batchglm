@@ -38,6 +38,12 @@ class _SimulatorBase(metaclass=abc.ABCMeta):
     nfeatures: int
 
     def __init__(self, num_observations: int, num_features: int):
+        """
+        Create a new _SimulatorBase object.
+
+        :param num_observations: Number of observations
+        :param num_features: Number of featurews
+        """
         self.nobs = num_observations
         self.nfeatures = num_features
 

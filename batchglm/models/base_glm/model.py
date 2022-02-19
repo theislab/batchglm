@@ -25,6 +25,12 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     _b_var: np.ndarray = None
 
     def __init__(self, input_data: InputDataGLM):
+        """
+        Create a new _ModelGLM object.
+
+        :param input_data: Input data for the model
+        
+        """
         _ModelBase.__init__(self=self, input_data=input_data)
 
     @property
@@ -164,12 +170,12 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def a(self) -> np.ndarray:
-        """"prediction of the location model i.e dot product of design matrix and fitted parameters"""
+        """"dot product of location constraints with location parameter giving new constrained parameters"""
         return np.dot(self.constraints_loc, self.a_var)
 
     @property
     def b(self) -> np.ndarray:
-        """"prediction of the scale model i.e dot product of design matrix and fitted parameters"""
+        """"dot product of scale constraints with scale parameter giving new constrained parameters"""
         return np.dot(self.constraints_scale, self.b_var)
 
     @abc.abstractmethod

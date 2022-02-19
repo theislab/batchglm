@@ -2,20 +2,22 @@ import abc
 import logging
 
 import numpy as np
+from .vars import ModelVarsGlm
 
 logger = logging.getLogger("batchglm")
 
 
 class ModelIwls:
-    def __init__(self, model_vars):
+    """
+    Class for maintaining state of IWLS updates.
+
+    Attributes
+    ----------
+    model_vars : ModelVarsGlm
+        Model variables.
+    """
+    def __init__(self, model_vars: ModelVarsGlm):
         self.model_vars = model_vars
-        # self.params = np.concatenate(
-        #    [
-        #        model_vars.init_a_clipped,
-        #        model_vars.init_b_clipped,
-        #    ],
-        #    axis=0
-        # )
 
     @property
     def converged(self):
