@@ -22,8 +22,8 @@ class Estimator(EstimatorGlm):
     def __init__(
         self,
         input_data: InputDataGLM,
-        init_a: Union[np.ndarray, str] = "AUTO",
-        init_b: Union[np.ndarray, str] = "AUTO",
+        init_location: Union[np.ndarray, str] = "AUTO",
+        init_scale: Union[np.ndarray, str] = "AUTO",
         batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
         dtype="float64",
@@ -34,7 +34,7 @@ class Estimator(EstimatorGlm):
 
         :param input_data: InputDataGLM
             The input data
-        :param init_a: (Optional)
+        :param init_location: (Optional)
             Low-level initial values for a. Can be:
 
             - str:
@@ -44,7 +44,7 @@ class Estimator(EstimatorGlm):
                 * "init_model": initialize with another model (see `ìnit_model` parameter)
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'a'
-        :param init_b: (Optional)
+        :param init_scale: (Optional)
             Low-level initial values for b. Can be:
 
             - str:
@@ -59,8 +59,8 @@ class Estimator(EstimatorGlm):
             Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param dtype: Numerical precision.
         """
-        init_a, init_b, train_loc, train_scale = init_par(
-            input_data=input_data, init_a=init_a, init_b=init_b, init_model=None
+        init_location, init_scale, train_loc, train_scale = init_par(
+            input_data=input_data, init_location=init_location, init_scale=init_scale, init_model=None
         )
         self._train_loc = train_loc
         self._train_scale = train_scale
@@ -68,12 +68,12 @@ class Estimator(EstimatorGlm):
             self._train_scale = False
         sys.stdout.write("training location model: %s\n" % str(self._train_loc))
         sys.stdout.write("training scale model: %s\n" % str(self._train_scale))
-        init_a = init_a.astype(dtype)
-        init_b = init_b.astype(dtype)
+        init_location = init_location.astype(dtype)
+        init_scale = init_scale.astype(dtype)
 
         self.model_vars = ModelVars(
-            init_a=init_a,
-            init_b=init_b,
+            init_location=init_location,
+            init_scale=init_scale,
             constraints_loc=input_data.constraints_loc,
             constraints_scale=input_data.constraints_scale,
             chunk_size_genes=input_data.chunk_size_genes,
@@ -83,7 +83,7 @@ class Estimator(EstimatorGlm):
             input_data=input_data,
             model_vars=self.model_vars,
             compute_mu=self._train_loc,
-            compute_r=not self._train_scale
+            compute_r=not self._train_scale,
         )
         super(Estimator, self).__init__(input_data=input_data, model=model, dtype=dtype)
 

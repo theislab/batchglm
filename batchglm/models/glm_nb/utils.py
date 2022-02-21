@@ -76,7 +76,7 @@ def closedform_nb_glm_logphi(
     )
 
 
-def init_par(input_data, init_a, init_b, init_model):
+def init_par(input_data, init_location, init_scale, init_model):
     r"""
     standard:
     Only initialise intercept and keep other coefficients as zero.
@@ -98,11 +98,11 @@ def init_par(input_data, init_a, init_b, init_model):
 
     if init_model is None:
         groupwise_means = None
-        init_a_str = None
-        if isinstance(init_a, str):
-            init_a_str = init_a.lower()
+        init_location_str = None
+        if isinstance(init_location, str):
+            init_location_str = init_location.lower()
             # Chose option if auto was chosen
-            if init_a.lower() == "auto":
+            if init_location.lower() == "auto":
                 if isinstance(input_data.design_loc, dask.array.core.Array):
                     dloc = input_data.design_loc.compute()
                 else:
@@ -112,10 +112,10 @@ def init_par(input_data, init_a, init_b, init_model):
                     and np.abs(np.min(dloc) - 0.0) == 0.0
                     and np.abs(np.max(dloc) - 1.0) == 0.0
                 )
-                init_a = "standard" if not one_hot else "closed_form"
+                init_location = "standard" if not one_hot else "closed_form"
 
-            if init_a.lower() == "closed_form":
-                groupwise_means, init_a, rmsd_a = closedform_nb_glm_logmu(
+            if init_location.lower() == "closed_form":
+                groupwise_means, init_location, rmsd_a = closedform_nb_glm_logmu(
                     x=input_data.x,
                     design_loc=input_data.design_loc,
                     constraints_loc=input_data.constraints_loc,
@@ -129,23 +129,23 @@ def init_par(input_data, init_a, init_b, init_model):
                 if input_data.size_factors is not None:
                     if np.any(input_data.size_factors != 1):
                         train_loc = True
-            elif init_a.lower() == "standard":
+            elif init_location.lower() == "standard":
                 overall_means = np.mean(input_data.x, axis=0)  # directly calculate the mean
-                init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
-                init_a[0, :] = np.log(overall_means)
+                init_location = np.zeros([input_data.num_loc_params, input_data.num_features])
+                init_location[0, :] = np.log(overall_means)
                 train_loc = True
-            elif init_a.lower() == "all_zero":
-                init_a = np.zeros([input_data.num_loc_params, input_data.num_features])
+            elif init_location.lower() == "all_zero":
+                init_location = np.zeros([input_data.num_loc_params, input_data.num_features])
                 train_loc = True
             else:
-                raise ValueError("init_a string %s not recognized" % init_a)
+                raise ValueError("init_location string %s not recognized" % init_location)
 
-        if isinstance(init_b, str):
-            if init_b.lower() == "auto":
-                init_b = "standard"
+        if isinstance(init_scale, str):
+            if init_scale.lower() == "auto":
+                init_scale = "standard"
 
-            if init_b.lower() == "standard":
-                groupwise_scales, init_b_intercept, rmsd_b = closedform_nb_glm_logphi(
+            if init_scale.lower() == "standard":
+                groupwise_scales, init_scale_intercept, rmsd_b = closedform_nb_glm_logphi(
                     x=input_data.x,
                     design_scale=input_data.design_scale[:, [0]],
                     constraints=input_data.constraints_scale[[0], :][:, [0]],
@@ -153,17 +153,17 @@ def init_par(input_data, init_a, init_b, init_model):
                     groupwise_means=None,
                     link_fn=lambda r: np.log(r + np.nextafter(0, 1, dtype=r.dtype)),
                 )
-                init_b = np.zeros([input_data.num_scale_params, input_data.num_features])
-                init_b[0, :] = init_b_intercept
-            elif init_b.lower() == "closed_form":
+                init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
+                init_scale[0, :] = init_scale_intercept
+            elif init_scale.lower() == "closed_form":
                 dmats_unequal = False
                 if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
                     if np.any(input_data.design_loc != input_data.design_scale):
                         dmats_unequal = True
 
                 inits_unequal = False
-                if init_a_str is not None:
-                    if init_a_str != init_b:
+                if init_location_str is not None:
+                    if init_location_str != init_scale:
                         inits_unequal = True
 
                 if inits_unequal or dmats_unequal:
@@ -171,7 +171,7 @@ def init_par(input_data, init_a, init_b, init_model):
                         "cannot use closed_form init for scale model " + "if scale model differs from loc model"
                     )
 
-                groupwise_scales, init_b, rmsd_b = closedform_nb_glm_logphi(
+                groupwise_scales, init_scale, rmsd_b = closedform_nb_glm_logphi(
                     x=input_data.x,
                     design_scale=input_data.design_scale,
                     constraints=input_data.constraints_scale,
@@ -179,13 +179,15 @@ def init_par(input_data, init_a, init_b, init_model):
                     groupwise_means=groupwise_means,
                     link_fn=lambda r: np.log(r),
                 )
-            elif init_b.lower() == "all_zero":
-                init_b = np.zeros([input_data.num_scale_params, input_data.x.shape[1]])
+            elif init_scale.lower() == "all_zero":
+                init_scale = np.zeros([input_data.num_scale_params, input_data.x.shape[1]])
             else:
-                raise ValueError("init_b string %s not recognized" % init_b)
+                raise ValueError("init_scale string %s not recognized" % init_scale)
     else:
         # Locations model:
-        if isinstance(init_a, str) and (init_a.lower() == "auto" or init_a.lower() == "init_model"):
+        if isinstance(init_location, str) and (
+            init_location.lower() == "auto" or init_location.lower() == "init_model"
+        ):
             my_loc_names = set(input_data.loc_names)
             my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names))
 
@@ -193,13 +195,13 @@ def init_par(input_data, init_a, init_b, init_model):
             for parm in my_loc_names:
                 init_idx = np.where(init_model.input_data.loc_names == parm)[0]
                 my_idx = np.where(input_data.loc_names == parm)[0]
-                init_loc[my_idx] = init_model.a_var[init_idx]
+                init_loc[my_idx] = init_model.theta_location[init_idx]
 
-            init_a = init_loc
+            init_location = init_loc
             logging.getLogger("batchglm").debug("Using initialization based on input model for mean")
 
         # Scale model:
-        if isinstance(init_b, str) and (init_b.lower() == "auto" or init_b.lower() == "init_model"):
+        if isinstance(init_scale, str) and (init_scale.lower() == "auto" or init_scale.lower() == "init_model"):
             my_scale_names = set(input_data.scale_names)
             my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names)
 
@@ -207,9 +209,9 @@ def init_par(input_data, init_a, init_b, init_model):
             for parm in my_scale_names:
                 init_idx = np.where(init_model.input_data.scale_names == parm)[0]
                 my_idx = np.where(input_data.scale_names == parm)[0]
-                init_scale[my_idx] = init_model.b_var[init_idx]
+                init_scale[my_idx] = init_model.theta_scale[init_idx]
 
-            init_b = init_scale
+            init_scale = init_scale
             logging.getLogger("batchglm").debug("Using initialization based on input model for dispersion")
 
-    return init_a, init_b, train_loc, train_scale
+    return init_location, init_scale, train_loc, train_scale

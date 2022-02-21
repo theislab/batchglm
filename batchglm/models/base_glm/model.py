@@ -22,15 +22,15 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     each location and scale model.
     """
 
-    _a_var: np.ndarray = None
-    _b_var: np.ndarray = None
+    _theta_location: np.ndarray = None
+    _theta_scale: np.ndarray = None
 
     def __init__(self, input_data: Optional[InputDataGLM] = None):
         """
         Create a new _ModelGLM object.
 
         :param input_data: Input data for the model
-        
+
         """
         _ModelBase.__init__(self=self, input_data=input_data)
 
@@ -105,7 +105,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     @property
     def eta_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """eta from scale model"""
-        eta = np.matmul(self.design_scale, self.b)
+        eta = np.matmul(self.design_scale, self.theta_scale_constrained)
         eta = self.np_clip_param(eta, "eta_scale")
         return eta
 
@@ -128,14 +128,14 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         pass
 
     def eta_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        """"
+        """
         Allows fast access to a given observation's eta in the location model
         :param j: The index of the observation sought
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        return np.matmul(self.design_scale, self.b[:, j])
+        return np.matmul(self.design_scale, self.theta_scale_constrained[:, j])
 
     def location_j(self, j):
         """
@@ -153,31 +153,31 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
 
     @property
     def size_factors(self) -> Union[np.ndarray, None]:
-        """"Constant scale factors of the mean model in the linker space"""
+        """Constant scale factors of the mean model in the linker space"""
         if self.input_data is None:
             return None
         else:
             return self.input_data.size_factors
 
     @property
-    def a_var(self) -> np.ndarray:
-        """"Fitted location model parameters"""
-        return self._a_var
+    def theta_location(self) -> np.ndarray:
+        """Fitted location model parameters"""
+        return self._theta_location
 
     @property
-    def b_var(self) -> np.ndarray:
-        """"Fitted scale model parameters"""
-        return self._b_var
+    def theta_scale(self) -> np.ndarray:
+        """Fitted scale model parameters"""
+        return self._theta_scale
 
     @property
-    def a(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """"dot product of location constraints with location parameter giving new constrained parameters"""
-        return np.dot(self.constraints_loc, self.a_var)
+    def theta_location_constrained(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """dot product of location constraints with location parameter giving new constrained parameters"""
+        return np.dot(self.constraints_loc, self.theta_location)
 
     @property
-    def b(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """"dot product of scale constraints with scale parameter giving new constrained parameters"""
-        return np.dot(self.constraints_scale, self.b_var)
+    def theta_scale_constrained(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """dot product of scale constraints with scale parameter giving new constrained parameters"""
+        return np.dot(self.constraints_scale, self.theta_scale)
 
     @abc.abstractmethod
     def link_loc(self, data):

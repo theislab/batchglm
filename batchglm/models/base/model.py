@@ -9,8 +9,6 @@ try:
 except ImportError:
     anndata = None
 
-from .input import InputDataBase
-
 logger = logging.getLogger(__name__)
 
 

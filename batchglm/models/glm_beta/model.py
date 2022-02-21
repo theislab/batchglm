@@ -28,7 +28,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     @property
     def eta_loc(self) -> np.ndarray:
-        eta = np.matmul(self.design_loc, self.a)
+        eta = np.matmul(self.design_loc, self.theta_location_constrained)
         assert self.size_factors is None, "size factors not allowed"
         return eta
 
@@ -36,7 +36,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        eta = np.matmul(self.design_loc, self.a[:, j])
+        eta = np.matmul(self.design_loc, self.theta_location_constrained[:, j])
         assert self.size_factors is None, "size factors not allowed"
         eta = self.np_clip_param(eta, "eta_loc")
         return eta

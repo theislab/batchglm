@@ -61,7 +61,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         :rtype: np.ndarray
 
         """
-        eta = np.matmul(self.design_loc, self.a)
+        eta = np.matmul(self.design_loc, self.theta_location_constrained)
         if self.size_factors is not None:
             eta *= np.expand_dims(self.size_factors, axis=1)
         return eta
@@ -77,7 +77,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        eta = np.matmul(self.design_loc, self.a[:, j])
+        eta = np.matmul(self.design_loc, self.theta_location_constrained[:, j])
         if self.size_factors is not None:
             eta *= np.expand_dims(self.size_factors, axis=1)
         eta = self.np_clip_param(eta, "eta_loc")

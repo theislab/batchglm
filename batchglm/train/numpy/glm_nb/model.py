@@ -41,7 +41,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         ModelIwls.__init__(self=self, model_vars=model_vars)
 
     @property
-    def fim_weight_aa(self):
+    def fim_weight_location_location(self):
         """
         Fisher inverse matrix weights
         :return: observations x features
@@ -55,7 +55,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def fim_weight_aa_j(self, j):
+    def fim_weight_location_location_j(self, j):
         """
         Fisher inverse matrix weights at j
         :return: observations x features
@@ -75,9 +75,9 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
 
     @property
-    def jac_weight_b(self):
+    def jac_weight_scale(self):
         """
-        Dispersion model jacobian
+        Scale model jacobian
         :return: observations x features
         """
         scale = self.scale
@@ -94,9 +94,9 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
         return scale * (const1 + const2 + const3)
 
-    def jac_weight_b_j(self, j):
+    def jac_weight_scale_j(self, j):
         """
-        Dispersion model jacobian at location j
+        Scale model jacobian at location j
         :param j: Location
         :return: observations x features
         """
@@ -118,7 +118,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return scale * (const1 + const2 + const3)
 
     @property
-    def fim_ab(self) -> np.ndarray:
+    def fim_location_scale(self) -> np.ndarray:
         """
         Location-scale coefficient block of FIM
 
@@ -131,10 +131,10 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: (features x inferred param x inferred param)
         """
-        return np.zeros([self.b_var.shape[1], 0, 0])
+        return np.zeros([self.theta_scale.shape[1], 0, 0])
 
     @property
-    def fim_bb(self) -> np.ndarray:
+    def fim_scale_scale(self) -> np.ndarray:
         """
         Scale-scale coefficient block of FIM
 
@@ -147,17 +147,17 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         :return: (features x inferred param x inferred param)
         """
-        return np.zeros([self.b_var.shape[1], 0, 0])
+        return np.zeros([self.theta_scale.shape[1], 0, 0])
 
     @property
-    def hessian_weight_ab(self):
+    def hessian_weight_location_scale(self):
         """scale-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
         return np.multiply(loc * scale, np.asarray(self.x - loc) / np.square(loc + scale))
 
     @property
-    def hessian_weight_aa(self):
+    def hessian_weight_location_location(self):
         """location-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
@@ -169,7 +169,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return -loc * x_by_scale_plus_one / np.square((loc / scale) + np.ones_like(loc))
 
     @property
-    def hessian_weight_bb(self):
+    def hessian_weight_scale_scale(self):
         """scale-scale block of the hessian matrix"""
         scale = self.scale
         loc = self.location
@@ -245,8 +245,8 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return self.np_clip_param(ll, "ll")
 
     def ll_handle(self):
-        def fun(x, eta_loc, b_var, xh_scale):
-            eta_scale = np.matmul(xh_scale, b_var)
+        def fun(x, eta_loc, theta_scale, xh_scale):
+            eta_scale = np.matmul(xh_scale, theta_scale)
             scale = np.exp(eta_scale)
             loc = np.exp(eta_loc)
             log_r_plus_mu = np.log(scale + loc)
@@ -265,9 +265,9 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         return fun
 
-    def jac_b_handle(self):
-        def fun(x, eta_loc, b_var, xh_scale):
-            scale = np.exp(b_var)
+    def jac_scale_handle(self):
+        def fun(x, eta_loc, theta_scale, xh_scale):
+            scale = np.exp(theta_scale)
             loc = np.exp(eta_loc)
             scale_plus_x = scale + x
             r_plus_mu = scale + loc

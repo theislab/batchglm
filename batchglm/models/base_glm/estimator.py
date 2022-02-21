@@ -25,6 +25,7 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
     input_data : InputDataGLM
         Data to be fit on
     """
+
     model: _ModelGLM
     input_data: InputDataGLM
 
@@ -37,7 +38,7 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         """
         _EstimatorBase.__init__(self=self, model=model, input_data=input_data)
 
-    def plot_coef_a_vs_ref(
+    def plot_coef_location_vs_ref(
         self,
         true_values: np.ndarray,
         size=1,
@@ -64,15 +65,15 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :return: Matplotlib axis objects.
         """
         assert len(true_values.shape) == len(
-            self.model.a_var.shape
-        ), "true_values must have same dimensions as self.a_var"
+            self.model.theta_location.shape
+        ), "true_values must have same dimensions as self.theta_location"
         assert np.all(
-            true_values.shape == self.model.a_var.shape
-        ), "true_values must have same dimensions as self.a_var"
+            true_values.shape == self.model.theta_location.shape
+        ), "true_values must have same dimensions as self.theta_location"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.model.a_var,
+            estim_values=self.model.theta_location,
             size=size,
             log=log,
             save=save,
@@ -84,7 +85,7 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
             return_axs=return_axs,
         )
 
-    def plot_coef_b_vs_ref(
+    def plot_coef_scale_vs_ref(
         self,
         true_values: np.ndarray,
         size=1,
@@ -111,15 +112,15 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :return: Matplotlib axis objects.
         """
         assert len(true_values.shape) == len(
-            self.model.b_var.shape
-        ), "true_values must have same dimensions as self.b_var"
+            self.model.theta_scale.shape
+        ), "true_values must have same dimensions as self.theta_scale"
         assert np.all(
-            true_values.shape == self.model.b_var.shape
-        ), "true_values must have same dimensions as self.b_var"
+            true_values.shape == self.model.theta_scale.shape
+        ), "true_values must have same dimensions as self.theta_scale"
 
         return self._plot_coef_vs_ref(
             true_values=true_values,
-            estim_values=self.model.b_var,
+            estim_values=self.model.theta_scale,
             size=size,
             log=log,
             save=save,
@@ -131,7 +132,7 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
             return_axs=return_axs,
         )
 
-    def plot_deviation_a(self, true_values: np.ndarray, save=None, show=True, return_axs=False):
+    def plot_deviation_location(self, true_values: np.ndarray, save=None, show=True, return_axs=False):
         """
         Plot deviation of estimated coefficients from reference (true) coefficients
         as violin plot for location model.
@@ -144,22 +145,22 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :return: Matplotlib axis objects.
         """
         assert len(true_values.shape) == len(
-            self.model.a_var.shape
-        ), "true_values must have same dimensions as self.a_var"
+            self.model.theta_location.shape
+        ), "true_values must have same dimensions as self.theta_location"
         assert np.all(
-            true_values.shape == self.model.a_var.shape
-        ), "true_values must have same dimensions as self.a_var"
+            true_values.shape == self.model.theta_location.shape
+        ), "true_values must have same dimensions as self.theta_location"
 
         return self._plot_deviation(
             true_values=true_values,
-            estim_values=self.model.a_var,
+            estim_values=self.model.theta_location,
             save=save,
             show=show,
             title="location_model",
             return_axs=return_axs,
         )
 
-    def plot_deviation_b(self, true_values: np.ndarray, save=None, show=True, return_axs=False):
+    def plot_deviation_scale(self, true_values: np.ndarray, save=None, show=True, return_axs=False):
         """
         Plot deviation of estimated coefficients from reference (true) coefficients
         as violin plot for scale model.
@@ -172,15 +173,15 @@ class _EstimatorGLM(_EstimatorBase, metaclass=abc.ABCMeta):
         :return: Matplotlib axis objects.
         """
         assert len(true_values.shape) == len(
-            self.model.b_var.shape
-        ), "true_values must have same dimensions as self.b_var"
+            self.model.theta_scale.shape
+        ), "true_values must have same dimensions as self.theta_scale"
         assert np.all(
-            true_values.shape == self.model.b_var.shape
-        ), "true_values must have same dimensions as self.b_var"
+            true_values.shape == self.model.theta_scale.shape
+        ), "true_values must have same dimensions as self.theta_scale"
 
         return self._plot_deviation(
             true_values=true_values,
-            estim_values=self.model.b_var,
+            estim_values=self.model.theta_scale,
             save=save,
             show=show,
             title="scale_model",

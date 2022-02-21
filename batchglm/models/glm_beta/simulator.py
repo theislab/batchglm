@@ -25,8 +25,8 @@ class Simulator(_SimulatorGLM, Model):
 
         sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
         bounds_min = {
-            "a_var": np.log(zero / (1 - zero)) / sf,
-            "b_var": np.log(zero) / sf,
+            "theta_location": np.log(zero / (1 - zero)) / sf,
+            "theta_scale": np.log(zero) / sf,
             "eta_loc": np.log(zero / (1 - zero)) / sf,
             "eta_scale": np.log(zero) / sf,
             "mean": np.nextafter(0, np.inf, dtype=dtype),
@@ -35,8 +35,8 @@ class Simulator(_SimulatorGLM, Model):
             "log_probs": np.log(zero),
         }
         bounds_max = {
-            "a_var": np.log(one / (1 - one)) / sf,
-            "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "theta_location": np.log(one / (1 - one)) / sf,
+            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.log(one / (1 - one)) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mean": one,
