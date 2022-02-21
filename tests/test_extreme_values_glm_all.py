@@ -37,37 +37,37 @@ class _TestAccuracyXtremeAll(_TestGraphGlmAll):
         )
         self.sim1.input_data = input_data
 
-    def _test_low_values_a_and_b(self):
+    def _test_low_values_location_and_scale(self):
         self._modify_sim(idx=0, val=0.0)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
-    def _test_low_values_a_only(self):
+    def _test_low_values_location_only(self):
         self._modify_sim(idx=0, val=0.0)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
-    def _test_low_values_b_only(self):
+    def _test_low_values_scale_only(self):
         self._modify_sim(idx=0, val=0.0)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
-    def _test_zero_variance_a_and_b(self):
+    def _test_zero_variance_location_and_scale(self):
         self._modify_sim(idx=0, val=5.0)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
-    def _test_zero_variance_a_only(self):
+    def _test_zero_variance_location_only(self):
         self._modify_sim(idx=0, val=5.0)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
-    def _test_zero_variance_b_only(self):
+    def _test_zero_variance_scale_only(self):
         self._modify_sim(idx=0, val=5.0)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
     def _test_all(self):
-        self._test_low_values_a_and_b()
-        self._test_low_values_a_only()
-        self._test_low_values_b_only()
-        self._test_zero_variance_a_and_b()
-        self._test_zero_variance_a_only()
-        self._test_zero_variance_b_only()
+        self._test_low_values_location_and_scale()
+        self._test_low_values_location_only()
+        self._test_low_values_scale_only()
+        self._test_zero_variance_location_and_scale()
+        self._test_zero_variance_location_only()
+        self._test_zero_variance_scale_only()
 
 
 class TestAccuracyXtremeNb(_TestAccuracyXtremeAll, unittest.TestCase):

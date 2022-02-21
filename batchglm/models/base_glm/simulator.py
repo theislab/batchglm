@@ -10,6 +10,9 @@ import scipy
 from .external import _SimulatorBase
 from .input import InputDataGLM
 from .model import _ModelGLM
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def generate_sample_description(
@@ -63,17 +66,17 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         Simulated design martix for scale model
     sample_description : pandas.DataFrame
         A dataframe of data in terms of batch and condition
-    sim_a_var : np.ndarray
+    sim_theta_location : np.ndarray
         Location model parameters
-    sim_b_var : np.ndarray
+    sim_theta_scale : np.ndarray
         Scale model parameters
     """
 
     sim_design_loc: patsy.DesignMatrix = None
     sim_design_scale: patsy.DesignMatrix = None
-    sample_description: pandas.DataFrame  = None
-    sim_a_var: np.ndarray = None
-    sim_b_var: np.ndarray = None
+    sample_description: pandas.DataFrame = None
+    sim_theta_location: np.ndarray = None
+    sim_theta_scale: np.ndarray = None
 
     def __init__(self, num_observations, num_features):
         """
@@ -135,14 +138,14 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         if self.sim_design_scale is None:
             self.sim_design_scale = self.sim_design_loc
 
-        self.sim_a_var = np.concatenate(
+        self.sim_theta_location = np.concatenate(
             [
                 self.link_loc(np.expand_dims(rand_fn_ave([self.nfeatures]), axis=0)),  # intercept
                 rand_fn_loc((self.sim_design_loc.shape[1] - 1, self.nfeatures)),
             ],
             axis=0,
         )
-        self.sim_b_var = np.concatenate([rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))], axis=0)
+        self.sim_theta_scale = np.concatenate([rand_fn_scale((self.sim_design_scale.shape[1], self.nfeatures))], axis=0)
 
     def assemble_input_data(self, data_matrix: np.ndarray, sparse: bool):
         if sparse:
@@ -156,41 +159,41 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         )
 
     @property
-    def a_var(self):
-        """"simulated location model parameters"""
-        return self.sim_a_var
+    def theta_location(self):
+        """simulated location model parameters"""
+        return self.sim_theta_location
 
     @property
-    def b_var(self):
-        """"simulated scale model parameters"""
-        return self.sim_b_var
+    def theta_scale(self):
+        """simulated scale model parameters"""
+        return self.sim_theta_scale
 
     @property
     def design_loc(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
-        """"simulated location model design matrix"""
+        """simulated location model design matrix"""
         return self.sim_design_loc
 
     @property
     def design_scale(self) -> Union[patsy.design_info.DesignMatrix, np.ndarray]:
-        """"simulated scale model design matrix"""
+        """simulated scale model design matrix"""
         return self.sim_design_scale
 
     @property
     def constraints_loc(self):
-        """"simulated constraints on location model"""
-        return np.identity(n=self.a_var.shape[0])
+        """simulated constraints on location model"""
+        return np.identity(n=self.theta_location.shape[0])
 
     @property
     def constraints_scale(self):
-        """"simulated constraints on scale model"""
-        return np.identity(n=self.b_var.shape[0])
+        """simulated constraints on scale model"""
+        return np.identity(n=self.theta_scale.shape[0])
 
     def param_bounds(self, dtype):
-        """"method to be implemented that allows models to constrain certain parameters like means or fitted coefficients"""
+        """method to be implemented that allows models to constrain certain parameters like means or fitted coefficients"""
         pass
 
     def eta_loc_j(self, j) -> np.ndarray:
-        """"method to be implemented that allows fast access to a given observation's eta"""
+        """method to be implemented that allows fast access to a given observation's eta"""
         pass
 
     def np_clip_param(self, param, name):

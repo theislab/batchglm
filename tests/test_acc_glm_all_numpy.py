@@ -48,7 +48,9 @@ class _TestAccuracyGlmAllEstim:
                 chunk_size_genes=2,
             )
 
-        self.estimator = Estimator(input_data=input_data, quick_scale=quick_scale, init_a=init_mode, init_b=init_mode)
+        self.estimator = Estimator(
+            input_data=input_data, quick_scale=quick_scale, init_location=init_mode, init_scale=init_mode
+        )
         self.sim = simulator
 
     def estimate(self):
@@ -63,8 +65,12 @@ class _TestAccuracyGlmAllEstim:
 
         success = True
         if train_loc:
-            mean_rel_dev_a = np.mean((self.estimator.model.a_var - self.sim.a_var) / self.sim.a_var)
-            std_rel_dev_a = np.std((self.estimator.model.a_var - self.sim.a_var) / self.sim.a_var)
+            mean_rel_dev_a = np.mean(
+                (self.estimator.model.theta_location - self.sim.theta_location) / self.sim.theta_location
+            )
+            std_rel_dev_a = np.std(
+                (self.estimator.model.theta_location - self.sim.theta_location) / self.sim.theta_location
+            )
 
             logging.getLogger("batchglm").info("mean_rel_dev_a %f" % mean_rel_dev_a)
             logging.getLogger("batchglm").info("std_rel_dev_a %f" % std_rel_dev_a)
@@ -72,8 +78,8 @@ class _TestAccuracyGlmAllEstim:
             if np.abs(mean_rel_dev_a) > threshold_dev_a or std_rel_dev_a > threshold_std_a:
                 success = False
         if train_scale:
-            mean_rel_dev_b = np.mean((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
-            std_rel_dev_b = np.std((self.estimator.model.b_var - self.sim.b_var) / self.sim.b_var)
+            mean_rel_dev_b = np.mean((self.estimator.model.theta_scale - self.sim.theta_scale) / self.sim.theta_scale)
+            std_rel_dev_b = np.std((self.estimator.model.theta_scale - self.sim.theta_scale) / self.sim.theta_scale)
 
             logging.getLogger("batchglm").info("mean_rel_dev_b %f" % mean_rel_dev_b)
             logging.getLogger("batchglm").info("std_rel_dev_b %f" % std_rel_dev_b)
@@ -94,14 +100,14 @@ class _TestAccuracyGlmAll(unittest.TestCase):
     for each training graph. The training graphs tested are as follows:
 
      - full data model
-        - train a and b model: test_full_global_a_and_b()
-        - train a model only: test_full_global_a_only()
-        - train b model only: test_full_global_b_only()
+        - train a and b model: test_full_global_location_and_scale()
+        - train a model only: test_full_global_location_only()
+        - train b model only: test_full_global_scale_only()
 
     - batched data model
-        - train a and b model: test_batched_global_a_and_b()
-        - train a model only: test_batched_global_a_only()
-        - train b model only: test_batched_global_b_only()
+        - train a and b model: test_batched_global_location_and_scale()
+        - train a model only: test_batched_global_location_only()
+        - train b model only: test_batched_global_scale_only()
 
     The unit tests throw an assertion error if the required accurcy is
     not met. Accuracy thresholds are fairly lenient so that unit_tests
@@ -249,33 +255,33 @@ class _TestAccuracyGlmAll(unittest.TestCase):
 
         return True
 
-    def _test_full_a_and_b(self, sparse):
+    def _test_full_location_and_scale(self, sparse):
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=sparse)
 
-    def _test_full_a_only(self, sparse):
+    def _test_full_location_only(self, sparse):
         return self.basic_test(batched=False, train_loc=True, train_scale=False, sparse=sparse)
 
-    def _test_full_b_only(self, sparse):
+    def _test_full_scale_only(self, sparse):
         return self.basic_test(batched=False, train_loc=False, train_scale=True, sparse=sparse)
 
-    def _test_batched_a_and_b(self, sparse):
+    def _test_batched_location_and_scale(self, sparse):
         return self.basic_test(batched=True, train_loc=True, train_scale=True, sparse=sparse)
 
-    def _test_batched_a_only(self, sparse):
+    def _test_batched_location_only(self, sparse):
         return self.basic_test(batched=True, train_loc=True, train_scale=False, sparse=sparse)
 
-    def _test_batched_b_only(self, sparse):
+    def _test_batched_scale_only(self, sparse):
         return self.basic_test(batched=True, train_loc=False, train_scale=True, sparse=sparse)
 
     def _test_full(self, sparse):
-        self._test_full_a_and_b(sparse=sparse)
-        self._test_full_a_only(sparse=sparse)
-        self._test_full_b_only(sparse=sparse)
+        self._test_full_location_and_scale(sparse=sparse)
+        self._test_full_location_only(sparse=sparse)
+        self._test_full_scale_only(sparse=sparse)
 
     def _test_batched(self, sparse):
-        self._test_batched_a_and_b(sparse=sparse)
-        self._test_batched_a_only(sparse=sparse)
-        self._test_batched_b_only(sparse=sparse)
+        self._test_batched_location_and_scale(sparse=sparse)
+        self._test_batched_location_only(sparse=sparse)
+        self._test_batched_scale_only(sparse=sparse)
 
 
 class TestAccuracyGlmNb(_TestAccuracyGlmAll, unittest.TestCase):

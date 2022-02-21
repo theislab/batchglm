@@ -91,14 +91,14 @@ class _TestGraphGlmAll:
     to accuracy outliers. The training graphs covered are:
 
      - full data model
-        - train a and b model: test_full_global_a_and_b()
-        - train a model only: test_full_global_a_only()
-        - train b model only: test_full_global_b_only()
+        - train a and b model: test_full_global_location_and_scale()
+        - train a model only: test_full_global_location_only()
+        - train b model only: test_full_global_scale_only()
 
     - batched data model
-        - train a and b model: test_batched_global_a_and_b()
-        - train a model only: test_batched_global_a_only()
-        - train b model only: test_batched_global_b_only()
+        - train a and b model: test_batched_global_location_and_scale()
+        - train a model only: test_batched_global_location_only()
+        - train b model only: test_batched_global_scale_only()
     """
 
     noise_model: str
@@ -162,35 +162,35 @@ class _TestGraphGlmAll:
                 batched=batched, train_loc=train_loc, train_scale=train_scale, algo=algo, sparse=sparse
             )
 
-    def _test_full_a_and_b(self, sparse):
+    def _test_full_location_and_scale(self, sparse):
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=sparse)
 
-    def _test_full_a_only(self, sparse):
+    def _test_full_location_only(self, sparse):
         return self.basic_test(batched=False, train_loc=True, train_scale=False, sparse=sparse)
 
-    def _test_full_b_only(self, sparse):
+    def _test_full_scale_only(self, sparse):
         return self.basic_test(batched=False, train_loc=False, train_scale=True, sparse=sparse)
 
-    def _test_batched_a_and_b(self, sparse):
+    def _test_batched_location_and_scale(self, sparse):
         return self.basic_test(batched=True, train_loc=True, train_scale=True, sparse=sparse)
 
-    def _test_batched_a_only(self, sparse):
+    def _test_batched_location_only(self, sparse):
         return self.basic_test(batched=True, train_loc=True, train_scale=False, sparse=sparse)
 
-    def _test_batched_b_only(self, sparse):
+    def _test_batched_scale_only(self, sparse):
         return self.basic_test(batched=True, train_loc=False, train_scale=True, sparse=sparse)
 
     def _test_full(self, sparse):
         self.simulate()
-        self._test_full_a_and_b(sparse=sparse)
-        self._test_full_a_only(sparse=sparse)
-        self._test_full_b_only(sparse=sparse)
+        self._test_full_location_and_scale(sparse=sparse)
+        self._test_full_location_only(sparse=sparse)
+        self._test_full_scale_only(sparse=sparse)
 
     def _test_batched(self, sparse):
         self.simulate()
-        self._test_batched_a_and_b(sparse=sparse)
-        self._test_batched_a_only(sparse=sparse)
-        self._test_batched_b_only(sparse=sparse)
+        self._test_batched_location_and_scale(sparse=sparse)
+        self._test_batched_location_only(sparse=sparse)
+        self._test_batched_scale_only(sparse=sparse)
 
 
 class TestGraphGlmNb(_TestGraphGlmAll, unittest.TestCase):

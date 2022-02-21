@@ -25,6 +25,7 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
     """
     Estimator base class
     """
+
     model: _ModelBase
     _loss: np.ndarray
     _jacobian: np.ndarray
@@ -59,39 +60,39 @@ class _EstimatorBase(metaclass=abc.ABCMeta):
 
     @property
     def jacobian(self) -> np.ndarray:
-        """"Current Jacobian of the log likelihood"""
+        """Current Jacobian of the log likelihood"""
         return self._jacobian
 
     @property
     def hessian(self) -> np.ndarray:
-        """"Current Hessian of the log likelihood"""
+        """Current Hessian of the log likelihood"""
         return self._hessian
 
     @property
     def fisher_inv(self) -> np.ndarray:
-        """"Current Fisher Inverse Matrix"""
+        """Current Fisher Inverse Matrix"""
         return self._fisher_inv
 
     @property
     def x(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """"Data Matrix"""
+        """Data Matrix"""
         return self.input_data.x
 
     @property
-    def a_var(self):
-        """"Fit location parameter"""
-        if isinstance(self.model.a_var, dask.array.core.Array):
-            return self.model.a_var.compute()
+    def theta_location(self):
+        """Fit location parameter"""
+        if isinstance(self.model.theta_location, dask.array.core.Array):
+            return self.model.theta_location.compute()
         else:
-            return self.model.a_var
+            return self.model.theta_location
 
     @property
-    def b_var(self) -> np.ndarray:
+    def theta_scale(self) -> np.ndarray:
         """Fit scale parameter"""
-        if isinstance(self.model.b_var, dask.array.core.Array):
-            return self.model.b_var.compute()
+        if isinstance(self.model.theta_scale, dask.array.core.Array):
+            return self.model.theta_scale.compute()
         else:
-            return self.model.b_var
+            return self.model.theta_scale
 
     @abc.abstractmethod
     def initialize(self, **kwargs):

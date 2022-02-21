@@ -13,8 +13,8 @@ import scipy.sparse
 import sparse
 
 from ....models.base_glm import InputDataGLM
-from .model import ModelIwls
 from .external import _EstimatorGLM, pkg_constants
+from .model import ModelIwls
 from .training_strategies import TrainingStrategies
 
 logger = logging.getLogger("batchglm")
@@ -60,11 +60,11 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
     def train(
         self,
         max_steps: int = 100,
-        method_b: str = "brent",
-        update_b_freq: int = 5,
-        ftol_b: float = 1e-8,
-        lr_b: float = 1e-2,
-        max_iter_b: int = 1000,
+        method_scale: str = "brent",
+        update_scale_freq: int = 5,
+        ftol_scale: float = 1e-8,
+        lr_scale: float = 1e-2,
+        max_iter_scale: int = 1000,
         nproc: int = 3,
         **kwargs
     ):
@@ -73,22 +73,22 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         Convergence decision:
         Location and scale model updates are done in separate iterations and are done with different algorithms.
-        Scale model updates are much less frequent (only every update_b_freq-th iteration) as they are much slower.
-        During a stretch of update_b_freq number of location model updates between two scale model updates, convergence
+        Scale model updates are much less frequent (only every update_scale_freq-th iteration) as they are much slower.
+        During a stretch of update_scale_freq number of location model updates between two scale model updates, convergence
         of the location model is tracked with self.model.converged. This is re-set after a scale model update, as this
         convergence only holds conditioned on a particular scale model value.
         Full convergence of a feature wise model is evaluated after each scale model update: If the loss function based
         convergence criterium holds across the cumulative updates of the sequence of location updates and last scale
         model update, the feature is considered converged. For this, the loss value at the last scale model update is
-        save in ll_last_b_update. Full convergence is saved in fully_converged.
+        save in ll_last_scale_update. Full convergence is saved in fully_converged.
 
         :param max_steps:
-        :param method_b:
-        :param update_b_freq: One over minimum frequency of scale model updates per location model update.
-            A scale model update will be run at least every update_b_freq number of location model update iterations.
-        :param ftol_b:
-        :param lr_b:
-        :param max_iter_b:
+        :param method_scale:
+        :param update_scale_freq: One over minimum frequency of scale model updates per location model update.
+            A scale model update will be run at least every update_scale_freq number of location model update iterations.
+        :param ftol_scale:
+        :param lr_scale:
+        :param max_iter_scale:
         :param nproc:
         :param kwargs:
         :return:
@@ -97,38 +97,43 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         train_step = 0
         if self._train_scale:
             if not self._train_loc:
-                update_b_freq = 1
+                update_scale_freq = 1
         else:
-            update_b_freq = np.inf
-        epochs_until_b_update = update_b_freq
+            update_scale_freq = np.inf
+        epochs_until_scale_update = update_scale_freq
         fully_converged = np.tile(False, self.model.model_vars.n_features)
 
         ll_current = -self.model.ll_byfeature.compute()
-        ll_last_b_update = ll_current.copy()
+        ll_last_scale_update = ll_current.copy()
         # logging.getLogger("batchglm").info(
         sys.stdout.write("iter   %i: ll=%f\n" % (0, np.sum(ll_current)))
         while np.any(np.logical_not(fully_converged)) and train_step < max_steps:
             t0 = time.time()
             # Line search step for scale model:
-            # Run this update every update_b_freq iterations.
-            if epochs_until_b_update == 0:
+            # Run this update every update_scale_freq iterations.
+            if epochs_until_scale_update == 0:
                 # Compute update.
                 idx_update = np.where(np.logical_not(fully_converged))[0]
                 if self._train_scale:
                     b_step = self.b_step(
-                        idx_update=idx_update, method=method_b, ftol=ftol_b, lr=lr_b, max_iter=max_iter_b, nproc=nproc
+                        idx_update=idx_update,
+                        method=method_scale,
+                        ftol=ftol_scale,
+                        lr=lr_scale,
+                        max_iter=max_iter_scale,
+                        nproc=nproc,
                     )
                     # Perform trial update.
-                    self.model.b_var = self.model.b_var + b_step
+                    self.model.theta_scale = self.model.theta_scale + b_step
                     # Reverse update by feature if update leads to worse loss:
                     ll_proposal = -self.model.ll_byfeature_j(j=idx_update).compute()
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                    if isinstance(self.model.b_var, dask.array.core.Array):
-                        b_var_new = self.model.b_var.compute()
+                    if isinstance(self.model.theta_scale, dask.array.core.Array):
+                        theta_scale_new = self.model.theta_scale.compute()
                     else:
-                        b_var_new = self.model.b_var.copy()
-                    b_var_new[:, idx_bad_step] = b_var_new[:, idx_bad_step] - b_step[:, idx_bad_step]
-                    self.model.b_var = b_var_new
+                        theta_scale_new = self.model.theta_scale.copy()
+                    theta_scale_new[:, idx_bad_step] = theta_scale_new[:, idx_bad_step] - b_step[:, idx_bad_step]
+                    self.model.theta_scale = theta_scale_new
                 else:
                     ll_proposal = ll_current[idx_update]
                     idx_bad_step = np.array([], dtype=np.int32)
@@ -137,7 +142,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 ll_new[idx_update] = ll_proposal
                 ll_new[idx_bad_step] = ll_current[idx_bad_step]
                 # Reset b model update counter.
-                epochs_until_b_update = update_b_freq
+                epochs_until_scale_update = update_scale_freq
             else:
                 # IWLS step for location model:
                 # Compute update.
@@ -145,16 +150,16 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 if self._train_loc:
                     a_step = self.iwls_step(idx_update=idx_update)
                     # Perform trial update.
-                    self.model.a_var = self.model.a_var + a_step
+                    self.model.theta_location = self.model.theta_location + a_step
                     # Reverse update by feature if update leads to worse loss:
                     ll_proposal = -self.model.ll_byfeature_j(j=idx_update).compute()
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                    if isinstance(self.model.b_var, dask.array.core.Array):
-                        a_var_new = self.model.a_var.compute()
+                    if isinstance(self.model.theta_scale, dask.array.core.Array):
+                        theta_location_new = self.model.theta_location.compute()
                     else:
-                        a_var_new = self.model.a_var.copy()
-                    a_var_new[:, idx_bad_step] = a_var_new[:, idx_bad_step] - a_step[:, idx_bad_step]
-                    self.model.a_var = a_var_new
+                        theta_location_new = self.model.theta_location.copy()
+                    theta_location_new[:, idx_bad_step] = theta_location_new[:, idx_bad_step] - a_step[:, idx_bad_step]
+                    self.model.theta_location = theta_location_new
                 else:
                     ll_proposal = ll_current[idx_update]
                     idx_bad_step = np.array([], dtype=np.int32)
@@ -163,24 +168,24 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 ll_new[idx_update] = ll_proposal
                 ll_new[idx_bad_step] = ll_current[idx_bad_step]
                 # Update epoch counter of a updates until next b update:
-                epochs_until_b_update -= 1
+                epochs_until_scale_update -= 1
 
             # Evaluate and update convergence:
             ll_previous = ll_current
             ll_current = ll_new
-            if epochs_until_b_update == update_b_freq:  # b step update was executed.
+            if epochs_until_scale_update == update_scale_freq:  # b step update was executed.
                 # Update terminal convergence in fully_converged and intermediate convergence in self.model.converged.
                 converged_f = np.logical_or(
-                    ll_last_b_update < ll_current,  # loss gets worse
-                    np.abs(ll_last_b_update - ll_current)
+                    ll_last_scale_update < ll_current,  # loss gets worse
+                    np.abs(ll_last_scale_update - ll_current)
                     / np.maximum(  # relative decrease in loss is too small
                         np.nextafter(0, np.inf, dtype=ll_previous.dtype),  # catch division by zero
-                        np.abs(ll_last_b_update),
+                        np.abs(ll_last_scale_update),
                     )
                     < pkg_constants.LLTOL_BY_FEATURE,
                 )
                 self.model.converged = np.logical_or(fully_converged, converged_f)
-                ll_last_b_update = ll_current.copy()
+                ll_last_scale_update = ll_current.copy()
                 fully_converged = self.model.converged.copy()
             else:
                 # Update intermediate convergence in self.model.converged.
@@ -196,7 +201,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 if np.all(self.model.converged):
                     # All location models are converged. This means that the next update will be b model
                     # update and all remaining intermediate a model updates can be skipped:
-                    epochs_until_b_update = 0
+                    epochs_until_scale_update = 0
 
             # Conclude and report iteration.
             train_step += 1
@@ -208,7 +213,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     np.sum(ll_current),
                     np.mean(fully_converged) * 100,
                     np.mean(self.model.converged) * 100,
-                    str(epochs_until_b_update == update_b_freq),
+                    str(epochs_until_scale_update == update_scale_freq),
                     time.time() - t0,
                 )
             )
@@ -226,7 +231,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         A single step in IWLS
         :return: np.ndarray  (inferred param x features)
         """
-        w = self.model.fim_weight_aa_j(j=idx_update)  # (observations x features)
+        w = self.model.fim_weight_location_location_j(j=idx_update)  # (observations x features)
         ybar = self.model.ybar_j(j=idx_update)  # (observations x features)
         # Translate to problem of form ax = b for each feature:
         # (in the following, X=design and Y=counts)
@@ -238,7 +243,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         a = np.einsum("fob,oc->fbc", xhw, xh)
         b = np.einsum("fob,of->fb", xhw, ybar)
 
-        delta_theta = np.zeros_like(self.model.a_var)
+        delta_theta = np.zeros_like(self.model.theta_location)
         if isinstance(delta_theta, dask.array.core.Array):
             # Need to copy to prevent returning an immutable view of the data
             delta_theta = delta_theta.compute().copy()
@@ -300,35 +305,39 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         :return:
         """
         if method.lower() in ["gd"]:
-            return self._b_step_gd(idx_update=idx_update, ftol=ftol, lr=lr, max_iter=max_iter)
+            return self._scale_step_gd(idx_update=idx_update, ftol=ftol, lr=lr, max_iter=max_iter)
         else:
-            return self._b_step_loop(idx_update=idx_update, method=method, ftol=ftol, max_iter=max_iter, nproc=nproc)
+            return self._scale_step_loop(
+                idx_update=idx_update, method=method, ftol=ftol, max_iter=max_iter, nproc=nproc
+            )
 
-    def _b_step_gd(self, idx_update: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
+    def _scale_step_gd(self, idx_update: np.ndarray, ftol: float, max_iter: int, lr: float) -> np.ndarray:
         """
         A single gradient descent stop for the scale model
         :return:
         """
         iter = 0
-        b_var_old = self.model.b_var.compute()
+        theta_scale_old = self.model.theta_scale.compute()
         converged = np.tile(True, self.model.model_vars.n_features)
         converged[idx_update] = False
         ll_current = -self.model.ll_byfeature.compute()
         while np.any(np.logical_not(converged)) and iter < max_iter:
             idx_to_update = np.where(np.logical_not(converged))[0]
-            jac = np.zeros_like(self.model.b_var).compute()
+            jac = np.zeros_like(self.model.theta_scale).compute()
             # Use mean jacobian so that learning rate is independent of number of samples.
             jac[:, idx_to_update] = (
-                self.model.jac_b_j(j=idx_to_update).compute().T / self.model.input_data.num_observations
+                self.model.jac_scale_j(j=idx_to_update).compute().T / self.model.input_data.num_observations
             )
-            self.model.b_var_j_setter(value=(self.model.b_var.compute() + lr * jac)[:, idx_to_update], j=idx_to_update)
+            self.model.theta_scale_j_setter(
+                value=(self.model.theta_scale.compute() + lr * jac)[:, idx_to_update], j=idx_to_update
+            )
             # Assess convergence:
             ll_previous = ll_current
             ll_current = -self.model.ll_byfeature.compute()
             converged_f = (ll_current - ll_previous) / ll_previous > -ftol
-            b_var_new = self.model.b_var.compute()
-            b_var_new[:, converged_f] = b_var_new[:, converged_f] - lr * jac[:, converged_f]
-            self.model.b_var = b_var_new
+            theta_scale_new = self.model.theta_scale.compute()
+            theta_scale_new[:, converged_f] = theta_scale_new[:, converged_f] - lr * jac[:, converged_f]
+            self.model.theta_scale = theta_scale_new
             converged = np.logical_or(converged, converged_f)
             iter += 1
             logging.getLogger("batchglm").info(
@@ -339,7 +348,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     np.mean(converged) * 100,
                 )
             )
-        return self.model.b_var.compute() - b_var_old
+        return self.model.theta_scale.compute() - theta_scale_old
 
     def optim_handle(self, b_j, data_j, eta_loc_j, xh_scale, max_iter, ftol):
         # Need to supply dense numpy array to scipy optimize:
@@ -350,20 +359,20 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
         ll = self.model.ll_handle()
         lb, ub = self.model.param_bounds(dtype=data_j.dtype)
-        lb_bracket = np.max([lb["b_var"], b_j - 20])
-        ub_bracket = np.min([ub["b_var"], b_j + 20])
+        lb_bracket = np.max([lb["theta_scale"], b_j - 20])
+        ub_bracket = np.min([ub["theta_scale"], b_j + 20])
 
-        def cost_b_var(x, data_jj, eta_loc_jj, xh_scale_jj):
-            x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
+        def cost_theta_scale(x, data_jj, eta_loc_jj, xh_scale_jj):
+            x = np.clip(np.array([[x]]), lb["theta_scale"], ub["theta_scale"])
             return -np.sum(ll(data_jj, eta_loc_jj, x, xh_scale_jj))
 
-        # jac_b = self.model.jac_b_handle()
-        # def cost_b_var_prime(x, data_jj, eta_loc_jj, xh_scale_jj):
-        #    x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
-        #    return - np.sum(jac_b(data_jj, eta_loc_jj, x, xh_scale_jj))
+        # jac_scale = self.model.jac_scale_handle()
+        # def cost_theta_scale_prime(x, data_jj, eta_loc_jj, xh_scale_jj):
+        #    x = np.clip(np.array([[x]]), lb["theta_scale"], ub["theta_scale"])
+        #    return - np.sum(jac_scale(data_jj, eta_loc_jj, x, xh_scale_jj))
         # return scipy.optimize.line_search(
-        #    f=cost_b_var,
-        #    myfprime=cost_b_var_prime,
+        #    f=cost_theta_scale,
+        #    myfprime=cost_theta_scale_prime,
         #    args=(data_j, eta_loc_j, xh_scale),
         #    maxiter=max_iter,
         #    xk=b_j+5,
@@ -371,7 +380,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         # )
 
         return scipy.optimize.brent(
-            func=cost_b_var,
+            func=cost_theta_scale,
             args=(data_j, eta_loc_j, xh_scale),
             maxiter=max_iter,
             tol=ftol,
@@ -379,18 +388,20 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             full_output=True,
         )
 
-    def _b_step_loop(self, idx_update: np.ndarray, method: str, max_iter: int, ftol: float, nproc: int) -> np.ndarray:
+    def _scale_step_loop(
+        self, idx_update: np.ndarray, method: str, max_iter: int, ftol: float, nproc: int
+    ) -> np.ndarray:
         """
         A single loop step for the scale model
         :return:
         """
-        delta_theta = np.zeros_like(self.model.b_var)
+        delta_theta = np.zeros_like(self.model.theta_scale)
         if isinstance(delta_theta, dask.array.core.Array):
             # Need to copy to prevent returning an immutable view of the data
             delta_theta = delta_theta.compute().copy()
 
         xh_scale = np.matmul(self.model.design_scale, self.model.constraints_scale).compute()
-        b_var = self.model.b_var.compute()
+        theta_scale = self.model.theta_scale.compute()
         if nproc > 1 and len(idx_update) > nproc:
             sys.stdout.write(
                 "\rFitting %i dispersion models: (progress not available with multiprocessing)" % len(idx_update)
@@ -401,7 +412,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 eta_loc = self.model.eta_loc.compute()
                 results = pool.starmap(
                     self.optim_handle,
-                    [(b_var[0, j], x[:, [j]], eta_loc[:, [j]], xh_scale, max_iter, ftol) for j in idx_update],
+                    [(theta_scale[0, j], x[:, [j]], eta_loc[:, [j]], xh_scale, max_iter, ftol) for j in idx_update],
                 )
                 pool.close()
             delta_theta[0, idx_update] = np.array([x[0] for x in results])
@@ -424,15 +435,15 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
 
                     ll = self.model.ll_handle()
                     lb, ub = self.model.param_bounds(dtype=data.dtype)
-                    lb_bracket = np.max([lb["b_var"], b_var[0, j] - 20])
-                    ub_bracket = np.min([ub["b_var"], b_var[0, j] + 20])
+                    lb_bracket = np.max([lb["theta_scale"], theta_scale[0, j] - 20])
+                    ub_bracket = np.min([ub["theta_scale"], theta_scale[0, j] + 20])
 
-                    def cost_b_var(x, data_j, eta_loc_j, xh_scale_j):
-                        x = np.clip(np.array([[x]]), lb["b_var"], ub["b_var"])
+                    def cost_theta_scale(x, data_j, eta_loc_j, xh_scale_j):
+                        x = np.clip(np.array([[x]]), lb["theta_scale"], ub["theta_scale"])
                         return -np.sum(ll(data_j, eta_loc_j, x, xh_scale_j))
 
                     delta_theta[0, j] = scipy.optimize.brent(
-                        func=cost_b_var,
+                        func=cost_theta_scale,
                         args=(data, eta_loc, xh_scale),
                         maxiter=max_iter,
                         tol=ftol,
@@ -444,10 +455,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             sys.stdout.write("\r")
             sys.stdout.flush()
 
-        if isinstance(self.model.b_var, dask.array.core.Array):
-            delta_theta[:, idx_update] = delta_theta[:, idx_update] - self.model.b_var.compute()[:, idx_update]
+        if isinstance(self.model.theta_scale, dask.array.core.Array):
+            delta_theta[:, idx_update] = delta_theta[:, idx_update] - self.model.theta_scale.compute()[:, idx_update]
         else:
-            delta_theta[:, idx_update] = delta_theta[:, idx_update] - self.model.b_var.copy()[:, idx_update]
+            delta_theta[:, idx_update] = delta_theta[:, idx_update] - self.model.theta_scale.copy()[:, idx_update]
         return delta_theta
 
     def finalize(self):

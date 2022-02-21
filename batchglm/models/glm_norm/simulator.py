@@ -2,7 +2,9 @@ import numpy as np
 
 from .external import _SimulatorGLM, pkg_constants
 from .model import Model
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Simulator(_SimulatorGLM, Model):
     """
@@ -21,8 +23,8 @@ class Simulator(_SimulatorGLM, Model):
 
         sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
         bounds_min = {
-            "a_var": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
-            "b_var": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "theta_location": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_loc": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
             "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "mean": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
@@ -31,8 +33,8 @@ class Simulator(_SimulatorGLM, Model):
             "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
         }
         bounds_max = {
-            "a_var": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
-            "b_var": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "theta_location": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "mean": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,

@@ -31,7 +31,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     @property
     def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
-        eta = np.matmul(self.design_loc, self.a)
+        eta = np.matmul(self.design_loc, self.theta_location_constrained)
         if self.size_factors is not None:
             eta += self.size_factors
         eta = self.np_clip_param(eta, "eta_loc")
@@ -41,7 +41,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        eta = np.matmul(self.design_loc, self.a[:, j])
+        eta = np.matmul(self.design_loc, self.theta_location_constrained[:, j])
         if self.size_factors is not None:
             eta += self.size_factors
         eta = self.np_clip_param(eta, "eta_loc")
