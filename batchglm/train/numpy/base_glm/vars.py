@@ -3,7 +3,6 @@ from typing import Union
 
 import dask.array
 import numpy as np
-import scipy.sparse
 
 
 class ModelVarsGlm:
@@ -26,20 +25,23 @@ class ModelVarsGlm:
         Model parameters
     converged : np.ndarray
         Whether or not a parameter has converged
-    npar_a : int
-    dtype : str
-    n_features : int
     idx_train_loc : np.ndarray
         Training indices for location model
     idx_train_scale : np.ndarray
         Training indices for scale model
+    npar_location : int
+        number of location parameters
+    dtype : str
+        data type to be used
+    n_features : int
+        number of features
     """
 
     constraints_loc: Union[np.ndarray, dask.array.core.Array]
     constraints_scale: Union[np.ndarray, dask.array.core.Array]
     params: Union[np.ndarray, dask.array.core.Array]
     converged: np.ndarray
-    npar_a: int
+    npar_location: int
     dtype: str
     n_features: int
 
@@ -81,7 +83,7 @@ class ModelVarsGlm:
             ),
             chunks=(1000, chunk_size_genes),
         )
-        self.npar_a = init_location_clipped.shape[0]
+        self.npar_location = init_location_clipped.shape[0]
 
         # Properties to follow gene-wise convergence.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
@@ -99,7 +101,7 @@ class ModelVarsGlm:
     @property
     def theta_location(self):
         """Location parameters"""
-        theta_location = self.params[0 : self.npar_a]
+        theta_location = self.params[0 : self.npar_location]
         return self.np_clip_param(theta_location, "theta_location")
 
     @theta_location.setter
@@ -109,15 +111,15 @@ class ModelVarsGlm:
         # Write either new dask array or into numpy array:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
-            temp[0 : self.npar_a] = value
+            temp[0 : self.npar_location] = value
             self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
-            self.params[0 : self.npar_a] = value
+            self.params[0 : self.npar_location] = value
 
     @property
     def theta_scale(self):
         """Scale parameters"""
-        theta_scale = self.params[self.npar_a :]
+        theta_scale = self.params[self.npar_location :]
         return self.np_clip_param(theta_scale, "theta_scale")
 
     @theta_scale.setter
@@ -127,10 +129,10 @@ class ModelVarsGlm:
         # Write either new dask array or into numpy array:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
-            temp[self.npar_a :] = value
+            temp[self.npar_location :] = value
             self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
-            self.params[self.npar_a :] = value
+            self.params[self.npar_location :] = value
 
     def theta_scale_j_setter(self, value, j):
         """Setter ofr a specific theta_scale value."""
@@ -139,10 +141,10 @@ class ModelVarsGlm:
         # Write either new dask array or into numpy array:
         if isinstance(self.params, dask.array.core.Array):
             temp = self.params.compute()
-            temp[self.npar_a :, j] = value
+            temp[self.npar_location :, j] = value
             self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
-            self.params[self.npar_a :, j] = value
+            self.params[self.npar_location :, j] = value
 
     @abc.abstractmethod
     def param_bounds(self, dtype):

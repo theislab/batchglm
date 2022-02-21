@@ -10,9 +10,6 @@ import scipy
 from .external import _SimulatorBase
 from .input import InputDataGLM
 from .model import _ModelGLM
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def generate_sample_description(
@@ -93,7 +90,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
 
         :param num_conditions: Number of conditions for the design matrix.
         :param num_batches: Number of batches for the design matrix.
-        :param intercept_scale: Whether or not to provide an intercept for the scale model (otherwise just use the location design matrix).
+        :param intercept_scale: Whether to use an intercept for the scale model (use the location design matrix).
         """
         self.sim_design_loc, self.sample_description = generate_sample_description(
             self.nobs, num_conditions=num_conditions, num_batches=num_batches, **kwargs
@@ -189,7 +186,7 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         return np.identity(n=self.theta_scale.shape[0])
 
     def param_bounds(self, dtype):
-        """method to be implemented that allows models to constrain certain parameters like means or fitted coefficients"""
+        """method to be implemented for constraining parameters like means or fitted coefficients"""
         pass
 
     def eta_loc_j(self, j) -> np.ndarray:

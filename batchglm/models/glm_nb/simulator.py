@@ -2,9 +2,6 @@ import numpy as np
 
 from .external import _SimulatorGLM, pkg_constants
 from .model import Model
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class Simulator(_SimulatorGLM, Model):

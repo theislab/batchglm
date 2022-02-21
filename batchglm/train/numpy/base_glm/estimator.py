@@ -74,9 +74,10 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         Convergence decision:
         Location and scale model updates are done in separate iterations and are done with different algorithms.
         Scale model updates are much less frequent (only every update_scale_freq-th iteration) as they are much slower.
-        During a stretch of update_scale_freq number of location model updates between two scale model updates, convergence
-        of the location model is tracked with self.model.converged. This is re-set after a scale model update, as this
-        convergence only holds conditioned on a particular scale model value.
+        During a stretch of update_scale_freq number of location model updates between two scale model updates,
+        convergence of the location model is tracked with self.model.converged.
+        This is re-set after a scale model update,
+        as this convergence only holds conditioned on a particular scale model value.
         Full convergence of a feature wise model is evaluated after each scale model update: If the loss function based
         convergence criterium holds across the cumulative updates of the sequence of location updates and last scale
         model update, the feature is considered converged. For this, the loss value at the last scale model update is
@@ -85,7 +86,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         :param max_steps:
         :param method_scale:
         :param update_scale_freq: One over minimum frequency of scale model updates per location model update.
-            A scale model update will be run at least every update_scale_freq number of location model update iterations.
+            A scale model update will be run at least
+            every update_scale_freq number of location model update iterations.
         :param ftol_scale:
         :param lr_scale:
         :param max_iter_scale:
