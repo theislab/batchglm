@@ -1,16 +1,15 @@
 import abc
 import math
 from typing import Tuple, Union
+import logging
 
 import numpy as np
 import pandas
 import patsy
 import scipy
+import dask.array
 
-from .external import _SimulatorBase
 from .input import InputDataGLM
-from .model import _ModelGLM
-
 
 def generate_sample_description(
     num_observations, num_conditions: int = 2, num_batches: int = 4, shuffle_assignments=False
@@ -45,7 +44,7 @@ def generate_sample_description(
     return patsy.dmatrix("~1+condition+batch", sample_description), sample_description
 
 
-class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
+class _SimulatorGLM(metaclass=abc.ABCMeta):
     """
     Simulator for Generalized Linear Models (GLMs).
     Simulator base class.
@@ -67,6 +66,10 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         Location model parameters
     sim_theta_scale : np.ndarray
         Scale model parameters
+    nobs : int
+        Number of observations
+    nfeatures : int
+        Number of features
     """
 
     sim_design_loc: patsy.DesignMatrix = None
@@ -74,6 +77,8 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
     sample_description: pandas.DataFrame = None
     sim_theta_location: np.ndarray = None
     sim_theta_scale: np.ndarray = None
+    nobs: int
+    nfeatures: int
 
     def __init__(self, num_observations, num_features):
         """
@@ -82,7 +87,8 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         :param num_observations: Number of observations
         :param num_features: Number of featurews
         """
-        _SimulatorBase.__init__(self=self, num_observations=num_observations, num_features=num_features)
+        self.nobs = num_observations
+        self.nfeatures = num_features
 
     def generate_sample_description(self, num_conditions=2, num_batches=4, intercept_scale: bool = False, **kwargs):
         """
@@ -197,3 +203,34 @@ class _SimulatorGLM(_SimulatorBase, metaclass=abc.ABCMeta):
         # TODO: inherit this from somewhere?
         bounds_min, bounds_max = self.param_bounds(param.dtype)
         return np.clip(param, bounds_min[name], bounds_max[name])
+
+    def generate(self, sparse: bool = False):
+        """
+        First generates the parameter set, then observations random data using these parameters.
+
+        :param sparse: Description of parameter `sparse`.
+        """
+        self.generate_params()
+        self.generate_data(sparse=sparse)
+
+    @abc.abstractmethod
+    def generate_data(self, *args, **kwargs):
+        """
+        Should sample random data based on distribution and parameters.
+
+        :param type args: TODO.
+        :param type kwargs: TODO.
+        """
+        pass
+
+    @abc.abstractmethod
+    def generate_params(self, *args, **kwargs):
+        """
+        Should generate all necessary parameters.
+
+        :param type args: TODO.
+        :param type kwargs: TODO.
+        :return: Description of returned object.
+        :rtype: type
+        """
+        pass

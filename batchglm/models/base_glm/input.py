@@ -1,23 +1,29 @@
 try:
     import anndata
+    try:
+        from anndata.base import Raw
+    except ImportError:
+        from anndata import Raw
 except ImportError:
     anndata = None
+    Raw = None
 from typing import List, Optional, Union
+import logging
+from operator import indexOf
 
 import dask.array
 import numpy as np
 import pandas as pd
 import patsy
 import scipy.sparse
+import sparse
 
-from .external import InputDataBase
 from .utils import parse_constraints, parse_design
 
 
-class InputDataGLM(InputDataBase):
+class InputDataGLM():
     """
     Input data for Generalized Linear Models (GLMs).
-    Inherits from batchglm.models.base.input.InputDataBase.
     Contains additional information that is specific to GLM's like design matrices and constraints.
 
     Attributes
@@ -38,7 +44,23 @@ class InputDataGLM(InputDataBase):
         This form of constraints is used in vector generalized linear models (VGLMs).
     size_factors: np.ndarray
         Constant scale factors of the mean model in the linker space.
+    features : List[str]
+        Names of the features' names
+    observations : List[str]
+        Names of the observations' names
+    x : Union[np.ndarray, dask.array.core.Array, scipy.sparse.csr_matrix]
+        An observations x features matrix-like object (see possible types).  Note that this can be dense or sparse.
+    chunk_size_cells : int
+        dask chunk size for cells
+    chunk_size_genes : int
+        dask chunk size for genes
     """
+
+    features: List[str]
+    observations: List[str]
+    chunk_size_cells: int
+    chunk_size_genes: int
+    x: Union[dask.array.core.Array, scipy.sparse.spmatrix, np.ndarray]
 
     def __init__(
         self,
@@ -101,16 +123,43 @@ class InputDataGLM(InputDataBase):
             If this option is set, all provided data will be casted to this data type.
         :return: InputData object
         """
-        InputDataBase.__init__(
-            self=self,
-            data=data,
-            observation_names=observation_names,
-            feature_names=feature_names,
-            chunk_size_cells=chunk_size_cells,
-            chunk_size_genes=chunk_size_genes,
-            cast_dtype=cast_dtype,
-            as_dask=as_dask,
-        )
+        self.observations = observation_names
+        self.features = feature_names
+        if (
+            isinstance(data, np.ndarray)
+            or isinstance(data, scipy.sparse.csr_matrix)
+            or isinstance(data, dask.array.core.Array)
+        ):
+            self.x = data
+        elif isinstance(data, anndata.AnnData) or isinstance(data, Raw):
+            self.x = data.X
+        else:
+            raise ValueError("type of data %s not recognized" % type(data))
+
+        if as_dask:
+            if isinstance(self.x, dask.array.core.Array):
+                self.x = self.x.compute()
+            # Need to wrap dask around the COO matrix version of the sparse package if matrix is sparse.
+            if isinstance(self.x, scipy.sparse.spmatrix):
+                self.x = dask.array.from_array(
+                    sparse.COO.from_scipy_sparse(self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype)),
+                    chunks=(chunk_size_cells, chunk_size_genes),
+                    asarray=False,
+                )
+            else:
+                self.x = dask.array.from_array(
+                    self.x.astype(cast_dtype if cast_dtype is not None else self.x.dtype),
+                    chunks=(chunk_size_cells, chunk_size_genes),
+                )
+        else:
+            if isinstance(self.x, dask.array.core.Array):
+                self.x = self.x.compute()
+            if cast_dtype is not None:
+                self.x = self.x.astype(cast_dtype)
+
+        self._feature_allzero = np.sum(self.x, axis=0) == 0
+        self.chunk_size_cells = chunk_size_cells
+        self.chunk_size_genes = chunk_size_genes
 
         design_loc, design_loc_names = parse_design(design_matrix=design_loc, param_names=design_loc_names)
         design_scale, design_scale_names = parse_design(design_matrix=design_scale, param_names=design_scale_names)
@@ -242,3 +291,23 @@ class InputDataGLM(InputDataBase):
         :returns: Requested rows of the size factor matrix
         """
         return self.size_factors[idx, :]
+    
+    @property
+    def num_observations(self):
+        """Number of observations derived from x."""
+        return self.x.shape[0]
+
+    @property
+    def num_features(self):
+        """Number of features derived from x."""
+        return self.x.shape[1]
+
+    @property
+    def feature_isnonzero(self):
+        """Boolean whether or not all features are zero"""
+        return ~self._feature_allzero
+
+    @property
+    def feature_isallzero(self):
+        """Boolean whether or not all features are zero"""
+        return self._feature_allzero
