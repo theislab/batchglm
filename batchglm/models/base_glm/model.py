@@ -1,5 +1,6 @@
 import abc
-from typing import Optional, Union
+import logging
+from typing import Any, Dict, Iterable, Optional, Union
 
 import dask.array
 import numpy as np
@@ -9,17 +10,20 @@ try:
 except ImportError:
     anndata = None
 
-from .external import _ModelBase
 from .input import InputDataGLM
 
+logger = logging.getLogger(__name__)
 
-class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
+
+class _ModelGLM(metaclass=abc.ABCMeta):
     """
     Generalized Linear Model base class.
 
     Every GLM contains parameters for a location and a scale model
     in a parameter specific linker space and a design matrix for
     each location and scale model.
+    input_data : batchglm.models.base_glm.input.InputData
+        Input data
     """
 
     _theta_location: np.ndarray = None
@@ -32,7 +36,7 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         :param input_data: Input data for the model
 
         """
-        _ModelBase.__init__(self=self, input_data=input_data)
+        self.input_data = input_data
 
     @property
     def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -152,6 +156,11 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
         return self.inverse_link_scale(self.eta_scale_j(j=j))
 
     @property
+    def x(self):
+        """Get the `x` attribute of the InputData from the constructor"""
+        return self.input_data.x
+
+    @property
     def size_factors(self) -> Union[np.ndarray, None]:
         """Constant scale factors of the mean model in the linker space"""
         if self.input_data is None:
@@ -198,3 +207,22 @@ class _ModelGLM(_ModelBase, metaclass=abc.ABCMeta):
     def inverse_link_scale(self, data):
         """inverse link function for scale model"""
         pass
+
+    def get(self, key: Union[str, Iterable]) -> Union[Any, Dict[str, Any]]:
+        """
+        Returns the values specified by key.
+
+        :param key: Either a string or an iterable list/set/tuple/etc. of strings
+        :return: Single array if `key` is a string or a dict {k: value} of arrays if `key` is a collection of strings
+        """
+        if isinstance(key, str):
+            attrib = self.__getattribute__(key)
+        elif isinstance(key, Iterable):
+            attrib = {s: self.__getattribute__(s) for s in key}
+        return attrib
+
+    def __getitem__(self, item):
+        return self.get(item)
+
+    def __repr__(self):
+        return self.__str__()
