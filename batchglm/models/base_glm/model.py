@@ -1,6 +1,6 @@
 import abc
-from typing import Optional, Union, Any, Dict, Iterable
 import logging
+from typing import Any, Dict, Iterable, Optional, Union
 
 import dask.array
 import numpy as np
@@ -13,6 +13,7 @@ except ImportError:
 from .input import InputDataGLM
 
 logger = logging.getLogger(__name__)
+
 
 class _ModelGLM(metaclass=abc.ABCMeta):
     """
@@ -153,7 +154,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         :param j: The index of the observation sought
         """
         return self.inverse_link_scale(self.eta_scale_j(j=j))
-    
+
     @property
     def x(self):
         """Get the `x` attribute of the InputData from the constructor"""

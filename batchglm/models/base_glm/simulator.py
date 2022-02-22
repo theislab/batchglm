@@ -1,15 +1,16 @@
 import abc
+import logging
 import math
 from typing import Tuple, Union
-import logging
 
+import dask.array
 import numpy as np
 import pandas
 import patsy
 import scipy
-import dask.array
 
 from .input import InputDataGLM
+
 
 def generate_sample_description(
     num_observations, num_conditions: int = 2, num_batches: int = 4, shuffle_assignments=False

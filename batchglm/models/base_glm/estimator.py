@@ -4,7 +4,6 @@ import pprint
 import sys
 from enum import Enum
 from typing import Union
-import logging
 
 import dask
 import numpy as np
@@ -201,7 +200,7 @@ class _EstimatorGLM(metaclass=abc.ABCMeta):
             title="scale_model",
             return_axs=return_axs,
         )
-    
+
     @property
     def loss(self) -> np.ndarray:
         """Current loss"""

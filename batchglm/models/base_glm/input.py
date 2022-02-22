@@ -1,5 +1,6 @@
 try:
     import anndata
+
     try:
         from anndata.base import Raw
     except ImportError:
@@ -7,9 +8,9 @@ try:
 except ImportError:
     anndata = None
     Raw = None
-from typing import List, Optional, Union
 import logging
 from operator import indexOf
+from typing import List, Optional, Union
 
 import dask.array
 import numpy as np
@@ -21,7 +22,7 @@ import sparse
 from .utils import parse_constraints, parse_design
 
 
-class InputDataGLM():
+class InputDataGLM:
     """
     Input data for Generalized Linear Models (GLMs).
     Contains additional information that is specific to GLM's like design matrices and constraints.
@@ -291,7 +292,7 @@ class InputDataGLM():
         :returns: Requested rows of the size factor matrix
         """
         return self.size_factors[idx, :]
-    
+
     @property
     def num_observations(self):
         """Number of observations derived from x."""
