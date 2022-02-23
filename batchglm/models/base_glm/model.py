@@ -30,6 +30,16 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         Input data
     """
 
+    _design_loc: np.ndarray = None
+    _design_scale: np.ndarray = None
+    _constraints_loc: np.ndarray = None
+    _constraints_scale: np.ndarray = None
+    _design_loc_names: np.ndarray = None
+    _design_scale_names: np.ndarray = None
+    _loc_names: np.ndarray = None
+    _scale_names: np.ndarray = None
+    _x: np.ndarray = None
+    _size_factors: np.ndarray = None
     _theta_location: np.ndarray = None
     _theta_scale: np.ndarray = None
 
@@ -40,71 +50,57 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         :param input_data: Input data for the model
 
         """
-        self.input_data = input_data
+        if input_data is not None:
+            self._design_loc = input_data.design_loc
+            self._design_scale = input_data.design_scale
+            self._constraints_loc = input_data.constraints_loc
+            self._constraints_scale = input_data.constraints_scale
+            self._design_loc_names = input_data.design_loc_names
+            self._design_scale_names = input_data.design_scale_names
+            self._loc_names = input_data.loc_names
+            self._scale_names = input_data.scale_names
+            self._x = input_data.x
+            self._size_factors = input_data.size_factors
 
     @property
     def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         """location design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.design_loc
+        return self._design_loc
 
     @property
     def design_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """scale design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.design_scale
+        return self._design_scale
 
     @property
     def constraints_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         """constrainted location design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.constraints_loc
+        return self._constraints_loc
 
     @property
     def constraints_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """constrained scale design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.constraints_scale
+        return self._constraints_scale
 
     @property
     def design_loc_names(self) -> list:
         """column names from location design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.design_loc_names
+        return self._design_loc_names
 
     @property
     def design_scale_names(self) -> list:
         """column names from scale design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.design_scale_names
+        return self._design_scale_names
 
     @property
     def loc_names(self) -> list:
         """column names from constratined location design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.loc_names
+        return self._loc_names
 
     @property
     def scale_names(self) -> list:
         """column names from constrained scale design matrix"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.scale_names
+        return self._scale_names
 
     @abc.abstractmethod
     def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -161,16 +157,13 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
     @property
     def x(self):
-        """Get the `x` attribute of the InputData from the constructor"""
-        return self.input_data.x
+        """Get the counts data matrix."""
+        return self._x
 
     @property
     def size_factors(self) -> Union[np.ndarray, None]:
         """Constant scale factors of the mean model in the linker space"""
-        if self.input_data is None:
-            return None
-        else:
-            return self.input_data.size_factors
+        return self._size_factors
 
     @property
     def theta_location(self) -> np.ndarray:
@@ -224,6 +217,12 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         elif isinstance(key, Iterable):
             attrib = {s: self.__getattribute__(s) for s in key}
         return attrib
+
+    # parameter contraints:
+
+    def np_clip_param(self, param, name):
+        bounds_min, bounds_max = self.param_bounds(param.dtype)
+        return np.clip(param, bounds_min[name], bounds_max[name])
 
     def param_bounds(self, dtype):
 
@@ -298,18 +297,21 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
-        design_loc, design_scale, sample_description = generate_sample_description(**kwargs)
-
-        sim_theta_location = np.concatenate(
+        self._design_loc, self._design_scale, _ = generate_sample_description(**kwargs)
+        
+        self._theta_location = np.concatenate(
             [
                 self.link_loc(np.expand_dims(rand_fn_ave([n_vars]), axis=0)),  # intercept
-                rand_fn_loc((design_loc.shape[1] - 1, n_vars)),
+                rand_fn_loc((self.design_loc.shape[1] - 1, n_vars)),
             ],
             axis=0,
         )
-        sim_theta_scale = np.concatenate([rand_fn_scale((design_scale.shape[1], self.nfeatures))], axis=0)
+        self._theta_scale = np.concatenate([rand_fn_scale((self.design_scale.shape[1], n_vars))], axis=0)
 
-        return sim_theta_location, sim_theta_scale, design_loc, design_scale, sample_description
+        self._constraints_loc = np.identity(n=self.theta_location.shape[0])
+        self._constraints_scale = np.identity(n=self.theta_scale.shape[0])
+
+
 
     def generate(
         self,
@@ -326,13 +328,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
         :param sparse: Description of parameter `sparse`.
         """
-        (
-            sim_theta_location,
-            sim_theta_scale,
-            sim_design_loc,
-            sim_design_scale,
-            sample_description,
-        ) = self.generate_params(
+        self.generate_params(
             n_vars=n_vars,
             num_observations=n_obs,
             num_conditions=num_conditions,
@@ -346,13 +342,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
 
-        self.input_data = InputDataGLM(
-            data=data_matrix,
-            design_loc=sim_design_loc,
-            design_scale=sim_design_scale,
-            design_loc_names=None,
-            design_scale_names=None,
-        )
+        self._x = data_matrix
 
     @abc.abstractmethod
     def generate_data(self):
