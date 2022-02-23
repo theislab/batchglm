@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Callable, List, Optional, Tuple, Union
 
 import dask.array
@@ -15,6 +16,54 @@ except ImportError:
     anndata = None
 
 logger = logging.getLogger("batchglm")
+
+
+def generate_sample_description(
+    num_observations: int,
+    num_conditions: int,
+    num_batches: int,
+    intercept_scale: bool,
+    shuffle_assignments: bool,
+) -> Tuple[patsy.DesignMatrix, patsy.DesignMatrix, pd.DataFrame]:
+    """Build a sample description.
+
+    :param num_observations: Number of observations to simulate.
+    :param num_conditions: number of conditions; will be repeated like [1,2,3,1,2,3]
+    :param num_batches: number of conditions; will be repeated like [1,1,2,2,3,3]
+    :param intercept_scale: If true, returns a single-coefficient design matrix (formula = "~1").
+        If false, returns a design matrix identical to the loc model.
+    :param shuffle_assignments: If true, shuffle the assignments in the xarray.
+        UNSUPPORTED: Must be removed as it is disfunctional!!!
+    """
+    if num_conditions == 0:
+        num_conditions = 1
+    if num_batches == 0:
+        num_batches = 1
+
+    # condition column
+    reps_conditions = math.ceil(num_observations / num_conditions)
+    conditions = np.squeeze(np.tile([np.arange(num_conditions)], reps_conditions))
+    conditions = conditions[range(num_observations)].astype(str)
+
+    # batch column
+    reps_batches = math.ceil(num_observations / num_batches)
+    batches = np.repeat(range(num_batches), reps_batches)
+    batches = batches[range(num_observations)].astype(str)
+    sample_description = pd.DataFrame({"condition": conditions, "batch": batches})
+
+    if shuffle_assignments:
+        sample_description = sample_description.isel(
+            observations=np.random.permutation(sample_description.observations.values)
+        )
+
+    sim_design_loc = patsy.dmatrix("~1+condition+batch", sample_description)
+
+    if intercept_scale:
+        sim_design_scale = patsy.dmatrix("~1", sample_description)
+    else:
+        sim_design_scale = sim_design_loc
+
+    return sim_design_loc, sim_design_scale, sample_description
 
 
 def parse_design(

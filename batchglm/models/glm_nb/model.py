@@ -4,7 +4,7 @@ try:
     import anndata
 except ImportError:
     anndata = None
-from typing import Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import dask.array
 import numpy as np
@@ -56,3 +56,53 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     @property
     def phi(self) -> np.ndarray:
         return self.scale
+
+    # param constraints:
+
+    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+
+        bounds_min = {
+            "theta_location": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "loc": np.nextafter(0, np.inf, dtype=dtype),
+            "scale": np.nextafter(0, np.inf, dtype=dtype),
+            "likelihood": dtype(0),
+            "ll": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        }
+        bounds_max = {
+            "theta_location": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "likelihood": dtype(1),
+            "ll": dtype(0),
+        }
+        return bounds_min, bounds_max
+
+    # simulator:
+
+    @property
+    def rand_fn_ave(self) -> Optional[Callable]:
+        return lambda shape: np.random.poisson(500, shape) + 1
+
+    @property
+    def rand_fn(self) -> Optional[Callable]:
+        return lambda shape: np.abs(np.random.uniform(0.5, 2, shape))
+
+    @property
+    def rand_fn_loc(self) -> Optional[Callable]:
+        return None
+
+    @property
+    def rand_fn_scale(self) -> Optional[Callable]:
+        return None
+
+    def generate_data(self):
+        """
+        Sample random data based on negative binomial distribution and parameters.
+        """
+        return np.random.negative_binomial(n=self.phi, p=1 - self.mu / (self.phi + self.mu), size=None)

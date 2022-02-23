@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Union
 
 import dask.array
 import numpy as np
@@ -10,7 +10,11 @@ try:
 except ImportError:
     anndata = None
 
+import scipy
+
+from .external import pkg_constants
 from .input import InputDataGLM
+from .utils import generate_sample_description
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +224,145 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         elif isinstance(key, Iterable):
             attrib = {s: self.__getattribute__(s) for s in key}
         return attrib
+
+    def param_bounds(self, dtype):
+
+        dtype = np.dtype(dtype)
+        # dmin = np.finfo(dtype).min
+        dmax = np.finfo(dtype).max
+        dtype = dtype.type
+        sf = dtype(pkg_constants.ACCURACY_MARGIN_RELATIVE_TO_LIMIT)
+
+        return self.bounds(sf, dmax, dtype)
+
+    @abc.abstractmethod
+    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+        pass
+
+    # simulator:
+
+    @abc.abstractmethod
+    def rand_fn_ave(self) -> Optional[Callable]:
+        pass
+
+    @abc.abstractmethod
+    def rand_fn(self) -> Optional[Callable]:
+        pass
+
+    @abc.abstractmethod
+    def rand_fn_loc(self) -> Optional[Callable]:
+        pass
+
+    @abc.abstractmethod
+    def rand_fn_scale(self) -> Optional[Callable]:
+        pass
+
+    def generate_params(
+        self, n_vars: int, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, **kwargs
+    ):
+        """
+        Generate all necessary parameters. TODO: make this documentation better!!!
+
+        :param rand_fn_ave: function which generates random numbers for intercept.
+            Takes one location parameter of intercept distribution across features.
+        :param rand_fn: random function taking one argument `shape`.
+        :param rand_fn_loc: random function taking one argument `shape`.
+            If not provided, will use `rand_fn` instead.
+            This function generates location model parameters in inverse linker space,
+            ie. these parameter will be log transformed if a log linker function is used!
+            Values below 1e-08 will be set to 1e-08 to map them into the positive support.
+        :param rand_fn_scale: random function taking one argument `shape`.
+            If not provided, will use `rand_fn` instead.
+            This function generates scale model parameters in inverse linker space,
+            ie. these parameter will be log transformed if a log linker function is used!
+            Values below 1e-08 will be set to 1e-08 to map them into the positive support.
+        """
+
+        if rand_fn_ave is None:
+            rand_fn_ave = self.rand_fn_ave
+            if rand_fn_ave is None:
+                raise ValueError("rand_fn_ave must not be None!")
+        if rand_fn is None:
+            rand_fn = self.rand_fn
+        if rand_fn_loc is None:
+            rand_fn_loc = self.rand_fn_loc
+        if rand_fn_scale is None:
+            rand_fn_scale = self.rand_fn_scale
+        if rand_fn is None and rand_fn_loc is None:
+            raise ValueError("rand_fn and rand_fn_loc must not be both None!")
+        if rand_fn is None and rand_fn_scale is None:
+            raise ValueError("rand_fn and rand_fn_scale must not be both None!")
+
+        if rand_fn_loc is None:
+            rand_fn_loc = rand_fn
+        if rand_fn_scale is None:
+            rand_fn_scale = rand_fn
+
+        design_loc, design_scale, sample_description = generate_sample_description(**kwargs)
+
+        sim_theta_location = np.concatenate(
+            [
+                self.link_loc(np.expand_dims(rand_fn_ave([n_vars]), axis=0)),  # intercept
+                rand_fn_loc((design_loc.shape[1] - 1, n_vars)),
+            ],
+            axis=0,
+        )
+        sim_theta_scale = np.concatenate([rand_fn_scale((design_scale.shape[1], self.nfeatures))], axis=0)
+
+        return sim_theta_location, sim_theta_scale, design_loc, design_scale, sample_description
+
+    def generate(
+        self,
+        n_obs: int,
+        n_vars: int,
+        num_conditions: int = 2,
+        num_batches: int = 4,
+        intercept_scale: bool = False,
+        shuffle_assignments: bool = False,
+        sparse: bool = False,
+    ):
+        """
+        First generates the parameter set, then observations random data using these parameters.
+
+        :param sparse: Description of parameter `sparse`.
+        """
+        (
+            sim_theta_location,
+            sim_theta_scale,
+            sim_design_loc,
+            sim_design_scale,
+            sample_description,
+        ) = self.generate_params(
+            n_vars=n_vars,
+            num_observations=n_obs,
+            num_conditions=num_conditions,
+            num_batches=num_batches,
+            intercept_scale=intercept_scale,
+            shuffle_assignments=shuffle_assignments,
+        )
+
+        data_matrix = self.generate_data()
+
+        if sparse:
+            data_matrix = scipy.sparse.csr_matrix(data_matrix)
+
+        self.input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=sim_design_loc,
+            design_scale=sim_design_scale,
+            design_loc_names=None,
+            design_scale_names=None,
+        )
+
+    @abc.abstractmethod
+    def generate_data(self):
+        """
+        Should sample random data based on distribution and parameters.
+
+        :param type args: TODO.
+        :param type kwargs: TODO.
+        """
+        pass
 
     def __getitem__(self, item):
         return self.get(item)

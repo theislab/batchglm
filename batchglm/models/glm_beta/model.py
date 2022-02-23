@@ -1,4 +1,5 @@
 import abc
+from typing import Any, Callable, Dict, Optional
 
 try:
     import anndata
@@ -58,3 +59,57 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     @property
     def q(self) -> np.ndarray:
         return (1 - self.mean) * self.samplesize
+
+    # parameter contraints:
+
+    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+
+        zero = np.nextafter(0, np.inf, dtype=dtype)
+        one = np.nextafter(1, -np.inf, dtype=dtype)
+
+        bounds_min = {
+            "theta_location": np.log(zero / (1 - zero)) / sf,
+            "theta_scale": np.log(zero) / sf,
+            "eta_loc": np.log(zero / (1 - zero)) / sf,
+            "eta_scale": np.log(zero) / sf,
+            "mean": np.nextafter(0, np.inf, dtype=dtype),
+            "samplesize": np.nextafter(0, np.inf, dtype=dtype),
+            "probs": dtype(0),
+            "log_probs": np.log(zero),
+        }
+        bounds_max = {
+            "theta_location": np.log(one / (1 - one)) / sf,
+            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": np.log(one / (1 - one)) / sf,
+            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "mean": one,
+            "samplesize": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "probs": dtype(1),
+            "log_probs": dtype(0),
+        }
+
+        return bounds_min, bounds_max
+
+    # simulator:
+
+    @property
+    def rand_fn_ave(self) -> Optional[Callable]:
+        return lambda shape: np.random.uniform(0.2, 0.8, shape)
+
+    @property
+    def rand_fn(self) -> Optional[Callable]:
+        return None
+
+    @property
+    def rand_fn_loc(self) -> Optional[Callable]:
+        return lambda shape: np.random.uniform(0.05, 0.15, shape)
+
+    @property
+    def rand_fn_scale(self) -> Optional[Callable]:
+        return lambda shape: np.random.uniform(0.2, 0.5, shape)
+
+    def generate_data(self):
+        """
+        Sample random data based on beta distribution and parameters.
+        """
+        return np.random.beta(a=self.p, b=self.q, size=None)

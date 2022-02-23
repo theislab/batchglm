@@ -1,4 +1,5 @@
 import abc
+from typing import Any, Callable, Dict, Optional
 
 try:
     import anndata
@@ -104,3 +105,53 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
         """
         return self.scale
+
+    # param constraints:
+
+    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+
+        bounds_min = {
+            "theta_location": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_loc": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "mean": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,
+            "sd": np.nextafter(0, np.inf, dtype=dtype),
+            "probs": dtype(0),
+            "log_probs": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+        }
+        bounds_max = {
+            "theta_location": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "mean": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "sd": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
+            "probs": dtype(1),
+            "log_probs": dtype(0),
+        }
+        return bounds_min, bounds_max
+
+    # simulator:
+
+    @property
+    def rand_fn_ave(self) -> Optional[Callable]:
+        return lambda shape: np.random.uniform(10, 1000, shape)
+
+    @property
+    def rand_fn(self) -> Optional[Callable]:
+        return None
+
+    @property
+    def rand_fn_loc(self) -> Optional[Callable]:
+        return lambda shape: np.random.uniform(50, 100, shape)
+
+    @property
+    def rand_fn_scale(self) -> Optional[Callable]:
+        return lambda shape: np.random.uniform(1.5, 10, shape)
+
+    def generate_data(self):
+        """
+        Sample random data based on normal distribution and parameters.
+        """
+        return np.random.normal(loc=self.mean, scale=self.sd, size=None)
