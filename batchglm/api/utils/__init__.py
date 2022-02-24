@@ -1,2 +1,1 @@
-from . import linalg
-from . import data
+from . import data, linalg
