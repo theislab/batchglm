@@ -14,7 +14,7 @@ try:
 except ImportError:
     anndata = None
 
-from .input import InputDataGLM
+from ...utils.input import InputDataGLM
 from .model import _ModelGLM
 
 logger = logging.getLogger(__name__)

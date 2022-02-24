@@ -10,7 +10,7 @@ try:
 except ImportError:
     anndata = None
 
-from .input import InputDataGLM
+from ...utils.input import InputDataGLM
 
 logger = logging.getLogger(__name__)
 

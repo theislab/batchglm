@@ -19,7 +19,7 @@ import patsy
 import scipy.sparse
 import sparse
 
-from .utils import parse_constraints, parse_design
+from ..models.base_glm.utils import parse_constraints, parse_design
 
 
 class InputDataGLM:
