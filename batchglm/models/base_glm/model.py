@@ -161,6 +161,26 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return self._x
 
     @property
+    def num_observations(self):
+        """Number of observations derived from x."""
+        return self.x.shape[0]
+
+    @property
+    def num_features(self):
+        """Number of features derived from x."""
+        return self.x.shape[1]
+
+    @property
+    def num_loc_params(self):
+        """Number of columns of the location design matrix subject to constraints"""
+        return self.constraints_loc.shape[1]
+
+    @property
+    def num_scale_params(self):
+        """Number of columns of the scale design matrix subject to constraints"""
+        return self.constraints_scale.shape[1]
+
+    @property
     def size_factors(self) -> Union[np.ndarray, None]:
         """Constant scale factors of the mean model in the linker space"""
         return self._size_factors
@@ -310,8 +330,6 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
         self._constraints_loc = np.identity(n=self.theta_location.shape[0])
         self._constraints_scale = np.identity(n=self.theta_scale.shape[0])
-
-
 
     def generate(
         self,

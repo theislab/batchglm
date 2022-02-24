@@ -7,14 +7,10 @@ import numpy as np
 
 class ModelVarsGlm:
     """
-    Build variables to be optimzed and their constraints.
+    Build variables to be optimized.
 
     Attributes
     ----------
-    constraints_scale : Union[np.ndarray, dask.array.core.Array]
-        Scale model constraints for VGLM fitting
-    constraints_loc : Union[np.ndarray, dask.array.core.Array]
-        Location model constraints for VGLM fitting
     theta_location : np.ndarray
         Location model parameters
     theta_scale : np.ndarray
@@ -33,24 +29,18 @@ class ModelVarsGlm:
         number of location parameters
     dtype : str
         data type to be used
-    n_features : int
-        number of features
     """
 
-    constraints_loc: Union[np.ndarray, dask.array.core.Array]
-    constraints_scale: Union[np.ndarray, dask.array.core.Array]
     params: Union[np.ndarray, dask.array.core.Array]
     converged: np.ndarray
     npar_location: int
     dtype: str
-    n_features: int
 
     def __init__(
         self,
+        model,
         init_location: Union[np.ndarray, dask.array.core.Array],
         init_scale: Union[np.ndarray, dask.array.core.Array],
-        constraints_loc: Union[np.ndarray, dask.array.core.Array],
-        constraints_scale: Union[np.ndarray, dask.array.core.Array],
         chunk_size_genes: int,
         dtype: str,
     ):
@@ -59,20 +49,15 @@ class ModelVarsGlm:
             Initialisation for all parameters of mean model. (mean model size x features)
         :param init_scale:
             Initialisation for all parameters of dispersion model. (dispersion model size x features)
-        :param constraints_scale:
-            Scale model constraints for VGLM fitting
-        :param constraints_loc:
-            Location model constraints for VGLM fitting
         :param chunk_size_genes:
             chunk size for dask
         :param dtype:
             Precision used in tensorflow.
         """
-        self.constraints_loc = np.asarray(constraints_loc, dtype)
-        self.constraints_scale = np.asarray(constraints_scale, dtype)
 
-        init_location_clipped = self.np_clip_param(np.asarray(init_location, dtype=dtype), "theta_location")
-        init_scale_clipped = self.np_clip_param(np.asarray(init_scale, dtype=dtype), "theta_scale")
+        self.model = model
+        init_location_clipped = model.np_clip_param(np.asarray(init_location, dtype=dtype), "theta_location")
+        init_scale_clipped = model.np_clip_param(np.asarray(init_scale, dtype=dtype), "theta_scale")
         self.params = dask.array.from_array(
             np.concatenate(
                 [
@@ -89,7 +74,6 @@ class ModelVarsGlm:
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
 
         self.dtype = dtype
-        self.n_features = self.params.shape[1]
         self.idx_train_loc = np.arange(0, init_location.shape[0])
         self.idx_train_scale = np.arange(init_location.shape[0], init_location.shape[0] + init_scale.shape[0])
 
@@ -146,6 +130,217 @@ class ModelVarsGlm:
         else:
             self.params[self.npar_location :, j] = value
 
+
+    # jacobians
+
+    @abc.abstractmethod
+    def jac_weight(self) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def jac_weight_j(self, j) -> np.ndarray:
+        pass
+
+    @property
+    def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return np.concatenate([self.jac_location, self.jac_scale], axis=-1)
+
+    @property
+    def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.fim_weight_location_location  # (observations x features)
+        ybar = self.ybar  # (observations x features)
+        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
+
+    def jac_location_j(self, j) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        w = self.fim_weight_location_location_j(j=j)  # (observations x features)
+        ybar = self.ybar_j(j=j)  # (observations x features)
+        xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
+
+    @property
+    def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.jac_weight_scale  # (observations x features)
+        xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
+
+    def jac_scale_j(self, j) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+            w = self.jac_weight_scale_j(j=j)  # (observations x features)
+            xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
+            return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
+
+    # hessians
+
+    @abc.abstractmethod
+    def hessian_weight_location_location(self) -> np.ndarray:
+        pass
+
+    @property
+    def hessian_location_location(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.hessian_weight_location_location
+        xh = np.matmul(self.design_loc, self.constraints_loc)
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
+
+    @abc.abstractmethod
+    def hessian_weight_location_scale(self) -> np.ndarray:
+        pass
+
+    @property
+    def hessian_location_scale(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.hessian_weight_location_scale
+        return np.einsum(
+            "fob,oc->fbc",
+            np.einsum("ob,of->fob", np.matmul(self.design_loc, self.constraints_loc), w),
+            np.matmul(self.design_scale, self.constraints_scale),
+        )
+
+    @abc.abstractmethod
+    def hessian_weight_scale_scale(self) -> np.ndarray:
+        pass
+
+    @property
+    def hessian_scale_scale(self) -> np.ndarray:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.hessian_weight_scale_scale
+        xh = np.matmul(self.design_scale, self.constraints_scale)
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
+
+    @property
+    def hessian(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        h_aa = self.hessian_location_location
+        h_bb = self.hessian_scale_scale
+        h_ab = self.hessian_location_scale
+        h_ba = np.transpose(h_ab, axes=[0, 2, 1])
+        return np.concatenate([np.concatenate([h_aa, h_ab], axis=2), np.concatenate([h_ba, h_bb], axis=2)], axis=1)
+
+    # fim
+
+    @abc.abstractmethod
+    def fim_weight_location_location_j(self, j) -> np.ndarray:
+        pass
+
+    @property
+    def fim_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        Location-location coefficient block of FIM
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.fim_weight_location_location  # (observations x features)
+        # constraints: (observed param x inferred param)
+        # design: (observations x observed param)
+        # w: (observations x features)
+        # fim: (features x inferred param x inferred param)
+        xh = np.matmul(self.design_loc, self.constraints_loc)
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
+
+    @abc.abstractmethod
+    def fim_location_scale(self) -> np.ndarray:
+        pass
+
+    @property
+    def fim_scale_scale(self) -> np.ndarray:
+        pass
+
+    @property
+    def fim(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        Full FIM
+
+        :return: (features x inferred param x inferred param)
+        """
+        fim_location_location = self.fim_location_location
+        fim_scale_scale = self.fim_scale_scale
+        fim_location_scale = self.fim_location_scale
+        fim_ba = np.transpose(fim_location_scale, axes=[0, 2, 1])
+        return -np.concatenate(
+            [
+                np.concatenate([fim_location_location, fim_location_scale], axis=2),
+                np.concatenate([fim_ba, fim_scale_scale], axis=2),
+            ],
+            axis=1,
+        )
+
+    @abc.abstractmethod
+    def fim_weight(self) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def fim_weight_location_location(self) -> np.ndarray:
+        pass
+
+    # ll
+
+    @abc.abstractmethod
+    def ll(self) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def ll_j(self, j) -> np.ndarray:
+        pass
+
+    @property
+    def ll_byfeature(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return np.sum(self.ll, axis=0)
+
+    def ll_byfeature_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+        return np.sum(self.ll_j(j=j), axis=0)
+
+    # bar
+
+    @abc.abstractmethod
+    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
+        pass
+
+
+    @abc.abstractmethod
+    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+        pass
+
+
+
     @abc.abstractmethod
     def param_bounds(self, dtype):
         pass
+
+    
+    
+
+    

@@ -1,9 +1,12 @@
 import logging
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Tuple
 
 import dask
 import numpy as np
 import scipy.sparse
+
+
+logger = logging.getLogger('batchglm')
 
 from .external import closedform_glm_mean, closedform_glm_scale
 
@@ -76,7 +79,7 @@ def closedform_nb_glm_logphi(
     )
 
 
-def init_par(input_data, init_location, init_scale, init_model):
+def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np.ndarray, bool, bool]:
     r"""
     standard:
     Only initialise intercept and keep other coefficients as zero.
@@ -93,125 +96,88 @@ def init_par(input_data, init_location, init_scale, init_model):
             &= D \cdot x' = f^{-1}(\theta)
     $$
     """
-    train_loc = True
-    train_scale = True
+    train_loc = False
 
-    if init_model is None:
-        groupwise_means = None
-        init_location_str = None
-        if isinstance(init_location, str):
-            init_location_str = init_location.lower()
-            # Chose option if auto was chosen
-            if init_location.lower() == "auto":
-                if isinstance(input_data.design_loc, dask.array.core.Array):
-                    dloc = input_data.design_loc.compute()
-                else:
-                    dloc = input_data.design_loc
-                one_hot = (
-                    len(np.unique(dloc)) == 2
-                    and np.abs(np.min(dloc) - 0.0) == 0.0
-                    and np.abs(np.max(dloc) - 1.0) == 0.0
-                )
-                init_location = "standard" if not one_hot else "closed_form"
+    def auto_loc(dmat: Union[np.ndarray, dask.array.core.Array]) -> str:
+        """
+        Checks if dmat is one-hot encoded and returns 'closed_form' if so, else 'standard'
+        
+        :param dmat The design matrix to check.
+        """
+        unique_params = np.unique(dmat)
+        if isinstance(uniqe_params, dask.array.core.Array):
+            unique_params = unique_params.compute()
+        if len(unique_params) != 2 and unique_params[0] == 0.0 and unique_params[1] == 1.0:
+            return 'closed_form'
+        logger.warning("Cannot use 'closed_form' init for loc model: design_loc is not one-hot encoded. Falling back to standard initialization.")
+        return "standard"
 
-            if init_location.lower() == "closed_form":
-                groupwise_means, init_location, rmsd_a = closedform_nb_glm_logmu(
-                    x=input_data.x,
-                    design_loc=input_data.design_loc,
-                    constraints_loc=input_data.constraints_loc,
-                    size_factors=input_data.size_factors,
-                    link_fn=lambda mu: np.log(mu + np.nextafter(0, 1, dtype=mu.dtype)),
-                )
+    groupwise_means = None
 
-                # train mu, if the closed-form solution is inaccurate
-                train_loc = not (np.all(np.abs(rmsd_a) < 1e-20) or rmsd_a.size == 0)
+    init_location_str = init_location.lower()
+    # Chose option if auto was chosen
+    if init_location_str == "auto":
 
-                if input_data.size_factors is not None:
-                    if np.any(input_data.size_factors != 1):
-                        train_loc = True
-            elif init_location.lower() == "standard":
-                overall_means = np.mean(input_data.x, axis=0)  # directly calculate the mean
-                init_location = np.zeros([input_data.num_loc_params, input_data.num_features])
-                init_location[0, :] = np.log(overall_means)
+        init_location_str = auto_loc(model.design_loc)
+
+    if init_location_str == "closed_form":
+        groupwise_means, init_theta_location, rmsd_a = closedform_nb_glm_logmu(
+            x=model.x,
+            design_loc=model.design_loc,
+            constraints_loc=model.constraints_loc,
+            size_factors=model.size_factors,
+            link_fn=lambda mu: np.log(mu + np.nextafter(0, 1, dtype=mu.dtype)),
+        )
+        # train mu, if the closed-form solution is inaccurate
+        train_loc = not (np.all(np.abs(rmsd_a) < 1e-20) or rmsd_a.size == 0)
+        if model.size_factors is not None:
+            if np.any(model.size_factors != 1):
                 train_loc = True
-            elif init_location.lower() == "all_zero":
-                init_location = np.zeros([input_data.num_loc_params, input_data.num_features])
-                train_loc = True
-            else:
-                raise ValueError("init_location string %s not recognized" % init_location)
 
-        if isinstance(init_scale, str):
-            if init_scale.lower() == "auto":
-                init_scale = "standard"
-
-            if init_scale.lower() == "standard":
-                groupwise_scales, init_scale_intercept, rmsd_b = closedform_nb_glm_logphi(
-                    x=input_data.x,
-                    design_scale=input_data.design_scale[:, [0]],
-                    constraints=input_data.constraints_scale[[0], :][:, [0]],
-                    size_factors=input_data.size_factors,
-                    groupwise_means=None,
-                    link_fn=lambda r: np.log(r + np.nextafter(0, 1, dtype=r.dtype)),
-                )
-                init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
-                init_scale[0, :] = init_scale_intercept
-            elif init_scale.lower() == "closed_form":
-                dmats_unequal = False
-                if input_data.design_loc.shape[1] == input_data.design_scale.shape[1]:
-                    if np.any(input_data.design_loc != input_data.design_scale):
-                        dmats_unequal = True
-
-                inits_unequal = False
-                if init_location_str is not None:
-                    if init_location_str != init_scale:
-                        inits_unequal = True
-
-                if inits_unequal or dmats_unequal:
-                    raise ValueError(
-                        "cannot use closed_form init for scale model " + "if scale model differs from loc model"
-                    )
-
-                groupwise_scales, init_scale, rmsd_b = closedform_nb_glm_logphi(
-                    x=input_data.x,
-                    design_scale=input_data.design_scale,
-                    constraints=input_data.constraints_scale,
-                    size_factors=input_data.size_factors,
-                    groupwise_means=groupwise_means,
-                    link_fn=lambda r: np.log(r),
-                )
-            elif init_scale.lower() == "all_zero":
-                init_scale = np.zeros([input_data.num_scale_params, input_data.x.shape[1]])
-            else:
-                raise ValueError("init_scale string %s not recognized" % init_scale)
+    elif init_location_str == "standard":
+        overall_means = np.mean(model.x, axis=0)  # directly calculate the mean
+        init_theta_location = np.zeros([model.num_loc_params, model.num_features])
+        init_theta_location[0, :] = np.log(overall_means)
+        train_loc = True
+    elif init_location_str == "all_zero":
+        init_theta_location = np.zeros([model.num_loc_params, model.num_features])
+        train_loc = True
     else:
-        # Locations model:
-        if isinstance(init_location, str) and (
-            init_location.lower() == "auto" or init_location.lower() == "init_model"
-        ):
-            my_loc_names = set(input_data.loc_names)
-            my_loc_names = my_loc_names.intersection(set(init_model.input_data.loc_names))
+        raise ValueError("init_location string %s not recognized" % init_location)
 
-            init_loc = np.zeros([input_data.num_loc_params, input_data.num_features])
-            for parm in my_loc_names:
-                init_idx = np.where(init_model.input_data.loc_names == parm)[0]
-                my_idx = np.where(input_data.loc_names == parm)[0]
-                init_loc[my_idx] = init_model.theta_location[init_idx]
+    
+    init_scale_str = init_scale.lower()
+    if init_scale_str == "auto":
+        init_scale_str = "standard"
 
-            init_location = init_loc
-            logging.getLogger("batchglm").debug("Using initialization based on input model for mean")
+    if init_scale_str == "standard":
+        groupwise_scales, init_scale_intercept, rmsd_b = closedform_nb_glm_logphi(
+            x=model.x,
+            design_scale=model.design_scale[:, [0]],
+            constraints=model.constraints_scale[[0], :][:, [0]],
+            size_factors=model.size_factors,
+            groupwise_means=None,
+            link_fn=lambda r: np.log(r + np.nextafter(0, 1, dtype=r.dtype)),
+        )
+        init_theta_scale = np.zeros([model.num_scale_params, model.num_features])
+        init_theta_scale[0, :] = init_scale_intercept
+    elif init_scale_str == "closed_form":
+        if not np.array_equal(model.design_loc, model.design_scale):
+            raise ValueError("Cannot use 'closed_form' init for scale model: design_scale != design_loc.")
+        if init_location_str is not None and init_location_str != init_scale_str:
+            raise ValueError("Cannot use 'closed_form' init for scale model: init_location != 'closed_form' which is required.")
 
-        # Scale model:
-        if isinstance(init_scale, str) and (init_scale.lower() == "auto" or init_scale.lower() == "init_model"):
-            my_scale_names = set(input_data.scale_names)
-            my_scale_names = my_scale_names.intersection(init_model.input_data.scale_names)
-
-            init_scale = np.zeros([input_data.num_scale_params, input_data.num_features])
-            for parm in my_scale_names:
-                init_idx = np.where(init_model.input_data.scale_names == parm)[0]
-                my_idx = np.where(input_data.scale_names == parm)[0]
-                init_scale[my_idx] = init_model.theta_scale[init_idx]
-
-            init_scale = init_scale
-            logging.getLogger("batchglm").debug("Using initialization based on input model for dispersion")
-
-    return init_location, init_scale, train_loc, train_scale
+        groupwise_scales, init_theta_scale, rmsd_b = closedform_nb_glm_logphi(
+            x=model.x,
+            design_scale=model.design_scale,
+            constraints=model.constraints_scale,
+            size_factors=model.size_factors,
+            groupwise_means=groupwise_means,
+            link_fn=lambda r: np.log(r),
+        )
+    elif init_scale_str == "all_zero":
+        init_theta_scale = np.zeros([model.num_scale_params, model.x.shape[1]])
+    else:
+        raise ValueError("init_scale string %s not recognized" % init_scale_str)
+    
+    return init_theta_location, init_theta_scale, train_loc, True

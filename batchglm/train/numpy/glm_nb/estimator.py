@@ -3,8 +3,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from .external import EstimatorGlm, InputDataGLM, Model, init_par
-from .model import ModelIwlsNb
+from .external import EstimatorGlm, init_par
 from .vars import ModelVars
 
 
@@ -21,19 +20,17 @@ class Estimator(EstimatorGlm):
 
     def __init__(
         self,
-        input_data: InputDataGLM,
         init_location: Union[np.ndarray, str] = "AUTO",
         init_scale: Union[np.ndarray, str] = "AUTO",
         batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
+        model = None,
         dtype="float64",
         **kwargs
     ):
         """
         Performs initialisation and creates a new estimator.
 
-        :param input_data: InputDataGLM
-            The input data
         :param init_location: (Optional)
             Low-level initial values for a. Can be:
 
@@ -59,9 +56,7 @@ class Estimator(EstimatorGlm):
             Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param dtype: Numerical precision.
         """
-        init_location, init_scale, train_loc, train_scale = init_par(
-            input_data=input_data, init_location=init_location, init_scale=init_scale, init_model=None
-        )
+        init_location, init_scale, train_loc, train_scale = init_par(model=self.model, init_location=init_location, init_scale=init_scale)
         self._train_loc = train_loc
         self._train_scale = train_scale
         if quick_scale:
@@ -72,20 +67,14 @@ class Estimator(EstimatorGlm):
         init_scale = init_scale.astype(dtype)
 
         self.model_vars = ModelVars(
+            model=model,
             init_location=init_location,
             init_scale=init_scale,
-            constraints_loc=input_data.constraints_loc,
-            constraints_scale=input_data.constraints_scale,
-            chunk_size_genes=input_data.chunk_size_genes,
+            chunk_size_genes=model.chunk_size_genes,
             dtype=dtype,
         )
-        model = ModelIwlsNb(
-            input_data=input_data,
-            model_vars=self.model_vars,
-            compute_mu=self._train_loc,
-            compute_r=not self._train_scale,
-        )
-        super(Estimator, self).__init__(input_data=input_data, model=model, dtype=dtype)
+        super(Estimator, self).__init__(dtype=dtype)
 
     def get_model_container(self, input_data):
-        return Model(input_data=input_data)
+        #return Model(input_data=input_data)
+        return self.model_vars

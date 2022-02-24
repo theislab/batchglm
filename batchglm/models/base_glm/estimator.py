@@ -14,7 +14,6 @@ try:
 except ImportError:
     anndata = None
 
-from .input import InputDataGLM
 from .model import _ModelGLM
 
 logger = logging.getLogger(__name__)
@@ -29,14 +28,11 @@ class _EstimatorGLM(metaclass=abc.ABCMeta):
     ----------
     model : _ModelGLM
         Model to fit
-    input_data : InputDataGLM
-        Data to be fit on
     """
 
     model: _ModelGLM
-    input_data: InputDataGLM
 
-    def __init__(self, model: _ModelGLM, input_data: InputDataGLM):
+    def __init__(self, model: _ModelGLM):
         """
         Create a new _EstimatorGLM object.
 
@@ -44,7 +40,6 @@ class _EstimatorGLM(metaclass=abc.ABCMeta):
         :param model: Model to fit
         """
         self.model = model
-        self.input_data = input_data
         self._loss = None
         self._log_likelihood = None
         self._jacobian = None
@@ -229,7 +224,7 @@ class _EstimatorGLM(metaclass=abc.ABCMeta):
     @property
     def x(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Data Matrix"""
-        return self.input_data.x
+        return self.model.x
 
     @property
     def theta_location(self):
