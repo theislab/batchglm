@@ -9,7 +9,7 @@ import pandas
 import patsy
 import scipy
 
-from .input import InputDataGLM
+from ...utils.input import InputDataGLM
 
 
 def generate_sample_description(
