@@ -191,7 +191,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         Allows fast access to a given observation's x data
         :param j: The index of the observation sought
         """
-        if isinstance(j, int) or isinstance(j, np.int32) or isisntance(j, np.int64):
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
         return self.x[:, j]
 
@@ -418,7 +418,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             shuffle_assignments=shuffle_assignments,
         )
 
-        data_matrix = self.generate_data()
+        data_matrix = self.generate_data().astype(self.cast_dtype)
 
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
@@ -437,6 +437,3 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
     def __getitem__(self, item):
         return self.get(item)
-
-    def __repr__(self):
-        return self.__str__()

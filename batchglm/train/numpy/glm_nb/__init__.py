@@ -1,2 +1,2 @@
 from .estimator import Estimator
-from .vars import ModelVars
+from .modelContainer import ModelContainer

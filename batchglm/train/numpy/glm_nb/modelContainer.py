@@ -1,4 +1,4 @@
-from .external import ModelVarsGlm
+from .external import BaseModelContainer
 
 from typing import Union
 
@@ -7,7 +7,7 @@ import dask
 import scipy
 
 
-class ModelVars(ModelVarsGlm):
+class ModelContainer(BaseModelContainer):
     
     
     

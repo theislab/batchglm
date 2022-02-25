@@ -12,7 +12,7 @@ def dask_compute(func: Callable):
     return func_wrapper
 
 
-class ModelVarsGlm:
+class BaseModelContainer:
     """
     Build variables to be optimized.
 
@@ -85,13 +85,10 @@ class ModelVarsGlm:
         self.idx_train_scale = np.arange(init_location.shape[0], init_location.shape[0] + init_scale.shape[0])
 
     @dask_compute
-    def __getattr__(self, name):
-        print(name)
-        """Used to access attributes of wrapper model directly instead of calling self.model.attribute"""
-        if name in ["design_scale", "design_loc", "constraints_loc", "contraints_scale", "xh_scale", "x_j", "x", "num_features", "ll_byfeature", "ll_byfeature_j", "np_clip_param"]:
-            return self.model[name]
-        raise AttributeError()
-        return self.model[name]
+    def __getattr__(self, attr: str):
+        if attr.startswith('__') and attr.endswith('__'):
+            raise AttributeError()
+        return self.model[attr]
 
     @property
     def idx_not_converged(self):
@@ -352,14 +349,6 @@ class ModelVarsGlm:
     @abc.abstractmethod
     def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         pass
-
-
-
-    @abc.abstractmethod
-    def param_bounds(self, dtype):
-        pass
-
-    
     
 
     

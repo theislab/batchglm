@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 
 from .external import EstimatorGlm, init_par
-from .vars import ModelVars
+from .modelContainer import ModelContainer
 
 
 class Estimator(EstimatorGlm):
@@ -66,7 +66,7 @@ class Estimator(EstimatorGlm):
         init_location = init_location.astype(dtype)
         init_scale = init_scale.astype(dtype)
 
-        self.model_vars = ModelVars(
+        self.modelContainer = ModelContainer(
             model=model,
             init_location=init_location,
             init_scale=init_scale,
@@ -74,7 +74,3 @@ class Estimator(EstimatorGlm):
             dtype=dtype,
         )
         super(Estimator, self).__init__(dtype=dtype)
-
-    def get_model_container(self, input_data):
-        #return Model(input_data=input_data)
-        return self.model_vars
