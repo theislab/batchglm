@@ -42,7 +42,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         """
         if self.model_vars.design_scale.shape[1] != 1:
             raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
-        _EstimatorGLM.__init__(self=self, model=model)
+        # _EstimatorGLM.__init__(self=self, model=model)
         self.dtype = dtype
         self.lls = []
 
@@ -99,7 +99,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         epochs_until_scale_update = update_scale_freq
         fully_converged = np.tile(False, self.model_vars.num_features)
 
-        ll_current = -self.model_vars.ll_byfeature.compute()
+        ll_current = -self.model_vars.ll_byfeature
         ll_last_scale_update = ll_current.copy()
         # logging.getLogger("batchglm").info(
         sys.stdout.write("iter   %i: ll=%f\n" % (0, np.sum(ll_current)))
@@ -122,7 +122,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     # Perform trial update.
                     self.model_vars.theta_scale = self.model_vars.theta_scale + b_step
                     # Reverse update by feature if update leads to worse loss:
-                    ll_proposal = -self.model_vars.ll_byfeature_j(j=idx_update).compute()
+                    ll_proposal = -self.model_vars.ll_byfeature_j(j=idx_update)
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
                     if isinstance(self.model_vars.theta_scale, dask.array.core.Array):
                         theta_scale_new = self.model_vars.theta_scale.compute()
@@ -148,7 +148,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                     # Perform trial update.
                     self.model_vars.theta_location += a_step
                     # Reverse update by feature if update leads to worse loss:
-                    ll_proposal = -self.model_vars.ll_byfeature_j(j=idx_update).compute()
+                    ll_proposal = -self.model_vars.ll_byfeature_j(j=idx_update)
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
                     if isinstance(self.model_vars.theta_scale, dask.array.core.Array):
                         theta_location_new = self.model_vars.theta_location.compute()
@@ -316,7 +316,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         theta_scale_old = self.model_vars.theta_scale.compute()
         converged = np.tile(True, self.model_vars.num_features)
         converged[idx_update] = False
-        ll_current = -self.model_vars.ll_byfeature.compute()
+        ll_current = -self.model_vars.ll_byfeature
         while np.any(np.logical_not(converged)) and iter < max_iter:
             idx_to_update = np.where(np.logical_not(converged))[0]
             jac = np.zeros_like(self.model_vars.theta_scale).compute()
@@ -329,7 +329,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             )
             # Assess convergence:
             ll_previous = ll_current
-            ll_current = -self.model_vars.ll_byfeature.compute()
+            ll_current = -self.model_vars.ll_byfeature
             converged_f = (ll_current - ll_previous) / ll_previous > -ftol
             theta_scale_new = self.model_vars.theta_scale.compute()
             theta_scale_new[:, converged_f] = theta_scale_new[:, converged_f] - lr * jac[:, converged_f]
@@ -396,7 +396,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             # Need to copy to prevent returning an immutable view of the data
             delta_theta = delta_theta.compute().copy()
 
-        xh_scale = np.matmul(self.model_vars.design_scale, self.model_vars.constraints_scale).compute()
+        xh_scale = self.model_vars.xh_scale
         theta_scale = self.model_vars.theta_scale.compute()
         if nproc > 1 and len(idx_update) > nproc:
             sys.stdout.write(
@@ -404,8 +404,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
             )
             sys.stdout.flush()
             with multiprocessing.Pool(processes=nproc) as pool:
-                x = self.x.compute()
-                eta_loc = self.model_vars.eta_loc.compute()
+                x = self.model_vars.x
+                eta_loc = self.model_vars.eta_loc
                 results = pool.starmap(
                     self.optim_handle,
                     [(theta_scale[0, j], x[:, [j]], eta_loc[:, [j]], xh_scale, max_iter, ftol) for j in idx_update],
@@ -423,8 +423,8 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
                 )
                 sys.stdout.flush()
                 if method.lower() == "brent":
-                    eta_loc = self.model_vars.eta_loc_j(j=j).compute()
-                    data = self.x[:, [j]].compute()
+                    eta_loc = self.model_vars.eta_loc_j(j=j)
+                    data = self.model_vars.x_j(j=j)
                     # Need to supply dense numpy array to scipy optimize:
                     if isinstance(data, sparse.COO) or isinstance(data, scipy.sparse.csr_matrix):
                         data = data.todense()
@@ -472,7 +472,7 @@ class EstimatorGlm(_EstimatorGLM, metaclass=abc.ABCMeta):
         fisher_inv[invertible] = np.linalg.inv(-self._hessian[invertible])
         self._fisher_inv = fisher_inv
         self._jacobian = np.sum(np.abs(self.model_vars.jac.compute() / self.model_vars.x.shape[0]), axis=1)
-        self._log_likelihood = self.model_vars.ll_byfeature.compute()
+        self._log_likelihood = self.model_vars.ll_byfeature
         self._loss = np.sum(self._log_likelihood)
 
     @abc.abstractmethod

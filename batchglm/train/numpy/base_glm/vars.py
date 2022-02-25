@@ -1,8 +1,15 @@
 import abc
-from typing import Union
+from typing import Union, Callable
 
 import dask.array
 import numpy as np
+
+
+def dask_compute(func: Callable):
+    def func_wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return result.compute() if isinstance(result, dask.array.core.Array) else result
+    return func_wrapper
 
 
 class ModelVarsGlm:
@@ -76,6 +83,15 @@ class ModelVarsGlm:
         self.dtype = dtype
         self.idx_train_loc = np.arange(0, init_location.shape[0])
         self.idx_train_scale = np.arange(init_location.shape[0], init_location.shape[0] + init_scale.shape[0])
+
+    @dask_compute
+    def __getattr__(self, name):
+        print(name)
+        """Used to access attributes of wrapper model directly instead of calling self.model.attribute"""
+        if name in ["design_scale", "design_loc", "constraints_loc", "contraints_scale", "xh_scale", "x_j", "x", "num_features", "ll_byfeature", "ll_byfeature_j", "np_clip_param"]:
+            return self.model[name]
+        raise AttributeError()
+        return self.model[name]
 
     @property
     def idx_not_converged(self):
@@ -316,11 +332,14 @@ class ModelVarsGlm:
     def ll_j(self, j) -> np.ndarray:
         pass
 
+    
     @property
-    def ll_byfeature(self) -> Union[np.ndarray, dask.array.core.Array]:
+    @dask_compute
+    def ll_byfeature(self) -> np.ndarray:
         return np.sum(self.ll, axis=0)
 
-    def ll_byfeature_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    @dask_compute
+    def ll_byfeature_j(self, j) -> np.ndarray:
         return np.sum(self.ll_j(j=j), axis=0)
 
     # bar

@@ -105,9 +105,9 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
         :param dmat The design matrix to check.
         """
         unique_params = np.unique(dmat)
-        if isinstance(uniqe_params, dask.array.core.Array):
+        if isinstance(unique_params, dask.array.core.Array):
             unique_params = unique_params.compute()
-        if len(unique_params) != 2 and unique_params[0] == 0.0 and unique_params[1] == 1.0:
+        if len(unique_params) == 2 and unique_params[0] == 0.0 and unique_params[1] == 1.0:
             return 'closed_form'
         logger.warning("Cannot use 'closed_form' init for loc model: design_loc is not one-hot encoded. Falling back to standard initialization.")
         return "standard"

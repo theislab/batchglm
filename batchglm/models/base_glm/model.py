@@ -14,7 +14,7 @@ import scipy
 
 from .external import pkg_constants
 from .input import InputDataGLM
-from .utils import generate_sample_description
+from .utils import generate_sample_description, parse_design, parse_constraints
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +42,14 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     _size_factors: np.ndarray = None
     _theta_location: np.ndarray = None
     _theta_scale: np.ndarray = None
+    _cast_dtype: str = None
+    _loc_names: np.ndarray = None
+    _scale_names: np.ndarray = None
+    _chunk_size_cells: int = None
+    _chunk_size_genes: int = None
 
-    def __init__(self, input_data: Optional[InputDataGLM] = None):
+    def __init__(self, input_data: Optional[InputDataGLM] = None, cast_dtype = 'float32', chunk_size_cells: int = 1000000,
+        chunk_size_genes: int = 100):
         """
         Create a new _ModelGLM object.
 
@@ -61,6 +67,22 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             self._scale_names = input_data.scale_names
             self._x = input_data.x
             self._size_factors = input_data.size_factors
+            self._cast_dtype = cast_dtype 
+            self._chunk_size_genes = chunk_size_genes
+            self._chunk_size_cells = chunk_size_cells
+
+
+    @property
+    def chunk_size_cells(self) -> int:
+        return self._chunk_size_cells
+
+    @property
+    def chunk_size_genes(self) -> int:
+        return self._chunk_size_genes
+
+    @property
+    def cast_dtype(self) -> str:
+        return self._cast_dtype
 
     @property
     def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -156,9 +178,22 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return self.inverse_link_scale(self.eta_scale_j(j=j))
 
     @property
+    def xh_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return np.matmul(self.design_scale, self.constraints_scale)
+
+    @property
     def x(self):
         """Get the counts data matrix."""
         return self._x
+
+    def x_j(self, j):
+        """
+        Allows fast access to a given observation's x data
+        :param j: The index of the observation sought
+        """
+        if isinstance(j, int) or isinstance(j, np.int32) or isisntance(j, np.int64):
+            j = [j]
+        return self.x[:, j]
 
     @property
     def num_observations(self):
@@ -277,7 +312,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         pass
 
     def generate_params(
-        self, n_vars: int, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, **kwargs
+        self, n_vars: int, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, as_dask: bool = False, **kwargs
     ):
         """
         Generate all necessary parameters. TODO: make this documentation better!!!
@@ -317,19 +352,47 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
-        self._design_loc, self._design_scale, _ = generate_sample_description(**kwargs)
+        _design_loc, _design_scale, _ = generate_sample_description(**kwargs)
         
         self._theta_location = np.concatenate(
             [
                 self.link_loc(np.expand_dims(rand_fn_ave([n_vars]), axis=0)),  # intercept
-                rand_fn_loc((self.design_loc.shape[1] - 1, n_vars)),
+                rand_fn_loc((_design_loc.shape[1] - 1, n_vars)),
             ],
             axis=0,
         )
-        self._theta_scale = np.concatenate([rand_fn_scale((self.design_scale.shape[1], n_vars))], axis=0)
+        self._theta_scale = np.concatenate([rand_fn_scale((_design_scale.shape[1], n_vars))], axis=0)
 
-        self._constraints_loc = np.identity(n=self.theta_location.shape[0])
-        self._constraints_scale = np.identity(n=self.theta_scale.shape[0])
+        _constraints_loc = np.identity(n=self.theta_location.shape[0])
+        _constraints_scale = np.identity(n=self.theta_scale.shape[0])
+
+        _design_loc, _design_loc_names = parse_design(design_matrix=_design_loc)
+        _design_scale, _design_scale_names = parse_design(design_matrix=_design_scale)
+        self._design_loc = _design_loc.astype(self.cast_dtype)
+        self._design_scale = _design_scale.astype(self.cast_dtype)
+        if as_dask:
+            self._design_loc = dask.array.from_array(self._design_loc, chunks=(chunk_size_cells, 1000))
+            self._design_scale = dask.array.from_array(self._design_scale, chunks=(chunk_size_cells, 1000))
+        self._design_loc_names = _design_loc_names
+        self._design_scale_names = _design_scale_names
+
+        _constraints_loc, _loc_names = parse_constraints(
+            dmat=_design_loc, dmat_par_names=_design_loc_names, constraints=_constraints_loc, constraint_par_names=None
+        )
+        _constraints_scale, _scale_names = parse_constraints(
+            dmat=_design_scale,
+            dmat_par_names=_design_scale_names,
+            constraints=_constraints_scale,
+            constraint_par_names=None,
+        )
+        self._constraints_loc = _constraints_loc.astype(self.cast_dtype)
+        self._constraints_scale = _constraints_scale.astype(self.cast_dtype)
+        if as_dask:
+            self._constraints_loc = dask.array.from_array(_constraints_loc, chunks=(1000, 1000))
+            self._constraints_scale = dask.array.from_array(_constraints_scale, chunks=(1000, 1000))
+
+        self._loc_names = _loc_names
+        self._scale_names = _scale_names
 
     def generate(
         self,
