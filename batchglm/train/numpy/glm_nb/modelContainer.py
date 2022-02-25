@@ -1,16 +1,13 @@
-from .external import BaseModelContainer
-
 from typing import Union
 
-import numpy as np
 import dask
+import numpy as np
 import scipy
+
+from .external import BaseModelContainer
 
 
 class ModelContainer(BaseModelContainer):
-    
-    
-    
     @property
     def fim_weight_location_location(self):
         """

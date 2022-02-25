@@ -14,7 +14,7 @@ import scipy
 
 from .external import pkg_constants
 from .input import InputDataGLM
-from .utils import generate_sample_description, parse_design, parse_constraints
+from .utils import generate_sample_description, parse_constraints, parse_design
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,13 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     _chunk_size_cells: int = None
     _chunk_size_genes: int = None
 
-    def __init__(self, input_data: Optional[InputDataGLM] = None, cast_dtype = 'float32', chunk_size_cells: int = 1000000,
-        chunk_size_genes: int = 100):
+    def __init__(
+        self,
+        input_data: Optional[InputDataGLM] = None,
+        cast_dtype="float32",
+        chunk_size_cells: int = 1000000,
+        chunk_size_genes: int = 100,
+    ):
         """
         Create a new _ModelGLM object.
 
@@ -67,10 +72,9 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             self._scale_names = input_data.scale_names
             self._x = input_data.x
             self._size_factors = input_data.size_factors
-            self._cast_dtype = cast_dtype 
+            self._cast_dtype = cast_dtype
             self._chunk_size_genes = chunk_size_genes
             self._chunk_size_cells = chunk_size_cells
-
 
     @property
     def chunk_size_cells(self) -> int:
@@ -312,7 +316,14 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         pass
 
     def generate_params(
-        self, n_vars: int, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, as_dask: bool = False, **kwargs
+        self,
+        n_vars: int,
+        rand_fn_ave=None,
+        rand_fn=None,
+        rand_fn_loc=None,
+        rand_fn_scale=None,
+        as_dask: bool = False,
+        **kwargs
     ):
         """
         Generate all necessary parameters. TODO: make this documentation better!!!
@@ -353,7 +364,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             rand_fn_scale = rand_fn
 
         _design_loc, _design_scale, _ = generate_sample_description(**kwargs)
-        
+
         self._theta_location = np.concatenate(
             [
                 self.link_loc(np.expand_dims(rand_fn_ave([n_vars]), axis=0)),  # intercept
@@ -371,8 +382,8 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         self._design_loc = _design_loc.astype(self.cast_dtype)
         self._design_scale = _design_scale.astype(self.cast_dtype)
         if as_dask:
-            self._design_loc = dask.array.from_array(self._design_loc, chunks=(chunk_size_cells, 1000))
-            self._design_scale = dask.array.from_array(self._design_scale, chunks=(chunk_size_cells, 1000))
+            self._design_loc = dask.array.from_array(self._design_loc, chunks=(self.chunk_size_cells, 1000))
+            self._design_scale = dask.array.from_array(self._design_scale, chunks=(self.chunk_size_cells, 1000))
         self._design_loc_names = _design_loc_names
         self._design_scale_names = _design_scale_names
 

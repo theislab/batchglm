@@ -24,7 +24,7 @@ class Estimator(EstimatorGlm):
         init_scale: Union[np.ndarray, str] = "AUTO",
         batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
-        model = None,
+        model=None,
         dtype="float64",
         **kwargs
     ):
@@ -56,7 +56,9 @@ class Estimator(EstimatorGlm):
             Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param dtype: Numerical precision.
         """
-        init_location, init_scale, train_loc, train_scale = init_par(model=model, init_location=init_location, init_scale=init_scale)
+        init_location, init_scale, train_loc, train_scale = init_par(
+            model=model, init_location=init_location, init_scale=init_scale
+        )
         self._train_loc = train_loc
         self._train_scale = train_scale
         if quick_scale:

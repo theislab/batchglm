@@ -1,5 +1,5 @@
 import abc
-from typing import Union, Callable
+from typing import Callable, Union
 
 import dask.array
 import numpy as np
@@ -9,6 +9,7 @@ def dask_compute(func: Callable):
     def func_wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         return result.compute() if isinstance(result, dask.array.core.Array) else result
+
     return func_wrapper
 
 
@@ -86,7 +87,7 @@ class BaseModelContainer:
 
     @dask_compute
     def __getattr__(self, attr: str):
-        if attr.startswith('__') and attr.endswith('__'):
+        if attr.startswith("__") and attr.endswith("__"):
             raise AttributeError()
         return self.model[attr]
 
@@ -142,7 +143,6 @@ class BaseModelContainer:
             self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
             self.params[self.npar_location :, j] = value
-
 
     # jacobians
 
@@ -329,7 +329,6 @@ class BaseModelContainer:
     def ll_j(self, j) -> np.ndarray:
         pass
 
-    
     @property
     @dask_compute
     def ll_byfeature(self) -> np.ndarray:
@@ -345,10 +344,6 @@ class BaseModelContainer:
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
-
     @abc.abstractmethod
     def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         pass
-    
-
-    

@@ -1,14 +1,13 @@
 import logging
-from typing import Callable, Optional, Union, Tuple
+from typing import Callable, Optional, Tuple, Union
 
 import dask
 import numpy as np
 import scipy.sparse
 
-
-logger = logging.getLogger('batchglm')
-
 from .external import closedform_glm_mean, closedform_glm_scale
+
+logger = logging.getLogger("batchglm")
 
 
 def closedform_nb_glm_logmu(
@@ -101,15 +100,20 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
     def auto_loc(dmat: Union[np.ndarray, dask.array.core.Array]) -> str:
         """
         Checks if dmat is one-hot encoded and returns 'closed_form' if so, else 'standard'
-        
+
         :param dmat The design matrix to check.
         """
         unique_params = np.unique(dmat)
         if isinstance(unique_params, dask.array.core.Array):
             unique_params = unique_params.compute()
         if len(unique_params) == 2 and unique_params[0] == 0.0 and unique_params[1] == 1.0:
-            return 'closed_form'
-        logger.warning("Cannot use 'closed_form' init for loc model: design_loc is not one-hot encoded. Falling back to standard initialization.")
+            return "closed_form"
+        logger.warning(
+            (
+                "Cannot use 'closed_form' init for loc model: "
+                "design_loc is not one-hot encoded. Falling back to standard initialization."
+            )
+        )
         return "standard"
 
     groupwise_means = None
@@ -145,7 +149,6 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
     else:
         raise ValueError("init_location string %s not recognized" % init_location)
 
-    
     init_scale_str = init_scale.lower()
     if init_scale_str == "auto":
         init_scale_str = "standard"
@@ -165,7 +168,9 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
         if not np.array_equal(model.design_loc, model.design_scale):
             raise ValueError("Cannot use 'closed_form' init for scale model: design_scale != design_loc.")
         if init_location_str is not None and init_location_str != init_scale_str:
-            raise ValueError("Cannot use 'closed_form' init for scale model: init_location != 'closed_form' which is required.")
+            raise ValueError(
+                "Cannot use 'closed_form' init for scale model: init_location != 'closed_form' which is required."
+            )
 
         groupwise_scales, init_theta_scale, rmsd_b = closedform_nb_glm_logphi(
             x=model.x,
@@ -179,5 +184,5 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
         init_theta_scale = np.zeros([model.num_scale_params, model.x.shape[1]])
     else:
         raise ValueError("init_scale string %s not recognized" % init_scale_str)
-    
+
     return init_theta_location, init_theta_scale, train_loc, True

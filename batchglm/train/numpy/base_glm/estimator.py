@@ -452,9 +452,13 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
             sys.stdout.flush()
 
         if isinstance(self.modelContainer.theta_scale, dask.array.core.Array):
-            delta_theta[:, idx_update] = delta_theta[:, idx_update] - self.modelContainer.theta_scale.compute()[:, idx_update]
+            delta_theta[:, idx_update] = (
+                delta_theta[:, idx_update] - self.modelContainer.theta_scale.compute()[:, idx_update]
+            )
         else:
-            delta_theta[:, idx_update] = delta_theta[:, idx_update] - self.modelContainer.theta_scale.copy()[:, idx_update]
+            delta_theta[:, idx_update] = (
+                delta_theta[:, idx_update] - self.modelContainer.theta_scale.copy()[:, idx_update]
+            )
         return delta_theta
 
     def finalize(self):
@@ -477,5 +481,5 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
 
     def get_model_container(self, input_data):
         """Deprecated: This is equivalent to self.modelContainer now and can be removed"""
-        #return Model(input_data=input_data)
+        # return Model(input_data=input_data)
         return self.modelContainer
