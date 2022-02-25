@@ -97,7 +97,8 @@ class BaseModelContainer:
         return np.where(np.logical_not(self.converged))[0]
 
     @property
-    def theta_location(self):
+    @dask_compute
+    def theta_location(self) -> np.ndarray:
         """Location parameters"""
         theta_location = self.params[0 : self.npar_location]
         return self.np_clip_param(theta_location, "theta_location")
@@ -115,7 +116,8 @@ class BaseModelContainer:
             self.params[0 : self.npar_location] = value
 
     @property
-    def theta_scale(self):
+    @dask_compute
+    def theta_scale(self) -> np.ndarray:
         """Scale parameters"""
         theta_scale = self.params[self.npar_location :]
         return self.np_clip_param(theta_scale, "theta_scale")
@@ -131,6 +133,13 @@ class BaseModelContainer:
             self.params = dask.array.from_array(temp, chunks=self.params.chunksize)
         else:
             self.params[self.npar_location :] = value
+
+    @dask_compute
+    def theta_scale_j(self, j) -> np.ndarray:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        return self.np_clip_param(self.params[self.npar_location:, j], "theta_scale")
+
 
     def theta_scale_j_setter(self, value, j):
         """Setter ofr a specific theta_scale value."""
@@ -155,6 +164,7 @@ class BaseModelContainer:
         pass
 
     @property
+    @dask_compute
     def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.concatenate([self.jac_location, self.jac_scale], axis=-1)
 
@@ -192,6 +202,7 @@ class BaseModelContainer:
         xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
         return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
 
+    @dask_compute
     def jac_scale_j(self, j) -> np.ndarray:
         """
 
@@ -293,6 +304,7 @@ class BaseModelContainer:
         pass
 
     @property
+    @dask_compute
     def fim(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Full FIM
