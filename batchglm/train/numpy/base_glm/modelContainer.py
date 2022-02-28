@@ -85,6 +85,19 @@ class BaseModelContainer:
         self.idx_train_loc = np.arange(0, init_location.shape[0])
         self.idx_train_scale = np.arange(init_location.shape[0], init_location.shape[0] + init_scale.shape[0])
 
+        # overriding the location and scale parameter by referencing the getter functions within the properties.
+        self.model._theta_location_getter = self._theta_location_getter
+        self.model._theta_scale_getter = self._theta_scale_getter
+
+
+    def _theta_location_getter(self):
+        theta_location = self.params[0 : self.npar_location]
+        return self.np_clip_param(theta_location, "theta_location")
+
+    def _theta_scale_getter(self):
+        theta_scale = self.params[self.npar_location :]
+        return self.np_clip_param(theta_scale, "theta_scale")
+
     @dask_compute
     def __getattr__(self, attr: str):
         if attr.startswith("__") and attr.endswith("__"):
@@ -100,8 +113,7 @@ class BaseModelContainer:
     @dask_compute
     def theta_location(self) -> np.ndarray:
         """Location parameters"""
-        theta_location = self.params[0 : self.npar_location]
-        return self.np_clip_param(theta_location, "theta_location")
+        return self._theta_location_getter()
 
     @theta_location.setter
     def theta_location(self, value):
@@ -119,8 +131,7 @@ class BaseModelContainer:
     @dask_compute
     def theta_scale(self) -> np.ndarray:
         """Scale parameters"""
-        theta_scale = self.params[self.npar_location :]
-        return self.np_clip_param(theta_scale, "theta_scale")
+        return self._theta_scale_getter()
 
     @theta_scale.setter
     def theta_scale(self, value):

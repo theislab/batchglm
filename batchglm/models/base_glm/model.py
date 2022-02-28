@@ -42,6 +42,8 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     _size_factors: np.ndarray = None
     _theta_location: np.ndarray = None
     _theta_scale: np.ndarray = None
+    _theta_location_getter: Callable = lambda x: x._theta_location
+    _theta_scale_getter: Callable = lambda x: x._theta_scale
     _cast_dtype: str = None
     _loc_names: np.ndarray = None
     _scale_names: np.ndarray = None
@@ -227,12 +229,12 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     @property
     def theta_location(self) -> np.ndarray:
         """Fitted location model parameters"""
-        return self._theta_location
+        return self._theta_location_getter()
 
     @property
     def theta_scale(self) -> np.ndarray:
         """Fitted scale model parameters"""
-        return self._theta_scale
+        return self._theta_scale_getter()
 
     @property
     def theta_location_constrained(self) -> Union[np.ndarray, dask.array.core.Array]:

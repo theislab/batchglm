@@ -11,6 +11,10 @@ import scipy
 import scipy.optimize
 import scipy.sparse
 import sparse
+from enum import Enum
+import pprint
+
+
 
 from .external import _EstimatorGLM, pkg_constants
 from .training_strategies import TrainingStrategies
@@ -47,6 +51,29 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         self.lls = []
 
         self.TrainingStrategies = TrainingStrategies
+
+    def train_sequence(self, training_strategy, **kwargs):
+        if isinstance(training_strategy, Enum):
+            training_strategy = training_strategy.value
+        elif isinstance(training_strategy, str):
+            training_strategy = self.TrainingStrategies[training_strategy].value
+
+        if training_strategy is None:
+            training_strategy = self.TrainingStrategies.DEFAULT.value
+
+        logger.debug("training strategy:\n%s", pprint.pformat(training_strategy))
+        for idx, d in enumerate(training_strategy):
+            logger.debug("Beginning with training sequence #%d", idx + 1)
+            # Override duplicate arguments with user choice:
+            if np.any([x in list(d.keys()) for x in list(kwargs.keys())]):
+                d = dict([(x, y) for x, y in d.items() if x not in list(kwargs.keys())])
+                for x in [xx for xx in list(d.keys()) if xx in list(kwargs.keys())]:
+                    sys.stdout.write(
+                        "overrding %s from training strategy with value %s with new value %s\n"
+                        % (x, str(d[x]), str(kwargs[x]))
+                    )
+            self.train(**d, **kwargs)
+            logger.debug("Training sequence #%d complete", idx + 1)
 
     def initialize(self):
         pass
@@ -387,7 +414,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
 
         xh_scale = self.modelContainer.xh_scale
         theta_scale = self.modelContainer.theta_scale
-        if False and nproc > 1 and len(idx_update) > nproc:
+        if nproc > 1 and len(idx_update) > nproc:
             sys.stdout.write(
                 "\rFitting %i dispersion models: (progress not available with multiprocessing)" % len(idx_update)
             )
