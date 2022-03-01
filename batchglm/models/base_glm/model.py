@@ -416,6 +416,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         intercept_scale: bool = False,
         shuffle_assignments: bool = False,
         sparse: bool = False,
+        **kwargs,
     ):
         """
         First generates the parameter set, then observations random data using these parameters.
@@ -429,6 +430,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             num_batches=num_batches,
             intercept_scale=intercept_scale,
             shuffle_assignments=shuffle_assignments,
+            **kwargs
         )
 
         data_matrix = self.generate_data().astype(self.cast_dtype)

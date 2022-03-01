@@ -3,6 +3,10 @@ import os
 from ._version import get_versions
 from .log_cfg import logger, setup_logging, unconfigure_logging
 
+
+from . import models
+from . import train
+
 __version__ = get_versions()["version"]
 del get_versions
 

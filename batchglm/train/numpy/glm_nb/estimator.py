@@ -22,7 +22,7 @@ class Estimator(EstimatorGlm):
         self,
         init_location: Union[np.ndarray, str] = "AUTO",
         init_scale: Union[np.ndarray, str] = "AUTO",
-        batch_size: Optional[Union[Tuple[int, int], int]] = None,
+        #batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
         model=None,
         dtype="float64",
@@ -75,4 +75,4 @@ class Estimator(EstimatorGlm):
             chunk_size_genes=model.chunk_size_genes,
             dtype=dtype,
         )
-        super(Estimator, self).__init__(dtype=dtype)
+        super(Estimator, self).__init__(dtype=dtype, **kwargs)

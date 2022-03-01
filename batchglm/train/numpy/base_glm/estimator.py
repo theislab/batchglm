@@ -33,9 +33,14 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         A list of all log likelihood updates
     """
 
+    _train_loc: bool = False
+    _train_scale: bool = False
+
     def __init__(
         self,
         dtype: str,
+        provide_batched: bool = False
+
     ):
         """
         Performs initialisation and creates a new estimator.
@@ -51,6 +56,14 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         self.lls = []
 
         self.TrainingStrategies = TrainingStrategies
+
+    @property
+    def train_loc(self) -> bool:
+        return self._train_loc
+
+    @property
+    def train_scale(self) -> bool:
+        return self._train_scale
 
     def train_sequence(self, training_strategy, **kwargs):
         if isinstance(training_strategy, Enum):
@@ -479,14 +492,14 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         transfers relevant attributes.
         """
         # Read from numpy-IRLS estimator specific model:
-        self._hessian = -self.modelContainer.fim
-        fisher_inv = np.zeros_like(self._hessian)
-        invertible = np.where(np.linalg.cond(self._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
-        fisher_inv[invertible] = np.linalg.inv(-self._hessian[invertible])
-        self._fisher_inv = fisher_inv
-        self._jacobian = np.sum(np.abs(self.modelContainer.jac / self.modelContainer.x.shape[0]), axis=1)
-        self._log_likelihood = self.modelContainer.ll_byfeature
-        self._loss = np.sum(self._log_likelihood)
+        self.modelContainer._hessian = -self.modelContainer.fim
+        fisher_inv = np.zeros_like(self.modelContainer._hessian)
+        invertible = np.where(np.linalg.cond(self.modelContainer._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
+        fisher_inv[invertible] = np.linalg.inv(-self.modelContainer._hessian[invertible])
+        self.modelContainer._fisher_inv = fisher_inv
+        self.modelContainer._jacobian = np.sum(np.abs(self.modelContainer.jac / self.modelContainer.x.shape[0]), axis=1)
+        self.modelContainer._log_likelihood = self.modelContainer.ll_byfeature
+        self.modelContainer._loss = np.sum(self.modelContainer._log_likelihood)
 
     def get_model_container(self, input_data):
         """Deprecated: This is equivalent to self.modelContainer now and can be removed"""
