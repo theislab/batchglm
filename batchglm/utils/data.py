@@ -132,7 +132,7 @@ def preview_coef_names(
 
 @singledispatch
 def constraint_system_from_star(
-    constraints: Optional[Union[List[str], Tuple[str], dict, np.ndarray]] = None,
+    constraints,
     dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
     sample_description: Optional[pd.DataFrame] = None,
     formula: Optional[str] = None,
@@ -167,7 +167,7 @@ def constraint_system_from_star(
 
             Can only group by non-constrained effects right now, use constraint_matrix_from_string
             for other cases.
-        - list of strings or tuple of strings:
+        - list of strings:
             String encoded equality constraints.
 
                 E.g. ["batch1 + batch2 + batch3 = 0"]
@@ -257,7 +257,7 @@ def _(
 
 @constraint_system_from_star.register
 def _(
-    constraints: Union[tuple, list],
+    constraints: list, # something wrong with using tuples here
     dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
     sample_description: Optional[pd.DataFrame] = None,
     formula: Optional[str] = None,
@@ -274,7 +274,7 @@ def _(
             dmat=None,
             return_type=return_type,
         )
-    cmat, coef_names = constraint_matrix_from_string(
+    cmat = constraint_matrix_from_string(
         dmat=dmat, coef_names=dmat.design_info.column_names, constraints=constraints
     )
     term_names = None  # not supported yet.
