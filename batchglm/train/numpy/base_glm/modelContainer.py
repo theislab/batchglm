@@ -98,7 +98,6 @@ class BaseModelContainer:
         theta_scale = self.params[self.npar_location :]
         return self.np_clip_param(theta_scale, "theta_scale")
 
-    @dask_compute
     def __getattr__(self, attr: str):
         if attr.startswith("__") and attr.endswith("__"):
             raise AttributeError()
@@ -110,7 +109,6 @@ class BaseModelContainer:
         return np.where(np.logical_not(self.converged))[0]
 
     @property
-    @dask_compute
     def theta_location(self) -> np.ndarray:
         """Location parameters"""
         return self._theta_location_getter()
@@ -128,7 +126,6 @@ class BaseModelContainer:
             self.params[0 : self.npar_location] = value
 
     @property
-    @dask_compute
     def theta_scale(self) -> np.ndarray:
         """Scale parameters"""
         return self._theta_scale_getter()
@@ -145,7 +142,6 @@ class BaseModelContainer:
         else:
             self.params[self.npar_location :] = value
 
-    @dask_compute
     def theta_scale_j(self, j) -> np.ndarray:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
@@ -175,7 +171,6 @@ class BaseModelContainer:
         pass
 
     @property
-    @dask_compute
     def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.concatenate([self.jac_location, self.jac_scale], axis=-1)
 
@@ -213,7 +208,6 @@ class BaseModelContainer:
         xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
         return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
 
-    @dask_compute
     def jac_scale_j(self, j) -> np.ndarray:
         """
 
@@ -315,7 +309,6 @@ class BaseModelContainer:
         pass
 
     @property
-    @dask_compute
     def fim(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Full FIM
@@ -353,11 +346,9 @@ class BaseModelContainer:
         pass
 
     @property
-    @dask_compute
     def ll_byfeature(self) -> np.ndarray:
         return np.sum(self.ll, axis=0)
 
-    @dask_compute
     def ll_byfeature_j(self, j) -> np.ndarray:
         return np.sum(self.ll_j(j=j), axis=0)
 
