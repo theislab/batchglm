@@ -68,7 +68,7 @@ class Estimator(EstimatorGlm):
         init_theta_location = init_theta_location.astype(dtype)
         init_theta_scale = init_theta_scale.astype(dtype)
 
-        self._modelContainer = ModelContainer(
+        self._model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
             init_theta_scale=init_theta_scale,

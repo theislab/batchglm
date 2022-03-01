@@ -2,44 +2,49 @@ from typing import List, Optional, Union
 
 import numpy as np
 
+from batchglm.models.glm_beta import Model as BetaModel
+from batchglm.models.glm_nb import Model as NBModel
+from batchglm.models.glm_norm import Model as NormModel
+from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
+from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
+from batchglm.train.numpy.glm_norm import Estimator as NormEstimator
 
-def getEstimator(noise_model: Optional[str] = None, **kwargs):
+
+def get_estimator(noise_model: Optional[str] = None, **kwargs):
     if noise_model is None:
         raise ValueError("noise_model is None")
     else:
         if noise_model == "nb":
-            estim_module = batchglm.train.numpy.glm_nb
+            estimator = NBEstimator(**kwargs)
         elif noise_model == "norm":
-            estim_module = batchglm.train.numpy.glm_norm
+            estimator = NormEstimator(**kwargs)
         elif noise_model == "beta":
-            estim_module = batchglm.train.numpy.glm_beta
+            estimator = BetaEstimator(**kwargs)
         else:
             raise ValueError("noise_model not recognized")
-    from estim_module import Estimator
-
-    return Estimator(**kwargs)
+    return estimator
 
 
-def getGeneratedModel(
+def get_generated_model(
     num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None, noise_model: Optional[str] = None
 ):
     if noise_model is None:
         raise ValueError("noise_model is None")
     else:
         if noise_model == "nb":
-            model_module = batchglm.models.glm_nb
+            model = NBModel()
         elif noise_model == "norm":
-            model_module = batchglm.models.glm_norm
+            model = NormModel()
         elif noise_model == "beta":
-            model_module = batchglm.models.glm_beta
+            model = BetaModel()
         else:
             raise ValueError("noise_model not recognized")
-    from model_module import Model
 
-    model = Model()
+    def random_uniform(low: float, high: float):
+        return lambda: lambda shape: np.random.uniform(low=low, high=high, size=shape)
 
-    randU = lambda low, high: lambda shape: np.random.uniform(low=low, high=high, size=shape)
-    const = lambda offset: lambda shape: np.zeros(shape) + offset
+    def const(offset: float):
+        return lambda offset: lambda shape: np.zeros(shape) + offset
 
     if mode is None:
         """Sample loc and scale with default functions"""
@@ -50,24 +55,24 @@ def getGeneratedModel(
     elif mode == "randTheta":
 
         if noise_model in ["nb", "norm"]:
-            rand_fn_ave = randU(10, 1000)
-            rand_fn_loc = randU(1, 3)
-            rand_fn_scale = randU(1, 3)
+            rand_fn_ave = random_uniform(10, 1000)
+            rand_fn_loc = random_uniform(1, 3)
+            rand_fn_scale = random_uniform(1, 3)
         elif noise_model == "beta":
-            rand_fn_ave = randU(0.1, 0.7)
-            rand_fn_loc = randU(0.0, 0.15)
-            rand_fn_scale = randU(0.0, 0.15)
+            rand_fn_ave = random_uniform(0.1, 0.7)
+            rand_fn_loc = random_uniform(0.0, 0.15)
+            rand_fn_scale = random_uniform(0.0, 0.15)
         else:
             raise ValueError(f"Noise model {noise_model} not recognized.")
 
     elif mode == "constTheta":
 
         if noise_model in ["nb", "norm"]:
-            rand_fn_ave = randU(10, 1000)
+            rand_fn_ave = random_uniform(10, 1000)
             rand_fn_loc = const(1.0)
             rand_fn_scale = const(1.0)
         elif noise_model == "beta":
-            rand_fn_ave = randU(0.1, 0.9)
+            rand_fn_ave = random_uniform(0.1, 0.9)
             rand_fn_loc = const(0.05)
             rand_fn_scale = const(0.2)
         else:
