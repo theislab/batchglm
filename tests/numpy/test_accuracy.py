@@ -59,7 +59,7 @@ class TestAccuracy(unittest.TestCase):
         estimator.initialize()
         estimator.train_sequence(training_strategy="DEFAULT")
         success = self.eval_estimation(estimator)
-        assert success, "%s did not yield exact results" % algo
+        assert success, "Estimator did not yield exact results"
 
 
 class TestAccuracyNB(TestAccuracy):

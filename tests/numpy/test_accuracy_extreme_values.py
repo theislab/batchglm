@@ -1,39 +1,39 @@
 
 import unittest
-from tests.numpy.utils import getGeneratedModel
-from test.numpy.test_accuracy import TestAccuracy
+from test_accuracy import TestAccuracy
+from utils import getGeneratedModel, getEstimator
+
+from typing import Union, List, Optional
+
+import numpy as np
+import logging
+
+
+logger = logging.getLogger("batchglm")
+logging.getLogger("batchglm").setLevel(logging.WARNING)
 
 class _TestAccuracyXtremeAll(TestAccuracy):
     """
     Test whether numerical extremes throw error in initialisation or during first training steps.
     """
 
-    def _test_accuracy_extreme_values(idx: Union[List[int], int, np.ndarray], val: float):
-        if self.noise_model == 'nb':
-            from batchglm.train.numpy.glm_nb import Estimator
-        elif self.noise_model == 'norm':
-            from batchglm.train.numpy.norm import Estimator
-        elif self.noise_model == 'beta':
-            from batchglm.train.numpy.beta import Estimator
-        else:
-            raise ValueError(f"Noise model {self.noise_model} not recognized.")
-        
+    def _test_accuracy_extreme_values(self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: Optional[str] = None):
         model = getGeneratedModel(
-            noise_model=self.noise_model,
+            noise_model=noise_model,
             num_conditions=2,
             num_batches=4,
             sparse=False,
             mode=None
         )
         model._x[:, idx] = val
-        estimator = Estimator(model=model, init_location="standard", init_scale="standard")
-        return self._testAccuracy(Estimator(model=sparse_model, init_location="standard", init_scale="standard"))
+        estimator = getEstimator(noise_model=noise_model, model=model, init_location="standard", init_scale="standard")
+        return self._testAccuracy(estimator)
 
-    def _test_low_values(self):
-        self._test_accuracy_extreme_values(idx=0, val=0.0)
+    def _test_low_values(self, **kwargs):
+        self._test_accuracy_extreme_values(idx=0, val=0.0, **kwargs)
 
-    def _test_zero_variance(self):
-        self._modify_sim(idx=0, val=5.0)
+    def _test_zero_variance(self, **kwargs):
+        self._modify_sim(idx=0, val=5.0, **kwargs)
         return self.basic_test(batched=False, train_loc=True, train_scale=True, sparse=False)
 
 
@@ -43,14 +43,11 @@ class TestAccuracyXtremeNb(_TestAccuracyXtremeAll):
     """
 
     def test_nb(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeNb.test_nb()")
 
         np.random.seed(1)
-        self.noise_model = "nb"
-        self._test_low_values()
-        self._test_zero_variance()
+        self._test_low_values(noise_model="nb")
+        self._test_zero_variance(noise_model="nb")
 
 
 class TestAccuracyXtremeNorm(_TestAccuracyXtremeAll):
@@ -59,15 +56,12 @@ class TestAccuracyXtremeNorm(_TestAccuracyXtremeAll):
     """
 
     def test_norm(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeNorm.test_norm()")
         logger.info("Normal noise model not implemented for numpy")
 
         # np.random.seed(1)
-        # self.noise_model = "norm"
-        # self._test_low_values()
-        # self._test_zero_variance()
+        # self._test_low_values(noise_model="norm")
+        # self._test_zero_variance(noise_model="norm")
 
 
 class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll):
@@ -76,15 +70,12 @@ class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll):
     """
 
     def test_beta(self):
-        logging.getLogger("tensorflow").setLevel(logging.ERROR)
-        logging.getLogger("batchglm").setLevel(logging.WARNING)
         logger.error("TestAccuracyXtremeBeta.test_beta()")
         logger.info("Beta noise model not implemented for numpy")
 
         # np.random.seed(1)
-        # self.noise_model = "beta"
-        # self._test_low_values()
-        # self._test_zero_variance()
+        # self._test_low_values(noise_model="beta")
+        # self._test_zero_variance(noise_model="beta")
 
 
 if __name__ == "__main__":
