@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 try:
     import anndata
@@ -108,7 +108,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     # param constraints:
 
-    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+    def bounds(self, sf, dmax, dtype) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         bounds_min = {
             "theta_location": np.nextafter(-dmax, np.inf, dtype=dtype) / sf,

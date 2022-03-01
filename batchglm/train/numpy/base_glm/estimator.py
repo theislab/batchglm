@@ -3,7 +3,7 @@ import logging
 import multiprocessing
 import sys
 import time
-from typing import Tuple
+from typing import Tuple, List
 
 import dask.array
 import numpy as np
@@ -15,9 +15,10 @@ from enum import Enum
 import pprint
 
 
-
-from .external import _EstimatorGLM, pkg_constants
+from .external import pkg_constants
 from .training_strategies import TrainingStrategies
+
+from .modelContainer import BaseModelContainer
 
 logger = logging.getLogger("batchglm")
 
@@ -35,6 +36,9 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
 
     _train_loc: bool = False
     _train_scale: bool = False
+    _modelContainer: BaseModelContainer
+    lls: List[float] = []
+    dtype: str = ''
 
     def __init__(
         self,
@@ -64,6 +68,10 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
     @property
     def train_scale(self) -> bool:
         return self._train_scale
+
+    @property
+    def modelContainer(self) -> BaseModelContainer:
+        return self._modelContainer
 
     def train_sequence(self, training_strategy, **kwargs):
         if isinstance(training_strategy, Enum):
@@ -135,7 +143,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
             if not self._train_loc:
                 update_scale_freq = 1
         else:
-            update_scale_freq = np.inf
+            update_scale_freq = int(1e10)  # very large integer
         epochs_until_scale_update = update_scale_freq
         fully_converged = np.tile(False, self.modelContainer.num_features)
 
@@ -374,14 +382,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
             self.modelContainer.theta_scale = theta_scale_new
             converged = np.logical_or(converged, converged_f)
             iter += 1
-            logging.getLogger("batchglm").info(
-                "iter %i: ll=%f, converged scale model: %.2f%%"
-                % (
-                    (" " if iter < 10 else "") + (" " if iter < 100 else "") + str(iter),
-                    np.sum(ll_current),
-                    np.mean(converged) * 100,
-                )
-            )
+            logging.getLogger("batchglm").info(f"iter {iter:>3}: ll={np.sum(ll_current)}, converged scale model: {np.mean(converged) * 100:.2f}")
         return self.modelContainer.theta_scale.compute() - theta_scale_old
 
     def optim_handle(self, b_j, data_j, eta_loc_j, xh_scale, max_iter, ftol):

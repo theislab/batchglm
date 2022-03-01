@@ -2,35 +2,35 @@ import numpy as np
 from typing import Union, List, Optional
 
 
-def getEstimator(noise_model: str, **kwargs):
+def getEstimator(noise_model: Optional[str] = None, **kwargs):
     if noise_model is None:
         raise ValueError("noise_model is None")
     else:
         if noise_model == "nb":
-            from batchglm.train.numpy.glm_nb import Estimator
+            estim_module = batchglm.train.numpy.glm_nb
         elif noise_model == "norm":
-            from batchglm.train.numpy.glm_norm import Estimator
+            estim_module = batchglm.train.numpy.glm_norm
         elif noise_model == "beta":
-            from batchglm.train.numpy.glm_beta import Estimator
+            estim_module = batchglm.train.numpy.glm_beta
         else:
             raise ValueError("noise_model not recognized")
-
+    from estim_module import Estimator
     return Estimator(**kwargs)
   
 
-def getGeneratedModel(noise_model: str, num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None):
+def getGeneratedModel(num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None, noise_model: Optional[str] = None):
     if noise_model is None:
         raise ValueError("noise_model is None")
     else:
         if noise_model == "nb":
-            from batchglm.models.glm_nb import Model
+            model_module = batchglm.models.glm_nb
         elif noise_model == "norm":
-            from batchglm.models.glm_norm import Model
+            model_module = batchglm.models.glm_norm
         elif noise_model == "beta":
-            from batchglm.models.glm_beta import Model
+            model_module = batchglm.models.glm_beta
         else:
             raise ValueError("noise_model not recognized")
-
+    from model_module import Model
     model = Model()
   
     randU = lambda low, high: lambda shape: np.random.uniform(low=low, high=high, size=shape)

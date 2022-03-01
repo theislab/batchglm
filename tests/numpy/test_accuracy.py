@@ -60,6 +60,7 @@ class TestAccuracy(unittest.TestCase):
         estimator.train_sequence(training_strategy="DEFAULT")
         success = self.eval_estimation(estimator)
         assert success, "Estimator did not yield exact results"
+        return True
 
 
 class TestAccuracyNB(TestAccuracy):

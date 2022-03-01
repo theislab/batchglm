@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 try:
     import anndata
@@ -62,7 +62,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     # parameter contraints:
 
-    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+    def bounds(self, sf, dmax, dtype) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         zero = np.nextafter(0, np.inf, dtype=dtype)
         one = np.nextafter(1, -np.inf, dtype=dtype)

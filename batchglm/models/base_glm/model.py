@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Callable, Dict, Iterable, Optional, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Union, List, Tuple
 
 import dask.array
 import numpy as np
@@ -30,25 +30,23 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         Input data
     """
 
-    _design_loc: np.ndarray = None
-    _design_scale: np.ndarray = None
-    _constraints_loc: np.ndarray = None
-    _constraints_scale: np.ndarray = None
-    _design_loc_names: np.ndarray = None
-    _design_scale_names: np.ndarray = None
-    _loc_names: np.ndarray = None
-    _scale_names: np.ndarray = None
-    _x: np.ndarray = None
-    _size_factors: np.ndarray = None
-    _theta_location: np.ndarray = None
-    _theta_scale: np.ndarray = None
+    _design_loc: np.ndarray
+    _design_scale: np.ndarray
+    _constraints_loc: np.ndarray
+    _constraints_scale: np.ndarray
+    _design_loc_names: List[str]
+    _design_scale_names: List[str]
+    _loc_names: List[str]
+    _scale_names: List[str]
+    _x: np.ndarray
+    _size_factors: Optional[np.ndarray] = None
+    _theta_location: np.ndarray
+    _theta_scale: np.ndarray
     _theta_location_getter: Callable = lambda x: x._theta_location
     _theta_scale_getter: Callable = lambda x: x._theta_scale
-    _cast_dtype: str = None
-    _loc_names: np.ndarray = None
-    _scale_names: np.ndarray = None
-    _chunk_size_cells: int = None
-    _chunk_size_genes: int = None
+    _cast_dtype: str = 'float32'
+    _chunk_size_cells: int
+    _chunk_size_genes: int
 
     def __init__(
         self,
@@ -66,6 +64,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     def extract_input_data(self, input_data: InputDataGLM):
         self._design_loc = input_data.design_loc
         self._design_scale = input_data.design_scale
+        self._size_factors = input_data.size_factors
         self._constraints_loc = input_data.constraints_loc
         self._constraints_scale = input_data.constraints_scale
         self._design_loc_names = input_data.design_loc_names
@@ -111,22 +110,22 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return self._constraints_scale
 
     @property
-    def design_loc_names(self) -> list:
+    def design_loc_names(self) -> List[str]:
         """column names from location design matrix"""
         return self._design_loc_names
 
     @property
-    def design_scale_names(self) -> list:
+    def design_scale_names(self) -> List[str]:
         """column names from scale design matrix"""
         return self._design_scale_names
 
     @property
-    def loc_names(self) -> list:
+    def loc_names(self) -> List[str]:
         """column names from constratined location design matrix"""
         return self._loc_names
 
     @property
-    def scale_names(self) -> list:
+    def scale_names(self) -> List[str]:
         """column names from constrained scale design matrix"""
         return self._scale_names
 
@@ -296,7 +295,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return self.bounds(sf, dmax, dtype)
 
     @abc.abstractmethod
-    def bounds(self, sf, dmax, dtype) -> Dict[str, Any]:
+    def bounds(self, sf, dmax, dtype) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         pass
 
     # simulator:

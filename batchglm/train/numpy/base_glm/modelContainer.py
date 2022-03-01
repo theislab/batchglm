@@ -47,8 +47,8 @@ class BaseModelContainer:
     def __init__(
         self,
         model,
-        init_location: Union[np.ndarray, dask.array.core.Array],
-        init_scale: Union[np.ndarray, dask.array.core.Array],
+        init_theta_location: Union[np.ndarray, dask.array.core.Array],
+        init_theta_scale: Union[np.ndarray, dask.array.core.Array],
         chunk_size_genes: int,
         dtype: str,
     ):
@@ -64,26 +64,26 @@ class BaseModelContainer:
         """
 
         self.model = model
-        init_location_clipped = model.np_clip_param(np.asarray(init_location, dtype=dtype), "theta_location")
-        init_scale_clipped = model.np_clip_param(np.asarray(init_scale, dtype=dtype), "theta_scale")
+        init_theta_location_clipped = model.np_clip_param(np.asarray(init_theta_location, dtype=dtype), "theta_location")
+        init_theta_scale_clipped = model.np_clip_param(np.asarray(init_theta_scale, dtype=dtype), "theta_scale")
         self.params = dask.array.from_array(
             np.concatenate(
                 [
-                    init_location_clipped,
-                    init_scale_clipped,
+                    init_theta_location_clipped,
+                    init_theta_scale_clipped,
                 ],
                 axis=0,
             ),
             chunks=(1000, chunk_size_genes),
         )
-        self.npar_location = init_location_clipped.shape[0]
+        self.npar_location = init_theta_location_clipped.shape[0]
 
         # Properties to follow gene-wise convergence.
         self.converged = np.repeat(a=False, repeats=self.params.shape[1])  # Initialise to non-converged.
 
         self.dtype = dtype
-        self.idx_train_loc = np.arange(0, init_location.shape[0])
-        self.idx_train_scale = np.arange(init_location.shape[0], init_location.shape[0] + init_scale.shape[0])
+        self.idx_train_loc = np.arange(0, init_theta_location.shape[0])
+        self.idx_train_scale = np.arange(init_theta_location.shape[0], init_theta_location.shape[0] + init_theta_scale.shape[0])
 
         # overriding the location and scale parameter by referencing the getter functions within the properties.
         self.model._theta_location_getter = self._theta_location_getter
@@ -181,9 +181,12 @@ class BaseModelContainer:
         :return: (features x inferred param)
         """
         w = self.fim_weight_location_location  # (observations x features)
+        print(type(w))
         ybar = self.ybar  # (observations x features)
         xh = np.matmul(self.design_loc, self.constraints_loc)  # (observations x inferred param)
-        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
+        print(type(xh))
+        inner = np.einsum("ob,of->fob", xh, w)
+        return np.einsum("fob,of->fb", inner, ybar)
 
     def jac_location_j(self, j) -> np.ndarray:
         """
@@ -216,18 +219,19 @@ class BaseModelContainer:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-            w = self.jac_weight_scale_j(j=j)  # (observations x features)
-            xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
-            return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
+        w = self.jac_weight_scale_j(j=j)  # (observations x features)
+        xh = np.matmul(self.design_scale, self.constraints_scale)  # (observations x inferred param)
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
 
     # hessians
 
+    @property
     @abc.abstractmethod
-    def hessian_weight_location_location(self) -> np.ndarray:
+    def hessian_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
-    def hessian_location_location(self) -> np.ndarray:
+    def hessian_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param x inferred param)
@@ -236,12 +240,13 @@ class BaseModelContainer:
         xh = np.matmul(self.design_loc, self.constraints_loc)
         return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
+    @property
     @abc.abstractmethod
-    def hessian_weight_location_scale(self) -> np.ndarray:
+    def hessian_weight_location_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
-    def hessian_location_scale(self) -> np.ndarray:
+    def hessian_location_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param x inferred param)
@@ -253,8 +258,9 @@ class BaseModelContainer:
             np.matmul(self.design_scale, self.constraints_scale),
         )
 
+    @property
     @abc.abstractmethod
-    def hessian_weight_scale_scale(self) -> np.ndarray:
+    def hessian_weight_scale_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
@@ -300,6 +306,7 @@ class BaseModelContainer:
         xh = np.matmul(self.design_loc, self.constraints_loc)
         return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
+    @property
     @abc.abstractmethod
     def fim_location_scale(self) -> np.ndarray:
         pass
@@ -331,12 +338,14 @@ class BaseModelContainer:
     def fim_weight(self) -> np.ndarray:
         pass
 
+    @property
     @abc.abstractmethod
-    def fim_weight_location_location(self) -> np.ndarray:
+    def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     # ll
 
+    @property
     @abc.abstractmethod
     def ll(self) -> np.ndarray:
         pass
@@ -354,6 +363,7 @@ class BaseModelContainer:
 
     # bar
 
+    @property
     @abc.abstractmethod
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass

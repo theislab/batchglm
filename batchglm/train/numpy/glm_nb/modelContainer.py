@@ -8,8 +8,13 @@ from .external import BaseModelContainer
 
 
 class ModelContainer(BaseModelContainer):
+
     @property
-    def fim_weight_location_location(self):
+    def fim_weight(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights
         :return: observations x features
@@ -42,6 +47,14 @@ class ModelContainer(BaseModelContainer):
         else:
             return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
 
+    @property
+    def jac_weight(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def jac_weight_j(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+    
     @property
     def jac_weight_scale(self):
         """
