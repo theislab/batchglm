@@ -139,7 +139,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         epochs_until_scale_update = update_scale_freq
         fully_converged = np.tile(False, self.modelContainer.num_features)
 
-        ll_current = -self.modelContainer.ll_byfeature
+        ll_current = -self.modelContainer.ll_byfeature.compute()
         ll_last_scale_update = ll_current.copy()
         # logging.getLogger("batchglm").info(
         sys.stdout.write("iter   %i: ll=%f\n" % (0, np.sum(ll_current)))
@@ -162,9 +162,12 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     # Perform trial update.
                     self.modelContainer.theta_scale = self.modelContainer.theta_scale + b_step
                     # Reverse update by feature if update leads to worse loss:
-                    ll_proposal = -self.modelContainer.ll_byfeature_j(j=idx_update)
+                    ll_proposal = -self.modelContainer.ll_byfeature_j(j=idx_update).compute()
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                    theta_scale_new = self.modelContainer.theta_scale.copy()
+                    if isinstance(self.modelContainer.theta_scale, dask.array.core.Array):
+                        theta_scale_new = self.modelContainer.theta_scale.compute()
+                    else:
+                        theta_scale_new = self.modelContainer.theta_scale.copy()
                     theta_scale_new[:, idx_bad_step] = theta_scale_new[:, idx_bad_step] - b_step[:, idx_bad_step]
                     self.modelContainer.theta_scale = theta_scale_new
                 else:
@@ -185,9 +188,12 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     # Perform trial update.
                     self.modelContainer.theta_location += a_step
                     # Reverse update by feature if update leads to worse loss:
-                    ll_proposal = -self.modelContainer.ll_byfeature_j(j=idx_update)
-                    idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]            
-                    theta_location_new = self.modelContainer.theta_location.copy()
+                    ll_proposal = -self.modelContainer.ll_byfeature_j(j=idx_update).compute()
+                    idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
+                    if isinstance(self.modelContainer.theta_location, dask.array.core.Array):
+                        theta_location_new = self.modelContainer.theta_location.compute()
+                    else:
+                        theta_location_new = self.modelContainer.theta_location.copy()
                     theta_location_new[:, idx_bad_step] = theta_location_new[:, idx_bad_step] - a_step[:, idx_bad_step]
                     self.modelContainer.theta_location = theta_location_new
                 else:
@@ -345,25 +351,25 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         :return:
         """
         iter = 0
-        theta_scale_old = self.modelContainer.theta_scale
+        theta_scale_old = self.modelContainer.theta_scale.compute()
         converged = np.tile(True, self.modelContainer.num_features)
         converged[idx_update] = False
-        ll_current = -self.modelContainer.ll_byfeature
+        ll_current = -self.modelContainer.ll_byfeature.compute()
         while np.any(np.logical_not(converged)) and iter < max_iter:
             idx_to_update = np.where(np.logical_not(converged))[0]
-            jac = np.zeros_like(self.modelContainer.theta_scale)
+            jac = np.zeros_like(self.modelContainer.theta_scale).compute()
             # Use mean jacobian so that learning rate is independent of number of samples.
             jac[:, idx_to_update] = (
-                self.modelContainer.jac_scale_j(j=idx_to_update).T / self.modelContainer.num_observations
+                self.modelContainer.jac_scale_j(j=idx_to_update).compute().T / self.modelContainer.num_observations
             )
             self.modelContainer.theta_scale_j_setter(
-                value=(self.modelContainer.theta_scale + lr * jac)[:, idx_to_update], j=idx_to_update
+                value=(self.modelContainer.theta_scale.compute() + lr * jac)[:, idx_to_update], j=idx_to_update
             )
             # Assess convergence:
             ll_previous = ll_current
-            ll_current = -self.modelContainer.ll_byfeature
+            ll_current = -self.modelContainer.ll_byfeature.compute()
             converged_f = (ll_current - ll_previous) / ll_previous > -ftol
-            theta_scale_new = self.modelContainer.theta_scale
+            theta_scale_new = self.modelContainer.theta_scale.compute()
             theta_scale_new[:, converged_f] = theta_scale_new[:, converged_f] - lr * jac[:, converged_f]
             self.modelContainer.theta_scale = theta_scale_new
             converged = np.logical_or(converged, converged_f)
@@ -376,7 +382,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     np.mean(converged) * 100,
                 )
             )
-        return self.modelContainer.theta_scale - theta_scale_old
+        return self.modelContainer.theta_scale.compute() - theta_scale_old
 
     def optim_handle(self, b_j, data_j, eta_loc_j, xh_scale, max_iter, ftol):
         # Need to supply dense numpy array to scipy optimize:
@@ -423,18 +429,18 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         A single loop step for the scale model
         :return:
         """
-        delta_theta = np.zeros_like(self.modelContainer.theta_scale)
+        delta_theta = np.zeros(shape=self.modelContainer.theta_scale.shape)
 
-        xh_scale = self.modelContainer.xh_scale
-        theta_scale = self.modelContainer.theta_scale
+        xh_scale = self.modelContainer.xh_scale.compute()
+        theta_scale = self.modelContainer.theta_scale.compute()
         if nproc > 1 and len(idx_update) > nproc:
             sys.stdout.write(
                 "\rFitting %i dispersion models: (progress not available with multiprocessing)" % len(idx_update)
             )
             sys.stdout.flush()
             with multiprocessing.Pool(processes=nproc) as pool:
-                x = self.modelContainer.x
-                eta_loc = self.modelContainer.eta_loc
+                x = self.modelContainer.x.compute()
+                eta_loc = self.modelContainer.eta_loc.compute()
                 results = pool.starmap(
                     self.optim_handle,
                     [(theta_scale[0, j], x[:, [j]], eta_loc[:, [j]], xh_scale, max_iter, ftol) for j in idx_update],
@@ -452,8 +458,8 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                 )
                 sys.stdout.flush()
                 if method.lower() == "brent":
-                    eta_loc = self.modelContainer.eta_loc_j(j=j)
-                    data = self.modelContainer.x_j(j=j)
+                    eta_loc = self.modelContainer.eta_loc_j(j=j).compute()
+                    data = self.modelContainer.x_j(j=j).compute()
                     # Need to supply dense numpy array to scipy optimize:
                     if isinstance(data, sparse.COO) or isinstance(data, scipy.sparse.csr_matrix):
                         data = data.todense()
@@ -479,8 +485,11 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     raise ValueError("method %s not recognized" % method)
             sys.stdout.write("\r")
             sys.stdout.flush()
-
-        delta_theta[:, idx_update] -= self.modelContainer.theta_scale_j(j=idx_update)
+        
+        if isinstance(self.modelContainer.theta_scale, dask.array.core.Array):
+            delta_theta[:, idx_update] -= self.modelContainer.theta_scale_j(j=idx_update).compute()
+        else:
+            delta_theta[:, idx_update] -= self.modelContainer.theta_scale_j(j=idx_update).copy()
         return delta_theta
 
     def finalize(self):
@@ -492,13 +501,13 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         transfers relevant attributes.
         """
         # Read from numpy-IRLS estimator specific model:
-        self.modelContainer._hessian = -self.modelContainer.fim
+        self.modelContainer._hessian = -self.modelContainer.fim.compute()
         fisher_inv = np.zeros_like(self.modelContainer._hessian)
         invertible = np.where(np.linalg.cond(self.modelContainer._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
         fisher_inv[invertible] = np.linalg.inv(-self.modelContainer._hessian[invertible])
         self.modelContainer._fisher_inv = fisher_inv
-        self.modelContainer._jacobian = np.sum(np.abs(self.modelContainer.jac / self.modelContainer.x.shape[0]), axis=1)
-        self.modelContainer._log_likelihood = self.modelContainer.ll_byfeature
+        self.modelContainer._jacobian = np.sum(np.abs(self.modelContainer.jac.compute() / self.modelContainer.x.shape[0]), axis=1)
+        self.modelContainer._log_likelihood = self.modelContainer.ll_byfeature.compute()
         self.modelContainer._loss = np.sum(self.modelContainer._log_likelihood)
 
     def get_model_container(self, input_data):
