@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Callable, Dict, Iterable, Optional, Union, List, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np
@@ -44,7 +44,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     _theta_scale: np.ndarray
     _theta_location_getter: Callable = lambda x: x._theta_location
     _theta_scale_getter: Callable = lambda x: x._theta_scale
-    _cast_dtype: str = 'float32'
+    _cast_dtype: str = "float32"
     _chunk_size_cells: int
     _chunk_size_genes: int
 
@@ -60,7 +60,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         """
         if input_data is not None:
             self.extract_input_data(input_data)
-    
+
     def extract_input_data(self, input_data: InputDataGLM):
         self._design_loc = input_data.design_loc
         self._design_scale = input_data.design_scale
@@ -317,13 +317,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         pass
 
     def generate_params(
-        self,
-        n_vars: int,
-        rand_fn_ave=None,
-        rand_fn=None,
-        rand_fn_loc=None,
-        rand_fn_scale=None,
-        **kwargs
+        self, n_vars: int, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, **kwargs
     ):
         """
         Generate all necessary parameters. TODO: make this documentation better!!!
@@ -376,7 +370,6 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
         return _design_loc, _design_scale
 
-
     def generate(
         self,
         n_obs: int,
@@ -401,7 +394,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             num_batches=num_batches,
             intercept_scale=intercept_scale,
             shuffle_assignments=shuffle_assignments,
-            **kwargs
+            **kwargs,
         )
 
         # we need to do this explicitly here in order to generate data
@@ -415,12 +408,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
 
-        input_data = InputDataGLM(
-            data=data_matrix,
-            design_loc=_design_loc,
-            design_scale=_design_scale,
-            as_dask=as_dask
-        )
+        input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask)
         self.extract_input_data(input_data)
 
     @abc.abstractmethod

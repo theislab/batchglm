@@ -1,30 +1,24 @@
-
+import logging
 import unittest
-from test_accuracy import TestAccuracy
-from utils import getGeneratedModel, getEstimator
-
-from typing import Union, List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
-import logging
-
+from test_accuracy import TestAccuracy
+from utils import getEstimator, getGeneratedModel
 
 logger = logging.getLogger("batchglm")
 logging.getLogger("batchglm").setLevel(logging.WARNING)
+
 
 class _TestAccuracyXtremeAll(TestAccuracy):
     """
     Test whether numerical extremes throw error in initialisation or during first training steps.
     """
 
-    def _test_accuracy_extreme_values(self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: Optional[str] = None):
-        model = getGeneratedModel(
-            noise_model=noise_model,
-            num_conditions=2,
-            num_batches=4,
-            sparse=False,
-            mode=None
-        )
+    def _test_accuracy_extreme_values(
+        self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: Optional[str] = None
+    ):
+        model = getGeneratedModel(noise_model=noise_model, num_conditions=2, num_batches=4, sparse=False, mode=None)
         model._x[:, idx] = val
         estimator = getEstimator(noise_model=noise_model, model=model, init_location="standard", init_scale="standard")
         return self._testAccuracy(estimator)

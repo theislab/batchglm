@@ -8,7 +8,6 @@ from .external import BaseModelContainer
 
 
 class ModelContainer(BaseModelContainer):
-
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
@@ -54,7 +53,7 @@ class ModelContainer(BaseModelContainer):
     @property
     def jac_weight_j(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
-    
+
     @property
     def jac_weight_scale(self):
         """

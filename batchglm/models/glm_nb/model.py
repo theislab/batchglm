@@ -4,7 +4,7 @@ try:
     import anndata
 except ImportError:
     anndata = None
-from typing import Any, Callable, Dict, Optional, Union, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import dask.array
 import numpy as np

@@ -64,7 +64,9 @@ class BaseModelContainer:
         """
 
         self.model = model
-        init_theta_location_clipped = model.np_clip_param(np.asarray(init_theta_location, dtype=dtype), "theta_location")
+        init_theta_location_clipped = model.np_clip_param(
+            np.asarray(init_theta_location, dtype=dtype), "theta_location"
+        )
         init_theta_scale_clipped = model.np_clip_param(np.asarray(init_theta_scale, dtype=dtype), "theta_scale")
         self.params = dask.array.from_array(
             np.concatenate(
@@ -83,12 +85,13 @@ class BaseModelContainer:
 
         self.dtype = dtype
         self.idx_train_loc = np.arange(0, init_theta_location.shape[0])
-        self.idx_train_scale = np.arange(init_theta_location.shape[0], init_theta_location.shape[0] + init_theta_scale.shape[0])
+        self.idx_train_scale = np.arange(
+            init_theta_location.shape[0], init_theta_location.shape[0] + init_theta_scale.shape[0]
+        )
 
         # overriding the location and scale parameter by referencing the getter functions within the properties.
         self.model._theta_location_getter = self._theta_location_getter
         self.model._theta_scale_getter = self._theta_scale_getter
-
 
     def _theta_location_getter(self):
         theta_location = self.params[0 : self.npar_location]
@@ -145,8 +148,7 @@ class BaseModelContainer:
     def theta_scale_j(self, j) -> np.ndarray:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        return self.np_clip_param(self.params[self.npar_location:, j], "theta_scale")
-
+        return self.np_clip_param(self.params[self.npar_location :, j], "theta_scale")
 
     def theta_scale_j_setter(self, value, j):
         """Setter ofr a specific theta_scale value."""

@@ -1,9 +1,11 @@
 import abc
 import logging
 import multiprocessing
+import pprint
 import sys
 import time
-from typing import Tuple, List
+from enum import Enum
+from typing import List, Tuple
 
 import dask.array
 import numpy as np
@@ -11,14 +13,10 @@ import scipy
 import scipy.optimize
 import scipy.sparse
 import sparse
-from enum import Enum
-import pprint
-
 
 from .external import pkg_constants
-from .training_strategies import TrainingStrategies
-
 from .modelContainer import BaseModelContainer
+from .training_strategies import TrainingStrategies
 
 logger = logging.getLogger("batchglm")
 
@@ -38,14 +36,9 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
     _train_scale: bool = False
     _modelContainer: BaseModelContainer
     lls: List[float] = []
-    dtype: str = ''
+    dtype: str = ""
 
-    def __init__(
-        self,
-        dtype: str,
-        provide_batched: bool = False
-
-    ):
+    def __init__(self, dtype: str, provide_batched: bool = False):
         """
         Performs initialisation and creates a new estimator.
         :param model:
@@ -108,7 +101,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         lr_scale: float = 1e-2,
         max_iter_scale: int = 1000,
         nproc: int = 3,
-        **kwargs
+        **kwargs,
     ):
         """
         Train GLM.
@@ -215,7 +208,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                 epochs_until_scale_update -= 1
 
             # Evaluate and update convergence:
-            
+
             ll_previous = ll_current
             ll_current = ll_new
             if epochs_until_scale_update == update_scale_freq:  # b step update was executed.
@@ -382,7 +375,9 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
             self.modelContainer.theta_scale = theta_scale_new
             converged = np.logical_or(converged, converged_f)
             iter += 1
-            logging.getLogger("batchglm").info(f"iter {iter:>3}: ll={np.sum(ll_current)}, converged scale model: {np.mean(converged) * 100:.2f}")
+            logging.getLogger("batchglm").info(
+                f"iter {iter:>3}: ll={np.sum(ll_current)}, converged scale model: {np.mean(converged) * 100:.2f}"
+            )
         return self.modelContainer.theta_scale.compute() - theta_scale_old
 
     def optim_handle(self, b_j, data_j, eta_loc_j, xh_scale, max_iter, ftol):
@@ -486,7 +481,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     raise ValueError("method %s not recognized" % method)
             sys.stdout.write("\r")
             sys.stdout.flush()
-        
+
         if isinstance(self.modelContainer.theta_scale, dask.array.core.Array):
             delta_theta[:, idx_update] -= self.modelContainer.theta_scale_j(j=idx_update).compute()
         else:
@@ -507,7 +502,9 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         invertible = np.where(np.linalg.cond(self.modelContainer._hessian, p=None) < 1 / sys.float_info.epsilon)[0]
         fisher_inv[invertible] = np.linalg.inv(-self.modelContainer._hessian[invertible])
         self.modelContainer._fisher_inv = fisher_inv
-        self.modelContainer._jacobian = np.sum(np.abs(self.modelContainer.jac.compute() / self.modelContainer.x.shape[0]), axis=1)
+        self.modelContainer._jacobian = np.sum(
+            np.abs(self.modelContainer.jac.compute() / self.modelContainer.x.shape[0]), axis=1
+        )
         self.modelContainer._log_likelihood = self.modelContainer.ll_byfeature.compute()
         self.modelContainer._loss = np.sum(self.modelContainer._log_likelihood)
 

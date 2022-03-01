@@ -1,10 +1,11 @@
+import logging
 import unittest
+
+import numpy as np
+from utils import getEstimator, getGeneratedModel
+
 from batchglm.models.base_glm import _ModelGLM
 from batchglm.train.numpy.base_glm import EstimatorGlm
-from utils import getGeneratedModel, getEstimator
-import numpy as np
-
-import logging
 
 logger = logging.getLogger("batchglm")
 
@@ -14,6 +15,7 @@ NORM_OPTIMIZERS = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR", "IRLS", "I
 BETA_OPTIMIZERS = ["GD", "ADAM", "ADAGRAD", "RMSPROP", "NR", "NR_TR"]
 
 from batchglm import pkg_constants
+
 pkg_constants.TRUST_REGION_T1 = 0.5
 pkg_constants.TRUST_REGION_T2 = 1.5
 pkg_constants.CHOLESKY_LSTSQS = True
@@ -22,8 +24,6 @@ pkg_constants.JACOBIAN_MODE = "analytic"
 
 
 class TestAccuracy(unittest.TestCase):
-
-
     def eval_estimation(self, estimator: EstimatorGlm):
         mean_thres_location = 0.2
         mean_thres_scale = 0.2
@@ -43,14 +43,14 @@ class TestAccuracy(unittest.TestCase):
                 true=estimator.modelContainer.model._theta_location,
                 pred=estimator.modelContainer.theta_location,
                 mean_thres=mean_thres_location,
-                std_thres=std_thres_location
+                std_thres=std_thres_location,
             )
         if estimator.train_scale:
             success &= deviation_theta(
                 true=estimator.modelContainer.model._theta_scale,
                 pred=estimator.modelContainer.theta_scale,
                 mean_thres=mean_thres_scale,
-                std_thres=std_thres_scale
+                std_thres=std_thres_scale,
             )
         return success
 
@@ -64,34 +64,47 @@ class TestAccuracy(unittest.TestCase):
 
 
 class TestAccuracyNB(TestAccuracy):
-
-
     def testAccuracyRandTheta(self):
         """
         This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
         """
-        dense_model = getGeneratedModel(noise_model='nb', num_conditions=2, num_batches=4, sparse=False, mode='randTheta')
-        sparse_model = getGeneratedModel(noise_model='nb', num_conditions=2, num_batches=4, sparse=True, mode='randTheta')
-        
-        dense_estimator = getEstimator(noise_model="nb", model=dense_model, init_location="standard", init_scale="standard")
+        dense_model = getGeneratedModel(
+            noise_model="nb", num_conditions=2, num_batches=4, sparse=False, mode="randTheta"
+        )
+        sparse_model = getGeneratedModel(
+            noise_model="nb", num_conditions=2, num_batches=4, sparse=True, mode="randTheta"
+        )
+
+        dense_estimator = getEstimator(
+            noise_model="nb", model=dense_model, init_location="standard", init_scale="standard"
+        )
         self._testAccuracy(dense_estimator)
-        
-        sparse_estimator = getEstimator(noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard")
+
+        sparse_estimator = getEstimator(
+            noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard"
+        )
         self._testAccuracy(sparse_estimator)
-    
+
     def testAccuracyConstTheta(self):
         """
         This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
         """
-        dense_model = getGeneratedModel(noise_model='nb', num_conditions=2, num_batches=0, sparse=False, mode='constTheta')
-        sparse_model = getGeneratedModel(noise_model='nb', num_conditions=2, num_batches=0, sparse=True, mode='constTheta')
-        
-        dense_estimator = getEstimator(noise_model="nb", model=dense_model, init_location="standard", init_scale="standard")
-        self._testAccuracy(dense_estimator)
-        
-        sparse_estimator = getEstimator(noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard")
-        self._testAccuracy(sparse_estimator)
+        dense_model = getGeneratedModel(
+            noise_model="nb", num_conditions=2, num_batches=0, sparse=False, mode="constTheta"
+        )
+        sparse_model = getGeneratedModel(
+            noise_model="nb", num_conditions=2, num_batches=0, sparse=True, mode="constTheta"
+        )
 
+        dense_estimator = getEstimator(
+            noise_model="nb", model=dense_model, init_location="standard", init_scale="standard"
+        )
+        self._testAccuracy(dense_estimator)
+
+        sparse_estimator = getEstimator(
+            noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard"
+        )
+        self._testAccuracy(sparse_estimator)
 
 
 if __name__ == "__main__":

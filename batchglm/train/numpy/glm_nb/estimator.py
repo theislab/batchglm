@@ -22,7 +22,7 @@ class Estimator(EstimatorGlm):
         self,
         init_location: str = "AUTO",
         init_scale: str = "AUTO",
-        #batch_size: Optional[Union[Tuple[int, int], int]] = None,
+        # batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
         model=None,
         dtype="float64",

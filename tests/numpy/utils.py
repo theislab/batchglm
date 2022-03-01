@@ -1,5 +1,6 @@
+from typing import List, Optional, Union
+
 import numpy as np
-from typing import Union, List, Optional
 
 
 def getEstimator(noise_model: Optional[str] = None, **kwargs):
@@ -15,10 +16,13 @@ def getEstimator(noise_model: Optional[str] = None, **kwargs):
         else:
             raise ValueError("noise_model not recognized")
     from estim_module import Estimator
-    return Estimator(**kwargs)
-  
 
-def getGeneratedModel(num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None, noise_model: Optional[str] = None):
+    return Estimator(**kwargs)
+
+
+def getGeneratedModel(
+    num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None, noise_model: Optional[str] = None
+):
     if noise_model is None:
         raise ValueError("noise_model is None")
     else:
@@ -31,19 +35,20 @@ def getGeneratedModel(num_conditions: int, num_batches: int, sparse: bool, mode:
         else:
             raise ValueError("noise_model not recognized")
     from model_module import Model
+
     model = Model()
-  
+
     randU = lambda low, high: lambda shape: np.random.uniform(low=low, high=high, size=shape)
     const = lambda offset: lambda shape: np.zeros(shape) + offset
-    
+
     if mode is None:
         """Sample loc and scale with default functions"""
         rand_fn_ave = None
         rand_fn_loc = None
         rand_fn_scale = None
-    
-    elif mode == 'randTheta':
-        
+
+    elif mode == "randTheta":
+
         if noise_model in ["nb", "norm"]:
             rand_fn_ave = randU(10, 1000)
             rand_fn_loc = randU(1, 3)
@@ -54,9 +59,9 @@ def getGeneratedModel(num_conditions: int, num_batches: int, sparse: bool, mode:
             rand_fn_scale = randU(0.0, 0.15)
         else:
             raise ValueError(f"Noise model {noise_model} not recognized.")
-    
-    elif mode == 'constTheta':
-        
+
+    elif mode == "constTheta":
+
         if noise_model in ["nb", "norm"]:
             rand_fn_ave = randU(10, 1000)
             rand_fn_loc = const(1.0)
@@ -67,7 +72,7 @@ def getGeneratedModel(num_conditions: int, num_batches: int, sparse: bool, mode:
             rand_fn_scale = const(0.2)
         else:
             raise ValueError(f"Noise model {noise_model} not recognized.")
-    
+
     else:
         raise ValueError(f"Mode {mode} not recognized.")
 
@@ -80,6 +85,6 @@ def getGeneratedModel(num_conditions: int, num_batches: int, sparse: bool, mode:
         sparse=sparse,
         rand_fn_ave=rand_fn_ave,
         rand_fn_loc=rand_fn_loc,
-        rand_fn_scale=rand_fn_scale
+        rand_fn_scale=rand_fn_scale,
     )
     return model
