@@ -53,9 +53,6 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     def __init__(
         self,
         input_data: Optional[InputDataGLM] = None,
-        cast_dtype="float32",
-        chunk_size_cells: int = 1000000,
-        chunk_size_genes: int = 100,
     ):
         """
         Create a new _ModelGLM object.
@@ -64,19 +61,22 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
         """
         if input_data is not None:
-            self._design_loc = input_data.design_loc
-            self._design_scale = input_data.design_scale
-            self._constraints_loc = input_data.constraints_loc
-            self._constraints_scale = input_data.constraints_scale
-            self._design_loc_names = input_data.design_loc_names
-            self._design_scale_names = input_data.design_scale_names
-            self._loc_names = input_data.loc_names
-            self._scale_names = input_data.scale_names
-            self._x = input_data.x
-            self._size_factors = input_data.size_factors
-            self._cast_dtype = cast_dtype
-            self._chunk_size_genes = chunk_size_genes
-            self._chunk_size_cells = chunk_size_cells
+            self.extract_input_data(input_data)
+    
+    def extract_input_data(self, input_data: InputDataGLM):
+        self._design_loc = input_data.design_loc
+        self._design_scale = input_data.design_scale
+        self._constraints_loc = input_data.constraints_loc
+        self._constraints_scale = input_data.constraints_scale
+        self._design_loc_names = input_data.design_loc_names
+        self._design_scale_names = input_data.design_scale_names
+        self._loc_names = input_data.loc_names
+        self._scale_names = input_data.scale_names
+        self._x = input_data.x
+        self._size_factors = input_data.size_factors
+        self._cast_dtype = input_data.cast_dtype
+        self._chunk_size_genes = input_data.chunk_size_genes
+        self._chunk_size_cells = input_data.chunk_size_cells
 
     @property
     def chunk_size_cells(self) -> int:
@@ -324,7 +324,6 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         rand_fn=None,
         rand_fn_loc=None,
         rand_fn_scale=None,
-        as_dask: bool = False,
         **kwargs
     ):
         """
@@ -376,36 +375,8 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         )
         self._theta_scale = np.concatenate([rand_fn_scale((_design_scale.shape[1], n_vars))], axis=0)
 
-        _constraints_loc = np.identity(n=self.theta_location.shape[0])
-        _constraints_scale = np.identity(n=self.theta_scale.shape[0])
+        return _design_loc, _design_scale
 
-        _design_loc, _design_loc_names = parse_design(design_matrix=_design_loc)
-        _design_scale, _design_scale_names = parse_design(design_matrix=_design_scale)
-        self._design_loc = _design_loc.astype(self.cast_dtype)
-        self._design_scale = _design_scale.astype(self.cast_dtype)
-        if as_dask:
-            self._design_loc = dask.array.from_array(self._design_loc, chunks=(self.chunk_size_cells, 1000))
-            self._design_scale = dask.array.from_array(self._design_scale, chunks=(self.chunk_size_cells, 1000))
-        self._design_loc_names = _design_loc_names
-        self._design_scale_names = _design_scale_names
-
-        _constraints_loc, _loc_names = parse_constraints(
-            dmat=_design_loc, dmat_par_names=_design_loc_names, constraints=_constraints_loc, constraint_par_names=None
-        )
-        _constraints_scale, _scale_names = parse_constraints(
-            dmat=_design_scale,
-            dmat_par_names=_design_scale_names,
-            constraints=_constraints_scale,
-            constraint_par_names=None,
-        )
-        self._constraints_loc = _constraints_loc.astype(self.cast_dtype)
-        self._constraints_scale = _constraints_scale.astype(self.cast_dtype)
-        if as_dask:
-            self._constraints_loc = dask.array.from_array(_constraints_loc, chunks=(1000, 1000))
-            self._constraints_scale = dask.array.from_array(_constraints_scale, chunks=(1000, 1000))
-
-        self._loc_names = _loc_names
-        self._scale_names = _scale_names
 
     def generate(
         self,
@@ -416,6 +387,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         intercept_scale: bool = False,
         shuffle_assignments: bool = False,
         sparse: bool = False,
+        as_dask: bool = True,
         **kwargs,
     ):
         """
@@ -423,7 +395,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
         :param sparse: Description of parameter `sparse`.
         """
-        self.generate_params(
+        _design_loc, _design_scale = self.generate_params(
             n_vars=n_vars,
             num_observations=n_obs,
             num_conditions=num_conditions,
@@ -433,12 +405,24 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             **kwargs
         )
 
-        data_matrix = self.generate_data().astype(self.cast_dtype)
+        # we need to do this explicitly here in order to generate data
+        self._constraints_loc = np.identity(n=_design_loc.shape[1])
+        self._constraints_scale = np.identity(n=_design_scale.shape[1])
+        self._design_loc = _design_loc
+        self._design_scale = _design_scale
 
+        # generate data
+        data_matrix = self.generate_data().astype(self.cast_dtype)
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
 
-        self._x = data_matrix
+        input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=_design_loc,
+            design_scale=_design_scale,
+            as_dask=as_dask
+        )
+        self.extract_input_data(input_data)
 
     @abc.abstractmethod
     def generate_data(self):

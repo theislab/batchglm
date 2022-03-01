@@ -227,6 +227,12 @@ class InputDataGLM:
                 else None
             )
 
+        self._cast_dtype = cast_dtype
+
+    @property
+    def cast_dtype(self):
+        return self._cast_dtype
+
     @property
     def design_loc_names(self):
         """Names of the location design matrix columns"""
