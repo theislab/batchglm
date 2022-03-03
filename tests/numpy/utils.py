@@ -2,14 +2,16 @@ from typing import List, Optional, Union
 
 import numpy as np
 
+from batchglm.models.base_glm import _ModelGLM
 from batchglm.models.glm_beta import Model as BetaModel
 from batchglm.models.glm_nb import Model as NBModel
 from batchglm.models.glm_norm import Model as NormModel
-from batchglm.models.base_glm import _ModelGLM
-# from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
-from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
+
 # from batchglm.train.numpy.glm_norm import Estimator as NormEstimator
 from batchglm.train.numpy.base_glm import EstimatorGlm
+
+# from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
+from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
 
 
 def get_estimator(noise_model: str, **kwargs) -> EstimatorGlm:
@@ -17,10 +19,10 @@ def get_estimator(noise_model: str, **kwargs) -> EstimatorGlm:
         return NBEstimator(**kwargs)
     elif noise_model == "norm":
         raise NotImplementedError("Norm Estimator is not yet implemented.")
-        #estimator = NormEstimator(**kwargs)
+        # estimator = NormEstimator(**kwargs)
     elif noise_model == "beta":
         raise NotImplementedError("Beta Estimator is not yet implemented.")
-        #estimator = BetaEstimator(**kwargs)
+        # estimator = BetaEstimator(**kwargs)
     raise ValueError(f"Noise model {noise_model} not recognized.")
 
 
@@ -36,7 +38,9 @@ def get_model(noise_model: str) -> _ModelGLM:
     raise ValueError(f"Noise model {noise_model} not recognized.")
 
 
-def get_generated_model(noise_model: str, num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None) -> _ModelGLM:
+def get_generated_model(
+    noise_model: str, num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None
+) -> _ModelGLM:
     model = get_model(noise_model=noise_model)
 
     def random_uniform(low: float, high: float):

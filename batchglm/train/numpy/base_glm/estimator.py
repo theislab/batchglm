@@ -165,9 +165,9 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     # Reverse update by feature if update leads to worse loss:
                     ll_proposal = -self.model_container.ll_byfeature_j(j=idx_update)
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                    
+
                     theta_scale_new = self.model_container.theta_scale.compute()
-                   
+
                     theta_scale_new[:, idx_bad_step] = theta_scale_new[:, idx_bad_step] - b_step[:, idx_bad_step]
                     self.model_container.theta_scale = theta_scale_new
                 else:
@@ -190,9 +190,9 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     # Reverse update by feature if update leads to worse loss:
                     ll_proposal = -self.model_container.ll_byfeature_j(j=idx_update)
                     idx_bad_step = idx_update[np.where(ll_proposal > ll_current[idx_update])[0]]
-                   
+
                     theta_location_new = self.model_container.theta_location.compute()
-                   
+
                     theta_location_new[:, idx_bad_step] = theta_location_new[:, idx_bad_step] - a_step[:, idx_bad_step]
                     self.model_container.theta_location = theta_location_new
                 else:

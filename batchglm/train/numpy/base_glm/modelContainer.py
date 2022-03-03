@@ -1,5 +1,5 @@
 import abc
-from typing import Callable, Union, Any
+from typing import Any, Callable, Union
 
 import dask.array
 import numpy as np
@@ -257,10 +257,7 @@ class BaseModelContainer:
         :return: (features x inferred param x inferred param)
         """
         w = self.hessian_weight_location_scale
-        return np.einsum(
-            "fob,oc->fbc",
-            np.einsum("ob,of->fob", self.xh_loc, w), self.xh_scale
-        )
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", self.xh_loc, w), self.xh_scale)
 
     @property
     @abc.abstractmethod
@@ -358,8 +355,7 @@ class BaseModelContainer:
     def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
-    
-    @property # type: ignore
+    @property  # type: ignore
     @dask_compute
     def ll_byfeature(self) -> np.ndarray:
         return np.sum(self.ll, axis=0)

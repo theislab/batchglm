@@ -15,9 +15,7 @@ class _TestAccuracyXtremeAll(TestAccuracy):
     Test whether numerical extremes throw error in initialisation or during first training steps.
     """
 
-    def _test_accuracy_extreme_values(
-        self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: str
-    ):
+    def _test_accuracy_extreme_values(self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: str):
         model = get_generated_model(noise_model=noise_model, num_conditions=2, num_batches=4, sparse=False, mode=None)
         model._x[:, idx] = val
         estimator = get_estimator(noise_model=noise_model, model=model, init_location="standard", init_scale="standard")
@@ -73,6 +71,7 @@ class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll):
         # self._test_low_values(noise_model="beta")
         # self._test_zero_variance(noise_model="beta")
         return True
+
 
 if __name__ == "__main__":
     unittest.main()
