@@ -1,4 +1,4 @@
-from batchglm.data import (
+from batchglm.utils.data import (
     bin_continuous_covariate,
     constraint_matrix_from_dict,
     constraint_matrix_from_string,
