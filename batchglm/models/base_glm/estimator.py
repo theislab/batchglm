@@ -19,7 +19,6 @@
 # logger = logging.getLogger(__name__)
 
 
-
 # class _EstimatorGLM(metaclass=abc.ABCMeta):
 #     """
 #     Estimator base class for generalized linear models (GLMs).
@@ -30,7 +29,6 @@
 #     model : _ModelGLM
 #         Model to fit
 #     """
-
 
 
 #     model: _ModelGLM

@@ -12,8 +12,8 @@ except ImportError:
 
 import scipy
 
-from .external import pkg_constants
 from ...utils.input import InputDataGLM
+from .external import pkg_constants
 from .utils import generate_sample_description, parse_constraints, parse_design
 
 logger = logging.getLogger(__name__)
