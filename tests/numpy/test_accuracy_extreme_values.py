@@ -16,7 +16,7 @@ class _TestAccuracyXtremeAll(TestAccuracy):
     """
 
     def _test_accuracy_extreme_values(
-        self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: Optional[str] = None
+        self, idx: Union[List[int], int, np.ndarray], val: float, noise_model: str
     ):
         model = get_generated_model(noise_model=noise_model, num_conditions=2, num_batches=4, sparse=False, mode=None)
         model._x[:, idx] = val
@@ -36,12 +36,13 @@ class TestAccuracyXtremeNb(_TestAccuracyXtremeAll):
     Test whether optimizers yield exact results for negative binomial distributed data.
     """
 
-    def test_nb(self):
+    def test_nb(self) -> bool:
         logger.error("TestAccuracyXtremeNb.test_nb()")
 
         np.random.seed(1)
-        self._test_low_values(noise_model="nb")
-        self._test_zero_variance(noise_model="nb")
+        ret_val = self._test_low_values(noise_model="nb")
+        np.random.seed(1)
+        return ret_val and self._test_zero_variance(noise_model="nb")
 
 
 class TestAccuracyXtremeNorm(_TestAccuracyXtremeAll):
@@ -49,13 +50,14 @@ class TestAccuracyXtremeNorm(_TestAccuracyXtremeAll):
     Test whether optimizers yield exact results for normal distributed data.
     """
 
-    def test_norm(self):
+    def test_norm(self) -> bool:
         logger.error("TestAccuracyXtremeNorm.test_norm()")
         logger.info("Normal noise model not implemented for numpy")
 
         # np.random.seed(1)
         # self._test_low_values(noise_model="norm")
         # self._test_zero_variance(noise_model="norm")
+        return True
 
 
 class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll):
@@ -63,14 +65,14 @@ class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll):
     Test whether optimizers yield exact results for beta distributed data.
     """
 
-    def test_beta(self):
+    def test_beta(self) -> bool:
         logger.error("TestAccuracyXtremeBeta.test_beta()")
         logger.info("Beta noise model not implemented for numpy")
 
         # np.random.seed(1)
         # self._test_low_values(noise_model="beta")
         # self._test_zero_variance(noise_model="beta")
-
+        return True
 
 if __name__ == "__main__":
     unittest.main()

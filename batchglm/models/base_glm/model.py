@@ -30,18 +30,20 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         Input data
     """
 
-    _design_loc: np.ndarray
-    _design_scale: np.ndarray
-    _constraints_loc: np.ndarray
-    _constraints_scale: np.ndarray
+    _design_loc: Union[np.ndarray, dask.array.core.Array]
+    _design_scale: Union[np.ndarray, dask.array.core.Array]
+    _constraints_loc: Union[np.ndarray, dask.array.core.Array]
+    _constraints_scale: Union[np.ndarray, dask.array.core.Array]
+    _xh_loc: Union[np.ndarray, dask.array.core.Array]
+    _xh_scale: Union[np.ndarray, dask.array.core.Array]
     _design_loc_names: List[str]
     _design_scale_names: List[str]
     _loc_names: List[str]
     _scale_names: List[str]
-    _x: np.ndarray
+    _x: Union[np.ndarray, dask.array.core.Array]
     _size_factors: Optional[np.ndarray] = None
-    _theta_location: np.ndarray
-    _theta_scale: np.ndarray
+    _theta_location: Union[np.ndarray, dask.array.core.Array]
+    _theta_scale: Union[np.ndarray, dask.array.core.Array]
     _theta_location_getter: Callable = lambda x: x._theta_location
     _theta_scale_getter: Callable = lambda x: x._theta_scale
     _cast_dtype: str = "float32"
@@ -76,6 +78,8 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         self._cast_dtype = input_data.cast_dtype
         self._chunk_size_genes = input_data.chunk_size_genes
         self._chunk_size_cells = input_data.chunk_size_cells
+        self._xh_loc = np.matmul(self.design_loc, self.constraints_loc)
+        self._xh_scale = np.matmul(self.design_scale, self.constraints_scale)
 
     @property
     def chunk_size_cells(self) -> int:
@@ -141,12 +145,12 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return eta
 
     @property
-    def location(self):
+    def location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """the inverse link function applied to eta for the location model (i.e the fitted location)"""
         return self.inverse_link_loc(self.eta_loc)
 
     @property
-    def scale(self):
+    def scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """the inverse link function applied to eta for the scale model (i.e the fitted location)"""
         return self.inverse_link_scale(self.eta_scale)
 
@@ -168,14 +172,14 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             j = [j]
         return np.matmul(self.design_scale, self.theta_scale_constrained[:, j])
 
-    def location_j(self, j):
+    def location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Allows fast access to a given observation's fitted location
         :param j: The index of the observation sought
         """
         return self.inverse_link_loc(self.eta_loc_j(j=j))
 
-    def scale_j(self, j):
+    def scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Allows fast access to a given observation's fitted scale
         :param j: The index of the observation sought
@@ -183,40 +187,35 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return self.inverse_link_scale(self.eta_scale_j(j=j))
 
     @property
-    def xh_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        return np.matmul(self.design_scale, self.constraints_scale)
+    def xh_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return self._xh_loc
 
     @property
-    def x(self):
+    def xh_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return self._xh_scale
+
+    @property
+    def x(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Get the counts data matrix."""
         return self._x
 
-    def x_j(self, j):
-        """
-        Allows fast access to a given observation's x data
-        :param j: The index of the observation sought
-        """
-        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
-        return self.x[:, j]
-
     @property
-    def num_observations(self):
+    def num_observations(self) -> int:
         """Number of observations derived from x."""
         return self.x.shape[0]
 
     @property
-    def num_features(self):
+    def num_features(self) -> int:
         """Number of features derived from x."""
         return self.x.shape[1]
 
     @property
-    def num_loc_params(self):
+    def num_loc_params(self) -> int:
         """Number of columns of the location design matrix subject to constraints"""
         return self.constraints_loc.shape[1]
 
     @property
-    def num_scale_params(self):
+    def num_scale_params(self) -> int:
         """Number of columns of the scale design matrix subject to constraints"""
         return self.constraints_scale.shape[1]
 
@@ -226,12 +225,12 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return self._size_factors
 
     @property
-    def theta_location(self) -> np.ndarray:
+    def theta_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Fitted location model parameters"""
         return self._theta_location_getter()
 
     @property
-    def theta_scale(self) -> np.ndarray:
+    def theta_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Fitted scale model parameters"""
         return self._theta_scale_getter()
 
@@ -246,22 +245,22 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         return np.dot(self.constraints_scale, self.theta_scale)
 
     @abc.abstractmethod
-    def link_loc(self, data):
+    def link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """link function for location model"""
         pass
 
     @abc.abstractmethod
-    def link_scale(self, data):
+    def link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """link function for scale model"""
         pass
 
     @abc.abstractmethod
-    def inverse_link_loc(self, data):
+    def inverse_link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """inverse link function for location model"""
         pass
 
     @abc.abstractmethod
-    def inverse_link_scale(self, data):
+    def inverse_link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """inverse link function for scale model"""
         pass
 
@@ -280,11 +279,11 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
     # parameter contraints:
 
-    def np_clip_param(self, param, name):
+    def np_clip_param(self, param, name) -> Union[np.ndarray, dask.array.core.Array]:
         bounds_min, bounds_max = self.param_bounds(param.dtype)
         return np.clip(param, bounds_min[name], bounds_max[name])
 
-    def param_bounds(self, dtype):
+    def param_bounds(self, dtype) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         dtype = np.dtype(dtype)
         # dmin = np.finfo(dtype).min
@@ -412,7 +411,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         self.extract_input_data(input_data)
 
     @abc.abstractmethod
-    def generate_data(self):
+    def generate_data(self) -> np.ndarray:
         """
         Should sample random data based on distribution and parameters.
 

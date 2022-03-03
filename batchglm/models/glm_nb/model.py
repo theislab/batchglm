@@ -17,16 +17,16 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     Generalized Linear Model (GLM) with negative binomial noise.
     """
 
-    def link_loc(self, data):
+    def link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         return np.log(data)
 
-    def inverse_link_loc(self, data):
+    def inverse_link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         return np.exp(data)
 
-    def link_scale(self, data):
+    def link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         return np.log(data)
 
-    def inverse_link_scale(self, data):
+    def inverse_link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         return np.exp(data)
 
     @property
@@ -50,11 +50,11 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     # Re-parameterizations:
 
     @property
-    def mu(self) -> np.ndarray:
+    def mu(self) -> Union[np.ndarray, dask.array.core.Array]:
         return self.location
 
     @property
-    def phi(self) -> np.ndarray:
+    def phi(self) -> Union[np.ndarray, dask.array.core.Array]:
         return self.scale
 
     # param constraints:
@@ -101,7 +101,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     def rand_fn_scale(self) -> Optional[Callable]:
         return None
 
-    def generate_data(self):
+    def generate_data(self) -> np.ndarray:
         """
         Sample random data based on negative binomial distribution and parameters.
         """

@@ -1,5 +1,6 @@
 import abc
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
+import dask
 
 try:
     import anndata
@@ -14,7 +15,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     """Generalized Linear Model (GLM) with normal noise."""
 
-    def link_loc(self, data):
+    def link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :param type data: Description of parameter `data`.
@@ -24,7 +25,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         """
         return data
 
-    def inverse_link_loc(self, data):
+    def inverse_link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :param type data: Description of parameter `data`.
@@ -34,7 +35,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         """
         return data
 
-    def link_scale(self, data):
+    def link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :param type data: Description of parameter `data`.
@@ -44,7 +45,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         """
         return np.log(data)
 
-    def inverse_link_scale(self, data):
+    def inverse_link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :param type data: Description of parameter `data`.
@@ -55,7 +56,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         return np.exp(data)
 
     @property
-    def eta_loc(self) -> np.ndarray:
+    def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :return: Description of returned object.
@@ -67,7 +68,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             eta *= np.expand_dims(self.size_factors, axis=1)
         return eta
 
-    def eta_loc_j(self, j) -> np.ndarray:
+    def eta_loc_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :param type j: Description of parameter `j`.
@@ -87,7 +88,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     # Re-parameterizations:
 
     @property
-    def mean(self) -> np.ndarray:
+    def mean(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :return: Description of returned object.
@@ -97,7 +98,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         return self.location
 
     @property
-    def sd(self) -> np.ndarray:
+    def sd(self) -> Union[np.ndarray, dask.array.core.Array]:
         """Short summary.
 
         :return: Description of returned object.

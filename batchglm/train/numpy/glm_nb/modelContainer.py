@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Callable
 
 import dask
 import numpy as np
@@ -8,6 +8,7 @@ from .external import BaseModelContainer
 
 
 class ModelContainer(BaseModelContainer):
+
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
@@ -27,7 +28,7 @@ class ModelContainer(BaseModelContainer):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def fim_weight_location_location_j(self, j):
+    def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights at j
         :return: observations x features
@@ -53,9 +54,9 @@ class ModelContainer(BaseModelContainer):
     @property
     def jac_weight_j(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
-
+    
     @property
-    def jac_weight_scale(self):
+    def jac_weight_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Scale model jacobian
         :return: observations x features
@@ -74,7 +75,7 @@ class ModelContainer(BaseModelContainer):
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
         return scale * (const1 + const2 + const3)
 
-    def jac_weight_scale_j(self, j):
+    def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Scale model jacobian at location j
         :param j: Location
@@ -130,14 +131,14 @@ class ModelContainer(BaseModelContainer):
         return np.zeros([self.theta_scale.shape[1], 0, 0])
 
     @property
-    def hessian_weight_location_scale(self):
+    def hessian_weight_location_scale(self) -> np.ndarray:
         """scale-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
         return np.multiply(loc * scale, np.asarray(self.x - loc) / np.square(loc + scale))
 
     @property
-    def hessian_weight_location_location(self):
+    def hessian_weight_location_location(self) -> np.ndarray:
         """location-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
@@ -149,7 +150,7 @@ class ModelContainer(BaseModelContainer):
         return -loc * x_by_scale_plus_one / np.square((loc / scale) + np.ones_like(loc))
 
     @property
-    def hessian_weight_scale_scale(self):
+    def hessian_weight_scale_scale(self) -> np.ndarray:
         """scale-scale block of the hessian matrix"""
         scale = self.scale
         loc = self.location
@@ -163,7 +164,7 @@ class ModelContainer(BaseModelContainer):
         return scale * (const1 + const2 + const3 + const4)
 
     @property
-    def ll(self):
+    def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
         """log-likelihood"""
         scale = self.scale
         loc = self.location
@@ -190,7 +191,7 @@ class ModelContainer(BaseModelContainer):
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
 
-    def ll_j(self, j):
+    def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Log likelhiood for observation j
         :param j: observation
@@ -224,7 +225,7 @@ class ModelContainer(BaseModelContainer):
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
 
-    def ll_handle(self):
+    def ll_handle(self) -> Callable:
         def fun(x, eta_loc, theta_scale, xh_scale):
             eta_scale = np.matmul(xh_scale, theta_scale)
             scale = np.exp(eta_scale)
@@ -245,7 +246,7 @@ class ModelContainer(BaseModelContainer):
 
         return fun
 
-    def jac_scale_handle(self):
+    def jac_scale_handle(self) -> Callable:
         def fun(x, eta_loc, theta_scale, xh_scale):
             scale = np.exp(theta_scale)
             loc = np.exp(eta_loc)
