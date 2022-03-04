@@ -34,6 +34,7 @@ sparse = "^0.13.0"
 matplotlib = "^3.5.1"
 sphinx-autodoc-typehints = "^1.16.0"
 seaborn = "^0.11.2"
+bandit = "1.7.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.3"
