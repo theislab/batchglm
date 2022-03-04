@@ -1,10 +1,10 @@
 import logging
-from typing import Union, Tuple, Optional
+from typing import Optional, Tuple, Union
 
 import dask.array
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import gridspec, rcParams
 from matplotlib.axes import Axes
@@ -12,13 +12,16 @@ from matplotlib.axes import Axes
 logger = logging.getLogger(__name__)
 
 
-def _input_checks(true_values: Union[np.ndarray, dask.array.core.Array], pred_values: Union[np.ndarray, dask.array.core.Array]):
+def _input_checks(
+    true_values: Union[np.ndarray, dask.array.core.Array], pred_values: Union[np.ndarray, dask.array.core.Array]
+):
     """
     Check the type of true and predicted input and make sure they have the same size.
 
     :param true_values: The reference parameters.
     :param pred_values: The fitted parameters.
     """
+
     def _cast(data: Union[np.ndarray, dask.array.core.Array]) -> Tuple[np.ndarray, np.ndarray]:
         if isinstance(data, dask.array.core.Array):
             to_return = data.coompute()
@@ -27,6 +30,7 @@ def _input_checks(true_values: Union[np.ndarray, dask.array.core.Array], pred_va
         else:
             raise TypeError(f"Type {type(data)} is not recognized for true/pred values.")
         return to_return
+
     true_vals = _cast(true_values)
     pred_vals = _cast(pred_values)
 
@@ -46,8 +50,8 @@ def plot_coef_vs_ref(
     ncols=5,
     row_gap=0.3,
     col_gap=0.25,
-    title: str = '',
-    return_axs: bool = False
+    title: str = "",
+    return_axs: bool = False,
 ) -> Optional[Axes]:
     """
     Plot estimated coefficients against reference (true) coefficients for location model.
@@ -125,7 +129,9 @@ def plot_coef_vs_ref(
     return None
 
 
-def plot_deviation(true_values: np.ndarray, pred_values: np.ndarray, save=None, show=True, return_axs=False, title: str = '') -> Optional[Axes]:
+def plot_deviation(
+    true_values: np.ndarray, pred_values: np.ndarray, save=None, show=True, return_axs=False, title: str = ""
+) -> Optional[Axes]:
     """
     Plot deviation of estimated coefficients from reference (true) coefficients
     as violin plot for location model.
@@ -149,9 +155,7 @@ def plot_deviation(true_values: np.ndarray, pred_values: np.ndarray, save=None, 
             pd.DataFrame(
                 {
                     "deviation": pred_values[i, :] - true_values[i, :],
-                    "coefficient": pd.Series(
-                        ["coef_" + str(i) for x in range(pred_values.shape[1])], dtype="category"
-                    ),
+                    "coefficient": pd.Series(["coef_" + str(i) for x in range(pred_values.shape[1])], dtype="category"),
                 }
             )
             for i in range(n_par)
