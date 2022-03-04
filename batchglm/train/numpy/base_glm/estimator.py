@@ -46,7 +46,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         :param dtype:
             i.e float64
         """
-        self.model_container = model_container
+        self._model_container = model_container
         if self.model_container.design_scale.shape[1] != 1:
             raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
         self.dtype = dtype
