@@ -84,7 +84,7 @@ def get_generated_model(
     else:
         raise ValueError(f"Mode {mode} not recognized.")
 
-    model.generate(
+    model.generate_artificial_data(
         n_obs=2000,
         n_vars=100,
         num_conditions=num_conditions,
