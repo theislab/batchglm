@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 
 from .external import EstimatorGlm, init_par
-from .modelContainer import ModelContainer
+from .model_container import ModelContainer
 
 
 class Estimator(EstimatorGlm):

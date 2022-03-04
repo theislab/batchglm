@@ -15,7 +15,7 @@ import scipy.sparse
 import sparse
 
 from .external import pkg_constants
-from .modelContainer import BaseModelContainer
+from .model_container import BaseModelContainer
 from .training_strategies import TrainingStrategies
 
 logger = logging.getLogger("batchglm")
@@ -38,7 +38,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
     lls: List[float] = []
     dtype: str = ""
 
-    def __init__(self, dtype: str, provide_batched: bool = False):
+    def __init__(self, dtype: str):
         """
         Performs initialisation and creates a new estimator.
         :param model:
@@ -48,7 +48,6 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         """
         if self.model_container.design_scale.shape[1] != 1:
             raise ValueError("cannot model more than one scale parameter with numpy backend right now.")
-        # _EstimatorGLM.__init__(self=self, model=model)
         self.dtype = dtype
         self.lls = []
 

@@ -1,2 +1,2 @@
 from .estimator import EstimatorGlm
-from .modelContainer import BaseModelContainer
+from .model_container import BaseModelContainer
