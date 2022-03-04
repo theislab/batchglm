@@ -3,7 +3,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from .external import EstimatorGlm, init_par
+from .external import EstimatorGlm, Model, init_par
 from .model_container import ModelContainer
 
 
@@ -20,12 +20,12 @@ class Estimator(EstimatorGlm):
 
     def __init__(
         self,
+        model: Model,
         init_location: str = "AUTO",
         init_scale: str = "AUTO",
         # batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
-        model=None,
-        dtype="float64",
+        dtype: str = "float64",
         **kwargs
     ):
         """
@@ -68,11 +68,11 @@ class Estimator(EstimatorGlm):
         init_theta_location = init_theta_location.astype(dtype)
         init_theta_scale = init_theta_scale.astype(dtype)
 
-        self._model_container = ModelContainer(
+        _model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
             init_theta_scale=init_theta_scale,
             chunk_size_genes=model.chunk_size_genes,
             dtype=dtype,
         )
-        super(Estimator, self).__init__(dtype=dtype, **kwargs)
+        super(Estimator, self).__init__(dtype=dtype, model_container=_model_container, **kwargs)
