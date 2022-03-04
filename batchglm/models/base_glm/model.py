@@ -319,7 +319,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         self, n_vars: int, rand_fn_ave=None, rand_fn=None, rand_fn_loc=None, rand_fn_scale=None, **kwargs
     ):
         """
-        Generate all necessary parameters. TODO: make this documentation better!!!
+        Generate all necessary parameters for artifical data generation.
 
         :param rand_fn_ave: function which generates random numbers for intercept.
             Takes one location parameter of intercept distribution across features.
@@ -334,6 +334,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             This function generates scale model parameters in inverse linker space,
             ie. these parameter will be log transformed if a log linker function is used!
             Values below 1e-08 will be set to 1e-08 to map them into the positive support.
+        :param **kwargs: Additional kwargs forwarded to generate_sample_description.
         """
 
         if rand_fn_ave is None:
@@ -369,7 +370,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
         return _design_loc, _design_scale
 
-    def generate(
+    def generate_artificial_data(
         self,
         n_obs: int,
         n_vars: int,
@@ -382,9 +383,16 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         **kwargs,
     ):
         """
-        First generates the parameter set, then observations random data using these parameters.
-
-        :param sparse: Description of parameter `sparse`.
+        Generate simulated data using provided sampling functions and stores it in this model instance.
+        :param n_obs: The number of observations to generate.
+        :param n_vars: The number of variables to generate.
+        :param num_conditions: The number of generated conditions per batch
+        :param num_batches: The number of generated batches.
+        :param intercept_scale: If True, only generate an intercept for the scale model.
+        :param shuffle_assignments: Depcreated. Does not do anything.
+        :param sparse: If True, the simulated data matrix is sparse.
+        :param as_dask: If True, use dask.
+        :param **kwargs: Additional kwargs passed to generate_params.
         """
         _design_loc, _design_scale = self.generate_params(
             n_vars=n_vars,
@@ -413,10 +421,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def generate_data(self) -> np.ndarray:
         """
-        Should sample random data based on distribution and parameters.
-
-        :param type args: TODO.
-        :param type kwargs: TODO.
+        Sample random data based on distribution and parameters.
         """
         pass
 
