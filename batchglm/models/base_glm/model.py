@@ -334,7 +334,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             This function generates scale model parameters in inverse linker space,
             ie. these parameter will be log transformed if a log linker function is used!
             Values below 1e-08 will be set to 1e-08 to map them into the positive support.
-        :param **kwargs: Additional kwargs forwarded to generate_sample_description.
+        :param kwargs: Additional kwargs forwarded to generate_sample_description.
         """
 
         if rand_fn_ave is None:
@@ -392,7 +392,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         :param shuffle_assignments: Depcreated. Does not do anything.
         :param sparse: If True, the simulated data matrix is sparse.
         :param as_dask: If True, use dask.
-        :param **kwargs: Additional kwargs passed to generate_params.
+        :param kwargs: Additional kwargs passed to generate_params.
         """
         _design_loc, _design_scale = self.generate_params(
             n_vars=n_vars,
