@@ -1,5 +1,6 @@
 import os
 
+from . import models, train, utils
 from ._version import get_versions
 from .log_cfg import logger, setup_logging, unconfigure_logging
 

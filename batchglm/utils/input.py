@@ -69,11 +69,11 @@ class InputDataGLM:
         design_loc: Optional[
             Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]
         ] = None,
-        design_loc_names: Optional[Union[list, np.ndarray]] = None,
+        design_loc_names: Optional[List[str]] = None,
         design_scale: Optional[
             Union[np.ndarray, pd.DataFrame, patsy.design_info.DesignMatrix, dask.array.core.Array]
         ] = None,
-        design_scale_names: Optional[Union[list, np.ndarray]] = None,
+        design_scale_names: Optional[List[str]] = None,
         constraints_loc: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
         constraints_scale: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
         size_factors=None,
@@ -226,6 +226,12 @@ class InputDataGLM:
                 if size_factors is not None
                 else None
             )
+
+        self._cast_dtype = cast_dtype
+
+    @property
+    def cast_dtype(self):
+        return self._cast_dtype
 
     @property
     def design_loc_names(self):

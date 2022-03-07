@@ -1,1 +1,1 @@
-from . import numpy
+from . import glm_nb

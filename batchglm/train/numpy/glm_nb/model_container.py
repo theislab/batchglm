@@ -1,47 +1,19 @@
-import logging
-from typing import Union
+from typing import Callable, Union
 
-import dask.array
+import dask
 import numpy as np
-import scipy.sparse
-import scipy.special
-import sparse
+import scipy
 
-from .external import InputDataGLM, Model, ModelIwls
-from .processModel import ProcessModel
-
-logger = logging.getLogger(__name__)
+from .external import BaseModelContainer
 
 
-class ModelIwlsNb(ModelIwls, Model, ProcessModel):
-
-    """
-    Class for maintaining state of Negative Binomial IWLS updates.
-
-    Attributes
-    ----------
-    compute_mu : bool
-    compute_r : bool
-    """
-
-    compute_mu: bool
-    compute_r: bool
-
-    def __init__(
-        self,
-        input_data: InputDataGLM,
-        model_vars,
-        compute_mu,
-        compute_r,
-    ):
-        self.compute_mu = compute_mu
-        self.compute_r = compute_r
-
-        super(Model, self).__init__(input_data=input_data)
-        ModelIwls.__init__(self=self, model_vars=model_vars)
+class ModelContainer(BaseModelContainer):
+    @property
+    def fim_weight(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
     @property
-    def fim_weight_location_location(self):
+    def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights
         :return: observations x features
@@ -55,7 +27,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def fim_weight_location_location_j(self, j):
+    def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights at j
         :return: observations x features
@@ -75,7 +47,15 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
 
     @property
-    def jac_weight_scale(self):
+    def jac_weight(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def jac_weight_j(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def jac_weight_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Scale model jacobian
         :return: observations x features
@@ -94,7 +74,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
         return scale * (const1 + const2 + const3)
 
-    def jac_weight_scale_j(self, j):
+    def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Scale model jacobian at location j
         :param j: Location
@@ -150,14 +130,14 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return np.zeros([self.theta_scale.shape[1], 0, 0])
 
     @property
-    def hessian_weight_location_scale(self):
+    def hessian_weight_location_scale(self) -> np.ndarray:
         """scale-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
         return np.multiply(loc * scale, np.asarray(self.x - loc) / np.square(loc + scale))
 
     @property
-    def hessian_weight_location_location(self):
+    def hessian_weight_location_location(self) -> np.ndarray:
         """location-location block of the hessian matrix"""
         scale = self.scale
         loc = self.location
@@ -169,7 +149,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return -loc * x_by_scale_plus_one / np.square((loc / scale) + np.ones_like(loc))
 
     @property
-    def hessian_weight_scale_scale(self):
+    def hessian_weight_scale_scale(self) -> np.ndarray:
         """scale-scale block of the hessian matrix"""
         scale = self.scale
         loc = self.location
@@ -183,7 +163,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
         return scale * (const1 + const2 + const3 + const4)
 
     @property
-    def ll(self):
+    def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
         """log-likelihood"""
         scale = self.scale
         loc = self.location
@@ -210,7 +190,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
 
-    def ll_j(self, j):
+    def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Log likelhiood for observation j
         :param j: observation
@@ -244,7 +224,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
 
-    def ll_handle(self):
+    def ll_handle(self) -> Callable:
         def fun(x, eta_loc, theta_scale, xh_scale):
             eta_scale = np.matmul(xh_scale, theta_scale)
             scale = np.exp(eta_scale)
@@ -265,7 +245,7 @@ class ModelIwlsNb(ModelIwls, Model, ProcessModel):
 
         return fun
 
-    def jac_scale_handle(self):
+    def jac_scale_handle(self) -> Callable:
         def fun(x, eta_loc, theta_scale, xh_scale):
             scale = np.exp(theta_scale)
             loc = np.exp(eta_loc)
