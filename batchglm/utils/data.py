@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional, Tuple, Union
+from functools import singledispatch
 
 import numpy as np
 import pandas as pd
@@ -129,31 +130,17 @@ def preview_coef_names(
     return coef_names
 
 
+@singledispatch
 def constraint_system_from_star(
+    constraints,
     dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
     sample_description: Optional[pd.DataFrame] = None,
     formula: Optional[str] = None,
     as_categorical: Union[bool, list] = True,
-    constraints: Optional[Union[List[str], Tuple[str], dict, np.ndarray]] = None,
     return_type: str = "patsy",
 ) -> Tuple:
     """
     Wrap different constraint matrix building formats with building of design matrix.
-
-    :param dmat: Pre-built model design matrix.
-    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
-    :param formula: model formula as string, describing the relations of the explanatory variables.
-
-        E.g. '~ 1 + batch + confounder'
-        Only required if
-    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
-
-        If True, all values in 'sample_description' will be treated as categorical values.
-
-        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
-        is True.
-
-        Set to false, if columns should not be changed.
     :param constraints: Constraints for model. Can be one of the following:
 
         - np.ndarray:
@@ -180,13 +167,27 @@ def constraint_system_from_star(
 
             Can only group by non-constrained effects right now, use constraint_matrix_from_string
             for other cases.
-        - list of strings or tuple of strings:
+        - list of strings:
             String encoded equality constraints.
 
                 E.g. ["batch1 + batch2 + batch3 = 0"]
         - None:
             No constraints are used, this is equivalent to using an identity matrix as a
             constraint matrix.
+    :param dmat: Pre-built model design matrix.
+    :param sample_description: pandas.DataFrame of length "num_observations" containing explanatory variables as columns
+    :param formula: model formula as string, describing the relations of the explanatory variables.
+
+        E.g. '~ 1 + batch + confounder'
+        Only required if
+    :param as_categorical: boolean or list of booleans corresponding to the columns in 'sample_description'
+
+        If True, all values in 'sample_description' will be treated as categorical values.
+
+        If list of booleans, each column will be changed to categorical if the corresponding value in 'as_categorical'
+        is True.
+
+        Set to false, if columns should not be changed.
     :param return_type: type of the returned value.
 
         - "patsy": return plain patsy.design_info.DesignMatrix object
@@ -195,44 +196,7 @@ def constraint_system_from_star(
         This option is overridden if constraints are supplied as dict.
     :return: a model design matrix and a constraint matrix
     """
-    if sample_description is None and dmat is None:
-        raise ValueError("supply either sample_description or dmat")
-
-    if dmat is None and not isinstance(constraints, dict):
-        dmat, coef_names = design_matrix(
-            sample_description=sample_description,
-            formula=formula,
-            as_categorical=as_categorical,
-            dmat=None,
-            return_type=return_type,
-        )
-    elif dmat is not None and isinstance(constraints, dict):
-        raise ValueError("dmat was supplied even though constraints were given as dict")
-
-    if isinstance(constraints, dict):
-        if formula is None:
-            raise ValueError("Provide a formula when providing constraints as dict.")
-        dmat, coef_names, cmat, term_names = constraint_matrix_from_dict(
-            sample_description=sample_description,
-            formula=formula,
-            as_categorical=as_categorical,
-            constraints=constraints,
-            return_type="patsy",
-        )
-    elif isinstance(constraints, tuple) or isinstance(constraints, list):
-        cmat, coef_names = constraint_matrix_from_string(
-            dmat=dmat, coef_names=dmat.design_info.column_names, constraints=constraints
-        )
-        term_names = None  # not supported yet.
-    elif isinstance(constraints, np.ndarray):
-        cmat = constraints
-        term_names = None
-        if isinstance(dmat, pd.DataFrame):
-            coef_names = dmat.columns
-            dmat = dmat.values
-        else:
-            coef_names = dmat.design_info.column_names
-    elif constraints is None:
+    if constraints is None:
         cmat = None
         term_names = None
         if isinstance(dmat, pd.DataFrame):
@@ -255,6 +219,96 @@ def constraint_system_from_star(
                 "constrained design matrix is not full rank: %i %i"
                 % (np.linalg.matrix_rank(np.matmul(dmat, cmat)), cmat.shape[1])
             )
+
+    return dmat, coef_names, cmat, term_names
+
+def _assert_design_mat_full_rank(cmat, dmat):
+    # Test full design matrix for being full rank before returning:
+    if cmat is None:
+        assert np.linalg.matrix_rank(dmat) == dmat.shape[1], "constrained design matrix is not full rank: %i %i" % (np.linalg.matrix_rank(dmat), dmat.shape[1])
+    else:
+        assert np.linalg.matrix_rank(np.matmul(dmat, cmat)) == cmat.shape[1],  "constrained design matrix is not full rank: %i %i" % (np.linalg.matrix_rank(np.matmul(dmat, cmat)), cmat.shape[1])
+
+@constraint_system_from_star.register
+def _(
+    constraints: dict,
+    dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
+    sample_description: Optional[pd.DataFrame] = None,
+    formula: Optional[str] = None,
+    as_categorical: Union[bool, list] = True,
+    return_type: str = "patsy",
+):
+    if sample_description is None and dmat is None:
+        raise ValueError("supply either sample_description or dmat")
+    if dmat is not None and isinstance(constraints, dict):
+        raise ValueError("dmat was supplied even though constraints were given as dict")
+    if formula is None:
+        raise ValueError("Provide a formula when providing constraints as dict.")
+    dmat, coef_names, cmat, term_names = constraint_matrix_from_dict(
+        sample_description=sample_description,
+        formula=formula,
+        as_categorical=as_categorical,
+        constraints=constraints,
+        return_type="patsy",
+    )
+    _assert_design_mat_full_rank(cmat, dmat)
+
+    return dmat, coef_names, cmat, term_names
+
+@constraint_system_from_star.register
+def _(
+    constraints: list, # something wrong with using tuples here
+    dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
+    sample_description: Optional[pd.DataFrame] = None,
+    formula: Optional[str] = None,
+    as_categorical: Union[bool, list] = True,
+    return_type: str = "patsy",
+):
+    if sample_description is None and dmat is None:
+        raise ValueError("supply either sample_description or dmat")
+    if dmat is None:
+        dmat, coef_names = design_matrix(
+            sample_description=sample_description,
+            formula=formula,
+            as_categorical=as_categorical,
+            dmat=None,
+            return_type=return_type,
+        )
+    cmat = constraint_matrix_from_string(
+        dmat=dmat, coef_names=dmat.design_info.column_names, constraints=constraints
+    )
+    term_names = None  # not supported yet.
+    _assert_design_mat_full_rank(cmat, dmat)
+
+    return dmat, coef_names, cmat, term_names
+
+@constraint_system_from_star.register
+def _(
+    constraints: np.ndarray,
+    dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
+    sample_description: Optional[pd.DataFrame] = None,
+    formula: Optional[str] = None,
+    as_categorical: Union[bool, list] = True,
+    return_type: str = "patsy",
+):
+    if sample_description is None and dmat is None:
+        raise ValueError("supply either sample_description or dmat")
+    cmat = constraints
+    term_names = None
+    if dmat is None:
+        dmat, coef_names = design_matrix(
+            sample_description=sample_description,
+            formula=formula,
+            as_categorical=as_categorical,
+            dmat=None,
+            return_type=return_type,
+        )
+    if isinstance(dmat, pd.DataFrame):
+        coef_names = dmat.columns
+        dmat = dmat.values
+    else:
+        coef_names = dmat.design_info.column_names
+    _assert_design_mat_full_rank(cmat, dmat)
 
     return dmat, coef_names, cmat, term_names
 
