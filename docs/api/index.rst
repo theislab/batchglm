@@ -43,23 +43,13 @@ Negative Binomial
    models.glm_nb.Model
    train.numpy.glm_nb.Estimator
 
-Planned or Incomplete (missing an `Estimator`) Models
+Planned or Incomplete Models
 
 Beta
 ~~~~~~~~~~~~~~~~~
 
-.. autosummary::
-   :toctree: .
-
-   models.glm_beta.Model
-
 Normal
 ~~~~~~~~~~~~~~~~~
-
-.. autosummary::
-   :toctree: .
-
-   models.glm_norm.Model
 
 Poisson
 ~~~~~~~~~~~~~~~~~
