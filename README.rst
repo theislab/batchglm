@@ -35,7 +35,7 @@ batchglm
 Features
 --------
 
-- Fit many (i.e a batch!) of GLM's all at once using `numpy`, `tensorflow2` or `statsmodels` with a simple API
+- Fit many (i.e a batch!) of GLM's all at once using `numpy` (coming soon: `tensorflow2` or `statsmodels`) with a simple API
 - Integrates with and provides utilities for working with familiar libraries like `patsy` and `dask`.
 
 Installation

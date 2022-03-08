@@ -9,10 +9,10 @@ Welcome to batchglm's documentation!
 
    readme
    installation
+   api/index
    contributing
    authors
    code_of_conduct
-   api/index
 
 Indices and tables
 ==================

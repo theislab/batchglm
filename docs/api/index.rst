@@ -21,6 +21,17 @@ Each model consists of at least:
 
 where `xxxxxx` is the backend desired, like `tf2`, `numpy` or `statsmodel`.
 
+For example, here is a short snippet to give a sense of how the API might work
+
+```python
+input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask)
+model = NBModel(input_data=input_data)
+estimator = NBEstimator(model=model, init_location="standard", init_scale="standard")
+estimator.initialize()
+estimator.train_sequence(training_strategy="DEFAULT")
+# Now you can perform statistical tests, for example, on the model's parameters.
+```
+
 Currently implemented models:
 
 Negative Binomial
@@ -32,3 +43,23 @@ Negative Binomial
    models.glm_nb.Model
    train.numpy.glm_nb.Estimator
 
+Planned or Incomplete (missing an `Estimator`) Models
+
+Beta
+~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: .
+
+   models.glm_beta.Model
+
+Normal
+~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: .
+
+   models.glm_norm.Model
+
+Poisson
+~~~~~~~~~~~~~~~~~
