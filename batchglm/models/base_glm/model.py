@@ -135,6 +135,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """eta from location model"""
         pass
 
     @property
@@ -301,18 +302,22 @@ class _ModelGLM(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def rand_fn_ave(self) -> Optional[Callable]:
+        """Returns a function which generates random numbers for intercept."""
         pass
 
     @abc.abstractmethod
     def rand_fn(self) -> Optional[Callable]:
+        """Returns a function which generates parameters."""
         pass
 
     @abc.abstractmethod
     def rand_fn_loc(self) -> Optional[Callable]:
+        """Retruns a function which generates location model parameters."""
         pass
 
     @abc.abstractmethod
     def rand_fn_scale(self) -> Optional[Callable]:
+        """Retruns a function which generates scale model parameters."""
         pass
 
     def generate_params(

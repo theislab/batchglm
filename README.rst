@@ -35,8 +35,8 @@ batchglm
 Features
 --------
 
-* TODO
-
+- Fit many (i.e a batch!) of GLM's all at once using `numpy`, `tensorflow2` or `statsmodels` with a simple API
+- Integrates with and provides utilities for working with familiar libraries like `patsy` and `dask`.
 
 Installation
 ------------
@@ -51,7 +51,7 @@ You can install *batchglm* via pip_ from PyPI_:
 Usage
 -----
 
-Please see the `Command-line Reference <Usage_>`_ for details.
+Please see the API documentation for details or the jupyter notebook tutorials (TODO: need notebooks - separate docs?)
 
 
 Credits
