@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from batchglm.api.utils.data import constraint_system_from_star
+from batchglm.utils.data import constraint_system_from_star
 
 logger = logging.getLogger("batchglm")
 
