@@ -5,7 +5,7 @@ from rich import traceback
 
 
 @click.command()
-@click.version_option(version="0.1.0", message=click.style("batchglm Version: 0.1.0"))
+@click.version_option(version="0.7.4", message=click.style("batchglm Version: 0.7.4"))
 def main() -> None:
     """batchglm."""
 
