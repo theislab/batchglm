@@ -1,11 +1,11 @@
 import logging
 from functools import singledispatch
-from typeguard import typeguard_ignore
 from typing import Dict, List, Optional, Tuple, Union, overload
 
 import numpy as np
 import pandas as pd
 import patsy
+from typeguard import typeguard_ignore
 
 try:
     import anndata
@@ -264,7 +264,7 @@ def _constraint_system_from_list(
         dmat, _ = design_matrix(**kwargs)
     if isinstance(dmat, pd.DataFrame):
         cmat = constraint_matrix_from_string(
-            dmat=dmat.to_numpy(), coef_names=dmat.columns.to_numpy(), constraints=constraints
+            dmat=dmat.to_numpy(), coef_names=dmat.columns.to_list(), constraints=constraints
         )
     elif isinstance(dmat, patsy.DesignMatrix):
         cmat = constraint_matrix_from_string(
@@ -329,7 +329,7 @@ def constraint_system_from_dict(
     sample_description: pd.DataFrame,
     formula: str,
     as_categorical: Union[bool, List[str], pd.Index, np.ndarray] = True,
-) -> Tuple[np.ndarray, patsy.DesignMatrix, List[str]]:
+) -> Tuple[np.ndarray, pd.DataFrame, List[str]]:
     """
     Create a design matrix from some sample description and a constraint matrix
     based on factor encoding of constrained parameter sets.
