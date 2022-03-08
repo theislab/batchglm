@@ -1,1 +1,1 @@
-from . import glm_nb, glm_norm, glm_beta
+from . import glm_beta, glm_nb, glm_norm

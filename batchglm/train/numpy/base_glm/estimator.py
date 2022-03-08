@@ -309,9 +309,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                     result = np.linalg.solve(a[invertible[0]], b[invertible[0]])
                     if isinstance(result, dask.array.core.Array):
                         result = result.compute()
-                    delta_theta[:, idx_update[invertible]] = np.expand_dims(
-                        result, axis=-1
-                    )
+                    delta_theta[:, idx_update[invertible]] = np.expand_dims(result, axis=-1)
             else:
                 if np.linalg.cond(a.compute(), p=None) < 1 / sys.float_info.epsilon:
                     result = np.linalg.solve(a[0], b[0])

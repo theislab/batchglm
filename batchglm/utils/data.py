@@ -1,7 +1,6 @@
 import logging
-from typing import List, Optional, Tuple, Union, overload, Dict
-
 from functools import singledispatch
+from typing import Dict, List, Optional, Tuple, Union, overload
 
 import numpy as np
 import pandas as pd
@@ -134,9 +133,17 @@ def preview_coef_names(
 def _assert_design_mat_full_rank(cmat, dmat):
     # Test full design matrix for being full rank before returning:
     if cmat is None:
-        assert np.linalg.matrix_rank(dmat) == dmat.shape[1], "constrained design matrix is not full rank: %i %i" % (np.linalg.matrix_rank(dmat), dmat.shape[1])
+        assert np.linalg.matrix_rank(dmat) == dmat.shape[1], "constrained design matrix is not full rank: %i %i" % (
+            np.linalg.matrix_rank(dmat),
+            dmat.shape[1],
+        )
     else:
-        assert np.linalg.matrix_rank(np.matmul(dmat, cmat)) == cmat.shape[1],  "constrained design matrix is not full rank: %i %i" % (np.linalg.matrix_rank(np.matmul(dmat, cmat)), cmat.shape[1])
+        assert (
+            np.linalg.matrix_rank(np.matmul(dmat, cmat)) == cmat.shape[1]
+        ), "constrained design matrix is not full rank: %i %i" % (
+            np.linalg.matrix_rank(np.matmul(dmat, cmat)),
+            cmat.shape[1],
+        )
 
 
 @singledispatch
@@ -144,7 +151,7 @@ def constraint_system_from_star(
     constraints: Optional[np.ndarray] = None,
     dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
     term_names: Optional[List[str]] = None,
-    **kwargs
+    **kwargs,
 ) -> Tuple:
     """
     Wrap different constraint matrix building formats with building of design matrix.
@@ -243,11 +250,12 @@ def _constraint_system_from_dict(
     cmat, dmat, term_names = constraint_system_from_dict(constraints, **kwargs)
     return constraint_system_from_star(cmat, dmat=dmat, return_type=return_type, term_names=term_names, **kwargs)
 
+
 @constraint_system_from_star.register
 def _constraint_system_from_list(
     constraints: list,
     dmat: Optional[Union[patsy.DesignMatrix, pd.DataFrame]] = None,
-    return_type: str = 'patsy',
+    return_type: str = "patsy",
     **kwargs,
 ) -> Tuple:
     if dmat is None:
@@ -261,7 +269,7 @@ def _constraint_system_from_list(
             dmat=dmat, coef_names=dmat.design_info.column_names, constraints=constraints
         )
     else:
-        raise TypeError(f'Type {type(dmat)} not recognized for argument dmat.')
+        raise TypeError(f"Type {type(dmat)} not recognized for argument dmat.")
 
     return constraint_system_from_star(cmat, dmat=dmat, return_type=return_type, **kwargs)
 
@@ -313,6 +321,7 @@ def string_constraints_from_dict(sample_description: pd.DataFrame, constraints: 
         logging.getLogger("batchglm").warning("Built constraints: " + ", ".join(constraints_ls))
     return constraints_ls
 
+
 def constraint_system_from_dict(
     constraints: dict,
     sample_description: pd.DataFrame,
@@ -362,9 +371,9 @@ def constraint_system_from_dict(
     sample_description = sample_description.copy()
     if isinstance(as_categorical, bool) and as_categorical:
         as_categorical = sample_description.columns
-    
-    #make columns categorical
-    sample_description[as_categorical] = sample_description[as_categorical].astype('category')
+
+    # make columns categorical
+    sample_description[as_categorical] = sample_description[as_categorical].astype("category")
 
     # Build core design matrix on unconstrained factors. Then add design matrices without
     # absorption of the first level of each factor for each constrained factor onto the
@@ -389,6 +398,7 @@ def constraint_system_from_dict(
     dmat = pd.DataFrame(dmat, columns=coef_names)
 
     return cmat, dmat, term_names
+
 
 def constraint_matrix_from_string(dmat: np.ndarray, coef_names: list, constraints: List[str]) -> np.ndarray:
     r"""
