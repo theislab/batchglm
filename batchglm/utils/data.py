@@ -1,11 +1,10 @@
 import logging
 from functools import singledispatch
-from typing import Dict, List, Optional, Tuple, Union, overload
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import patsy
-from typeguard import typeguard_ignore
 
 try:
     import anndata
@@ -148,9 +147,8 @@ def _assert_design_mat_full_rank(cmat, dmat):
 
 
 @singledispatch
-@typeguard_ignore
 def constraint_system_from_star(
-    constraints: Optional[np.ndarray] = None,
+    constraints=None,
     dmat: Optional[Union[patsy.design_info.DesignMatrix, pd.DataFrame]] = None,
     term_names: Optional[List[str]] = None,
     **kwargs,
