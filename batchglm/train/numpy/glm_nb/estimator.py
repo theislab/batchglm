@@ -75,4 +75,4 @@ class Estimator(EstimatorGlm):
             chunk_size_genes=model.chunk_size_genes,
             dtype=dtype,
         )
-        super(Estimator, self).__init__(dtype=dtype, model_container=_model_container, **kwargs)
+        super(Estimator, self).__init__(model_container=_model_container, dtype=dtype)
