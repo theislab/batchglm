@@ -10,11 +10,6 @@ import scipy.sparse
 
 from .external import groupwise_solve_lm
 
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 logger = logging.getLogger("batchglm")
 
 

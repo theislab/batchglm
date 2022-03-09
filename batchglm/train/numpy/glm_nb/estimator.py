@@ -26,7 +26,6 @@ class Estimator(EstimatorGlm):
         # batch_size: Optional[Union[Tuple[int, int], int]] = None,
         quick_scale: bool = False,
         dtype: str = "float64",
-        **kwargs
     ):
         """
         Performs initialisation and creates a new estimator.

@@ -2,11 +2,6 @@ import abc
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import dask
-
-try:
-    import anndata
-except ImportError:
-    anndata = None
 import numpy as np
 
 from .external import _ModelGLM

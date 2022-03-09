@@ -1,17 +1,8 @@
-try:
-    import anndata
-
-    try:
-        from anndata.base import Raw
-    except ImportError:
-        from anndata import Raw
-except ImportError:
-    anndata = None
-    Raw = None
 import logging
 from operator import indexOf
 from typing import List, Optional, Union
 
+import anndata
 import dask.array
 import numpy as np
 import pandas as pd
@@ -132,7 +123,7 @@ class InputDataGLM:
             or isinstance(data, dask.array.core.Array)
         ):
             self.x = data
-        elif isinstance(data, anndata.AnnData) or isinstance(data, Raw):
+        elif isinstance(data, anndata.AnnData) or isinstance(data, anndata.Raw):
             self.x = data.X
         else:
             raise ValueError("type of data %s not recognized" % type(data))

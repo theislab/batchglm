@@ -6,17 +6,6 @@ import numpy as np
 import pandas as pd
 import patsy
 
-try:
-    import anndata
-
-    try:
-        from anndata.base import Raw
-    except ImportError:
-        from anndata import Raw
-except ImportError:
-    anndata = None
-    Raw = None
-
 logger = logging.getLogger("batchglm")
 
 

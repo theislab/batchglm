@@ -4,12 +4,6 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np
-
-try:
-    import anndata
-except ImportError:
-    anndata = None
-
 import scipy
 
 from ...utils.input import InputDataGLM
