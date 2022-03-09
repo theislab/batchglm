@@ -9,8 +9,7 @@ Welcome to batchglm's documentation!
 
    readme
    installation
-   usage
-   reference
+   api/index
    contributing
    authors
    code_of_conduct
