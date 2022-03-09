@@ -74,16 +74,25 @@ class TestAccuracyNB(TestAccuracy):
         sparse_model = get_generated_model(
             noise_model="nb", num_conditions=2, num_batches=4, sparse=True, mode="randTheta"
         )
-
         dense_estimator = get_estimator(
             noise_model="nb", model=dense_model, init_location="standard", init_scale="standard"
         )
-        ret_val = self._test_accuracy(dense_estimator)
+        assert self._test_accuracy(dense_estimator)
 
         sparse_estimator = get_estimator(
             noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard"
         )
-        return ret_val and self._test_accuracy(sparse_estimator)
+        assert self._test_accuracy(sparse_estimator)
+
+        dense_estimator = get_estimator(
+            noise_model="nb", model=dense_model, init_location="standard", init_scale="standard", quick_scale=True
+        )
+        assert self._test_accuracy(dense_estimator)
+
+        sparse_estimator = get_estimator(
+            noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard", quick_scale=True
+        )
+        assert self._test_accuracy(sparse_estimator)
 
     def test_accuracy_const_theta(self) -> bool:
         """
@@ -99,12 +108,22 @@ class TestAccuracyNB(TestAccuracy):
         dense_estimator = get_estimator(
             noise_model="nb", model=dense_model, init_location="standard", init_scale="standard"
         )
-        ret_val = self._test_accuracy(dense_estimator)
+        assert self._test_accuracy(dense_estimator)
 
         sparse_estimator = get_estimator(
             noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard"
         )
-        return ret_val and self._test_accuracy(sparse_estimator)
+        return self._test_accuracy(sparse_estimator)
+
+        dense_estimator = get_estimator(
+            noise_model="nb", model=dense_model, init_location="standard", init_scale="standard", quick_scale=True
+        )
+        assert self._test_accuracy(dense_estimator)
+
+        sparse_estimator = get_estimator(
+            noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard", quick_scale=True
+        )
+        return self._test_accuracy(sparse_estimator)
 
 
 if __name__ == "__main__":
