@@ -1,4 +1,4 @@
-.. automodule:: batchglm.api
+.. automodule:: batchglm
 
 API
 ===
@@ -63,7 +63,6 @@ We also provide some data utilities for working with things like design and cons
    :toctree: .
 
    utils.data.bin_continuous_covariate
-   utils.data.constraint_matrix_from_dict
    utils.data.constraint_matrix_from_string
    utils.data.constraint_system_from_star
    utils.data.design_matrix

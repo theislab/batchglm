@@ -7,7 +7,7 @@ import numpy as np
 logger = logging.getLogger("batchglm")
 
 
-def stacked_lstsq(L, b, rcond=1e-10):
+def stacked_lstsq(L: Union[np.ndarray, dask.array.core.Array], b: np.ndarray, rcond: float = 1e-10):
     r"""
     Solve `Lx = b`, via SVD least squares cutting of small singular values
 
@@ -78,10 +78,11 @@ def groupwise_solve_lm(
         raise ValueError("large least-square problem in init, likely defined a numeric predictor as categorical")
 
     full_rank = constraints.shape[1]
-    if isinstance(unique_design, dask.array.core.Array):  # matrix_rank not supported by dask
-        rank = np.linalg.matrix_rank(np.matmul(unique_design.compute(), constraints.compute()))
+    unique_constrained_dmat = np.matmul(unique_design, constraints)
+    if isinstance(unique_constrained_dmat, dask.array.core.Array):  # matrix_rank not supported by dask
+        rank = np.linalg.matrix_rank(unique_constrained_dmat.compute())
     else:
-        rank = np.linalg.matrix_rank(np.matmul(unique_design, constraints))
+        rank = np.linalg.matrix_rank(unique_constrained_dmat)
     if full_rank > rank:
         logger.error("model is not full rank!")
 
@@ -99,6 +100,6 @@ def groupwise_solve_lm(
     logger.debug(" ** Solve lstsq problem")
     if np.any(np.isnan(params)):
         raise Warning("entries of params were nan which will throw error in lstsq")
-    x_prime, rmsd, rank, s = np.linalg.lstsq(np.matmul(unique_design, constraints), params)
+    x_prime, rmsd, rank, s = np.linalg.lstsq(unique_constrained_dmat, params)
 
     return params, x_prime, rmsd, rank, s

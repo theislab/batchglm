@@ -1,1 +1,0 @@
-from batchglm.utils.input import InputDataGLM
