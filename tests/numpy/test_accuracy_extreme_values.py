@@ -52,8 +52,8 @@ class TestAccuracyXtremeNorm(_TestAccuracyXtremeAll):
         logger.error("TestAccuracyXtremeNorm.test_norm()")
         logger.info("Normal noise model not implemented for numpy")
 
-        # np.random.seed(1)
-        # self._test_low_values(noise_model="norm")
+        np.random.seed(1)
+        self._test_low_values(noise_model="norm")
         # self._test_zero_variance(noise_model="norm")
         return True
 
