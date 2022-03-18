@@ -85,29 +85,11 @@ class ModelContainer(BaseModelContainer):
     @property
     def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
         """log-likelihood"""
-        scale = self.scale
         loc = self.location
-        log_r_plus_mu = np.log(scale + loc)
-        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
-            # dense numpy or dask
-            ll = (
-                scipy.special.gammaln(scale + self.x)
-                - scipy.special.gammaln(self.x + np.ones_like(scale))
-                - scipy.special.gammaln(scale)
-                + self.x * (self.eta_loc - log_r_plus_mu)
-                + np.multiply(scale, self.eta_scale - log_r_plus_mu)
-            )
-        else:
-            # sparse scipy
-            ll = (
-                scipy.special.gammaln(np.asarray(scale + self.x))
-                - scipy.special.gammaln(self.x + np.ones_like(scale))
-                - scipy.special.gammaln(scale)
-                + np.asarray(
-                    self.x.multiply(self.eta_loc - log_r_plus_mu) + np.multiply(scale, self.eta_scale - log_r_plus_mu)
-                )
-            )
-            ll = np.asarray(ll)
+        log_loc = np.log(loc)
+        x_times_log_loc = self.x * log_loc
+        log_x_factorial = np.log(scipy.special.gammaln(self.x + np.ones_like(self.x)))
+        ll = x_times_log_loc - log_loc - log_x_factorial
         return self.np_clip_param(ll, "ll")
 
     def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
@@ -118,33 +100,13 @@ class ModelContainer(BaseModelContainer):
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        scale = self.scale_j(j=j)
-        loc = self.location_j(j=j)
-        log_r_plus_mu = np.log(scale + loc)
-        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
-            # dense numpy or dask
-            ll = (
-                scipy.special.gammaln(scale + self.x[:, j])
-                - scipy.special.gammaln(self.x[:, j] + np.ones_like(scale))
-                - scipy.special.gammaln(scale)
-                + self.x[:, j] * (self.eta_loc_j(j=j) - log_r_plus_mu)
-                + np.multiply(scale, self.eta_scale_j(j=j) - log_r_plus_mu)
-            )
-        else:
-            # sparse scipy
-            ll = (
-                scipy.special.gammaln(np.asarray(scale + self.x[:, j]))
-                - scipy.special.gammaln(self.x + np.ones_like(scale))
-                - scipy.special.gammaln(scale)
-                + np.asarray(
-                    self.x[:, j].multiply(self.eta_loc_j(j=j) - log_r_plus_mu)
-                    + np.multiply(scale, self.eta_scale_j(j=j) - log_r_plus_mu)
-                )
-            )
-            ll = np.asarray(ll)
+        log_loc = np.log(self.location_j(j=j))
+        x_times_log_loc = self.x[:, j] * log_loc
+        log_x_factorial = np.log(scipy.special.gammaln(self.x[:, j] + np.ones_like(self.x[:, j])))
+        ll = x_times_log_loc - log_loc - log_x_factorial
         return self.np_clip_param(ll, "ll")
 
-    def ll_handle(self) -> Callable:
+    def ll_handle(self) -> Callable: # what does this do?
         def fun(x, eta_loc, theta_scale, xh_scale):
             eta_scale = np.matmul(xh_scale, theta_scale)
             scale = np.exp(eta_scale)
