@@ -57,17 +57,9 @@ class Estimator(EstimatorGlm):
         **kwargs,
     ):
         model = self._model_container.model
-        _, theta_location, _ = closedform_norm_glm_mean(
-            x=model.x,
-            design_loc=model.design_loc,
-            constraints_loc=model.constraints_loc,
-            size_factors=model.size_factors,
-        )
-        _, theta_scale, _ = closedform_norm_glm_logsd(
-            x=model.x,
-            design_scale=model.design_scale,
-            constraints=model.constraints_scale,
-            size_factors=model.size_factors,
-        )
+        theta_location, residuals, _, _ = np.linalg.lstsq(model.design_loc, model.x)
         self._model_container.theta_location = theta_location
+        theta_scale, _, _, _ = np.linalg.lstsq(
+            model.design_scale, np.tile(residuals, (model.x.shape[0], 1))
+        )
         self._model_container.theta_scale = theta_scale
