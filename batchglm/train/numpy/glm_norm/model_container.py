@@ -29,11 +29,13 @@ class ModelContainer(BaseModelContainer):
         
     @property
     def fim_location_scale(self) -> np.ndarray:
-        return np.zeros([self.theta_scale.shape[1], 0, 0])
+        # Unfinished in manuscript?
+        pass
 
     @property
     def fim_scale_scale(self) -> np.ndarray:
-        return np.zeros([self.theta_scale.shape[1], 0, 0])
+        # Unfinished in manuscript?
+        pass
 
     @property
     def hessian_weight_location_scale(self) -> np.ndarray:
