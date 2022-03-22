@@ -55,19 +55,21 @@ class ModelContainer(BaseModelContainer):
 
     @property
     def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
-        scale = self.scale
         loc = self.location
-        log_scale = np.log(scale)
-        ll = -.5 * np.repeat(2 * math.pi, loc.shape[0])  - log_scale - np.power((self.x - loc) / (2 * scale), 2)
-        return self.np_clip_param(ll, "ll")
+        resid = loc - self.model.x
+        sd = np.sqrt(np.sum(np.power(resid, 2), 0))
+        var = np.power(sd, 2)
+        ll = -.5 * loc.shape[0] * np.log(2 * math.pi * var) - .5 * np.linalg.norm(resid, axis=0) / np.power(sd, 2)
+        return ll
 
     def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
 
-        scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
-        log_scale = np.log(scale)
-        ll = -.5 * np.repeat(2 * math.pi, loc.shape[0])  - log_scale - np.power((self.x - loc) / (2 * scale), 2)
-        return self.np_clip_param(ll, "ll")
+        resid = loc - self.model.x[:, j]
+        sd = np.sqrt(np.sum(np.power(resid, 2), 0))
+        var = np.power(sd, 2)
+        ll = -.5 * loc.shape[0] * np.log(2 * math.pi * var) - .5 * np.linalg.norm(resid, axis=0) / np.power(sd, 2)
+        return ll
