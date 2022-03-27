@@ -56,12 +56,12 @@ class Estimator(EstimatorGlm):
         :param dtype: Numerical precision.
         """
         init_theta_location, init_theta_scale, train_loc, train_scale = init_par(
-            model=model, init_location=init_location, init_scale=init_scale
+            model=model, init_location=init_location
         )
         self._train_loc = train_loc
-        self._train_scale = False # no need to train the scale parameter for the poisson model since it only has one parameter
-        if quick_scale:
-            self._train_scale = False
+        self._train_scale = (
+            False  # no need to train the scale parameter for the poisson model since it only has one parameter
+        )
         sys.stdout.write("training location model: %s\n" % str(self._train_loc))
         init_theta_location = init_theta_location.astype(dtype)
         init_theta_scale = init_theta_scale.astype(dtype)

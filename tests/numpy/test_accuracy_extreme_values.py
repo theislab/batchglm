@@ -73,5 +73,20 @@ class TestAccuracyXtremeBeta(_TestAccuracyXtremeAll):
         return True
 
 
+class TestAccuracyXtremePoisson(_TestAccuracyXtremeAll):
+    """
+    Test whether optimizers yield exact results for Poisson distributed data.
+    """
+
+    def test_poisson(self) -> bool:
+        logger.error("TestAccuracyXtremePoisson.test_poisson()")
+        logger.info("Poisson noise model not implemented for numpy")
+
+        np.random.seed(1)
+        self._test_low_values(noise_model="poisson")
+        # self._test_zero_variance(noise_model="poisson")
+        return True
+
+
 if __name__ == "__main__":
     unittest.main()

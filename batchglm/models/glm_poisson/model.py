@@ -94,6 +94,6 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     def generate_data(self) -> np.ndarray:
         """
-        Sample random data based on negative binomial distribution and parameters.
+        Sample random data based on poisson distribution and parameters.
         """
         return np.random.poisson(lam=self.lam)

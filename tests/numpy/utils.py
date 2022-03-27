@@ -2,16 +2,21 @@ from typing import List, Optional, Union
 
 import numpy as np
 
+
 from batchglm.models.base_glm import _ModelGLM
 from batchglm.models.glm_beta import Model as BetaModel
 from batchglm.models.glm_nb import Model as NBModel
 from batchglm.models.glm_norm import Model as NormModel
+from batchglm.models.glm_poisson import Model as PoissonModel
 
 # from batchglm.train.numpy.glm_norm import Estimator as NormEstimator
 from batchglm.train.numpy.base_glm import EstimatorGlm
 
 # from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
 from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
+
+# from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
+from batchglm.train.numpy.glm_poisson import Estimator as PoissonEstimator
 
 
 def get_estimator(noise_model: str, **kwargs) -> EstimatorGlm:
@@ -23,6 +28,8 @@ def get_estimator(noise_model: str, **kwargs) -> EstimatorGlm:
     elif noise_model == "beta":
         raise NotImplementedError("Beta Estimator is not yet implemented.")
         # estimator = BetaEstimator(**kwargs)
+    elif noise_model == "poisson":
+        return PoissonEstimator(**kwargs)
     raise ValueError(f"Noise model {noise_model} not recognized.")
 
 
@@ -35,6 +42,8 @@ def get_model(noise_model: str) -> _ModelGLM:
         return NormModel()
     elif noise_model == "beta":
         return BetaModel()
+    elif noise_model == "poisson":
+        return PoissonModel()
     raise ValueError(f"Noise model {noise_model} not recognized.")
 
 
@@ -57,7 +66,7 @@ def get_generated_model(
 
     elif mode == "randTheta":
 
-        if noise_model in ["nb", "norm"]:
+        if noise_model in ["nb", "norm", "poisson"]:
             rand_fn_ave = random_uniform(10, 1000)
             rand_fn_loc = random_uniform(1, 3)
             rand_fn_scale = random_uniform(1, 3)
@@ -70,7 +79,7 @@ def get_generated_model(
 
     elif mode == "constTheta":
 
-        if noise_model in ["nb", "norm"]:
+        if noise_model in ["nb", "norm", "poisson"]:
             rand_fn_ave = random_uniform(10, 1000)
             rand_fn_loc = const(1.0)
             rand_fn_scale = const(1.0)
