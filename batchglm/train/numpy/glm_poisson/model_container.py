@@ -6,6 +6,17 @@ import scipy
 
 from .external import BaseModelContainer
 
+
+class NoScaleError(Exception):
+    """
+    Exception raised for attempting to access the scale parameter (or one of its derived methods) of a poisson model.
+    """
+
+    def __init__(self, method):
+        self.message = f"Attempted to access {method}. No scale parameter is fit for poisson - please use location."
+        super().__init__(self.message)
+
+
 class ModelContainer(BaseModelContainer):
     @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -71,6 +82,10 @@ class ModelContainer(BaseModelContainer):
         return np.asarray(self.np_clip_param(ll, "ll"))
 
     @property
+    def hessian(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return self.hessian_location_location
+
+    @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
@@ -85,3 +100,20 @@ class ModelContainer(BaseModelContainer):
     @property
     def fim_location_scale(self) -> np.ndarray:
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    # Methods marked as abstract that involve the scale parameter:
+    @property
+    def fim_location_scale(self) -> np.ndarray:
+        raise NoScaleError('fim_location_scale')
+
+    @property
+    def hessian_weight_scale_scale(self) -> np.ndarray:
+        raise NoScaleError('hessian_weight_scale_scale')
+
+    @property
+    def hessian_weight_location_scale(self) -> np.ndarray:
+        raise NoScaleError('hessian_weight_location_scale')
+
+    @property
+    def jac_weight_scale_j(self) -> np.ndarray:
+        raise NoScaleError('jac_weight_scale_j')
