@@ -26,7 +26,7 @@ class ModelContainer(BaseModelContainer):
     @property
     def fim_location_location(self):
         return np.power(self.location / self.scale, 2)
-        
+
     @property
     def fim_location_scale(self) -> np.ndarray:
         # Unfinished in manuscript?
@@ -75,3 +75,10 @@ class ModelContainer(BaseModelContainer):
         var = np.power(sd, 2)
         ll = -.5 * loc.shape[0] * np.log(2 * math.pi * var) - .5 * np.linalg.norm(resid, axis=0) / np.power(sd, 2)
         return ll
+
+    @property
+    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        :return: observations x features
+        """
+        return np.asarray(self.x - self.location) / self.location
