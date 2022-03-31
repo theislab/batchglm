@@ -21,7 +21,7 @@ logger = logging.getLogger("batchglm")
 
 
 class Estimator(EstimatorGlm):
-    
+
 
     def __init__(
         self,
@@ -43,6 +43,8 @@ class Estimator(EstimatorGlm):
         init_theta_location = init_theta_location.astype(dtype)
         init_theta_scale = np.zeros([model.num_scale_params, model.x.shape[1]])
         init_theta_scale = init_theta_scale.astype(dtype)
+        self._train_loc = False
+        self._train_scale = True
         _model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
@@ -59,7 +61,4 @@ class Estimator(EstimatorGlm):
         model = self._model_container.model
         theta_location, residuals, _, _ = np.linalg.lstsq(model.design_loc, model.x)
         self._model_container.theta_location = theta_location
-        theta_scale, _, _, _ = np.linalg.lstsq(
-            model.design_scale, np.tile(residuals, (model.x.shape[0], 1))
-        )
-        self._model_container.theta_scale = theta_scale
+        super().train(**kwargs)

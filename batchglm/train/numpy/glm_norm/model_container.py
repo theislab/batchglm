@@ -1,11 +1,11 @@
 import math
-from typing import Union
+from typing import Union, Callable
 
 import dask
 import numpy as np
 
 from .external import BaseModelContainer
-
+from .utils import ll
 
 class ModelContainer(BaseModelContainer):
 
@@ -26,16 +26,14 @@ class ModelContainer(BaseModelContainer):
     @property
     def fim_location_location(self):
         return np.power(self.location / self.scale, 2)
-        
+
     @property
     def fim_location_scale(self) -> np.ndarray:
-        # Unfinished in manuscript?
-        pass
+        return np.zeros([self.theta_scale.shape[1], 0, 0])
 
     @property
     def fim_scale_scale(self) -> np.ndarray:
-        # Unfinished in manuscript?
-        pass
+        return np.full([self.theta_scale.shape[1], 0, 0], 2)
 
     @property
     def hessian_weight_location_scale(self) -> np.ndarray:
@@ -58,11 +56,9 @@ class ModelContainer(BaseModelContainer):
     @property
     def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
         loc = self.location
-        resid = loc - self.model.x
-        sd = np.sqrt(np.sum(np.power(resid, 2), 0))
-        var = np.power(sd, 2)
-        ll = -.5 * loc.shape[0] * np.log(2 * math.pi * var) - .5 * np.linalg.norm(resid, axis=0) / np.power(sd, 2)
-        return ll
+        scale = self.scale
+        x = self.model.x
+        return ll(scale, loc, x)
 
     def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
@@ -70,8 +66,16 @@ class ModelContainer(BaseModelContainer):
             j = [j]
 
         loc = self.location_j(j=j)
+        scale = self.scale_j(j=j)
         resid = loc - self.model.x[:, j]
-        sd = np.sqrt(np.sum(np.power(resid, 2), 0))
-        var = np.power(sd, 2)
-        ll = -.5 * loc.shape[0] * np.log(2 * math.pi * var) - .5 * np.linalg.norm(resid, axis=0) / np.power(sd, 2)
+        ll = -.5 * loc.shape[0] * np.log(2 * math.pi * scale) - .5 * np.linalg.norm(resid, axis=0) / np.power(scale, 2)
         return ll
+
+    def ll_handle(self) -> Callable:
+        def fun(x, eta_loc, theta_scale, xh_scale):
+            eta_scale = np.matmul(xh_scale, theta_scale)
+            scale = self.model.inverse_link_scale(eta_scale)
+            loc = self.model.inverse_link_loc(eta_loc)
+            return ll(scale, loc, x)
+
+        return fun
