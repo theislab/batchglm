@@ -58,7 +58,7 @@ class ModelContainer(BaseModelContainer):
         loc = self.location
         scale = self.scale
         x = self.model.x
-        return ll(scale, loc, x)
+        return np.asarray(ll(scale, loc, x))
 
     def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
@@ -68,7 +68,7 @@ class ModelContainer(BaseModelContainer):
         loc = self.location_j(j=j)
         scale = self.scale_j(j=j)
         resid = loc - self.model.x[:, j]
-        ll = -.5 * loc.shape[0] * np.log(2 * math.pi * scale) - .5 * np.linalg.norm(resid, axis=0) / np.power(scale, 2)
+        ll = -.5 * np.log(2 * math.pi) - np.log(scale) - .5 * np.power(resid / scale, 2)
         return ll
 
     def ll_handle(self) -> Callable:
