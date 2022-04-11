@@ -24,7 +24,7 @@ class ModelContainer(BaseModelContainer):
         Fisher inverse matrix weights
         :return: observations x features
         """
-        return self.location
+        return -self.hessian_weight_location_location
 
     @property
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -55,7 +55,7 @@ class ModelContainer(BaseModelContainer):
     @property
     def hessian_weight_location_location(self) -> np.ndarray:
         """location-location block of the hessian matrix"""
-        return self.location
+        return -self.location
 
     @property
     def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -64,7 +64,7 @@ class ModelContainer(BaseModelContainer):
         log_loc = np.log(loc)
         x_times_log_loc = self.x * log_loc
         log_x_factorial = np.log(scipy.special.gammaln(self.x + np.ones_like(self.x)))
-        ll = x_times_log_loc - log_loc - log_x_factorial
+        ll = x_times_log_loc - loc - log_x_factorial
         return np.asarray(self.np_clip_param(ll, "ll"))
 
     def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
@@ -75,10 +75,11 @@ class ModelContainer(BaseModelContainer):
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        log_loc = np.log(self.location_j(j=j))
+        loc_j = self.location_j(j=j)
+        log_loc = np.log(loc_j)
         x_times_log_loc = self.x[:, j] * log_loc
         log_x_factorial = np.log(scipy.special.gammaln(self.x[:, j] + np.ones_like(self.x[:, j])))
-        ll = x_times_log_loc - log_loc - log_x_factorial
+        ll = x_times_log_loc - loc_j - log_x_factorial
         return np.asarray(self.np_clip_param(ll, "ll"))
 
     @property
