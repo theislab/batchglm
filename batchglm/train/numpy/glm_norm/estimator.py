@@ -1,22 +1,10 @@
-import abc
 import logging
-import multiprocessing
-import pprint
-import sys
-import time
-from enum import Enum
-from typing import List, Tuple
 
-import dask.array
 import numpy as np
-import scipy
-import scipy.optimize
-import scipy.sparse
-import sparse
 
-from .external import pkg_constants, EstimatorGlm, Model, closedform_norm_glm_logsd, closedform_norm_glm_mean
+from .external import EstimatorGlm, Model
 from .model_container import ModelContainer
-
+from ....models.glm_norm.utils import init_par
 logger = logging.getLogger("batchglm")
 
 
@@ -35,16 +23,38 @@ class Estimator(EstimatorGlm):
         """
         Performs initialisation and creates a new estimator.
         :param model:
-            The IWLS model to be fit
-        :param dtype:
-            i.e float64
+            The GLM model to be fit
+        :param init_location: (Optional)
+            Low-level initial values for a. Can be:
+
+            - str:
+                * "auto": automatically choose best initialization
+                * "standard": initialize intercept with observed mean
+                * "closed_form": try to initialize with closed form
+            - np.ndarray: direct initialization of 'a'
+        :param init_scale: (Optional)
+            Low-level initial values for b. Can be:
+
+            - str:
+                * "auto": automatically choose best initialization
+                * "random": initialize with random values
+                * "standard": initialize with zeros
+                * "closed_form": try to initialize with closed form
+            - np.ndarray: direct initialization of 'b'
+        :param quick_scale: bool
+            Whether `scale` will be fitted faster and maybe less accurate.
+            Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
+        :param dtype: Numerical precision.
         """
-        init_theta_location = np.zeros([model.num_loc_params, model.num_features])
+        init_theta_location, init_theta_scale, train_loc, train_scale = init_par(
+            model=model, init_location=init_location, init_scale=init_scale
+        )
         init_theta_location = init_theta_location.astype(dtype)
-        init_theta_scale = np.zeros([model.num_scale_params, model.x.shape[1]])
         init_theta_scale = init_theta_scale.astype(dtype)
-        self._train_scale = True
-        self._train_loc = True
+        self._train_scale = train_scale
+        self._train_loc = train_loc
+        if quick_scale:
+            self._train_scale = False
         _model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
@@ -59,8 +69,9 @@ class Estimator(EstimatorGlm):
         **kwargs,
     ):
         model = self._model_container.model
-        theta_location, _, _, _ = np.linalg.lstsq(model.design_loc, model.x)
-        self._model_container.theta_location = theta_location
+        if self._train_loc:
+            theta_location, _, _, _ = np.linalg.lstsq(model.design_loc, model.x)
+            self._model_container.theta_location = theta_location
         self._train_loc = False
         super().train(**kwargs)
         self._train_loc = True

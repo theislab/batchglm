@@ -395,6 +395,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         lb, ub = self.model_container.param_bounds(dtype=data_j.dtype)
         lb_bracket = np.max([lb["theta_scale"], b_j - 20])
         ub_bracket = np.min([ub["theta_scale"], b_j + 20])
+
         def cost_theta_scale(x, data_jj, eta_loc_jj, xh_scale_jj):
             x = np.clip(np.array([[x]]), lb["theta_scale"], ub["theta_scale"])
             return -np.sum(ll(data_jj, eta_loc_jj, x, xh_scale_jj))
@@ -411,6 +412,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         #    xk=b_j+5,
         #    pk=-np.ones_like(b_j)
         # )
+
         return scipy.optimize.brent(
             func=cost_theta_scale,
             args=(data_j, eta_loc_j, xh_scale),
