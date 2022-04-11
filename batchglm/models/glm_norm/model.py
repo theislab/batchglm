@@ -12,66 +12,25 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     """Generalized Linear Model (GLM) with normal noise."""
 
     def link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :param type data: Description of parameter `data`.
-        :return: Description of returned object.
-        :rtype: type
-
-        """
         return data
 
     def inverse_link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :param type data: Description of parameter `data`.
-        :return: Description of returned object.
-        :rtype: type
-
-        """
         return data
 
     def link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :param type data: Description of parameter `data`.
-        :return: Description of returned object.
-        :rtype: type
-
-        """
         return np.log(data)
 
     def inverse_link_scale(self, data) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :param type data: Description of parameter `data`.
-        :return: Description of returned object.
-        :rtype: type
-
-        """
         return np.exp(data)
 
     @property
     def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :return: Description of returned object.
-        :rtype: np.ndarray
-
-        """
         eta = np.matmul(self.design_loc, self.theta_location_constrained)
         if self.size_factors is not None:
             eta *= np.expand_dims(self.size_factors, axis=1)
         return eta
 
     def eta_loc_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :param type j: Description of parameter `j`.
-        :return: Description of returned object.
-        :rtype: np.ndarray
-
-        """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
@@ -85,22 +44,10 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     @property
     def mean(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :return: Description of returned object.
-        :rtype: np.ndarray
-
-        """
         return self.location
 
     @property
     def sd(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """Short summary.
-
-        :return: Description of returned object.
-        :rtype: np.ndarray
-
-        """
         return self.scale
 
     # param constraints:
