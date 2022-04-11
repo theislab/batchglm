@@ -94,18 +94,12 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
             design_scale=model.design_scale[:, [0]],
             constraints=model.constraints_scale[[0], :][:, [0]],
             size_factors=model.size_factors,
-            groupwise_means=None
+            groupwise_means=None,
+            link_fn=lambda r: np.log(r + np.nextafter(0, 1, dtype=r.dtype)),
         )
         init_theta_scale = np.zeros([model.num_scale_params, model.num_features])
         init_theta_scale[0, :] = init_scale_intercept
     elif init_scale_str == "closed_form":
-        if not np.array_equal(model.design_loc, model.design_scale):
-            raise ValueError("Cannot use 'closed_form' init for scale model: design_scale != design_loc.")
-        if init_location_str is not None and init_location_str != init_scale_str:
-            raise ValueError(
-                "Cannot use 'closed_form' init for scale model: init_location != 'closed_form' which is required."
-            )
-
         groupwise_scales, init_theta_scale, rmsd_b = closedform_norm_glm_logsd(
             x=model.x,
             design_scale=model.design_scale,
