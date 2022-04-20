@@ -44,11 +44,6 @@ Negative Binomial
    models.glm_nb.Model
    train.numpy.glm_nb.Estimator
 
-Planned or Incomplete Models:
-
-Beta
-~~~~~~~~~~~~~~~~~
-
 Normal
 ~~~~~~~~~~~~~~~~~
 .. autosummary::
@@ -56,6 +51,11 @@ Normal
 
    models.glm_norm.Model
    train.numpy.glm_norm.Estimator
+
+Planned or Incomplete Models:
+
+Beta
+~~~~~~~~~~~~~~~~~
 
 Poisson
 ~~~~~~~~~~~~~~~~~
