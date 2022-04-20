@@ -39,7 +39,8 @@ def get_model(noise_model: str) -> _ModelGLM:
 
 
 def get_generated_model(
-    noise_model: str, num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None
+    noise_model: str, num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None,
+    n_obs: Optional[int] = 2000, n_vars: Optional[int] = 100,
 ) -> _ModelGLM:
     model = get_model(noise_model=noise_model)
 
@@ -85,8 +86,8 @@ def get_generated_model(
         raise ValueError(f"Mode {mode} not recognized.")
 
     model.generate_artificial_data(
-        n_obs=2000,
-        n_vars=100,
+        n_obs=n_obs,
+        n_vars=n_vars,
         num_conditions=num_conditions,
         num_batches=num_batches,
         intercept_scale=True,
