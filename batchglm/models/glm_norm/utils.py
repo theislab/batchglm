@@ -12,7 +12,7 @@ logger = logging.getLogger("batchglm")
 
 def closedform_norm_glm_logsd(
     x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
-    design_scale: np.ndarray,
+    design_scale: Union[np.ndarray, dask.array.core.Array],
     constraints=None,
     size_factors=None,
     groupwise_means=None,
