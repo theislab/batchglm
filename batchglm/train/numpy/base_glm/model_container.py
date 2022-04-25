@@ -4,6 +4,8 @@ from typing import Any, Callable, Union
 import dask.array
 import numpy as np
 
+from ...base import BaseModelContainer
+
 
 def dask_compute(func: Callable):
     def func_wrapper(*args, **kwargs):
@@ -13,7 +15,7 @@ def dask_compute(func: Callable):
     return func_wrapper
 
 
-class BaseModelContainer:
+class NumpyModelContainer(BaseModelContainer):
     """
     Build variables to be optimized.
 

@@ -2,7 +2,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 
-from batchglm.models.base_glm import _ModelGLM
+from batchglm.models.base_glm import ModelGLM
 from batchglm.models.glm_beta import Model as BetaModel
 from batchglm.models.glm_nb import Model as NBModel
 from batchglm.models.glm_norm import Model as NormModel
@@ -26,7 +26,7 @@ def get_estimator(noise_model: str, **kwargs) -> EstimatorGlm:
     raise ValueError(f"Noise model {noise_model} not recognized.")
 
 
-def get_model(noise_model: str) -> _ModelGLM:
+def get_model(noise_model: str) -> ModelGLM:
     if noise_model is None:
         raise ValueError("noise_model is None")
     if noise_model == "nb":
@@ -40,7 +40,7 @@ def get_model(noise_model: str) -> _ModelGLM:
 
 def get_generated_model(
     noise_model: str, num_conditions: int, num_batches: int, sparse: bool, mode: Optional[str] = None
-) -> _ModelGLM:
+) -> ModelGLM:
     model = get_model(noise_model=noise_model)
 
     def random_uniform(low: float, high: float):

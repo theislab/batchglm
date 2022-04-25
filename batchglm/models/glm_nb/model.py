@@ -4,10 +4,10 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 import dask.array
 import numpy as np
 
-from .external import _ModelGLM
+from .external import ModelGLM
 
 
-class Model(_ModelGLM, metaclass=abc.ABCMeta):
+class Model(ModelGLM, metaclass=abc.ABCMeta):
     """
     Generalized Linear Model (GLM) with negative binomial noise.
     """

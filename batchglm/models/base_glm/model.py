@@ -13,7 +13,7 @@ from .utils import generate_sample_description, parse_constraints, parse_design
 logger = logging.getLogger(__name__)
 
 
-class _ModelGLM(metaclass=abc.ABCMeta):
+class ModelGLM(metaclass=abc.ABCMeta):
     """
     Generalized Linear Model base class.
 
@@ -72,8 +72,13 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         self._cast_dtype = input_data.cast_dtype
         self._chunk_size_genes = input_data.chunk_size_genes
         self._chunk_size_cells = input_data.chunk_size_cells
+        self._features = input_data.features
         self._xh_loc = np.matmul(self.design_loc, self.constraints_loc)
         self._xh_scale = np.matmul(self.design_scale, self.constraints_scale)
+
+    @property
+    def features(self) -> List[str]:
+        return self._features
 
     @property
     def chunk_size_cells(self) -> int:

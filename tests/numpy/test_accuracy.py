@@ -5,7 +5,7 @@ import numpy as np
 from utils import get_estimator, get_generated_model
 
 from batchglm import pkg_constants
-from batchglm.models.base_glm import _ModelGLM
+from batchglm.models.base_glm import ModelGLM
 from batchglm.train.numpy.base_glm import EstimatorGlm
 
 logger = logging.getLogger("batchglm")

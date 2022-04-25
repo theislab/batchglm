@@ -4,10 +4,10 @@ import dask
 import numpy as np
 import scipy
 
-from .external import BaseModelContainer
+from .external import NumpyModelContainer
 
 
-class ModelContainer(BaseModelContainer):
+class ModelContainer(NumpyModelContainer):
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
