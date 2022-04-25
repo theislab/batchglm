@@ -5,6 +5,7 @@ import dask.array
 import numpy as np
 
 from ...base import BaseModelContainer
+from ....models.base_glm import ModelGLM
 
 
 def dask_compute(func: Callable):
@@ -65,7 +66,7 @@ class NumpyModelContainer(BaseModelContainer):
             Precision used in tensorflow.
         """
 
-        self.model = model
+        self._model = model
         init_theta_location_clipped = model.np_clip_param(
             np.asarray(init_theta_location, dtype=dtype), "theta_location"
         )
@@ -92,8 +93,12 @@ class NumpyModelContainer(BaseModelContainer):
         )
 
         # overriding the location and scale parameter by referencing the getter functions within the properties.
-        self.model._theta_location_getter = self._theta_location_getter
-        self.model._theta_scale_getter = self._theta_scale_getter
+        self._model._theta_location_getter = self._theta_location_getter
+        self._model._theta_scale_getter = self._theta_scale_getter
+
+    @property
+    def model(self) -> ModelGLM:
+        return self._model
 
     def _theta_location_getter(self) -> dask.array.core.Array:
         theta_location = self.params[0 : self.npar_location]

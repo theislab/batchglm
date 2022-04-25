@@ -16,7 +16,7 @@ class BaseModelContainer(metaclass=abc.ABCMeta):
             pass
 
         @abc.abstractmethod
-        def log_likelihood(self):
+        def ll(self):
             pass
 
         @abc.abstractmethod
@@ -29,10 +29,6 @@ class BaseModelContainer(metaclass=abc.ABCMeta):
 
         @abc.abstractmethod
         def fisher_inv(self):
-            pass
-
-        @abc.abstractmethod
-        def x(self):
             pass
 
         @abc.abstractmethod
