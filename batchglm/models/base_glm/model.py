@@ -9,7 +9,7 @@ import pandas as pd
 
 from ...utils.input import InputDataGLM
 from .external import pkg_constants
-from .utils import generate_sample_description, parse_constraints, parse_design
+from .utils import generate_sample_description
 
 logger = logging.getLogger(__name__)
 
