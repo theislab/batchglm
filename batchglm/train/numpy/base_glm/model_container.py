@@ -100,6 +100,10 @@ class NumpyModelContainer(BaseModelContainer):
     def model(self) -> ModelGLM:
         return self._model
 
+    @property
+    def fisher_inv(self) -> np.ndarray:
+        return self._fisher_inv
+
     def _theta_location_getter(self) -> dask.array.core.Array:
         theta_location = self.params[0 : self.npar_location]
         return self.np_clip_param(theta_location, "theta_location")
@@ -350,8 +354,6 @@ class NumpyModelContainer(BaseModelContainer):
     @abc.abstractmethod
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         pass
-
-    # ll
 
     @property
     @abc.abstractmethod

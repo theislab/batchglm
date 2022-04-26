@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import dask.array
 import numpy as np
 import scipy
+import pandas as pd
 
 from ...utils.input import InputDataGLM
 from .external import pkg_constants
@@ -43,6 +44,8 @@ class ModelGLM(metaclass=abc.ABCMeta):
     _cast_dtype: str = "float32"
     _chunk_size_cells: int
     _chunk_size_genes: int
+    _sample_description: pd.DataFrame
+    _features: List[str]
 
     def __init__(
         self,
@@ -91,6 +94,10 @@ class ModelGLM(metaclass=abc.ABCMeta):
     @property
     def cast_dtype(self) -> str:
         return self._cast_dtype
+
+    @property
+    def sample_description(self) -> pd.DataFrame:
+        return self._sample_description
 
     @property
     def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -361,7 +368,7 @@ class ModelGLM(metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
-        _design_loc, _design_scale, _ = generate_sample_description(**kwargs)
+        _design_loc, _design_scale, _sample_description = generate_sample_description(**kwargs)
 
         self._theta_location = np.concatenate(
             [
@@ -371,8 +378,9 @@ class ModelGLM(metaclass=abc.ABCMeta):
             axis=0,
         )
         self._theta_scale = np.concatenate([rand_fn_scale((_design_scale.shape[1], n_vars))], axis=0)
+        self._sample_description = _sample_description
 
-        return _design_loc, _design_scale
+        return _design_loc, _design_scale, _sample_description
 
     def generate_artificial_data(
         self,
@@ -398,7 +406,7 @@ class ModelGLM(metaclass=abc.ABCMeta):
         :param as_dask: If True, use dask.
         :param kwargs: Additional kwargs passed to generate_params.
         """
-        _design_loc, _design_scale = self.generate_params(
+        _design_loc, _design_scale, _ = self.generate_params(
             n_vars=n_vars,
             num_observations=n_obs,
             num_conditions=num_conditions,
