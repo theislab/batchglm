@@ -1,6 +1,8 @@
 import abc
 import logging
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+import random
+import string
 
 import dask.array
 import numpy as np
@@ -426,8 +428,9 @@ class ModelGLM(metaclass=abc.ABCMeta):
         data_matrix = self.generate_data().astype(self.cast_dtype)
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
-
-        input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask)
+        # generate random gene/feature names
+        feature_names = ''.join(random.choices(string.ascii_uppercase + string.digits, k=n_vars))
+        input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask, feature_names=feature_names)
         self.extract_input_data(input_data)
 
     @abc.abstractmethod
