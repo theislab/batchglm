@@ -96,6 +96,16 @@ class NumpyModelContainer(BaseModelContainer):
         self._model._theta_location_getter = self._theta_location_getter
         self._model._theta_scale_getter = self._theta_scale_getter
 
+    # Is this actually used in diffxpy? Why?
+    @property
+    def niter(self):
+        return None
+
+    # Is this actually used in diffxpy? Why?
+    @property
+    def error_codes(self):
+        return np.array()
+
     @property
     def model(self) -> ModelGLM:
         return self._model

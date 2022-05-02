@@ -12,15 +12,11 @@ class BaseModelContainer(metaclass=abc.ABCMeta):
             pass
 
         @abc.abstractmethod
-        def loss(self):
-            pass
-
-        @abc.abstractmethod
         def ll(self):
             pass
 
         @abc.abstractmethod
-        def jacobian(self):
+        def jac(self):
             pass
 
         @abc.abstractmethod
