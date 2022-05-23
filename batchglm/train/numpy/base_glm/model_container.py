@@ -166,6 +166,16 @@ class NumpyModelContainer(BaseModelContainer):
         else:
             self.params[self.npar_location :] = value
 
+    @property
+    def theta_location_constrained(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """dot product of location constraints with location parameter giving new constrained parameters"""
+        return np.dot(self.constraints_loc, self.theta_location)
+
+    @property
+    def theta_scale_constrained(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """dot product of scale constraints with scale parameter giving new constrained parameters"""
+        return np.dot(self.constraints_scale, self.theta_scale)
+
     def theta_scale_j(self, j) -> dask.array.core.Array:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]

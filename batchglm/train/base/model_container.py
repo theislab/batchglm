@@ -28,14 +28,17 @@ class BaseModelContainer(metaclass=abc.ABCMeta):
             pass
 
         @abc.abstractmethod
-        def model(self):
-            pass
-
-        @abc.abstractmethod
         def theta_location(self):
             pass
 
         @abc.abstractmethod
         def model(self) -> ModelGLM:
             pass
+
+        def theta_location_constrained(self):
+            pass
+
+        def theta_scale_constrained(self):
+            pass
+
 
