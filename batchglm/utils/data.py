@@ -233,9 +233,9 @@ def constraint_system_from_star(
 @constraint_system_from_star.register
 def _constraint_system_from_dict(
     constraints: dict,
-    return_type: str = "patsy",
     **kwargs,
 ) -> Tuple:
+    return_type = kwargs.pop('return_type')
     cmat, dmat, term_names = constraint_system_from_dict(constraints, **kwargs)
     return constraint_system_from_star(cmat, dmat=dmat, return_type=return_type, term_names=term_names, **kwargs)
 
