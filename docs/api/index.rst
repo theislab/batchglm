@@ -23,7 +23,7 @@ where `xxxxxx` is the backend desired, like `tf2`, `numpy` or `statsmodel`.
 For example, here is a short snippet to give a sense of how the API might work::
 
    from batchglm.models.glm_nb import Model as NBModel
-   from batchglm.train.numpy.glm_nb import Estimator as NBEstimator  
+   from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
    from batchglm.utils.input import InputDataGLM
 
    input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask)
