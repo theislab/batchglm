@@ -162,6 +162,16 @@ class BaseModelContainer:
         else:
             self.params[self.npar_location :, j] = value
 
+    # dispersion_smoothing
+
+    @property
+    def theta_scale_smoothed(self) -> np.ndarray:
+        return self._theta_scale_smoothed
+
+    @theta_scale_smoothed.setter
+    def theta_scale_smoothed(self, value):
+        self._theta_scale_smoothed = value
+
     # jacobians
 
     @abc.abstractmethod
