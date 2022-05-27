@@ -63,7 +63,7 @@ def robust_scale(x: pd.Series, c: float = 1.4826, eps: Optional[Union[int, float
     :return pd.Series containing the computed scales.
     """
     if eps is None:
-        eps = np.finfo(float).eps
+        eps = float(np.finfo(float).eps)
 
     deviation = x - x.median()
     mad = c * deviation.abs().median() + eps
