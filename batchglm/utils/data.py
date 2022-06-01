@@ -47,7 +47,9 @@ def design_matrix(
         if isinstance(as_categorical, bool):
             as_categorical = [as_categorical] * sample_description.columns.size
         sample_description = sample_description.copy()
-        sample_description[as_categorical] = sample_description[as_categorical].apply(lambda col: col.astype("category"))
+        sample_description[as_categorical] = sample_description[as_categorical].apply(
+            lambda col: col.astype("category")
+        )
 
         dmat = patsy.dmatrix(formula, sample_description)
         coef_names = dmat.design_info.column_names
