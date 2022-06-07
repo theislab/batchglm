@@ -45,7 +45,7 @@ def design_matrix(
         if sample_description is None:
             raise ValueError("Provide a sample_description if dmat is None.")
         if isinstance(as_categorical, bool):
-            as_categorical = [as_categorical] * sample_description.columns.size
+            as_categorical = sample_description.columns
         sample_description = sample_description.copy()
         sample_description[as_categorical] = sample_description[as_categorical].apply(
             lambda col: col.astype("category")
