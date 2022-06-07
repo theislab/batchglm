@@ -215,6 +215,8 @@ def constraint_system_from_star(
         coef_names = dmat.design_info.column_names
     else:
         raise TypeError(f"Type {type(dmat)} not recognized for argument dmat.")
+    if term_names is None:
+        term_names = coef_names
 
     # Test full design matrix for being full rank before returning:
     if cmat is None:
