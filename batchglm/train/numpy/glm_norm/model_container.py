@@ -4,10 +4,11 @@ from typing import Union, Callable
 import dask
 import numpy as np
 
-from .external import BaseModelContainer
+from .external import NumpyModelContainer
 from .utils import ll
 
-class ModelContainer(BaseModelContainer):
+
+class ModelContainer(NumpyModelContainer):
 
     @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
