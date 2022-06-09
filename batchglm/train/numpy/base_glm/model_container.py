@@ -393,13 +393,21 @@ class NumpyModelContainer(BaseModelContainer):
     def ll_byfeature_j(self, j) -> np.ndarray:
         return np.sum(self.ll_j(j=j), axis=0)
 
-    # bar
-
     @property
-    @abc.abstractmethod
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
-        pass
+        """
+        :return: observations x features
+        """
+        return np.asarray(self.x - self.location) / self.location
 
-    @abc.abstractmethod
     def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        pass
+        """
+        :return: observations x features
+        """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
+            return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
+        else:
+            return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)

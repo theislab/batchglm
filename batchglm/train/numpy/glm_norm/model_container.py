@@ -11,11 +11,23 @@ from .utils import ll
 class ModelContainer(NumpyModelContainer):
 
     @property
+    def fim_weight(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def jac_weight(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def jac_weight_j(self):
+        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
-        return -self.location * self.scale / (self.scale + self.location)
+        return (self.location * self.location) / (self.scale * self.scale)
 
     def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        return -self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
+        return (self.location_j(j=j) * self.location_j(j=j)) / (self.scale_j(j=j) * self.scale_j(j=j))
 
     @property
     def jac_weight_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -23,10 +35,6 @@ class ModelContainer(NumpyModelContainer):
 
     def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         return -np.ones_like(self.x[:, j]) - np.power((self.x[:, j] - self.location_j(j=j)) / self.scale_j(j=j), 2)
-
-    @property
-    def fim_location_location(self):
-        return np.power(self.location / self.scale, 2)
 
     @property
     def fim_location_scale(self) -> np.ndarray:

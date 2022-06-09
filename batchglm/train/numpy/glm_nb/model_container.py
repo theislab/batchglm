@@ -20,31 +20,12 @@ class ModelContainer(NumpyModelContainer):
         """
         return -self.location * self.scale / (self.scale + self.location)
 
-    @property
-    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """
-        :return: observations x features
-        """
-        return np.asarray(self.x - self.location) / self.location
-
     def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights at j
         :return: observations x features
         """
         return -self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
-
-    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        """
-        :return: observations x features
-        """
-        # Make sure that dimensionality of sliced array is kept:
-        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
-        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
-            return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
-        else:
-            return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
 
     @property
     def jac_weight(self):
