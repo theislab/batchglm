@@ -394,6 +394,8 @@ class ModelGLM(metaclass=abc.ABCMeta):
         shuffle_assignments: bool = False,
         sparse: bool = False,
         as_dask: bool = True,
+        theta_location_setter: Optional[Callable] = None,
+        theta_scale_setter: Optional[Callable] = None,
         **kwargs,
     ):
         """
@@ -406,6 +408,8 @@ class ModelGLM(metaclass=abc.ABCMeta):
         :param shuffle_assignments: Depcreated. Does not do anything.
         :param sparse: If True, the simulated data matrix is sparse.
         :param as_dask: If True, use dask.
+        :param theta_location_setter: Override for parameter after generate_params, should return the parameter
+        :param theta_scale_setter: Override for parameter after generate_params, should return the parameter
         :param kwargs: Additional kwargs passed to generate_params.
         """
         _design_loc, _design_scale, _ = self.generate_params(
@@ -417,6 +421,10 @@ class ModelGLM(metaclass=abc.ABCMeta):
             shuffle_assignments=shuffle_assignments,
             **kwargs,
         )
+        if theta_location_setter is not None:
+            self._theta_location = theta_location_setter(self._theta_location)
+        if theta_scale_setter is not None:
+            self._theta_scale = theta_scale_setter(self._theta_scale)
 
         # we need to do this explicitly here in order to generate data
         self._constraints_loc = np.identity(n=_design_loc.shape[1])
