@@ -100,7 +100,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
             # perform checks before starting the training procedure
             if ds_method == "sctransform" and (FDataGrid is None or NWSmoother is None):
                 logger.error("Missing optional dependency scikit-fda.")
-            if ds_method not in ["sctransform"]:
+            if ds_method not in ["sctransform", "no_smoothing"]:
                 raise AssertionError(f"Unknown dispersion smoothing method: {ds_method}")
 
             # now start the training
