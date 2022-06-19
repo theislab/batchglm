@@ -45,7 +45,6 @@ def bw_kde(x: np.ndarray, method: str = "silverman"):
     :return float: The estimated bandwidth
     """
     return gaussian_kde(x, bw_method=method).factor * 0.37
-    # return FFTKDE(kernel=kernel, bw=method).fit(x).bw
 
 
 def robust_scale(x: pd.Series, c: float = 1.4826, eps: Optional[Union[int, float]] = None):
@@ -97,4 +96,4 @@ def is_outlier(model_param: np.ndarray, means: np.ndarray, threshold: Union[int,
     df_tmp["score2"] = df_tmp.groupby("bins2")["param"].transform(robust_scale)
     df_tmp["outlier"] = df_tmp[["score1", "score2"]].abs().min(axis=1) > threshold
 
-    return df_tmp
+    return df_tmp["outlier"].to_numpy()

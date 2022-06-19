@@ -94,19 +94,28 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
                         "overrding %s from training strategy with value %s with new value %s\n"
                         % (x, str(d[x]), str(kwargs[x]))
                     )
-            if "dispersion_smoothing" in d:
-                if d["dispersion_smoothing"] == "sctransform":
-                    if FDataGrid is None or NWSmoother is None:
-                        logger.error("Missing optional dependency scikit-fda.")
+
+            ds_method = d.get("dispersion_smoothing", "no_smoothing")
+
+            # perform checks before starting the training procedure
+            if ds_method == "sctransform" and (FDataGrid is None or NWSmoother is None):
+                logger.error("Missing optional dependency scikit-fda.")
+            if ds_method not in ["sctransform"]:
+                raise AssertionError(f"Unknown dispersion smoothing method: {ds_method}")
+
+            # now start the training
             self.train(**d, **kwargs)
             logger.debug("Training sequence #%d complete", idx + 1)
-            if "dispersion_smoothing" in d:
-                if d["dispersion_smoothing"] == "sctransform":
-                    self.perform_vst()
-                elif d["dispersion_smoothing"] == "edger":
-                    raise NotImplementedError()
-                elif d["dispersion_smoothing"] == "deseq2":
-                    raise NotImplementedError()
+
+            # perform dispersion smoothing after training if specified
+            if ds_method == "no_smoothing":
+                continue
+            elif ds_method == "sctransform":
+                self.perform_vst()
+            elif ds_method == "edger":
+                raise NotImplementedError()
+            elif ds_method == "deseq2":
+                raise NotImplementedError()
 
     def perform_vst(
         self,
@@ -118,18 +127,18 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         logger.info("Performing Dispersion smoothing with flavour sctransform...")
         # compute geometric log mean counts
         if use_geometric_mean:
-            genes_log_gmean = np.log10(geometric_mean(self.model_container.x, axis=0, eps=gmean_eps))
+            featurewise_means = np.log10(geometric_mean(self.model_container.x, axis=0, eps=gmean_eps))
         else:
-            genes_log_gmean = np.log10(np.mean(self.model_container.x, axis=0))
-        if isinstance(genes_log_gmean, dask.array.core.Array):
-            genes_log_gmean = genes_log_gmean.compute()
+            featurewise_means = np.log10(np.mean(self.model_container.x, axis=0))
+        if isinstance(featurewise_means, dask.array.core.Array):
+            featurewise_means = featurewise_means.compute()
 
         # specify which kind of regularization is performed
         scale_param = np.exp(self.model_container.theta_scale[0])  # TODO check if this is always correct
         if theta_regularization == "log_theta":
             dispersion_par = np.log10(scale_param)
         elif theta_regularization == "od_factor":
-            dispersion_par = np.log10(1 + np.power(10, genes_log_gmean) / scale_param)
+            dispersion_par = np.log10(1 + np.power(10, featurewise_means) / scale_param)
         else:
             raise ValueError(f"Unrecognized regularization method {theta_regularization}")
         if isinstance(dispersion_par, dask.array.core.Array):
@@ -137,36 +146,34 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
 
         # downsample because KDE and bandwidth selection would take too long if performed on the entire dataset.
         # It is sufficient to get a general idea of the data distribution
-        if len(genes_log_gmean) > 2000:
+        if len(featurewise_means) > 2000:
             logger.info("Sampling 2000 random features...")
-            idx = np.random.choice(np.arange(len(genes_log_gmean)), 2000)
-            genes_log_gmean_filtered = genes_log_gmean[idx]
+            idx = np.random.choice(np.arange(len(featurewise_means)), 2000)
+            featurewise_means_filtered = featurewise_means[idx]
             dispersion_par_filtered = dispersion_par[idx]
         else:
             dispersion_par_filtered = dispersion_par
-            genes_log_gmean_filtered = genes_log_gmean
+            featurewise_means_filtered = featurewise_means
 
-        # check for outliers in the function f(genes_log_gmean_filtered) = dispersion_par_filtered and remove them
+        # check for outliers in the function f(featurewise_means_filtered) = dispersion_par_filtered and remove them
         logger.info("Searching for outliers...")
-        outliers = is_outlier(model_param=dispersion_par_filtered, means=genes_log_gmean_filtered)
-        outliers = outliers["outlier"].values
+        outliers = is_outlier(model_param=dispersion_par_filtered, means=featurewise_means_filtered)
         if np.any(outliers):
             # toss out the outliers
             logger.info(f"Excluded {np.sum(outliers)} outliers.")
-            genes_log_gmean_filtered = genes_log_gmean_filtered[~outliers]
+            featurewise_means_filtered = featurewise_means_filtered[~outliers]
             dispersion_par_filtered = dispersion_par_filtered[~outliers]
 
         # define a data grid with the downsampled and filtered values
-        domain_range = genes_log_gmean_filtered.min(), genes_log_gmean_filtered.max()
+        domain_range = featurewise_means_filtered.min(), featurewise_means_filtered.max()
         fd = FDataGrid(
-            data_matrix=dispersion_par_filtered, grid_points=genes_log_gmean_filtered, domain_range=domain_range
+            data_matrix=dispersion_par_filtered, grid_points=featurewise_means_filtered, domain_range=domain_range
         )
         # select bandwidth to be used for smoothing
-        bw = bw_kde(genes_log_gmean_filtered) * bw_adjust
-        # bandwidth = FFTKDE(kernel='gaussian', bw='ISJ').fit(fd).bw * 0.37 * 3
+        bw = bw_kde(featurewise_means_filtered) * bw_adjust
 
-        # define points for evaluation. Ensure x_points is within the range of genes_log_gmean_filtered
-        x_points = np.clip(genes_log_gmean, *domain_range)
+        # define points for evaluation. Ensure x_points is within the range of featurewise_means_filtered
+        x_points = np.clip(featurewise_means, *domain_range)
         # smooth the dispersion_par
         logger.info("Performing smoothing...")
         smoother = NWSmoother(smoothing_parameter=bw, output_points=x_points)
@@ -176,7 +183,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         if theta_regularization == "log_theta":
             smoothed_scale = np.power(10, dispersion_par_smoothed)
         elif theta_regularization == "od_factor":
-            smoothed_scale = np.power(10, genes_log_gmean) / (np.power(10, dispersion_par_smoothed) - 1)
+            smoothed_scale = np.power(10, featurewise_means) / (np.power(10, dispersion_par_smoothed) - 1)
         else:
             raise ValueError(f"Unrecognized regularization method {theta_regularization}")
 
