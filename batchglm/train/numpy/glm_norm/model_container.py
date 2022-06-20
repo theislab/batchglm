@@ -31,40 +31,24 @@ class ModelContainer(NumpyModelContainer):
 
     @property
     def jac_weight_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        return -(1/self.scale) - np.power((self.x - self.location), 2) / np.power(self.scale, 3)
+        return -np.ones_like(self.x) - np.power((self.x - self.location) / self.scale, 2)
 
     def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        return -(1/self.scale_j(j=j)) - np.power((self.x[:, j]- self.location_j(j=j)), 2) / np.power(self.scale_j(j=j), 3)
+        return -np.ones_like(self.x[:, j]) - np.power((self.x[:, j] - self.location_j(j=j)) / self.scale_j(j=j), 2)
 
     @property
     def fim_location_scale(self) -> np.ndarray:
-        return np.zeros([self.theta_scale.shape[1], self.theta_location.shape[0], self.theta_scale.shape[0]])
+        return np.zeros([self.theta_scale.shape[1], 0, 0])
 
     @property
-    def fim_weight_scale_scale(self) -> np.ndarray:
-        scale = self.scale
-        return 2 / np.power(scale, 2)
-
-    @property
-    def fim_scale_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """
-        scale-scale coefficient block of FIM
-
-        :return: (features x inferred param x inferred param)
-        """
-        w = self.fim_weight_scale_scale  # (observations x features)
-        # constraints: (observed param x inferred param)
-        # design: (observations x observed param)
-        # w: (observations x features)
-        # fim: (features x inferred param x inferred param)
-        xh = self.xh_scale
-        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
+    def fim_scale_scale(self) -> np.ndarray:
+        return np.full([self.theta_scale.shape[1], 0, 0], 2)
 
     @property
     def hessian_weight_location_scale(self) -> np.ndarray:
         scale = self.scale
         loc = self.location
-        return (-2 / np.power(scale, 3)) * (self.x - loc)
+        return (2 / np.power(scale, 2)) * (self.x - loc)
 
     @property
     def hessian_weight_location_location(self) -> np.ndarray:
@@ -75,7 +59,7 @@ class ModelContainer(NumpyModelContainer):
     def hessian_weight_scale_scale(self) -> np.ndarray:
         scale = self.scale
         loc = self.location
-        return ((-3 / np.power(scale, 4)) * np.power(self.x - loc, 2)) + (1/np.power(scale, 2))
+        return (2 / np.power(scale, 2)) * np.power(self.x - loc, 2)
 
     @property
     def ll(self) -> Union[np.ndarray, dask.array.core.Array]:
