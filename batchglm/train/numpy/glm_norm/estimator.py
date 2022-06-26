@@ -70,7 +70,7 @@ class Estimator(EstimatorGlm):
     ):
         model = self._model_container.model
         if self._train_loc:
-            theta_location, _, _, _ = np.linalg.lstsq(model.design_loc, model.x)
+            theta_location, _, _, _ = np.linalg.lstsq(model.xh_loc, model.x)
             self._model_container.theta_location = theta_location
         self._train_loc = False
         super().train(**kwargs)
