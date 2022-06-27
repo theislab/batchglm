@@ -38,11 +38,21 @@ class ModelContainer(NumpyModelContainer):
 
     @property
     def fim_location_scale(self) -> np.ndarray:
-        return np.zeros([self.theta_scale.shape[1], 0, 0])
+        return np.zeros([self.model.x.shape[1], self.theta_location.shape[0], self.theta_scale.shape[0]])
 
     @property
-    def fim_scale_scale(self) -> np.ndarray:
-        return np.full([self.theta_scale.shape[1], 0, 0], 2)
+    def fim_weight_scale_scale(self) -> np.ndarray:
+        return np.full(self.scale.shape, 2)
+
+    @property
+    def fim_scale_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+
+        :return: (features x inferred param x inferred param)
+        """
+        w = self.fim_weight_scale_scale
+        xh = self.xh_scale
+        return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
 
     @property
     def hessian_weight_location_scale(self) -> np.ndarray:

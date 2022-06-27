@@ -358,7 +358,7 @@ class NumpyModelContainer(BaseModelContainer):
         fim_scale_scale = self.fim_scale_scale
         fim_location_scale = self.fim_location_scale
         fim_ba = np.transpose(fim_location_scale, axes=[0, 2, 1])
-        return -np.concatenate(
+        return np.concatenate(
             [
                 np.concatenate([fim_location_location, fim_location_scale], axis=2),
                 np.concatenate([fim_ba, fim_scale_scale], axis=2),
