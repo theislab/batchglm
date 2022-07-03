@@ -6,6 +6,7 @@ import numpy as np
 
 from ...base import BaseModelContainer
 from ....models.base_glm import ModelGLM
+from ....utils.data import dask_compute
 
 
 class NumpyModelContainer(BaseModelContainer):

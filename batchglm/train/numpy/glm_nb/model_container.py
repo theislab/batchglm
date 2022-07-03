@@ -5,14 +5,7 @@ import numpy as np
 import scipy
 
 from .external import NumpyModelContainer
-
-
-def dask_compute(func: Callable):
-    def func_wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        return result.compute() if isinstance(result, dask.array.core.Array) else result
-
-    return func_wrapper
+from ....utils.data import dask_compute
 
 
 class ModelContainer(NumpyModelContainer):

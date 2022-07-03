@@ -1,12 +1,21 @@
 import logging
 from functools import singledispatch
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Callable
 
 import numpy as np
 import pandas as pd
 import patsy
+import dask
 
 logger = logging.getLogger("batchglm")
+
+
+def dask_compute(func: Callable):
+    def func_wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return result.compute() if isinstance(result, dask.array.core.Array) else result
+
+    return func_wrapper
 
 
 def design_matrix(

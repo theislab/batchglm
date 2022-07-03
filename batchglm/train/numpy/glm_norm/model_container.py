@@ -1,19 +1,12 @@
 import math
 from typing import Union, Callable
 
-import dask
 import numpy as np
+import dask
 
 from .external import NumpyModelContainer
 from .utils import ll
-
-
-def dask_compute(func: Callable):
-    def func_wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        return result.compute() if isinstance(result, dask.array.core.Array) else result
-
-    return func_wrapper
+from ....utils.data import dask_compute
 
 
 class ModelContainer(NumpyModelContainer):
@@ -37,7 +30,7 @@ class ModelContainer(NumpyModelContainer):
         scale = self.scale
         x = self.x
         w = (loc - x) / np.power(scale, 2)
-        return w.transpose() * xh.transpose()
+        return np.matmul(w.transpose(), xh)
 
     def jac_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
@@ -48,7 +41,7 @@ class ModelContainer(NumpyModelContainer):
         scale = self.scale_j(j=j)
         x = self.x[:, j]
         w = (loc - x) / np.power(scale, 2)
-        return w.transpose() * xh.transpose()
+        return np.matmul(w.transpose(), xh)
 
     @property
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -58,7 +51,7 @@ class ModelContainer(NumpyModelContainer):
         """
         w = self.jac_weight_scale  # (observations x features)
         xh = self.xh_scale  # (observations x inferred param)
-        return w.transpose() * xh.transpose()
+        return np.matmul(w.transpose(), xh)
 
 
     @dask_compute
@@ -72,7 +65,7 @@ class ModelContainer(NumpyModelContainer):
             j = [j]
         w = self.jac_weight_scale_j(j=j)  # (observations x features)
         xh = self.xh_scale  # (observations x inferred param)
-        return w.transpose() * xh.transpose()
+        return np.matmul(w.transpose(), xh)
 
     @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
