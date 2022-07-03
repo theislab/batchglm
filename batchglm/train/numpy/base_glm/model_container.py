@@ -8,14 +8,6 @@ from ...base import BaseModelContainer
 from ....models.base_glm import ModelGLM
 
 
-def dask_compute(func: Callable):
-    def func_wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        return result.compute() if isinstance(result, dask.array.core.Array) else result
-
-    return func_wrapper
-
-
 class NumpyModelContainer(BaseModelContainer):
     """
     Build variables to be optimized.
@@ -207,57 +199,25 @@ class NumpyModelContainer(BaseModelContainer):
     def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.concatenate([self.jac_location, self.jac_scale], axis=-1)
 
-    @property
+    @abc.abstractmethod
     def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """
+        pass
 
-        :return: (features x inferred param)
-        """
-        w = self.fim_weight_location_location  # (observations x features)
-        ybar = self.ybar  # (observations x features)
-        xh = self.xh_loc  # (observations x inferred param)
-        inner = np.einsum("ob,of->fob", xh, w)
-        return np.einsum("fob,of->fb", inner, ybar)
-
+    @abc.abstractmethod
     def jac_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        """
+        pass
 
-        :return: (features x inferred param)
-        """
-        # Make sure that dimensionality of sliced array is kept:
-        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
-        w = self.fim_weight_location_location_j(j=j)  # (observations x features)
-        ybar = self.ybar_j(j=j)  # (observations x features)
-        xh = self.xh_loc  # (observations x inferred param)
-        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
-
-    @property
+    @abc.abstractmethod
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """
-
-        :return: (features x inferred param)
-        """
-        w = self.jac_weight_scale  # (observations x features)
-        xh = self.xh_scale  # (observations x inferred param)
-        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
+        pass
 
     @abc.abstractmethod
     def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
-    @dask_compute
+    @abc.abstractmethod
     def jac_scale_j(self, j) -> np.ndarray:
-        """
-
-        :return: (features x inferred param)
-        """
-        # Make sure that dimensionality of sliced array is kept:
-        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
-        w = self.jac_weight_scale_j(j=j)  # (observations x features)
-        xh = self.xh_scale  # (observations x inferred param)
-        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
+        pass
 
     # hessians
 

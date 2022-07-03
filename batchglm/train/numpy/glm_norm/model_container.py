@@ -8,6 +8,14 @@ from .external import NumpyModelContainer
 from .utils import ll
 
 
+def dask_compute(func: Callable):
+    def func_wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return result.compute() if isinstance(result, dask.array.core.Array) else result
+
+    return func_wrapper
+
+
 class ModelContainer(NumpyModelContainer):
 
     @property
@@ -21,6 +29,50 @@ class ModelContainer(NumpyModelContainer):
     @property
     def jac_weight_j(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
+
+    @property
+    def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
+        xh = self.xh_loc
+        loc = self.location
+        scale = self.scale
+        x = self.x
+        w = (loc - x) / np.power(scale, 2)
+        return w.transpose() * xh.transpose()
+
+    def jac_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        xh = self.xh_loc
+        loc = self.location_j(j=j)
+        scale = self.scale_j(j=j)
+        x = self.x[:, j]
+        w = (loc - x) / np.power(scale, 2)
+        return w.transpose() * xh.transpose()
+
+    @property
+    def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.jac_weight_scale  # (observations x features)
+        xh = self.xh_scale  # (observations x inferred param)
+        return w.transpose() * xh.transpose()
+
+
+    @dask_compute
+    def jac_scale_j(self, j) -> np.ndarray:
+        """
+
+        :return: (features x inferred param)
+        """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        w = self.jac_weight_scale_j(j=j)  # (observations x features)
+        xh = self.xh_scale  # (observations x inferred param)
+        return w.transpose() * xh.transpose()
 
     @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
