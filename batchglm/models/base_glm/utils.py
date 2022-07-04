@@ -7,11 +7,20 @@ import numpy as np
 import pandas as pd
 import patsy
 import scipy.sparse
+import sparse
 
 from .external import groupwise_solve_lm
 
 logger = logging.getLogger("batchglm")
 
+
+def densify(arr):
+    if isinstance(arr, dask.array.core.Array):
+        arr = arr.compute()
+    if isinstance(arr, sparse.COO) or isinstance(arr, scipy.sparse.csr_matrix):
+        return arr.todense()
+    else:
+        return arr
 
 def generate_sample_description(
     num_observations: int,
@@ -86,8 +95,9 @@ def closedform_glm_mean(
         x = np.divide(x, size_factors)
 
     def apply_fun(grouping):
+
         groupwise_means = np.asarray(
-            np.vstack([np.mean(x[np.where(grouping == g)[0], :], axis=0) for g in np.unique(grouping)])
+            np.vstack([np.mean(densify(x[np.where(grouping == g)[0], :]), axis=0) for g in np.unique(grouping)])
         )
         if link_fn is None:
             return groupwise_means
@@ -136,7 +146,7 @@ def closedform_glm_scale(
         # Calculate group-wise means if not supplied. These are required for variance and MME computation.
         if provided_groupwise_means is None:
             gw_means = np.asarray(
-                np.vstack([np.mean(x[np.where(grouping == g)[0], :], axis=0) for g in np.unique(grouping)])
+                np.vstack([np.mean(densify(x[np.where(grouping == g)[0], :]), axis=0) for g in np.unique(grouping)])
             )
         else:
             gw_means = provided_groupwise_means
@@ -146,14 +156,14 @@ def closedform_glm_scale(
             expect_xsq = np.asarray(
                 np.vstack(
                     [
-                        np.asarray(np.mean(x[np.where(grouping == g)[0], :].power(2), axis=0))
+                        np.asarray(np.mean(densify(x[np.where(grouping == g)[0], :]).power(2), axis=0))
                         for g in np.unique(grouping)
                     ]
                 )
             )
         else:
             expect_xsq = np.vstack(
-                [np.mean(np.square(x[np.where(grouping == g)[0], :]), axis=0) for g in np.unique(grouping)]
+                [np.mean(np.square(densify(x[np.where(grouping == g)[0], :])), axis=0) for g in np.unique(grouping)]
             )
         expect_x_sq = np.square(gw_means)
         variance = expect_xsq - expect_x_sq
