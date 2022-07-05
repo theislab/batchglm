@@ -24,24 +24,23 @@ class ModelContainer(NumpyModelContainer):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
     @property
-    def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
-        xh = self.xh_loc
-        loc = self.location
-        scale = self.scale
-        x = self.x
-        w = (loc - x) / np.power(scale, 2)
-        return np.matmul(w.transpose(), xh)
+    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        :return: observations x features
+        """
+        return np.asarray(self.x - self.location)
 
-    def jac_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        :return: observations x features
+        """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        xh = self.xh_loc
-        loc = self.location_j(j=j)
-        scale = self.scale_j(j=j)
-        x = self.x[:, j]
-        w = (loc - x) / np.power(scale, 2)
-        return np.matmul(w.transpose(), xh)
+        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
+            return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
+        else:
+            return np.asarray(self.x[:, j] - self.location_j(j=j))
 
     @property
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:

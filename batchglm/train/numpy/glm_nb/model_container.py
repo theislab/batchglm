@@ -29,29 +29,24 @@ class ModelContainer(NumpyModelContainer):
         return self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
 
     @property
-    def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
-
-        :return: (features x inferred param)
+        :return: observations x features
         """
-        w = self.fim_weight_location_location  # (observations x features)
-        ybar = self.ybar  # (observations x features)
-        xh = self.xh_loc  # (observations x inferred param)
-        inner = np.einsum("ob,of->fob", xh, w)
-        return np.einsum("fob,of->fb", inner, ybar)
+        return np.asarray(self.x - self.location) / self.location
 
-    def jac_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
-
-        :return: (features x inferred param)
+        :return: observations x features
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
             j = [j]
-        w = self.fim_weight_location_location_j(j=j)  # (observations x features)
-        ybar = self.ybar_j(j=j)  # (observations x features)
-        xh = self.xh_loc  # (observations x inferred param)
-        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
+        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
+            return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
+        else:
+            return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
+
 
     @property
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:

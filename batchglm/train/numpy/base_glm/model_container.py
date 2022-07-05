@@ -200,13 +200,31 @@ class NumpyModelContainer(BaseModelContainer):
     def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.concatenate([self.jac_location, self.jac_scale], axis=-1)
 
-    @abc.abstractmethod
-    def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
-        pass
 
-    @abc.abstractmethod
+    @property
+    def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        Location jacobian.
+        :return: (features x inferred param)
+        """
+        w = self.fim_weight_location_location  # (observations x features)
+        ybar = self.ybar  # (observations x features)
+        xh = self.xh_loc  # (observations x inferred param)
+        inner = np.einsum("ob,of->fob", xh, w)
+        return np.einsum("fob,of->fb", inner, ybar)
+
     def jac_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        pass
+        """
+        Location jacobian indexed by j, the dependent variable of interest.
+        :return: (features x inferred param)
+        """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        w = self.fim_weight_location_location_j(j=j)  # (observations x features)
+        ybar = self.ybar_j(j=j)  # (observations x features)
+        xh = self.xh_loc  # (observations x inferred param)
+        return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
 
     @abc.abstractmethod
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -230,7 +248,6 @@ class NumpyModelContainer(BaseModelContainer):
     @property
     def hessian_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
-
         :return: (features x inferred param x inferred param)
         """
         w = self.hessian_weight_location_location
@@ -334,6 +351,10 @@ class NumpyModelContainer(BaseModelContainer):
     @property
     @abc.abstractmethod
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        This is exactly W in (11) and in equation (7) as well and will be used as such in the
+        calculation of the Jacobian.
+        """
         pass
 
     @property
@@ -354,21 +375,16 @@ class NumpyModelContainer(BaseModelContainer):
     def ll_byfeature_j(self, j) -> np.ndarray:
         return np.sum(self.ll_j(j=j), axis=0)
 
-    @property
+    @abc.abstractmethod
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
-        :return: observations x features
+        This is Z in equation (8).
         """
-        return np.asarray(self.x - self.location) / self.location
+        pass
 
+    @abc.abstractmethod
     def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
-        :return: observations x features
+        This is Z in equation (8) indexed by j i.e the dependent variable of interest.
         """
-        # Make sure that dimensionality of sliced array is kept:
-        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
-        if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
-            return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
-        else:
-            return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
+        pass
