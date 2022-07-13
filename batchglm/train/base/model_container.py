@@ -1,6 +1,7 @@
 import abc
 from ...models.base_glm import ModelGLM
 
+
 class BaseModelContainer(metaclass=abc.ABCMeta):
 
         @abc.abstractmethod
