@@ -247,8 +247,12 @@ def _constraint_system_from_dict(
     constraints: dict,
     **kwargs,
 ) -> Tuple:
-    return_type = kwargs.pop("return_type")
-    kwargs.pop("dmat")  # not sure why dmat was an argument here but some things expect it to be part of the API.
+    if "return_type" in kwargs:
+        return_type = kwargs.pop("return_type")
+    else:
+        return_type = "patsy"
+    if "dmat" in kwargs:
+        kwargs.pop("dmat")  # not sure why dmat was an argument here but some things expect it to be part of the API.
     cmat, dmat, term_names = constraint_system_from_dict(constraints, **kwargs)
     return constraint_system_from_star(cmat, dmat=dmat, return_type=return_type, term_names=term_names, **kwargs)
 
