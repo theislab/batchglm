@@ -22,6 +22,7 @@ def densify(arr):
     else:
         return arr
 
+
 def generate_sample_description(
     num_observations: int,
     num_conditions: int,
@@ -68,6 +69,7 @@ def generate_sample_description(
         sim_design_scale = sim_design_loc
 
     return sim_design_loc, sim_design_scale, sample_description
+
 
 def closedform_glm_mean(
     x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],

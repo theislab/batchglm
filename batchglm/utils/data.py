@@ -1,11 +1,11 @@
 import logging
 from functools import singledispatch
-from typing import Dict, List, Optional, Tuple, Union, Callable
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import dask
 import numpy as np
 import pandas as pd
 import patsy
-import dask
 
 logger = logging.getLogger("batchglm")
 
@@ -247,8 +247,8 @@ def _constraint_system_from_dict(
     constraints: dict,
     **kwargs,
 ) -> Tuple:
-    return_type = kwargs.pop('return_type')
-    kwargs.pop('dmat') # not sure why dmat was an argument here but some things expect it to be part of the API.
+    return_type = kwargs.pop("return_type")
+    kwargs.pop("dmat")  # not sure why dmat was an argument here but some things expect it to be part of the API.
     cmat, dmat, term_names = constraint_system_from_dict(constraints, **kwargs)
     return constraint_system_from_star(cmat, dmat=dmat, return_type=return_type, term_names=term_names, **kwargs)
 

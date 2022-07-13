@@ -2,15 +2,14 @@ import logging
 
 import numpy as np
 
+from ....models.glm_norm.utils import init_par
 from .external import EstimatorGlm, Model
 from .model_container import ModelContainer
-from ....models.glm_norm.utils import init_par
+
 logger = logging.getLogger("batchglm")
 
 
 class Estimator(EstimatorGlm):
-
-
     def __init__(
         self,
         model: Model,

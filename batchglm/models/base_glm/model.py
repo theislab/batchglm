@@ -1,13 +1,13 @@
 import abc
 import logging
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import random
 import string
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np
-import scipy
 import pandas as pd
+import scipy
 
 from ...utils.input import InputDataGLM
 from .external import pkg_constants
@@ -437,8 +437,14 @@ class ModelGLM(metaclass=abc.ABCMeta):
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
         # generate random gene/feature names
-        feature_names = ''.join(random.choices(string.ascii_uppercase + string.digits, k=n_vars))
-        input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask, feature_names=feature_names)
+        feature_names = "".join("feature_" + str(i) for i in range(n_vars))
+        input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=_design_loc,
+            design_scale=_design_scale,
+            as_dask=as_dask,
+            feature_names=feature_names,
+        )
         self.extract_input_data(input_data)
 
     @abc.abstractmethod

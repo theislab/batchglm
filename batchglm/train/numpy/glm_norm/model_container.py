@@ -1,16 +1,15 @@
 import math
-from typing import Union, Callable
+from typing import Callable, Union
 
-import numpy as np
 import dask
+import numpy as np
 
+from ....utils.data import dask_compute
 from .external import NumpyModelContainer
 from .utils import ll
-from ....utils.data import dask_compute
 
 
 class ModelContainer(NumpyModelContainer):
-
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
@@ -51,7 +50,6 @@ class ModelContainer(NumpyModelContainer):
         w = self.jac_weight_scale  # (observations x features)
         xh = self.xh_scale  # (observations x inferred param)
         return np.matmul(w.transpose(), xh)
-
 
     @dask_compute
     def jac_scale_j(self, j) -> np.ndarray:
@@ -130,7 +128,7 @@ class ModelContainer(NumpyModelContainer):
         loc = self.location_j(j=j)
         scale = self.scale_j(j=j)
         resid = loc - self.model.x[:, j]
-        ll = -.5 * np.log(2 * math.pi) - np.log(scale) - .5 * np.power(resid / scale, 2)
+        ll = -0.5 * np.log(2 * math.pi) - np.log(scale) - 0.5 * np.power(resid / scale, 2)
         return ll
 
     def ll_handle(self) -> Callable:

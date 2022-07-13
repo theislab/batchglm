@@ -4,8 +4,8 @@ import dask
 import numpy as np
 import scipy
 
-from .external import NumpyModelContainer
 from ....utils.data import dask_compute
+from .external import NumpyModelContainer
 
 
 class ModelContainer(NumpyModelContainer):
@@ -46,7 +46,6 @@ class ModelContainer(NumpyModelContainer):
             return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
         else:
             return np.asarray(self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
-
 
     @property
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:

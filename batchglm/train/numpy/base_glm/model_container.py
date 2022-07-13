@@ -4,9 +4,9 @@ from typing import Any, Callable, Union
 import dask.array
 import numpy as np
 
-from ...base import BaseModelContainer
 from ....models.base_glm import ModelGLM
 from ....utils.data import dask_compute
+from ...base import BaseModelContainer
 
 
 class NumpyModelContainer(BaseModelContainer):
@@ -199,7 +199,6 @@ class NumpyModelContainer(BaseModelContainer):
     @property
     def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
         return np.concatenate([self.jac_location, self.jac_scale], axis=-1)
-
 
     @property
     def jac_location(self) -> Union[np.ndarray, dask.array.core.Array]:
