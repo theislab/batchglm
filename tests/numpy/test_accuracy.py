@@ -93,6 +93,7 @@ class TestAccuracyNB(TestAccuracy):
             noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard", quick_scale=True
         )
         assert self._test_accuracy(sparse_estimator)
+        return True
 
     def test_accuracy_const_theta(self) -> bool:
         """
@@ -142,6 +143,7 @@ class TestAccuracyNorm(TestAccuracy):
 
         sparse_estimator = get_estimator(noise_model="norm", model=sparse_model)
         assert self._test_accuracy(sparse_estimator)
+        return True
 
     def test_accuracy_const_theta(self) -> bool:
         """

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import patsy
 
-from batchglm.models.base_glm.utils import parse_design
+from batchglm.utils.input import parse_design
 
 
 def check_np_dask(dmat: Union[np.ndarray, dask.array.core.Array], params: List[str]) -> bool:

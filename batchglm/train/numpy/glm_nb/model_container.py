@@ -58,7 +58,7 @@ class ModelContainer(NumpyModelContainer):
         return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), xh)
 
     @dask_compute
-    def jac_scale_j(self, j) -> np.ndarray:
+    def jac_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param)
