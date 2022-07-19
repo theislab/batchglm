@@ -6,16 +6,15 @@ from scipy.stats import rankdata
 
 def calc_size_factors(x: np.ndarray, method: Optional[str] = None, *args, **kwargs):
     assert ~np.any(np.isnan(x)), "Counts matrix must not contain NaN!"
-    lib_size = np.sum(x, axis=1, keepdims=True)
     x = x[:, np.sum(x, axis=0) > 0]
 
     if method is None:
-        size_factors = np.ones_like(lib_size)
-    elif method == "TMM":
+        size_factors = np.ones((x.shape[1], 1), dtype=float)
+    elif method.lower() == "tmm":
         size_factors = _calc_factor_tmm(data=x, *args, **kwargs)
-    elif method == "TMMwsp":
+    elif method.lower() == "tmmwsp":
         size_factors = _calc_factor_tmmwsp(data=x, *args, **kwargs)
-    elif method == "RLE":
+    elif method.lower() == "rle":
         size_factors = _calc_factor_rle(data=x)
     elif method == "upperquartile":
         size_factors = _calc_factor_quantile(data=x, *args, **kwargs)
@@ -139,8 +138,8 @@ def _calc_factor_tmmwsp(
         k = zero_obs | zero_ref
         n_eligible_singles = np.min((np.sum(zero_obs), np.sum(zero_ref)))
         if n_eligible_singles > 0:
-            ref_i_k = np.sort(ref_i[k])[::-1][1:n_eligible_singles]
-            data_i_k = np.sort(data_i[k])[::-1][1:n_eligible_singles]
+            ref_i_k = np.sort(ref_i[k])[::-1][:n_eligible_singles]
+            data_i_k = np.sort(data_i[k])[::-1][:n_eligible_singles]
             data_i = np.concatenate((data_i[~k], data_i_k))
             ref_i = np.concatenate((ref_i[~k], ref_i_k))
         else:
@@ -167,19 +166,20 @@ def _calc_factor_tmmwsp(
         ref_i_p_shrunk = (ref_i + 0.5) / (sample_sums[ref_idx] + 0.5)
         m_shrunk = np.log2(data_i_p_shrunk / ref_i_p_shrunk)
         m_ordered = np.argsort(
-            np.array(list(zip(m, m_shrunk)), dtype={"names": ["m", "m_shrunk"], "formats": [m.dtype, m_shrunk.dtype]})
+            np.array(list(zip(m, m_shrunk)), dtype={"names": ["m", "m_shrunk"], "formats": [m.dtype, m_shrunk.dtype]}),
+            kind="stable",
         )
 
         # 	a order
-        a_ordered = np.argsort(a)
+        a_ordered = np.argsort(a, kind="stable")
 
         # 	Trim
-        lo_m = int(n * logratio_trim) + 1
-        hi_m = n + 1 - lo_m
+        lo_m = int(n * logratio_trim)
+        hi_m = n - lo_m
         keep_m = np.zeros(n, dtype=bool)
         keep_m[m_ordered[lo_m:hi_m]] = True
-        lo_a = int(n * sum_trim) + 1
-        hi_a = n + 1 - lo_a
+        lo_a = int(n * sum_trim)
+        hi_a = n - lo_a
         keep_a = np.zeros(n, dtype=bool)
         keep_a[a_ordered[lo_a:hi_a]] = True
         keep = keep_a & keep_m
