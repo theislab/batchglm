@@ -3,14 +3,14 @@ import numpy as np
 from .external import BaseModelContainer
 
 
-def nb_deviance(model: BaseModelContainer):
+def nb_deviance(model: BaseModelContainer, idx=...):
 
     eps = 1e-8
     eps2 = 1e-4
 
-    y = model.x
-    mu = model.location
-    phi = 1 / model.scale
+    y = model.x[:, idx].compute()
+    mu = model.location[:, idx].compute()
+    phi = 1 / model.scale[:, idx].compute()[0]
 
     y += eps
     mu += eps
