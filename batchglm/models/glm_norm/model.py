@@ -27,7 +27,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     def eta_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
         eta = np.matmul(self.design_loc, self.theta_location_constrained)
         if self.size_factors is not None:
-            eta *= np.expand_dims(self.size_factors, axis=1)
+            eta *= self.size_factors
         return eta
 
     def eta_loc_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
@@ -36,7 +36,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             j = [j]
         eta = np.matmul(self.design_loc, self.theta_location_constrained[:, j])
         if self.size_factors is not None:
-            eta *= np.expand_dims(self.size_factors, axis=1)
+            eta *= self.size_factors
         eta = self.np_clip_param(eta, "eta_loc")
         return eta
 
