@@ -2,9 +2,8 @@ import logging
 
 import numpy as np
 
-from .external import EstimatorGlm, Model
+from .external import EstimatorGlm, Model, init_par
 from .model_container import ModelContainer
-from ....models.glm_norm.utils import init_par
 logger = logging.getLogger("batchglm")
 
 
