@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse
 import dask
 
-from .external import closedform_glm_mean, closedform_glm_scale
+from .external import closedform_glm_scale
 
 logger = logging.getLogger("batchglm")
 

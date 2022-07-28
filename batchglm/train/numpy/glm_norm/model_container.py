@@ -5,7 +5,11 @@ import dask
 import numpy as np
 
 from .external import BaseModelContainer
-from .utils import ll
+
+def ll(scale, loc, x):
+    resid = loc - x
+    ll = -.5 * np.log(2 * math.pi) - np.log(scale) - .5 * np.power(resid / scale, 2)
+    return ll
 
 class ModelContainer(BaseModelContainer):
 
