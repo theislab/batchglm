@@ -1,6 +1,6 @@
 import batchglm.utils.data as data_utils
 from batchglm import pkg_constants
-from batchglm.models.base_glm.utils import closedform_glm_mean, closedform_glm_scale
+from batchglm.models.base_glm.utils import closedform_glm_scale
 from batchglm.models.glm_norm.model import Model
 from batchglm.models.glm_norm.utils import closedform_norm_glm_logsd, init_par
 
