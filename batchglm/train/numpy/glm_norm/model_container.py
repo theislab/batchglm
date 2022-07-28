@@ -1,5 +1,5 @@
 import math
-from typing import Union, Callable
+from typing import Callable, Union
 
 import dask
 import numpy as np
@@ -9,12 +9,11 @@ from .external import BaseModelContainer
 
 def ll(scale, loc, x):
     resid = loc - x
-    ll = -.5 * np.log(2 * math.pi) - np.log(scale) - .5 * np.power(resid / scale, 2)
+    ll = -0.5 * np.log(2 * math.pi) - np.log(scale) - 0.5 * np.power(resid / scale, 2)
     return ll
 
 
 class ModelContainer(BaseModelContainer):
-
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
@@ -113,7 +112,7 @@ class ModelContainer(BaseModelContainer):
         loc = self.location_j(j=j)
         scale = self.scale_j(j=j)
         resid = loc - self.model.x[:, j]
-        ll = -.5 * np.log(2 * math.pi) - np.log(scale) - .5 * np.power(resid / scale, 2)
+        ll = -0.5 * np.log(2 * math.pi) - np.log(scale) - 0.5 * np.power(resid / scale, 2)
         return ll
 
     def ll_handle(self) -> Callable:

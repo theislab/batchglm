@@ -4,12 +4,11 @@ import numpy as np
 
 from .external import EstimatorGlm, Model, init_par
 from .model_container import ModelContainer
+
 logger = logging.getLogger("batchglm")
 
 
 class Estimator(EstimatorGlm):
-
-
     def __init__(
         self,
         model: Model,

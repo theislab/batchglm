@@ -1,9 +1,9 @@
 import logging
-from typing import Union, Tuple
+from typing import Tuple, Union
 
+import dask
 import numpy as np
 import scipy.sparse
-import dask
 
 from .external import closedform_glm_scale
 
@@ -105,7 +105,7 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
             design_scale=model.design_scale,
             constraints=model.constraints_scale,
             size_factors=model.size_factors,
-            groupwise_means=groupwise_means
+            groupwise_means=groupwise_means,
         )
     elif init_scale_str == "all_zero":
         init_theta_scale = np.zeros([model.num_scale_params, model.x.shape[1]])
