@@ -61,7 +61,6 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
             &= D \cdot x' = f^{-1}(\theta)
     $$
     """
-    train_loc = False
 
     groupwise_means = None
 
