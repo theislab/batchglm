@@ -41,9 +41,7 @@ class Estimator(EstimatorGlm):
             - np.ndarray: direct initialization of 'a'
         :param dtype: Numerical precision.
         """
-        init_theta_location, _, train_loc, _ = init_par(
-            model=model, init_location=init_location
-        )
+        init_theta_location, _, train_loc, _ = init_par(model=model, init_location=init_location)
         self._train_loc = train_loc
         # no need to train the scale parameter for the poisson model since it only has one parameter
         self._train_scale = False
@@ -53,7 +51,7 @@ class Estimator(EstimatorGlm):
         _model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
-            init_theta_scale=init_theta_location, # Not used.
+            init_theta_scale=init_theta_location,  # Not used.
             chunk_size_genes=model.chunk_size_genes,
             dtype=dtype,
         )

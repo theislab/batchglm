@@ -1,11 +1,11 @@
-from typing import Callable, Union
+from typing import Union
 
 import dask
 import numpy as np
 import scipy
 
-from .external import BaseModelContainer
 from .exceptions import NoScaleError
+from .external import BaseModelContainer
 
 
 class ModelContainer(BaseModelContainer):
@@ -89,23 +89,19 @@ class ModelContainer(BaseModelContainer):
     def jac_weight_j(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
-    @property
-    def fim_location_scale(self) -> np.ndarray:
-        raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
-
     # Methods marked as abstract that involve the scale parameter:
     @property
     def fim_location_scale(self) -> np.ndarray:
-        raise NoScaleError('fim_location_scale')
+        raise NoScaleError("fim_location_scale")
 
     @property
     def hessian_weight_scale_scale(self) -> np.ndarray:
-        raise NoScaleError('hessian_weight_scale_scale')
+        raise NoScaleError("hessian_weight_scale_scale")
 
     @property
     def hessian_weight_location_scale(self) -> np.ndarray:
-        raise NoScaleError('hessian_weight_location_scale')
+        raise NoScaleError("hessian_weight_location_scale")
 
     @property
     def jac_weight_scale_j(self) -> np.ndarray:
-        raise NoScaleError('jac_weight_scale_j')
+        raise NoScaleError("jac_weight_scale_j")

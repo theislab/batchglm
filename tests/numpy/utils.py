@@ -1,7 +1,6 @@
-from typing import List, Optional, Union
+from typing import Optional
 
 import numpy as np
-
 
 from batchglm.models.base_glm import _ModelGLM
 from batchglm.models.glm_beta import Model as BetaModel
