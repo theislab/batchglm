@@ -42,29 +42,6 @@ class ModelContainer(NumpyModelContainer):
             return np.asarray(self.x[:, j] - self.location_j(j=j))
 
     @property
-    def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        """
-
-        :return: (features x inferred param)
-        """
-        w = self.jac_weight_scale  # (observations x features)
-        xh = self.xh_scale  # (observations x inferred param)
-        return np.matmul(w.transpose(), xh)
-
-    @dask_compute
-    def jac_scale_j(self, j) -> np.ndarray:
-        """
-
-        :return: (features x inferred param)
-        """
-        # Make sure that dimensionality of sliced array is kept:
-        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
-        w = self.jac_weight_scale_j(j=j)  # (observations x features)
-        xh = self.xh_scale  # (observations x inferred param)
-        return np.matmul(w.transpose(), xh)
-
-    @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         return 1 / np.power(self.scale, 2)
 

@@ -225,16 +225,32 @@ class NumpyModelContainer(BaseModelContainer):
         xh = self.xh_loc  # (observations x inferred param)
         return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
 
-    @abc.abstractmethod
+
+    @property
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        pass
+        """
+
+        :return: (features x inferred param)
+        """
+        w = self.jac_weight_scale  # (observations x features)
+        xh = self.xh_scale  # (observations x inferred param)
+        return w.transpose() @ xh
+
+    @dask_compute
+    def jac_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+
+        :return: (features x inferred param)
+        """
+        # Make sure that dimensionality of sliced array is kept:
+        if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
+            j = [j]
+        w = self.jac_weight_scale_j(j=j)  # (observations x features)
+        xh = self.xh_scale  # (observations x inferred param)
+        return w.transpose() @ xh
 
     @abc.abstractmethod
     def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        pass
-
-    @abc.abstractmethod
-    def jac_scale_j(self, j) -> np.ndarray:
         pass
 
     # hessians
