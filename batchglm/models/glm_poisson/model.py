@@ -59,6 +59,9 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             "scale": np.nextafter(0, np.inf, dtype=dtype),
             "likelihood": dtype(0),
             "ll": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+            # Not used and should be removed: https://github.com/theislab/batchglm/issues/148
+            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         }
         bounds_max = {
             "theta_location": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
@@ -67,6 +70,10 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "likelihood": dtype(1),
             "ll": dtype(0),
+            # Not used and should be removed: https://github.com/theislab/batchglm/issues/148
+            "theta_scale": np.log(dmax) / sf,
+            "eta_scale": np.log(dmax) / sf,
+
         }
         return bounds_min, bounds_max
 
