@@ -92,7 +92,7 @@ def init_par(model, init_location: str) -> Tuple[np.ndarray, np.ndarray, bool, b
             design_loc=model.design_loc,
             constraints_loc=model.constraints_loc,
             size_factors=model.size_factors,
-            link_fn=lambda lam: np.log(lam + np.nextafter(0, 1, dtype=lam.dtype)),  # why the epsilon?
+            link_fn=lambda lam: np.log(lam + np.nextafter(0, 1, dtype=lam.dtype)),
         )
         # train mu, if the closed-form solution is inaccurate
         train_loc = not (np.all(np.abs(rmsd_a) < 1e-20) or rmsd_a.size == 0)

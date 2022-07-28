@@ -35,41 +35,25 @@ class Estimator(EstimatorGlm):
 
             - str:
                 * "auto": automatically choose best initialization
-                * "random": initialize with random values
                 * "standard": initialize intercept with observed mean
                 * "init_model": initialize with another model (see `ìnit_model` parameter)
                 * "closed_form": try to initialize with closed form
             - np.ndarray: direct initialization of 'a'
-        :param init_scale: (Optional)
-            Low-level initial values for b. Can be:
-
-            - str:
-                * "auto": automatically choose best initialization
-                * "random": initialize with random values
-                * "standard": initialize with zeros
-                * "init_model": initialize with another model (see `ìnit_model` parameter)
-                * "closed_form": try to initialize with closed form
-            - np.ndarray: direct initialization of 'b'
-        :param quick_scale: bool
-            Whether `scale` will be fitted faster and maybe less accurate.
-            Useful in scenarios where fitting the exact `scale` is not absolutely necessary.
         :param dtype: Numerical precision.
         """
-        init_theta_location, init_theta_scale, train_loc, train_scale = init_par(
+        init_theta_location, _, train_loc, _ = init_par(
             model=model, init_location=init_location
         )
         self._train_loc = train_loc
-        self._train_scale = (
-            False  # no need to train the scale parameter for the poisson model since it only has one parameter
-        )
+        # no need to train the scale parameter for the poisson model since it only has one parameter
+        self._train_scale = False
         sys.stdout.write("training location model: %s\n" % str(self._train_loc))
         init_theta_location = init_theta_location.astype(dtype)
-        init_theta_scale = init_theta_scale.astype(dtype)
 
         _model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
-            init_theta_scale=init_theta_scale,
+            init_theta_scale=init_theta_location, # Not used.
             chunk_size_genes=model.chunk_size_genes,
             dtype=dtype,
         )
