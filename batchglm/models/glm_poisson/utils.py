@@ -111,4 +111,5 @@ def init_par(model, init_location: str) -> Tuple[np.ndarray, np.ndarray, bool, b
     else:
         raise ValueError("init_location string %s not recognized" % init_location)
 
+    # Scale is not used so just return init_theta_location for what would be init_theta_scale
     return init_theta_location, init_theta_location, train_loc, True
