@@ -225,7 +225,6 @@ class NumpyModelContainer(BaseModelContainer):
         xh = self.xh_loc  # (observations x inferred param)
         return np.einsum("fob,of->fb", np.einsum("ob,of->fob", xh, w), ybar)
 
-
     @property
     def jac_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
