@@ -2,14 +2,14 @@ import logging
 
 import numpy as np
 
-from ....models.glm_norm.utils import init_par
-from .external import EstimatorGlm, Model
+from .external import EstimatorGlm, Model, init_par
 from .model_container import ModelContainer
-
 logger = logging.getLogger("batchglm")
 
 
 class Estimator(EstimatorGlm):
+
+
     def __init__(
         self,
         model: Model,
@@ -69,7 +69,7 @@ class Estimator(EstimatorGlm):
     ):
         model = self._model_container.model
         if self._train_loc:
-            theta_location, _, _, _ = np.linalg.lstsq(model.xh_loc, model.x)
+            theta_location, _, _, _ = np.linalg.lstsq(model.design_loc, model.x)
             self._model_container.theta_location = theta_location
         self._train_loc = False
         super().train(**kwargs)

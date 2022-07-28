@@ -22,7 +22,7 @@ class _TestAccuracyXtremeAll(TestAccuracy):
         return self._test_accuracy(estimator)
 
     def _test_low_values(self, **kwargs):
-        self._test_accuracy_extreme_values(idx=0, val=0.0, **kwargs)
+        return self._test_accuracy_extreme_values(idx=0, val=0.0, **kwargs)
 
     def _test_zero_variance(self, **kwargs):
         self._modify_sim(idx=0, val=5.0, **kwargs)
@@ -35,8 +35,6 @@ class TestAccuracyXtremeNb(_TestAccuracyXtremeAll):
     """
 
     def test_nb(self) -> bool:
-        logger.error("TestAccuracyXtremeNb.test_nb() HERE!!")
-
         np.random.seed(1)
         ret_val = self._test_low_values(noise_model="nb")
         np.random.seed(1)
