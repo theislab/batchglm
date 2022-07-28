@@ -54,9 +54,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
         bounds_min = {
             "theta_location": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "loc": np.nextafter(0, np.inf, dtype=dtype),
             "scale": np.nextafter(0, np.inf, dtype=dtype),
             "likelihood": dtype(0),
@@ -64,9 +62,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
         }
         bounds_max = {
             "theta_location": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "likelihood": dtype(1),
