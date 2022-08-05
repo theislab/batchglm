@@ -5,10 +5,10 @@ import numpy as np
 import scipy
 
 from .exceptions import NoScaleError
-from .external import BaseModelContainer
+from .external import NumpyModelContainer
 
 
-class ModelContainer(BaseModelContainer):
+class ModelContainer(NumpyModelContainer):
     @property
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
