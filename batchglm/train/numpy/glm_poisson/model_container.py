@@ -105,3 +105,11 @@ class ModelContainer(NumpyModelContainer):
     @property
     def jac_weight_scale_j(self) -> np.ndarray:
         raise NoScaleError("jac_weight_scale_j")
+
+    @property
+    def hessian(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return self.hessian_location_location
+
+    @property
+    def fim(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return self.fim_location_location
