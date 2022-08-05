@@ -4,7 +4,6 @@ from typing import Callable, Union
 import dask
 import numpy as np
 
-from ....utils.data import dask_compute
 from .external import NumpyModelContainer
 
 def ll(scale, loc, x):
