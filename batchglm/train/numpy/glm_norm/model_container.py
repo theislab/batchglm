@@ -6,8 +6,6 @@ import numpy as np
 
 from ....utils.data import dask_compute
 from .external import NumpyModelContainer
-from .utils import ll
-
 
 def ll(scale, loc, x):
     resid = loc - x
