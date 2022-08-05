@@ -54,7 +54,7 @@ class ModelGLM(metaclass=abc.ABCMeta):
         input_data: Optional[InputDataGLM] = None,
     ):
         """
-        Create a new _ModelGLM object.
+        Create a new ModelGLM object.
 
         :param input_data: Input data for the model
 
