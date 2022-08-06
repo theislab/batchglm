@@ -2,11 +2,15 @@ import numpy as np
 
 
 def maximize_interpolant(x, y):
-    # This function takes an ordered set of spline points and a likelihood matrix where each row
-    # corresponds to a tag and each column corresponds to a spline point. It then calculates the
-    # position at which the maximum interpolated likelihood occurs for each by solving the derivative
-    # of the spline function.
-
+    """
+    This function takes an ordered set of spline points and a likelihood matrix where each row
+    corresponds to a tag and each column corresponds to a spline point. It then calculates the
+    position at which the maximum interpolated likelihood occurs for each by solving the derivative
+    of the spline function.
+    This function is a python derivative of edgeR's C++ implementation.
+    :param x: Spline points
+    :param y: likelihoods
+    """
     interpolator = Interpolator(n=len(x))
     output = np.zeros(y.shape[0], dtype=float)
     for i in range(y.shape[0]):
@@ -76,7 +80,6 @@ class Interpolator:
             sol1_right, sol2_right, solvable_right = quad_solver(3 * rd, 2 * rc, rb)
             if solvable_right:
                 chosen_sol = sol1_right
-                print(sol1_right, sol2_right)
                 if (chosen_sol > 0) and (chosen_sol < (x[maxed_at + 1] - x[maxed_at])):
                     temp = ((rd * chosen_sol + rc) * chosen_sol + rb) * chosen_sol + y[maxed_at]
                     if temp > maxed:
