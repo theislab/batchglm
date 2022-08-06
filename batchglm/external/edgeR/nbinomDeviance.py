@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from .external import BaseModelContainer
@@ -5,12 +7,16 @@ from .external import BaseModelContainer
 
 def nb_deviance(model: BaseModelContainer, idx=...):
 
+    """
+    Python version of the method implemented in a C++ function in edgeR.
+    """
+
     eps = 1e-8
     eps2 = 1e-4
 
-    y = model.x[:, idx].compute()
-    mu = model.location[:, idx].compute()
-    phi = 1 / model.scale[:, idx].compute()[0]
+    y = model.x[:, idx].compute().copy()
+    mu = model.location[:, idx].compute().copy()
+    phi = 1 / model.scale[0, idx].compute()
 
     y += eps
     mu += eps
@@ -18,15 +24,8 @@ def nb_deviance(model: BaseModelContainer, idx=...):
     if isinstance(phi, float):
         phi = np.full(y.shape[1], phi)
 
-    """
-    Calculating the deviance using either the Poisson (small phi*mu), the Gamma (large) or NB (everything else).
-    Some additional work is put in to make the transitions between families smooth.
-    """
-
     deviance = np.zeros_like(y, dtype=float)
-
-    poisson_idx = phi < eps2
-
+    poisson_idx = phi < eps2  # .compute()
     if np.any(poisson_idx):
         deviance[:, poisson_idx] = _poisson_deviance(poisson_idx, y, mu, phi)
 
@@ -36,17 +35,17 @@ def nb_deviance(model: BaseModelContainer, idx=...):
     phi_non_poisson = phi[non_poisson_idx]
     product = mu_non_poisson * phi_non_poisson
 
+    mask = product > 1e6
+
     deviance[:, non_poisson_idx] = np.where(
-        product > 1e6,
+        mask,
         _gamma_deviance(y_non_poisson, mu_non_poisson, product),
         _nb_deviance(y_non_poisson, mu_non_poisson, phi_non_poisson),
     )
-
     return np.sum(deviance, axis=0)
 
 
 def _poisson_deviance(idx, y, mu, phi):
-
     y_poisson = y[:, idx]
     mu_poisson = mu[:, idx]
     phi_poisson = phi
@@ -56,7 +55,6 @@ def _poisson_deviance(idx, y, mu, phi):
         - resid
         - 0.5 * resid * phi_poisson * (1 + phi_poisson * (2 / 3 * resid - y))
     )
-    # return 2 * ( y * std::log(y/mu) - resid - 0.5*resid*resid*phi*(1+phi*(2/3*resid-y)) );
 
 
 def _gamma_deviance(y, mu, product):
