@@ -1,12 +1,13 @@
 import sys
-import time
+from typing import Union
 
 import dask.array
 import numpy as np
 from scipy.linalg import cho_solve, cholesky
 
-from .external import BaseModelContainer, EstimatorGlm, Model, ModelContainer, init_par
-from .nbinomDeviance import nb_deviance
+from .c_utils import nb_deviance
+from .external import BaseModelContainer, EstimatorGlm, InputDataGLM, ModelContainer, NBModel, init_par
+from .glm_one_group import fit_single_group, get_single_group_start
 from .qr_decomposition import get_levenberg_start
 
 one_millionth = 1e-6
@@ -15,7 +16,7 @@ supremely_low_value = 1e-13
 ridiculously_low_value = 1e-100
 
 
-class LevenbergEstimator:
+class Estimator:
 
     _train_loc: bool = False
     _train_scale: bool = False
@@ -34,7 +35,63 @@ class LevenbergEstimator:
             raise ValueError("cannot model more than one scale parameter with edgeR/numpy backend right now.")
         self.dtype = dtype
 
-    def train(self, maxit: int, tolerance: int = 1e-6):
+        """
+        check which algorithm to use. We can use a shortcut algorithm if the number of unique rows in the design
+        matrix is equal to the number of coefficients.
+        """
+        unique_design = np.unique(self._model_container.design_loc.compute(), axis=0)
+        if unique_design.shape[0] == unique_design.shape[1]:
+            self.fitting_algorithm = "one_way"
+        else:
+            self.fitting_algorithm = "levenberg"
+
+    def train(self, maxit: int, tolerance: float = 1e-6):
+
+        if self.fitting_algorithm == "one_way":
+            self.train_oneway(maxit=maxit, tolerance=tolerance)
+        elif self.fitting_algorithm == "levenberg":
+            self.train_levenberg(maxit=maxit, tolerance=tolerance)
+        else:
+            raise ValueError(f"Unrecognized algorithm: {self.train_levenberg}")
+
+    def train_oneway(self, maxit: int, tolerance: float):
+
+        model = self._model_container
+        unique_design, group_idx = np.unique(model.design_loc.compute(), return_inverse=True, axis=0)
+        n_groups = unique_design.shape[1]
+
+        theta_location = model.theta_location.compute()  # .copy()
+
+        for i in range(n_groups):
+            obs_group = np.where(group_idx == i)[0]
+            group_model = model.model.__class__(
+                InputDataGLM(
+                    data=model.x[obs_group],
+                    design_loc=model.design_loc.compute()[np.ix_(obs_group, [i])],
+                    design_loc_names=model.design_loc_names[[i]],
+                    size_factors=model.size_factors[obs_group] if model.size_factors is not None else None,
+                    design_scale=model.design_scale.compute()[np.ix_(obs_group, [0])],
+                    design_scale_names=model.design_scale_names[[0]],
+                    as_dask=isinstance(model.x, dask.array.core.Array),
+                    chunk_size_cells=model.chunk_size_cells,
+                    chunk_size_genes=model.chunk_size_genes,
+                )
+            )
+            group_model = ModelContainer(
+                model=group_model,
+                init_theta_location=get_single_group_start(group_model.x, group_model.size_factors),
+                init_theta_scale=model.theta_scale,
+                chunk_size_genes=model.chunk_size_genes,
+                dtype=model.theta_location.dtype,
+            )
+
+            fit_single_group(group_model, maxit=maxit, tolerance=tolerance)
+            theta_location[i] = group_model.theta_location.compute()
+
+        theta_location = np.linalg.solve(unique_design, theta_location)
+        model.theta_location = theta_location
+
+    def train_levenberg(self, maxit: int, tolerance: int = 1e-6):
         model = self._model_container
         max_x = np.max(model.x, axis=0).compute()
 
@@ -63,7 +120,6 @@ class LevenbergEstimator:
         all_zero_features = max_x < low_value
         model.theta_location[:, all_zero_features] = np.nan
         not_done_idx = np.where(~all_zero_features)[0]
-        print(not_done_idx)
         n_idx = len(not_done_idx)
 
         """
@@ -95,15 +151,6 @@ class LevenbergEstimator:
 
         deviances = nb_deviance(model)
 
-        xtwx_time = 0.0
-        xtwx2_time = 0.0
-        cholesky_time = 0.0
-        cho_time = 0.0
-        dev_time = 0.0
-        lambda_time = 0.0
-        rest_time = 0.0
-        rest2_time = 0.0
-
         while n_idx > 0 and iteration <= maxit:
             print("iteration:", iteration)
             """
@@ -123,62 +170,22 @@ class LevenbergEstimator:
             first, you can see that we are effectively performing a multivariate Newton-Raphson procedure with
             'dbeta' as the step.
             """
-
-            xtwx_start = time.time()
             loc = model.location_j(not_done_idx)
             scale = model.scale_j(not_done_idx)
             w = -model.fim_weight_location_location_j(not_done_idx)  # shape (obs, features)
-            # print(w[:, 0].compute())
             denom = 1 + loc / scale  # shape (obs, features)
             deriv = (model.x[:, not_done_idx] - loc) / denom * weights  # shape (obs, features)
-            # print((loc / denom)[:,0].compute())
-            # print('deriv', deriv[:,0].compute())
-            # print('denom', denom[:,0].compute())
-
             xh = model.xh_loc
-            if isinstance(xh, dask.array.core.Array):
-                xh = xh.compute()
+
             xhw = np.einsum("ob,of->fob", xh, w)
-            fim[not_done_idx] = np.einsum("fob,oc->fbc", xhw, xh).compute()
-
-            xtwx_time += time.time() - xtwx_start
-
-            xtwx2_start = time.time()
-            # print('fim', fim[not_done_idx[0]])
-            """
-            for (int lib=0; lib<nlibs; ++lib) {
-                const double& cur_mu=mu[lib];
-                            const double denom=(1+cur_mu*disp[lib]);
-                working_weights[lib]=cur_mu/denom*w[lib];
-                deriv[lib]=(y[lib]-cur_mu)/denom*w[lib];
-            }
-
-            compute_xtwx(nlibs, ncoefs, design, working_weights.data(), xtwx.data());
-            """
+            fim[not_done_idx] = np.einsum("fob,oc->fbc", xhw, xh)  # .compute()
 
             fim_diags = np.einsum("...ii->...i", fim[not_done_idx])  # shape (features x constrained_coefs)
-            # print('shaped', deriv.shape)
-            # print(model.design_loc)
-            dl[not_done_idx] = np.einsum(
-                "of,oc->fc", deriv, model.design_loc
-            ).compute()  # shape (features, constrained_coefs)
 
-            # print(dl[not_done_idx])
+            dl[not_done_idx] = np.einsum("of,oc->fc", deriv, model.design_loc)
 
             max_infos[not_done_idx] = np.max(fim_diags, axis=1)  # shape (features,)
 
-            # print(max_infos[0])
-            # print(nb_deviance(model, [0]))
-
-            """
-            const double* dcopy=design;
-            auto xtwxIt=xtwx.begin();
-            for (int coef=0; coef<ncoefs; ++coef, dcopy+=nlibs, xtwxIt+=ncoefs) {
-                dl[coef]=std::inner_product(deriv.begin(), deriv.end(), dcopy, 0.0);
-                const double& cur_val=*(xtwxIt+coef);
-                if (cur_val>max_info) { max_info=cur_val; }
-            }
-            """
             if iteration == 1:
                 lambdas = np.maximum(max_infos * one_millionth, supremely_low_value)
 
@@ -195,19 +202,16 @@ class LevenbergEstimator:
             failed_in_levenberg_loop[not_done_idx] = False
             f = 0
             overall_steps.fill(0)
-            xtwx2_time += time.time() - xtwx2_start
             while n_inner_idx > 0:
                 f += 1
                 levenberg_steps[inner_idx_update] += 1
                 cholesky_failed_idx = inner_idx_update.copy()  #
                 cholesky_failed = np.ones(n_inner_idx, dtype=bool)
-                # print('choleksy_failed', cholesky_failed)
                 np.copyto(fim_copy, fim)
 
                 m = 0
                 while len(cholesky_failed_idx) > 0:
                     m += 1
-                    print("cholesky_loop:", m)
                     cholesky_failed = np.zeros(len(cholesky_failed_idx), dtype=bool)
                     """
                     We need to set up copies as the decomposition routine overwrites the originals, and
@@ -215,20 +219,16 @@ class LevenbergEstimator:
                     refer to the upper triangular for the XtWX copy (as it should be symmetrical). We also add
                     'lambda' to the diagonals. This reduces the step size as the second derivative is increased.
                     """
-                    lambda_start = time.time()
+
                     lambda_diags = np.einsum(
                         "ab,bc->abc",
                         np.repeat(lambdas[cholesky_failed_idx], n_parm).reshape(len(cholesky_failed_idx), n_parm),
                         np.eye(n_parm),
                     )
-                    lambda_time += time.time() - lambda_start
-                    # print('lambda_diags', lambda_diags[0]);
 
                     fim_copy[cholesky_failed_idx] = fim[cholesky_failed_idx] + lambda_diags
-                    # print(fim_copy[not_done_idx]);
 
                     for i, idx in enumerate(cholesky_failed_idx):
-                        cholesky_start = time.time()
                         try:
                             """
                             Overwriting FIM with cholesky factorization using scipy.linalg.cholesky.
@@ -259,13 +259,11 @@ class LevenbergEstimator:
                                 lambdas[idx] = ridiculously_low_value
 
                             cholesky_failed[i] = True
-                        cholesky_time += time.time() - cholesky_start
 
                     cholesky_failed_idx = cholesky_failed_idx[cholesky_failed]
 
                 steps.fill(0)
                 for i in inner_idx_update:
-                    cho_start = time.time()
                     """
                     Calculating the step by solving fim_copy * step = dl using scipy.linalg.cho_solve.
                     This is equivalent to LAPACK's dpotrs function (wrapper is scipy.linalg.lapack.dpotrs)
@@ -276,13 +274,6 @@ class LevenbergEstimator:
                     step = cho_solve((fim_copy[i], 0), dl[i], overwrite_b=False)
                     overall_steps[:, i] = step
                     steps[:, i] = step
-
-                    cho_time += time.time() - cho_start
-
-                # print('fim_copy', fim_copy[i])
-                # print('dl', dl[i])
-
-                # print(steps[:, 0])
 
                 # Updating loc params.
 
@@ -295,24 +286,16 @@ class LevenbergEstimator:
                 lambda up so we want to retake the step from where we were before). This is why we don't modify
                 the values in-place until we're sure we want to take the step.
                 """
-                dev_start = time.time()
 
                 dev_new = nb_deviance(model, inner_idx_update)  # TODO ### make this a property of model
-                dev_time += time.time() - dev_start
-
-                # print(dev_new[0])
-
-                rest_start = time.time()
 
                 low_deviances[inner_idx_update] = (dev_new / max_x[inner_idx_update]) < supremely_low_value
 
                 good_updates = (dev_new <= deviances[inner_idx_update]) | low_deviances[inner_idx_update]
                 idx_bad_step = inner_idx_update[~good_updates]
-                rest_time = time.time() - rest_start
+
                 # Reverse update by feature if update leads to worse loss:
-                rest2_start = time.time()
                 theta_location_new = model.theta_location.compute()
-                rest2_time += time.time() - rest2_start
 
                 theta_location_new[:, idx_bad_step] = theta_location_new[:, idx_bad_step] - steps[:, idx_bad_step]
                 model.theta_location = theta_location_new
@@ -336,8 +319,6 @@ class LevenbergEstimator:
 
                 n_inner_idx = len(inner_idx_update)
 
-                # print('n_inner', inner_idx_update)
-
             """
             Terminating if we failed, if divergence from the exact solution is acceptably low
             (cross-product of dbeta with the log-likelihood derivative) or if the actual deviance
@@ -358,15 +339,17 @@ class LevenbergEstimator:
 
             lambdas[levenberg_steps == 1] /= 10
             iteration += 1
-            # print('..............................', model.theta_location[:,not_done_idx].compute())
 
-        return xtwx_time, xtwx2_time, lambda_time, cholesky_time, cho_time, dev_time, rest_time, rest2_time
+    def reset_theta_scale(self, new_scale: Union[np.ndarray, dask.array.core.Array, float]):
+        if isinstance(new_scale, float):
+            new_scale = np.full(self._model_container.theta_scale.shape, new_scale)
+        self._model_container.theta_scale = new_scale
 
 
-class NBEstimator(LevenbergEstimator):
+class NBEstimator(Estimator):
     def __init__(
         self,
-        model: Model,
+        model: NBModel,
         dispersion: float,
         dtype: str = "float64",
     ):
@@ -381,7 +364,6 @@ class NBEstimator(LevenbergEstimator):
         init_theta_scale = np.full((1, model.num_features), np.log(1 / dispersion))
         self._train_loc = True
         self._train_scale = False  # This is fixed as edgeR doesn't fit the scale parameter
-
         _model_container = ModelContainer(
             model=model,
             init_theta_location=init_theta_location,
@@ -390,5 +372,3 @@ class NBEstimator(LevenbergEstimator):
             dtype=dtype,
         )
         super(NBEstimator, self).__init__(model_container=_model_container, dtype=dtype)
-
-    # def init_par(model, init_location):
