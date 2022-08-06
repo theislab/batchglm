@@ -4,44 +4,44 @@ from .fitFDist import fit_f_dist, fit_f_dist_robustly
 
 
 def squeeze_var(var: np.ndarray, df: np.ndarray, covariate: np.ndarray, robust: bool, winsor_tail_p: np.ndarray):
+    """
+    This method is a python version of limma's squeezeVar function.
+    """
     n = len(var)
-    # 	Degenerate special cases
+    # Degenerate special cases
     if n == 1:
         return var, var, 0
 
-    # 	When df==0, guard against missing or infinite values in var
+    # When df==0, guard against missing or infinite values in var
     if len(df) > 1:
         var[df == 0] = 0
 
-    # 	Estimate hyperparameters
+    # Estimate hyperparameters
     if robust:
-        fit = fit_f_dist_robustly(var=var, df1=df, covariate=covariate, winsor_tail_p=winsor_tail_p)
-        df_prior = fit.df2_shrunk
+        var_prior, df_prior = fit_f_dist_robustly(var=var, df1=df, covariate=covariate, winsor_tail_p=winsor_tail_p)
     else:
-        fit = fit_f_dist(var, df1=df, covariate=covariate)
-        df_prior = fit.df2
+        var_prior, df_prior = fit_f_dist(var, df1=df, covariate=covariate)
 
     if np.any(np.isnan(df_prior)):
         raise ValueError("Could not estimate prior df due to NaN")
 
-    # 	Posterior variances
-    var_post = _squeeze_var(var=var, df=df, var_prior=fit.scale, df_prior=df_prior)
+    # Posterior variances
+    var_post = _squeeze_var(var=var, df=df, var_prior=var_prior, df_prior=df_prior)
 
-    return df_prior, fit.scale, var_post
+    return df_prior, var_prior, var_post
 
 
 def _squeeze_var(var: np.ndarray, df: np.ndarray, var_prior: np.ndarray, df_prior: np.ndarray):
     """
-    Squeeze posterior variances given hyperparameters
+    Squeeze posterior variances given hyperparameters.
+    This method is a python version of limma's _squeezeVar function.
     """
-
     n = len(var)
     isfin = np.isfinite(df_prior)
     if np.all(isfin):
         return (df * var + df_prior * var_prior) / (df + df_prior)
 
     # 	From here, at least some df.prior are infinite
-
     # 	For infinite df_prior, return var_prior
     if len(var_prior) == n:
         var_post = var_prior
