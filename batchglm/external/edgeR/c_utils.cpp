@@ -180,7 +180,8 @@ static PyObject *loess_by_col(PyObject *self, PyObject *args) {
 
 static PyObject *nb_deviance(PyObject *self, PyObject *args) {
     PyArrayObject *x, *loc, *scale;
-    PyArg_ParseTuple(args, "OOO", &x, &loc, &scale);
+    bool *sum;
+    PyArg_ParseTuple(args, "OOOp", &x, &loc, &scale, &sum);
     if (PyErr_Occurred()) {
         return NULL;
     }
@@ -210,16 +211,35 @@ static PyObject *nb_deviance(PyObject *self, PyObject *args) {
     double *loc_ptr = &loc_data[0][0];
     double *scale_ptr = &scale_data[0][0];
 
-
-    PyObject *result = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
-    double *result_data = (double*) PyArray_DATA((PyArrayObject *) result);
-
-    for(int i=0; i<size; ++i) {
-        result_data[i] = compute_unit_nb_deviance(*x_ptr, *loc_ptr, *scale_ptr);
-        x_ptr++;
-        loc_ptr++;
-        scale_ptr++;
+    PyObject *result;
+    if (sum) {
+        result = PyArray_SimpleNew(1, &dims[1], NPY_DOUBLE);
+        double *result_data = (double*) PyArray_DATA((PyArrayObject *) result);
+        for(int j=0; j<dims[0]; ++j) {
+            for(int i=0; i<dims[1]; ++i) {
+                if(j==0){
+                    result_data[i] = compute_unit_nb_deviance(*x_ptr, *loc_ptr, *scale_ptr);
+                }
+                else {
+                    result_data[i] += compute_unit_nb_deviance(*x_ptr, *loc_ptr, *scale_ptr);
+                }
+                x_ptr++;
+                loc_ptr++;
+                scale_ptr++;
+            }
+        }
     }
+    else {
+        result = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+        double *result_data = (double*) PyArray_DATA((PyArrayObject *) result);
+        for(int i=0; i<size; ++i) {
+            result_data[i] = compute_unit_nb_deviance(*x_ptr, *loc_ptr, *scale_ptr);
+            x_ptr++;
+            loc_ptr++;
+            scale_ptr++;
+        }
+    }
+
     return result;
 };
 
