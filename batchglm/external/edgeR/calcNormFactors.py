@@ -63,10 +63,12 @@ def _calc_factor_tmm(
 
     sample_sums = np.sum(data, axis=1, keepdims=True)
     sum_normalized_data = data / sample_sums
-    log_ratios = np.log2(sum_normalized_data / sum_normalized_data[ref_idx])
-    absolute_values = (np.log2(sum_normalized_data) + np.log2(sum_normalized_data[ref_idx])) / 2
-    estimated_asymptotic_variance = (sample_sums - data) / sample_sums / data
-    estimated_asymptotic_variance += (sample_sums[ref_idx] - data[ref_idx]) / sample_sums[ref_idx] / data[ref_idx]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        opfer = sum_normalized_data / sum_normalized_data[ref_idx]
+        log_ratios = np.log2(opfer)
+        absolute_values = (np.log2(sum_normalized_data) + np.log2(sum_normalized_data[ref_idx])) / 2
+        estimated_asymptotic_variance = (sample_sums - data) / sample_sums / data
+        estimated_asymptotic_variance += (sample_sums[ref_idx] - data[ref_idx]) / sample_sums[ref_idx] / data[ref_idx]
 
     # 	remove infinite values, cutoff based on aCutOff
     finite_idx = np.isfinite(log_ratios) & np.isfinite(absolute_values) & (absolute_values > a_cutoff)
