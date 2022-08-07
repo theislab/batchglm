@@ -3,13 +3,12 @@ from typing import Optional, Union
 import dask.array
 import numpy as np
 
-from .external import InputDataGLM, ModelContainer
+from .external import InputDataGLM, ModelContainer, NBModel
 from .glm_one_group import fit_single_group, get_single_group_start
 
 
 def calculate_avg_log_cpm(
     x: np.ndarray,
-    model_class,
     size_factors: Optional[np.ndarray] = None,
     dispersion: Union[np.ndarray, float] = 0.05,
     prior_count: int = 2,
@@ -43,8 +42,8 @@ def calculate_avg_log_cpm(
         size_factors = np.full((x.shape[0], 1), np.log(1.0))
 
     adjusted_prior, adjusted_size_factors = add_priors(prior_count, size_factors)
-    x += adjusted_prior
-    avg_cpm_model = model_class(
+    x = x + adjusted_prior
+    avg_cpm_model = NBModel(
         InputDataGLM(
             data=x,
             design_loc=np.ones((x.shape[0], 1)),
