@@ -102,8 +102,8 @@ def loess(y: np.ndarray, x: np.ndarray, span: float):
         leverages = np.arange(n_features)
         return y_smooth, leverages
 
-    y_smooth = loess_by_col(x, y, n_span)
+    y_smooth, leverages_smooth = loess_by_col(x, y, n_span)
     y_smooth[order] = y_smooth.copy()
-    leverages[order] = leverages.copy()
+    leverages_smooth[order] = leverages_smooth.copy()
 
-    return y_smooth, leverages
+    return y_smooth, leverages_smooth
