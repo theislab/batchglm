@@ -39,11 +39,18 @@ class Estimator:
         check which algorithm to use. We can use a shortcut algorithm if the number of unique rows in the design
         matrix is equal to the number of coefficients.
         """
-        unique_design = np.unique(self._model_container.design_loc.compute(), axis=0)
+        if isinstance(self._model_container.design_loc, dask.array.core.Array):
+            unique_design = np.unique(self._model_container.design_loc.compute(), axis=0)
+        else:
+            unique_design = np.unique(self._model_container.design_loc, axis=0)
+
         if unique_design.shape[0] == unique_design.shape[1]:
             self.fitting_algorithm = "one_way"
         else:
             self.fitting_algorithm = "levenberg"
+            self._model_container.theta_location = get_levenberg_start(
+                model=self._model_container.model, disp=self._model_container.scale, use_null=True
+            )
 
     def train(self, maxit: int, tolerance: float = 1e-6):
 
@@ -55,22 +62,38 @@ class Estimator:
             raise ValueError(f"Unrecognized algorithm: {self.train_levenberg}")
 
     def train_oneway(self, maxit: int, tolerance: float):
-
         model = self._model_container
-        unique_design, group_idx = np.unique(model.design_loc.compute(), return_inverse=True, axis=0)
+        if isinstance(model.design_loc, dask.array.core.Array):
+            unique_design, group_idx = np.unique(model.design_loc.compute(), return_inverse=True, axis=0)
+        else:
+            unique_design, group_idx = np.unique(model.design_loc, return_inverse=True, axis=0)
+
         n_groups = unique_design.shape[1]
 
-        theta_location = model.theta_location.compute()  # .copy()
+        theta_location = model.theta_location
+        if isinstance(theta_location, dask.array.core.Array):
+            theta_location = theta_location.compute()  # .copy()
 
         for i in range(n_groups):
             obs_group = np.where(group_idx == i)[0]
+            dloc = model.design_loc
+            if isinstance(model.design_loc, dask.array.core.Array):
+                dloc = dloc.compute()
+            sf = model.size_factors
+            if sf is not None:
+                sf = sf[obs_group]
+                if isinstance(model.size_factors, dask.array.core.Array):
+                    sf = sf.compute()
+            dscale = model.design_scale
+            if isinstance(model.design_loc, dask.array.core.Array):
+                dscale = dscale.compute()
             group_model = model.model.__class__(
                 InputDataGLM(
                     data=model.x[obs_group],
-                    design_loc=model.design_loc.compute()[np.ix_(obs_group, [i])],
+                    design_loc=dloc[np.ix_(obs_group, [i])],
                     design_loc_names=model.design_loc_names[[i]],
-                    size_factors=model.size_factors[obs_group] if model.size_factors is not None else None,
-                    design_scale=model.design_scale.compute()[np.ix_(obs_group, [0])],
+                    size_factors=sf,
+                    design_scale=dscale[np.ix_(obs_group, [0])],
                     design_scale_names=model.design_scale_names[[0]],
                     as_dask=isinstance(model.x, dask.array.core.Array),
                     chunk_size_cells=model.chunk_size_cells,
@@ -84,9 +107,11 @@ class Estimator:
                 chunk_size_genes=model.chunk_size_genes,
                 dtype=model.theta_location.dtype,
             )
-
             fit_single_group(group_model, maxit=maxit, tolerance=tolerance)
-            theta_location[i] = group_model.theta_location.compute()
+            if isinstance(group_model.theta_location, dask.array.core.Array):
+                theta_location[i] = group_model.theta_location.compute()
+            else:
+                theta_location[i] = group_model.theta_location
 
         theta_location = np.linalg.solve(unique_design, theta_location)
         model.theta_location = theta_location
@@ -360,7 +385,7 @@ class NBEstimator(Estimator):
         :param dispersion: The fixed dispersion parameter to use during fitting the loc model.
         :param dtype: Numerical precision.
         """
-        init_theta_location = get_levenberg_start(model=model, disp=dispersion, use_null=True)
+        init_theta_location = np.zeros((model.xh_loc.shape[1], model.num_features), dtype=model.cast_dtype)
         init_theta_scale = np.full((1, model.num_features), np.log(1 / dispersion))
         self._train_loc = True
         self._train_scale = False  # This is fixed as edgeR doesn't fit the scale parameter
