@@ -1,3 +1,6 @@
+from typing import Optional
+
+import dask.array
 import numpy as np
 from scipy.linalg import qr
 
@@ -12,7 +15,11 @@ from .wleb import wleb
 
 
 def estimate_disp(
-    model: NBModel,
+    model: Optional[NBModel] = None,
+    x: Optional[np.ndarray] = None,
+    design: Optional[np.ndarray] = None,
+    design_loc_names: Optional[np.ndarray] = None,
+    norm_factors: Optional[np.ndarray] = None,
     group=None,  #
     prior_df=None,  # TODO
     trend_method="loess",
@@ -26,8 +33,7 @@ def estimate_disp(
     tol: float = 1e-6,  # TODO
     weights=None,  # TODO
     adjust: bool = True,
-    *args,
-    **kwargs,
+    **input_data_kwargs,
 ):
 
     """
@@ -61,6 +67,36 @@ def estimate_disp(
     :param weights: optional numeric matrix giving observation weights
     """
 
+    if model is None:
+        if x is None:
+            raise AssertionError("Provide x when no model is specified.")
+        if design is None:
+            raise AssertionError("Provide design when no model is specified.")
+
+        if norm_factors is None:
+            sum_counts_observation = x.sum(axis=1)
+            if norm_factors is None:
+                size_factors = np.log(sum_counts_observation)
+            else:
+                size_factors = np.log(sum_counts_observation * norm_factors)
+
+        selected_features = x.sum(axis=0) >= min_rowsum
+        x_filtered = x[:, selected_features]
+
+        input_data = InputDataGLM(
+            data=x_filtered,
+            design_loc=design,
+            design_loc_names=design_loc_names,
+            size_factors=size_factors,
+            design_scale=np.ones((x.shape[0], 1)),
+            design_scale_names=np.array(["Intercept"]),
+            **input_data_kwargs,
+        )
+        model = NBModel(input_data)
+    else:
+        selected_features = ...
+        x = model.x.copy()
+
     # Spline points
     spline_pts = np.linspace(start=grid_range[0], stop=grid_range[1], num=grid_length)
     spline_disp = 0.1 * 2 ** spline_pts
@@ -71,10 +107,10 @@ def estimate_disp(
     estimator = NBEstimator(model, dispersion=0.05)
     estimator.train(maxit=250, tolerance=tol)
 
-    zerofit = ((model.x < 1e-4) & (np.nan_to_num(model.location) < 1e-4)).compute()  # shape (obs, features)
-
+    zerofit = (model.x < 1e-4) & (np.nan_to_num(model.location) < 1e-4)
+    if isinstance(zerofit, dask.array.core.Array):
+        zerofit = zerofit.compute()  # shape (obs, features)
     groups = combo_groups(zerofit)
-    coefs = list()
     print("DONE.")
     print("Calculating adjusted profile likelihoods in subgroups...", end="")
     for subgroup in groups:
@@ -86,22 +122,37 @@ def estimate_disp(
             new_dloc_names = model.design_loc_names
         else:
             design_new = model.design_loc[not_zero_obs_in_group]
-            _, _, pivot = qr(design_new, mode="raw", pivoting=True)
-            coefs_new = np.array(
-                pivot[: np.linalg.matrix_rank(design_new.compute())]
-            )  # explicitly make this array to keep dimension info
+            if isinstance(design_new, dask.array.core.Array):
+                _, _, pivot = qr(design_new.compute(), mode="raw", pivoting=True)
+                coefs_new = np.array(
+                    pivot[: np.linalg.matrix_rank(design_new.compute())]
+                )  # explicitly make this array to keep dimension info
+            else:
+                _, _, pivot = qr(design_new, mode="raw", pivoting=True)
+                coefs_new = np.array(
+                    pivot[: np.linalg.matrix_rank(design_new)]
+                )  # explicitly make this array to keep dimension info
             if len(coefs_new) == design_new.shape[0]:
                 continue
             design_new = design_new[:, coefs_new]
             new_dloc_names = model.design_loc_names[coefs_new]
+
+        subgroup_x = model.x
+        if isinstance(model.x, dask.array.core.Array):
+            subgroup_x = subgroup_x.compute()
+        sf = model.size_factors
+        if sf is not None:
+            sf = sf[not_zero_obs_in_group]
+            if isinstance(sf, dask.array.core.Array):
+                sf = sf.compute()
         input_data = InputDataGLM(
-            data=model.x.compute()[np.ix_(not_zero_obs_in_group, subgroup)],
+            data=subgroup_x[np.ix_(not_zero_obs_in_group, subgroup)],
             design_loc=design_new,
             design_loc_names=new_dloc_names,
-            size_factors=model.size_factors[:, not_zero_obs_in_group] if model.size_factors is not None else None,
+            size_factors=sf,
             design_scale=model.design_scale[not_zero_obs_in_group],
             design_scale_names=np.array(["Intercept"]),
-            as_dask=True,
+            as_dask=isinstance(model.x, dask.array.core.Array),
             chunk_size_cells=1000000,
             chunk_size_genes=1000000,
         )
@@ -110,9 +161,6 @@ def estimate_disp(
         for i in range(len(spline_disp)):
             estimator.reset_theta_scale(np.log(1 / spline_disp[i]))
             l0[subgroup, i] = adjusted_profile_likelihood(estimator, adjust=adjust)
-
-        coefs.append(estimator._model_container.theta_location.compute())
-
     print("DONE.")
 
     # Calculate common dispersion
@@ -124,21 +172,22 @@ def estimate_disp(
     # Allow dispersion trend?
     if trend_method is not None:
         print("Calculating trended dispersion...", flush=True)
-        avg_log_cpm = calculate_avg_log_cpm(
-            model.x.copy(), model_class=model.__class__, dispersion=common_dispersion[0], weights=weights
-        )
+        sf = model.size_factors
+        if sf is not None and isinstance(sf, dask.array.core.Array):
+            sf = sf.compute()
+        avg_log_cpm = calculate_avg_log_cpm(x, size_factors=sf, dispersion=common_dispersion[0], weights=weights)
         span, _, m0, trend, _ = wleb(
             theta=spline_pts,
             loglik=l0,
-            covariate=avg_log_cpm[0],
+            covariate=avg_log_cpm[0, selected_features],
             trend_method=trend_method,
             span=span,
             overall=False,
             individual=False,
         )
         disp_trend = 0.1 * 2 ** trend
-        trended_dispersion = np.full(model.num_features, disp_trend[np.argmin(avg_log_cpm)])
-        trended_dispersion = disp_trend
+        trended_dispersion = np.full(x.shape[1], disp_trend[np.argmin(avg_log_cpm[selected_features])])
+        trended_dispersion[selected_features] = disp_trend
         print("DONE.")
     else:
         avg_log_cpm = None
@@ -149,23 +198,22 @@ def estimate_disp(
     # Are tagwise dispersions required?
     if not tagwise:
         return common_dispersion, trended_dispersion
-
+    if isinstance(avg_log_cpm, dask.array.core.Array):
+        avg_log_cpm = avg_log_cpm.compute()
     # Calculate prior.df
     print("Calculating featurewise dispersion...")
     if prior_df is None:  #
         prior_df = calculate_prior_df(
-            model, avg_log_cpm[0].compute(), robust=robust, winsor_tail_p=winsor_tail_p, dispersion=disp_trend
+            model, avg_log_cpm[0, selected_features], robust=robust, winsor_tail_p=winsor_tail_p, dispersion=disp_trend
         )
-    print("DONE.")
     n_loc_params = model.design_loc.shape[1]
     prior_n = prior_df / (model.num_observations - n_loc_params)
 
-    print("Calculating featurewise dispersion...")
     # Initiate featurewise dispersions
     if trend_method is not None:
         featurewise_dispersion = trended_dispersion.copy()
     else:
-        featurewise_dispersion = np.full(model.num_features, common_dispersion)
+        featurewise_dispersion = np.full(x.shape[1], common_dispersion)
 
     # Checking if the shrinkage is near-infinite.
     too_large = prior_n > 1e6
@@ -179,7 +227,7 @@ def estimate_disp(
             theta=spline_pts,
             loglik=l0,
             prior_n=temp_n,
-            covariate=avg_log_cpm,
+            covariate=avg_log_cpm[selected_features],
             trend_method=trend_method,
             span=span,
             overall=False,
@@ -187,16 +235,16 @@ def estimate_disp(
             m0=m0,
         )
         if not robust or len(too_large) == 1:
-            featurewise_dispersion = 0.1 * 2 ** out_individual
+            featurewise_dispersion[selected_features] = 0.1 * 2 ** out_individual
         else:
-            featurewise_dispersion[~too_large] = 0.1 * 2 ** out_individual[~too_large]
+            featurewise_dispersion[selected_features][~too_large] = 0.1 * 2 ** out_individual[~too_large]
     print("DONE.")
     if robust:
         temp_df = prior_df
         temp_n = prior_n
-        prior_df = np.full(model.num_features, np.inf)
-        prior_n = np.full(model.num_features, np.inf)
-        prior_df = temp_df
-        prior_n = temp_n
+        prior_df = np.full(x.shape[1], np.inf)
+        prior_n = np.full(x.shape[1], np.inf)
+        prior_df[selected_features] = temp_df
+        prior_n[selected_features] = temp_n
 
     return common_dispersion, trended_dispersion, featurewise_dispersion, span, prior_df, prior_n

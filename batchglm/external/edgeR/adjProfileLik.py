@@ -1,3 +1,4 @@
+import dask.array
 import numpy as np
 import scipy
 
@@ -21,7 +22,9 @@ def adjusted_profile_likelihood(
 
     estimator.train(maxit=250, tolerance=1e-10)
     model = estimator._model_container
-    poisson_idx = np.where(1 / model.scale < 0)[0].compute()
+    poisson_idx = np.where(1 / model.scale < 0)[0]
+    if isinstance(poisson_idx, dask.array.core.Array):
+        poisson_idx = poisson_idx.compute()
 
     if len(poisson_idx) == model.num_features:
         loglik = model.x * np.log(model.location) - model.location - scipy.special.lgamma(model.x + 1)
@@ -47,11 +50,15 @@ def adjusted_profile_likelihood(
         n_loc_params = model.design_loc.shape[1]
         if n_loc_params == 1:
             adj = np.sum(w, axis=0)
-            adj = np.log(np.abs(adj)).compute()
+            adj = np.log(np.abs(adj))
+            if isinstance(adj, dask.array.core.Array):
+                adj = adj.compute()
         else:
             xh = model.xh_loc
             xhw = np.einsum("ob,of->fob", xh, w)
-            fim = np.einsum("fob,oc->fbc", xhw, xh).compute()
+            fim = np.einsum("fob,oc->fbc", xhw, xh)
+            if isinstance(fim, dask.array.core.Array):
+                fim = fim.compute()
             for i in range(fim.shape[0]):
 
                 ldu, _, info = scipy.linalg.lapack.dsytrf(lower=0, a=fim[i])

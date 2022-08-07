@@ -33,7 +33,7 @@ def resid_df(zero: np.ndarray, design: np.ndarray):
         degrees_of_freedom_some_zero = n_obs - n_zero[some_zero_idx]
         for group in groupings:
             some_zero_group = some_zero[:, group[0]]  # shape = (n_obs, )
-            degrees_of_freedom_some_zero[group] -= np.linalg.matrix_rank(design[~some_zero_group].compute())
+            degrees_of_freedom_some_zero[group] -= np.linalg.matrix_rank(design[~some_zero_group])
         degrees_of_freedom_some_zero = np.max(degrees_of_freedom_some_zero, 0)
         degrees_of_freedom[some_zero_idx] = degrees_of_freedom_some_zero
 

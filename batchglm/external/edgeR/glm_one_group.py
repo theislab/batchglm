@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, Union
 
+import dask.array
 import numpy as np
 
 from .external import BaseModelContainer
@@ -13,7 +14,7 @@ def get_single_group_start(
     x: np.ndarray,
     sf: Optional[np.ndarray] = None,
     weights: Optional[Union[np.ndarray, float]] = None,
-):
+) -> np.ndarray:
     if weights is None:
         weights = np.ones_like(x)
     if weights.shape != x.shape:
@@ -23,9 +24,13 @@ def get_single_group_start(
 
     if sf is None:
         sf = np.log(1.0)
-
+    if isinstance(x, dask.array.core.Array):
+        x = x.compute()
+    if isinstance(sf, dask.array.core.Array):
+        sf = sf.compute()
     theta_location = np.sum(np.where(x > low_value, x / np.exp(sf) * weights, 0), axis=0, keepdims=True)
-    theta_location = np.log(theta_location / total_weights)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        theta_location = np.log(theta_location / total_weights)
     return theta_location
 
 
@@ -39,7 +44,9 @@ def fit_single_group(
     * This is the exact solution for the gamma distribution (which is the limit of the NB as
     * the dispersion goes to infinity. However, if cur_beta is not NA, then we assume it's good.
     """
-    low_mask = np.all(model.x <= low_value, axis=0).compute()
+    low_mask = np.all(model.x <= low_value, axis=0)
+    if isinstance(low_mask, dask.array.core.Array):
+        low_mask = low_mask.compute()
     unconverged_idx = np.where(~low_mask)[0]
 
     iteration = 0
@@ -52,12 +59,16 @@ def fit_single_group(
         scale_j = 1 / model.scale_j(unconverged_idx)
         denominator = 1 + loc_j * scale_j
 
-        dl = np.sum((model.x[:, unconverged_idx] - loc_j) / denominator * weights, axis=0).compute()
+        dl = np.sum((model.x[:, unconverged_idx] - loc_j) / denominator * weights, axis=0)
+        if isinstance(dl, dask.array.core.Array):
+            dl = dl.compute()
 
-        info = np.sum(loc_j / denominator * weights, axis=0).compute()
+        info = np.sum(loc_j / denominator * weights, axis=0)
+        if isinstance(info, dask.array.core.Array):
+            info = info.compute()
         cur_step = dl / info
         step[0, unconverged_idx] = cur_step
-        model.theta_location = model.theta_location.compute() + step
+        model.theta_location = model.theta_location + step
         unconverged_idx = unconverged_idx[np.abs(cur_step) >= tolerance]
         if len(unconverged_idx) == 0:
             break

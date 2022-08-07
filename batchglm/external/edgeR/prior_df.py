@@ -1,3 +1,4 @@
+import dask.array
 import numpy as np
 
 from .c_utils import nb_deviance
@@ -22,13 +23,29 @@ def calculate_prior_df(
     estimator = NBEstimator(model, dispersion=dispersion)
     estimator.train(maxit=250, tolerance=tolerance)
 
-    zerofit = ((model.x < 1e-4) & (np.nan_to_num(model.location) < 1e-4)).compute()  # shape (obs, features)
-    df_residual = resid_df(zerofit, model.design_loc)
+    zerofit = (model.x < 1e-4) & (np.nan_to_num(model.location) < 1e-4)
+    if isinstance(zerofit, dask.array.core.Array):
+        zerofit = zerofit.compute()  # shape (obs, features)
+    dloc = model.design_loc
+    if isinstance(model.design_loc, dask.array.core.Array):
+        dloc = dloc.compute()
+    df_residual = resid_df(zerofit, dloc)
 
     # Empirical Bayes squeezing of the quasi-likelihood variance factors
-    s2 = nb_deviance(model) / df_residual
-    s2[df_residual == 0] = 0.0  # s2[df.residual==0] <- 0
-    s2 = np.maximum(s2, 0)  # s2 <- pmax(s2,0)
+    x = model.x
+    if isinstance(model.x, dask.array.core.Array):
+        x = x.compute()
+    loc = model.location
+    if isinstance(model.location, dask.array.core.Array):
+        loc = loc.compute()
+    scale = model.scale
+    if isinstance(model.scale, dask.array.core.Array):
+        scale = scale.compute()
+
+    with np.errstate(divide="ignore"):
+        s2 = nb_deviance(x, loc, scale, True) / df_residual
+    s2[df_residual == 0] = 0.0
+    s2 = np.maximum(s2, 0)
 
     df_prior, _, _ = squeeze_var(s2, df=df_residual, covariate=avg_log_cpm, robust=robust, winsor_tail_p=winsor_tail_p)
     return df_prior
