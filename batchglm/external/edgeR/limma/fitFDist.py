@@ -174,7 +174,6 @@ def trigamma_inverse(x: np.ndarray):
     for _ in range(50):
         tri = scipy.special.polygamma(x=y, n=1)  # this is the trigamma function (psi^1(x))
         dif = tri * (1 - tri / x) / scipy.special.polygamma(x=y, n=2)  # this is psi^2(x)
-        print(tri, dif)
         y = y + dif
         if np.max(-dif / y) < 1e-8:
             break
