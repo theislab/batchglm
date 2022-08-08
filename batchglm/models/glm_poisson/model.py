@@ -4,10 +4,10 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 import dask.array
 import numpy as np
 
-from .external import _ModelGLM
+from .external import ModelGLM
 
 
-class Model(_ModelGLM, metaclass=abc.ABCMeta):
+class Model(ModelGLM, metaclass=abc.ABCMeta):
     """
     Generalized Linear Model (GLM) with Poisson noise.
     """
@@ -69,7 +69,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
             "loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "likelihood": dtype(1),
-            "ll": dtype(0),
+            "ll": dtype(10000), # poisson models can have large log likelhoods initially
             # Not used and should be removed: https://github.com/theislab/batchglm/issues/148
             "theta_scale": np.log(dmax) / sf,
             "eta_scale": np.log(dmax) / sf,
@@ -85,7 +85,7 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
 
     @property
     def rand_fn(self) -> Optional[Callable]:
-        return lambda shape: np.abs(np.random.uniform(0.5, 2, shape))
+        return lambda shape: np.abs(np.random.uniform(2, 10, shape))
 
     @property
     def rand_fn_loc(self) -> Optional[Callable]:
