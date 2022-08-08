@@ -113,3 +113,7 @@ class ModelContainer(NumpyModelContainer):
     @property
     def fim(self) -> Union[np.ndarray, dask.array.core.Array]:
         return self.fim_location_location
+
+    @property
+    def jac(self) -> Union[np.ndarray, dask.array.core.Array]:
+        return self.jac_location
