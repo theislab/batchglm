@@ -1,0 +1,12 @@
+[flake8]
+select = B,B9,C,E,F,N,RST,S,W
+ignore = C901,E203,F401,RST201,RST301,S101,W503
+max-line-length = 120
+max-complexity = 10
+docstring-convention = all
+docstring_style=sphinx
+per-file-ignores =
+	tests/*:S101
+	versioneer.py:B,B9,C,N,RST202,S404,S603,W605
+	batchglm/_version.py:B,C,N,S404,S603
+	batchglm/utils/linalg.py:N803

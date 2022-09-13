@@ -1,5 +1,5 @@
 .small {
-    font-size:40%;
+    font-size: 40%;
 }
 
 .rst-content dl:not(.docutils) dl dt {
@@ -20,6 +20,6 @@
     padding: 0 2px;
 }
 
-.rst-content dl:not(.docutils) dl dt a.reference>code {
+.rst-content dl:not(.docutils) dl dt a.reference > code {
     text-decoration: underline;
 }

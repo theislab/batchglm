@@ -1,7 +1,3 @@
-from batchglm.models.base import _EstimatorBase
-from batchglm.models.base import InputDataBase
-from batchglm.models.base import _ModelBase
-from batchglm.models.base import _SimulatorBase
-
-import batchglm.data as data_utils
+import batchglm.utils.data as data_utils
+from batchglm import pkg_constants
 from batchglm.utils.linalg import groupwise_solve_lm

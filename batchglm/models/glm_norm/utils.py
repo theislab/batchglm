@@ -1,7 +1,8 @@
 import logging
+from typing import Union
+
 import numpy as np
 import scipy.sparse
-from typing import Union
 
 from .external import closedform_glm_mean, closedform_glm_scale
 
@@ -9,12 +10,12 @@ logger = logging.getLogger("batchglm")
 
 
 def closedform_norm_glm_mean(
-        x: Union[np.ndarray, scipy.sparse.csr_matrix],
-        design_loc: np.ndarray,
-        constraints_loc,
-        size_factors=None,
-        link_fn=lambda x: x,
-        inv_link_fn=lambda x: x
+    x: Union[np.ndarray, scipy.sparse.csr_matrix],
+    design_loc: np.ndarray,
+    constraints_loc,
+    size_factors=None,
+    link_fn=lambda x: x,
+    inv_link_fn=lambda x: x,
 ):
     r"""
     Calculates a closed-form solution for the `mean` parameters of normal GLMs.
@@ -34,17 +35,17 @@ def closedform_norm_glm_mean(
         constraints=constraints_loc,
         size_factors=size_factors,
         link_fn=link_fn,
-        inv_link_fn=inv_link_fn
+        inv_link_fn=inv_link_fn,
     )
 
 
 def closedform_norm_glm_logsd(
-        x: Union[np.ndarray, scipy.sparse.csr_matrix],
-        design_scale: np.ndarray,
-        constraints=None,
-        size_factors=None,
-        groupwise_means=None,
-        link_fn=np.log
+    x: Union[np.ndarray, scipy.sparse.csr_matrix],
+    design_scale: np.ndarray,
+    constraints=None,
+    size_factors=None,
+    groupwise_means=None,
+    link_fn=np.log,
 ):
     r"""
     Calculates a closed-form solution for the log-scale parameters of normal GLMs.
@@ -68,5 +69,5 @@ def closedform_norm_glm_logsd(
         size_factors=size_factors,
         groupwise_means=groupwise_means,
         link_fn=link_fn,
-        compute_scales_fun=compute_scales_fun
+        compute_scales_fun=compute_scales_fun,
     )

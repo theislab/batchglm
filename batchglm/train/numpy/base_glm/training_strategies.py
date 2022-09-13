@@ -7,18 +7,12 @@ class TrainingStrategies(Enum):
     DEFAULT = [
         {
             "max_steps": 1000,
-            "method_b": "brent",
-            "update_b_freq": 5,
-            "ftol_b": 1e-6,
-            "max_iter_b": 1000
+            "method_scale": "brent",
+            "update_scale_freq": 5,
+            "ftol_scale": 1e-6,
+            "max_iter_scale": 1000,
         },
     ]
     GD = [
-        {
-            "max_steps": 1000,
-            "method_b": "gd",
-            "update_b_freq": 5,
-            "ftol_b": 1e-6,
-            "max_iter_b": 100
-        },
+        {"max_steps": 1000, "method_scale": "gd", "update_scale_freq": 5, "ftol_scale": 1e-6, "max_iter_scale": 100},
     ]

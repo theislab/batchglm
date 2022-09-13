@@ -1,4 +1,2 @@
-from .processModel import ProcessModelGlm
-from .model import ModelIwls
 from .estimator import EstimatorGlm
-from .vars import ModelVarsGlm
+from .model_container import BaseModelContainer
