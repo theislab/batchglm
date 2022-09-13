@@ -12,7 +12,7 @@ def calculate_avg_log_cpm(
     size_factors: Optional[np.ndarray] = None,
     dispersion: Union[np.ndarray, float] = 0.05,
     prior_count: int = 2,
-    weights: Optional[np.ndarray] = None,
+    weights: Optional[Union[np.ndarray, float]] = None,
     maxit: int = 50,
     tolerance: float = 1e-10,
     chunk_size_cells=1e6,

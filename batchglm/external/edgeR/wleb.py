@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional, Union
 
 import dask.array
 import numpy as np
@@ -11,8 +11,8 @@ def wleb(
     theta: Any,
     loglik: Any,
     prior_n: int = 5,
-    covariate: np.ndarray = None,
-    trend_method: str = "loess",
+    covariate: Optional[np.ndarray] = None,
+    trend_method: Optional[str] = "loess",
     span: Any = None,
     overall: bool = True,
     trend: bool = True,
@@ -42,8 +42,8 @@ def wleb(
     :return: Tuple(out_span, out_overall, m0, out_trend, out_individual)
     """
     n_features, n_theta = loglik.shape
-    if covariate is None:
-        trend_method = "none"
+    if covariate is None and trend_method is not None:
+        raise ValueError("covariate cannot be None if trend_method is given.")
 
     if span is None:
         if n_features < 50:
@@ -61,10 +61,10 @@ def wleb(
 
     # calculate trended prior
     if m0 is None:
-        if trend_method == "none":
+        if trend_method is None:
             m0 = np.broadcast_to(np.sum(loglik, axis=0), loglik.shape)
         elif trend_method == "loess":
-            m0, _ = loess(loglik, covariate, span=out_span)
+            m0, _ = loess(span=out_span, y=loglik, x=covariate)
         else:
             raise NotImplementedError(f"Method {trend_method} is not yet implemented.")
 
@@ -80,7 +80,7 @@ def wleb(
     return out_span, out_overall, m0, out_trend, out_individual
 
 
-def loess(y: np.ndarray, x: np.ndarray, span: float):
+def loess(span: float, y: np.ndarray, x: Optional[Union[np.ndarray, dask.array.core.Array]] = None):
     """
     Wrapper around loess as implemented in edgeR. This calls the C++
     function loess_by_col.
@@ -88,8 +88,10 @@ def loess(y: np.ndarray, x: np.ndarray, span: float):
     n_features = y.shape[0]
     if x is None:
         x = np.arange(n_features)
-    if isinstance(x, dask.array.core.Array):
+    elif isinstance(x, dask.array.core.Array):
         x = x.compute()
+    if not isinstance(x, np.ndarray):
+        raise TypeError("x must be of type np.ndarray, None or dask.array.core.Array")
 
     order = np.argsort(x, kind="stable")
     y = y[order]

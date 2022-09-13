@@ -1,3 +1,4 @@
+import dask.array
 import numpy as np
 from scipy.linalg.lapack import dgeqrf, dormqr, dtrtrs
 
@@ -90,9 +91,9 @@ def get_levenberg_start(model: _ModelGLM, disp: np.ndarray, use_null: bool):
         sum_norm_x = np.sum(model.x * weights / sf_exp, axis=0)  # shape (n_features,)
         sum_weights = np.sum(weights, axis=0)  # shape (n_features,)
 
-        values = np.broadcast_to(
-            np.log(sum_norm_x / sum_weights), (n_obs, n_features)
-        ).compute()  # shape(n_obs, n_features)
+        values = np.broadcast_to(np.log(sum_norm_x / sum_weights), (n_obs, n_features))
+        if isinstance(values, dask.array.core.Array):
+            values = values.compute()  # shape(n_obs, n_features)
 
         for j in range(n_features):
             qr.solve(values[:, j])

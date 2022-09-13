@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 import dask.array
 import numpy as np
@@ -15,11 +15,10 @@ from .wleb import wleb
 
 
 def estimate_disp(
-    model: Optional[NBModel] = None,
-    x: Optional[np.ndarray] = None,
+    x: Union[NBModel, np.ndarray],
     design: Optional[np.ndarray] = None,
     design_loc_names: Optional[np.ndarray] = None,
-    norm_factors: Optional[np.ndarray] = None,
+    size_factors: Optional[np.ndarray] = None,
     group=None,  #
     prior_df=None,  # TODO
     trend_method="loess",
@@ -67,24 +66,13 @@ def estimate_disp(
     :param weights: optional numeric matrix giving observation weights
     """
 
-    if model is None:
-        if x is None:
-            raise AssertionError("Provide x when no model is specified.")
+    if isinstance(x, np.ndarray):
         if design is None:
-            raise AssertionError("Provide design when no model is specified.")
-
-        if norm_factors is None:
-            sum_counts_observation = x.sum(axis=1)
-            if norm_factors is None:
-                size_factors = np.log(sum_counts_observation)
-            else:
-                size_factors = np.log(sum_counts_observation * norm_factors)
-
-        selected_features = x.sum(axis=0) >= min_rowsum
-        x_filtered = x[:, selected_features]
-
+            raise AssertionError("Provide design when x is not a model already.")
+        if size_factors is None:
+            size_factors = np.log(x.sum(axis=1))
         input_data = InputDataGLM(
-            data=x_filtered,
+            data=x,
             design_loc=design,
             design_loc_names=design_loc_names,
             size_factors=size_factors,
@@ -94,12 +82,14 @@ def estimate_disp(
         )
         model = NBModel(input_data)
     else:
-        selected_features = ...
-        x = model.x.copy()
+        model = x
+    x_all = model.x.copy()
+    selected_features = x_all.sum(axis=0) >= min_rowsum
+    model.x = x_all[:, selected_features]
 
     # Spline points
     spline_pts = np.linspace(start=grid_range[0], stop=grid_range[1], num=grid_length)
-    spline_disp = 0.1 * 2 ** spline_pts
+    spline_disp = 0.1 * 2**spline_pts
     l0 = np.zeros((model.num_features, grid_length))
 
     # Identify which observations have means of zero (weights aren't needed here).
@@ -165,7 +155,7 @@ def estimate_disp(
 
     # Calculate common dispersion
     overall = maximize_interpolant(spline_pts, l0.sum(axis=0, keepdims=True))  # (1, spline_pts)
-    common_dispersion = 0.1 * 2 ** overall
+    common_dispersion = 0.1 * 2**overall
 
     print(f"Common dispersion is {common_dispersion}.")
 
@@ -185,8 +175,8 @@ def estimate_disp(
             overall=False,
             individual=False,
         )
-        disp_trend = 0.1 * 2 ** trend
-        trended_dispersion = np.full(x.shape[1], disp_trend[np.argmin(avg_log_cpm[selected_features])])
+        disp_trend = 0.1 * 2**trend
+        trended_dispersion = np.full(x_all.shape[1], disp_trend[np.argmin(avg_log_cpm[selected_features])])
         trended_dispersion[selected_features] = disp_trend
         print("DONE.")
     else:
@@ -210,10 +200,10 @@ def estimate_disp(
     prior_n = prior_df / (model.num_observations - n_loc_params)
 
     # Initiate featurewise dispersions
-    if trend_method is not None:
+    if trend_method is not None and trended_dispersion is not None:
         featurewise_dispersion = trended_dispersion.copy()
     else:
-        featurewise_dispersion = np.full(x.shape[1], common_dispersion)
+        featurewise_dispersion = np.full(x_all.shape[1], common_dispersion)
 
     # Checking if the shrinkage is near-infinite.
     too_large = prior_n > 1e6
@@ -235,15 +225,15 @@ def estimate_disp(
             m0=m0,
         )
         if not robust or len(too_large) == 1:
-            featurewise_dispersion[selected_features] = 0.1 * 2 ** out_individual
+            featurewise_dispersion[selected_features] = 0.1 * 2**out_individual
         else:
             featurewise_dispersion[selected_features][~too_large] = 0.1 * 2 ** out_individual[~too_large]
     print("DONE.")
     if robust:
         temp_df = prior_df
         temp_n = prior_n
-        prior_df = np.full(x.shape[1], np.inf)
-        prior_n = np.full(x.shape[1], np.inf)
+        prior_df = np.full(x_all.shape[1], np.inf)
+        prior_n = np.full(x_all.shape[1], np.inf)
         prior_df[selected_features] = temp_df
         prior_n[selected_features] = temp_n
 

@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import numpy as np
 import patsy
@@ -9,7 +10,7 @@ from .effects import calc_effects
 logger = logging.getLogger(__name__)
 
 
-def fit_f_dist(x: np.ndarray, df1: np.ndarray, covariate: np.ndarray):
+def fit_f_dist(x: np.ndarray, df1: np.ndarray, covariate: Optional[np.ndarray]):
     """
     Moment estimation of the parameters of a scaled F-distribution.
     The numerator degrees of freedom is given, the scale factor and denominator df is to be estimated.
@@ -25,7 +26,7 @@ def fit_f_dist(x: np.ndarray, df1: np.ndarray, covariate: np.ndarray):
     # Check covariate
 
     if covariate is None:
-        spline_df = np.ones_like(x)
+        spline_df = 1
     else:
         assert len(x) == len(df1) == len(covariate), "All inputs must have the same length"
         if np.any(np.isnan(covariate)):
@@ -55,11 +56,11 @@ def fit_f_dist(x: np.ndarray, df1: np.ndarray, covariate: np.ndarray):
     # Set df for spline trend
     if covariate is not None:
         spline_df = 1 + int(n_ok >= 3) + int(n_ok >= 6) + int(n_ok >= 30)
-        spline_df = np.min((np.min(spline_df), len(np.unique(covariate))))
+        spline_df = np.minimum(spline_df, len(np.unique(covariate)))
         # If covariate takes only one unique value or insufficient
         # observations, recall with NULL covariate
         if spline_df < 2:
-            scale, df2 = fit_f_dist(x=x, df1=df1)
+            scale, df2 = fit_f_dist(x=x, df1=df1, covariate=None)
             scale = np.full(n, scale)
             return scale, df2
 

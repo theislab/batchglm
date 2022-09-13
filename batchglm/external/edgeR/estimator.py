@@ -90,10 +90,10 @@ class Estimator:
             group_model = model.model.__class__(
                 InputDataGLM(
                     data=model.x[obs_group],
-                    design_loc=dloc[np.ix_(obs_group, [i])],
+                    design_loc=dloc[np.ix_(obs_group, np.ndarray([i]))],
                     design_loc_names=model.design_loc_names[[i]],
                     size_factors=sf,
-                    design_scale=dscale[np.ix_(obs_group, [0])],
+                    design_scale=dscale[np.ix_(obs_group, np.ndarray([0]))],
                     design_scale_names=model.design_scale_names[[0]],
                     as_dask=isinstance(model.x, dask.array.core.Array),
                     chunk_size_cells=model.chunk_size_cells,
@@ -116,7 +116,7 @@ class Estimator:
         theta_location = np.linalg.solve(unique_design, theta_location)
         model.theta_location = theta_location
 
-    def train_levenberg(self, maxit: int, tolerance: int = 1e-6):
+    def train_levenberg(self, maxit: int, tolerance: float = 1e-6):
         model = self._model_container
         max_x = np.max(model.x, axis=0).compute()
 

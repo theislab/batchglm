@@ -11,12 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 def get_single_group_start(
-    x: np.ndarray,
-    sf: Optional[np.ndarray] = None,
+    x: Union[np.ndarray, dask.array.core.Array],
+    sf: Optional[Union[np.ndarray, dask.array.core.Array, float]] = None,
     weights: Optional[Union[np.ndarray, float]] = None,
 ) -> np.ndarray:
     if weights is None:
-        weights = np.ones_like(x)
+        weights = 1.0
+    if isinstance(weights, float):
+        weights = np.full(x.shape, weights)
+
     if weights.shape != x.shape:
         raise ValueError("Shape of weights must be idential to shape of model.x")
 
@@ -24,10 +27,13 @@ def get_single_group_start(
 
     if sf is None:
         sf = np.log(1.0)
+    elif isinstance(sf, dask.array.core.Array):
+        sf = sf.compute()
+    if not isinstance(sf, (np.ndarray, float)):
+        raise TypeError("sf must be of type np.ndarray, dask.array.core.Array or None")
     if isinstance(x, dask.array.core.Array):
         x = x.compute()
-    if isinstance(sf, dask.array.core.Array):
-        sf = sf.compute()
+
     theta_location = np.sum(np.where(x > low_value, x / np.exp(sf) * weights, 0), axis=0, keepdims=True)
     with np.errstate(divide="ignore", invalid="ignore"):
         theta_location = np.log(theta_location / total_weights)
@@ -37,7 +43,7 @@ def get_single_group_start(
 def fit_single_group(
     model: BaseModelContainer,
     maxit: int = 50,
-    tolerance: int = 1e-10,
+    tolerance: float = 1e-10,
 ):
     """
     Setting up initial values for beta as the log of the mean of the ratio of counts to offsets.

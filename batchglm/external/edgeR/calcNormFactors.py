@@ -4,20 +4,20 @@ import numpy as np
 from scipy.stats import rankdata
 
 
-def calc_size_factors(x: np.ndarray, method: Optional[str] = None, *args, **kwargs):
+def calc_size_factors(x: np.ndarray, method: Optional[str] = None, **kwargs):
     assert ~np.any(np.isnan(x)), "Counts matrix must not contain NaN!"
     x = x[:, np.sum(x, axis=0) > 0]
 
     if method is None:
         size_factors = np.ones((x.shape[1], 1), dtype=float)
     elif method.lower() == "tmm":
-        size_factors = _calc_factor_tmm(data=x, *args, **kwargs)
+        size_factors = _calc_factor_tmm(data=x, **kwargs)
     elif method.lower() == "tmmwsp":
-        size_factors = _calc_factor_tmmwsp(data=x, *args, **kwargs)
+        size_factors = _calc_factor_tmmwsp(data=x, **kwargs)
     elif method.lower() == "rle":
         size_factors = _calc_factor_rle(data=x)
     elif method == "upperquartile":
-        size_factors = _calc_factor_quantile(data=x, *args, **kwargs)
+        size_factors = _calc_factor_quantile(data=x, **kwargs)
     else:
         raise ValueError(f"Method {method} not recognized.")
 
@@ -57,9 +57,9 @@ def _calc_factor_tmm(
     if ref_idx is None:
         f75 = _calc_factor_quantile(data, p=0.75)
         if np.median(f75) < 1e-20:
-            ref_idx = np.argmax(np.sum(np.sqrt(data), axis=1))
+            ref_idx = np.sum(np.sqrt(data), axis=1).argmax()
         else:
-            ref_idx = np.argmin(np.abs(f75 - np.mean(f75)))
+            ref_idx = np.abs(f75 - np.mean(f75)).argmin()
 
     sample_sums = np.sum(data, axis=1, keepdims=True)
     sum_normalized_data = data / sample_sums
@@ -102,7 +102,7 @@ def _calc_factor_tmm(
         # 	In this case, return unity
         if np.isnan(size_factor_i):
             size_factor_i = 0
-        size_factors[i] = 2 ** size_factor_i
+        size_factors[i] = 2**size_factor_i
     return size_factors
 
 
@@ -116,7 +116,7 @@ def _calc_factor_tmmwsp(
 ):
     # 	TMM with pairing of singleton positive counts between the obs and ref libraries
     if ref_idx is None:
-        ref_idx = np.argmax(np.sum(np.sqrt(data), axis=1))
+        ref_idx = np.sum(np.sqrt(data), axis=1).argmax()
     eps = 1e-14
     sample_sums = np.sum(data, axis=1, keepdims=True)
 
@@ -196,5 +196,5 @@ def _calc_factor_tmmwsp(
             size_factor_i = np.sum(w * m) / np.sum(w)
         else:
             size_factor_i = np.mean(m)
-        size_factors[i] = 2 ** size_factor_i
+        size_factors[i] = 2**size_factor_i
     return size_factors
