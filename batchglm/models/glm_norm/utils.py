@@ -12,7 +12,7 @@ logger = logging.getLogger("batchglm")
 def closedform_norm_glm_mean(
     x: Union[np.ndarray, scipy.sparse.csr_matrix],
     design_loc: np.ndarray,
-    constraints_loc,
+    constraints_loc: np.ndarray,
     size_factors=None,
     link_fn=lambda x: x,
     inv_link_fn=lambda x: x,
@@ -42,7 +42,7 @@ def closedform_norm_glm_mean(
 def closedform_norm_glm_logsd(
     x: Union[np.ndarray, scipy.sparse.csr_matrix],
     design_scale: np.ndarray,
-    constraints=None,
+    constraints: np.ndarray,
     size_factors=None,
     groupwise_means=None,
     link_fn=np.log,

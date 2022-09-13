@@ -9,7 +9,7 @@ from .external import closedform_glm_mean, closedform_glm_scale
 def closedform_beta_glm_logitmean(
     x: Union[np.ndarray, scipy.sparse.csr_matrix],
     design_loc: np.ndarray,
-    constraints_loc,
+    constraints_loc: np.ndarray,
     size_factors=None,
     link_fn=lambda x: np.log(1 / (1 / x - 1)),
     inv_link_fn=lambda x: 1 / (1 + np.exp(-x)),
@@ -39,7 +39,7 @@ def closedform_beta_glm_logitmean(
 def closedform_beta_glm_logsamplesize(
     x: Union[np.ndarray, scipy.sparse.csr_matrix],
     design_scale: np.ndarray,
-    constraints=None,
+    constraints: np.ndarray,
     size_factors=None,
     groupwise_means=None,
     link_fn=np.log,
