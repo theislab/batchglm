@@ -47,5 +47,4 @@ def calculate_prior_df(
     s2[df_residual == 0] = 0.0
     s2 = np.maximum(s2, 0)
 
-    df_prior, _, _ = squeeze_var(s2, df=df_residual, covariate=avg_log_cpm, robust=robust, winsor_tail_p=winsor_tail_p)
-    return df_prior
+    return squeeze_var(s2, df=df_residual, covariate=avg_log_cpm, robust=robust, winsor_tail_p=winsor_tail_p)
