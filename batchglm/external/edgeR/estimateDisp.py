@@ -85,7 +85,7 @@ def estimate_disp(
         model = x
     x_all = model.x.copy()
     selected_features = x_all.sum(axis=0) >= min_rowsum
-    model.x = x_all[:, selected_features]
+    model._x = x_all[:, selected_features]
 
     # Spline points
     spline_pts = np.linspace(start=grid_range[0], stop=grid_range[1], num=grid_length)
@@ -165,7 +165,7 @@ def estimate_disp(
         sf = model.size_factors
         if sf is not None and isinstance(sf, dask.array.core.Array):
             sf = sf.compute()
-        avg_log_cpm = calculate_avg_log_cpm(x, size_factors=sf, dispersion=common_dispersion[0], weights=weights)
+        avg_log_cpm = calculate_avg_log_cpm(x_all, size_factors=sf, dispersion=common_dispersion[0], weights=weights)
         span, _, m0, trend, _ = wleb(
             theta=spline_pts,
             loglik=l0,
@@ -176,7 +176,7 @@ def estimate_disp(
             individual=False,
         )
         disp_trend = 0.1 * 2**trend
-        trended_dispersion = np.full(x_all.shape[1], disp_trend[np.argmin(avg_log_cpm[selected_features])])
+        trended_dispersion = np.full(x_all.shape[1], disp_trend[np.argmin(avg_log_cpm[0, selected_features])])
         trended_dispersion[selected_features] = disp_trend
         print("DONE.")
     else:
@@ -193,7 +193,7 @@ def estimate_disp(
     # Calculate prior.df
     print("Calculating featurewise dispersion...")
     if prior_df is None:  #
-        prior_df = calculate_prior_df(
+        prior_df, _, _ = calculate_prior_df(
             model, avg_log_cpm[0, selected_features], robust=robust, winsor_tail_p=winsor_tail_p, dispersion=disp_trend
         )
     n_loc_params = model.design_loc.shape[1]
@@ -217,7 +217,7 @@ def estimate_disp(
             theta=spline_pts,
             loglik=l0,
             prior_n=temp_n,
-            covariate=avg_log_cpm[selected_features],
+            covariate=avg_log_cpm[0, selected_features],
             trend_method=trend_method,
             span=span,
             overall=False,
