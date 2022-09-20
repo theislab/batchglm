@@ -90,10 +90,10 @@ class Estimator:
             group_model = model.model.__class__(
                 InputDataGLM(
                     data=model.x[obs_group],
-                    design_loc=dloc[np.ix_(obs_group, np.ndarray([i]))],
+                    design_loc=dloc[np.ix_(obs_group, np.array([i]))],
                     design_loc_names=model.design_loc_names[[i]],
                     size_factors=sf,
-                    design_scale=dscale[np.ix_(obs_group, np.ndarray([0]))],
+                    design_scale=dscale[np.ix_(obs_group, np.array([0]))],
                     design_scale_names=model.design_scale_names[[0]],
                     as_dask=isinstance(model.x, dask.array.core.Array),
                     chunk_size_cells=model.chunk_size_cells,
