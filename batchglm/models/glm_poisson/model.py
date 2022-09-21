@@ -98,4 +98,5 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
         """
         Sample random data based on poisson distribution and parameters.
         """
-        return np.random.poisson(lam=self.lam, dtype=np.float64)
+        # see https://github.com/astronomyk/SimCADO/issues/59 for why we cast lam
+        return np.random.poisson(lam=np.array(self.lam, dtype=np.float64))
