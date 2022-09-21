@@ -46,18 +46,24 @@ Negative Binomial
 
 Poisson
 ~~~~~~~~~~~~~~~~~
+
 .. autosummary::
    :toctree: .
 
    models.glm_poisson.Model
    train.numpy.glm_poisson.Estimator
 
+Normal
+~~~~~~~~~~~~~~~~~
+.. autosummary::
+   :toctree: .
+
+   models.glm_norm.Model
+   train.numpy.glm_norm.Estimator
+
 Planned or Incomplete Models:
 
 Beta
-~~~~~~~~~~~~~~~~~
-
-Normal
 ~~~~~~~~~~~~~~~~~
 
 Data Utilities

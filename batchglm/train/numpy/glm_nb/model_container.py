@@ -18,7 +18,7 @@ class ModelContainer(BaseModelContainer):
         Fisher inverse matrix weights
         :return: observations x features
         """
-        return -self.location * self.scale / (self.scale + self.location)
+        return self.location * self.scale / (self.scale + self.location)
 
     @property
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
