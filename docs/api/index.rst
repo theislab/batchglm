@@ -44,6 +44,15 @@ Negative Binomial
    models.glm_nb.Model
    train.numpy.glm_nb.Estimator
 
+Poisson
+~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: .
+
+   models.glm_poisson.Model
+   train.numpy.glm_poisson.Estimator
+
 Normal
 ~~~~~~~~~~~~~~~~~
 .. autosummary::
@@ -55,9 +64,6 @@ Normal
 Planned or Incomplete Models:
 
 Beta
-~~~~~~~~~~~~~~~~~
-
-Poisson
 ~~~~~~~~~~~~~~~~~
 
 Data Utilities
