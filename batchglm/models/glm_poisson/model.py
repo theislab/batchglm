@@ -84,7 +84,7 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
 
     @property
     def rand_fn(self) -> Optional[Callable]:
-        return lambda shape: np.abs(np.random.uniform(2, 10, shape))
+        return lambda shape: np.abs(np.random.uniform(0.5, 2, shape))
 
     @property
     def rand_fn_loc(self) -> Optional[Callable]:
