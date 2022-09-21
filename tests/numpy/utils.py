@@ -61,7 +61,8 @@ def get_generated_model(
     elif mode == "randTheta":
 
         if noise_model in ["nb", "norm", "poisson"]:
-            rand_fn_ave = random_uniform(10, 1000 if noise_model != "poisson" else 50) # too large mean breaks poisson
+            # too large mean breaks poisson
+            rand_fn_ave = random_uniform(10, 1000 if noise_model != "poisson" else 50)
             rand_fn_loc = random_uniform(1, 3)
             rand_fn_scale = random_uniform(1, 3)
         elif noise_model == "beta":
@@ -74,7 +75,8 @@ def get_generated_model(
     elif mode == "constTheta":
 
         if noise_model in ["nb", "norm", "poisson"]:
-            rand_fn_ave = random_uniform(10, 1000 if noise_model != "poisson" else 50) # too large mean breaks poisson
+            # too large mean breaks poisson
+            rand_fn_ave = random_uniform(10, 1000 if noise_model != "poisson" else 50)
             rand_fn_loc = const(1.0)
             rand_fn_scale = const(1.0)
         elif noise_model == "beta":
