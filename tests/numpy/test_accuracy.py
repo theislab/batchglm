@@ -126,50 +126,6 @@ class TestAccuracyPoisson(TestAccuracy):
             noise_model="poisson", model=sparse_model, init_location="standard", init_scale="standard"
         )
         assert self._test_accuracy(sparse_estimator)
-        return True
-
-    def test_accuracy_const_theta(self) -> bool:
-        """
-        This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
-        """
-        dense_model = get_generated_model(
-            noise_model="poisson", num_conditions=2, num_batches=0, sparse=False, mode="constTheta"
-        )
-        sparse_model = get_generated_model(
-            noise_model="poisson", num_conditions=2, num_batches=0, sparse=True, mode="constTheta"
-        )
-
-        dense_estimator = get_estimator(
-            noise_model="poisson", model=dense_model, init_location="standard", init_scale="standard"
-        )
-        assert self._test_accuracy(dense_estimator)
-
-        sparse_estimator = get_estimator(
-            noise_model="poisson", model=sparse_model, init_location="standard", init_scale="standard"
-        )
-        return self._test_accuracy(sparse_estimator)
-
-
-class TestAccuracyPoisson(TestAccuracy):
-    def test_accuracy_rand_theta(self) -> bool:
-        """
-        This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
-        """
-        dense_model = get_generated_model(
-            noise_model="poisson", num_conditions=2, num_batches=4, sparse=False, mode="randTheta"
-        )
-        sparse_model = get_generated_model(
-            noise_model="poisson", num_conditions=2, num_batches=4, sparse=True, mode="randTheta"
-        )
-        dense_estimator = get_estimator(
-            noise_model="poisson", model=dense_model, init_location="standard", init_scale="standard"
-        )
-        assert self._test_accuracy(dense_estimator)
-
-        sparse_estimator = get_estimator(
-            noise_model="poisson", model=sparse_model, init_location="standard", init_scale="standard"
-        )
-        assert self._test_accuracy(sparse_estimator)
 
     def test_accuracy_const_theta(self) -> bool:
         """

@@ -78,7 +78,7 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
     elif init_location_str == "standard":
         overall_means = np.mean(model.x, axis=0)  # directly calculate the mean
         init_theta_location = np.zeros([model.num_loc_params, model.num_features])
-        init_theta_location[0, :] = overall_means # identity linked.
+        init_theta_location[0, :] = overall_means  # identity linked.
     else:
         raise ValueError("init_location string %s not recognized" % init_location)
 
