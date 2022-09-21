@@ -8,12 +8,8 @@ from batchglm.models.glm_nb import Model as NBModel
 from batchglm.models.glm_norm import Model as NormModel
 from batchglm.models.glm_poisson import Model as PoissonModel
 from batchglm.train.numpy.base_glm import EstimatorGlm
-
-# from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
 from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
 from batchglm.train.numpy.glm_norm import Estimator as NormEstimator
-
-# from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
 from batchglm.train.numpy.glm_poisson import Estimator as PoissonEstimator
 
 
