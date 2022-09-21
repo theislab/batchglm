@@ -98,4 +98,4 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
         """
         Sample random data based on poisson distribution and parameters.
         """
-        return np.random.poisson(lam=self.lam)
+        return np.random.poisson(lam=self.lam, dtype=np.float64)
