@@ -14,14 +14,15 @@ import scipy.optimize
 import scipy.sparse
 import sparse
 
+from ...base import BaseEstimatorGlm
 from .external import pkg_constants
-from .model_container import BaseModelContainer
+from .model_container import NumpyModelContainer
 from .training_strategies import TrainingStrategies
 
 logger = logging.getLogger("batchglm")
 
 
-class EstimatorGlm(metaclass=abc.ABCMeta):
+class EstimatorGlm(BaseEstimatorGlm):
     """
     Estimator for Generalized Linear Models (GLMs).
 
@@ -34,11 +35,11 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
 
     _train_loc: bool = False
     _train_scale: bool = False
-    _model_container: BaseModelContainer
+    _model_container: NumpyModelContainer
     lls: List[float] = []
     dtype: str = ""
 
-    def __init__(self, model_container: BaseModelContainer, dtype: str):
+    def __init__(self, model_container: NumpyModelContainer, dtype: str):
         """
         Performs initialisation and creates a new estimator.
         :param model:
@@ -63,7 +64,7 @@ class EstimatorGlm(metaclass=abc.ABCMeta):
         return self._train_scale
 
     @property
-    def model_container(self) -> BaseModelContainer:
+    def model_container(self) -> NumpyModelContainer:
         return self._model_container
 
     def train_sequence(self, training_strategy, **kwargs):

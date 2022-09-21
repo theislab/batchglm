@@ -5,7 +5,7 @@ import numpy as np
 from utils import get_estimator, get_generated_model
 
 from batchglm import pkg_constants
-from batchglm.models.base_glm import _ModelGLM
+from batchglm.models.base_glm import ModelGLM
 from batchglm.train.numpy.base_glm import EstimatorGlm
 
 logger = logging.getLogger("batchglm")
@@ -165,6 +165,7 @@ class TestAccuracyNorm(TestAccuracy):
 
         sparse_estimator = get_estimator(noise_model="norm", model=sparse_model)
         assert self._test_accuracy(sparse_estimator)
+        return True
 
     def test_accuracy_const_theta(self) -> bool:
         """

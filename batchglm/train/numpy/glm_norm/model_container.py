@@ -4,7 +4,7 @@ from typing import Callable, Union
 import dask
 import numpy as np
 
-from .external import BaseModelContainer
+from .external import NumpyModelContainer
 
 
 def ll(scale, loc, x):
@@ -13,7 +13,7 @@ def ll(scale, loc, x):
     return ll
 
 
-class ModelContainer(BaseModelContainer):
+class ModelContainer(NumpyModelContainer):
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
@@ -60,25 +60,22 @@ class ModelContainer(BaseModelContainer):
         return -np.ones_like(self.x[:, j]) - np.power((self.x[:, j] - self.location_j(j=j)) / self.scale_j(j=j), 2)
 
     @property
-    def fim_location_location(self):
-        return np.power(self.location / self.scale, 2)
-
-    @property
     def fim_location_scale(self) -> np.ndarray:
         return np.zeros([self.model.x.shape[1], self.theta_location.shape[0], self.theta_scale.shape[0]])
 
     @property
+    def fim_weight_scale_scale(self) -> np.ndarray:
+        return np.full(self.scale.shape, 2)
+
+    @property
     def fim_scale_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
+
         :return: (features x inferred param x inferred param)
         """
         w = self.fim_weight_scale_scale
         xh = self.xh_scale
         return np.einsum("fob,oc->fbc", np.einsum("ob,of->fob", xh, w), xh)
-
-    @property
-    def fim_weight_scale_scale(self) -> np.ndarray:
-        return np.full(self.scale.shape, 2)
 
     @property
     def hessian_weight_location_scale(self) -> np.ndarray:

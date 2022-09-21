@@ -1,12 +1,21 @@
 import logging
 from functools import singledispatch
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import dask
 import numpy as np
 import pandas as pd
 import patsy
 
 logger = logging.getLogger("batchglm")
+
+
+def dask_compute(func: Callable):
+    def func_wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        return result.compute() if isinstance(result, dask.array.core.Array) else result
+
+    return func_wrapper
 
 
 def design_matrix(
@@ -45,10 +54,11 @@ def design_matrix(
         if sample_description is None:
             raise ValueError("Provide a sample_description if dmat is None.")
         if isinstance(as_categorical, bool):
-            as_categorical = [as_categorical] * sample_description.columns.size
+            as_categorical = sample_description.columns
         sample_description = sample_description.copy()
-        columns = sample_description.columns[as_categorical]
-        sample_description[columns] = sample_description[columns].apply(lambda col: col.astype("category"))
+        sample_description[as_categorical] = sample_description[as_categorical].apply(
+            lambda col: col.astype("category")
+        )
 
         dmat = patsy.dmatrix(formula, sample_description)
         coef_names = dmat.design_info.column_names
@@ -214,6 +224,8 @@ def constraint_system_from_star(
         coef_names = dmat.design_info.column_names
     else:
         raise TypeError(f"Type {type(dmat)} not recognized for argument dmat.")
+    if term_names is None:
+        term_names = coef_names
 
     # Test full design matrix for being full rank before returning:
     if cmat is None:
@@ -233,9 +245,14 @@ def constraint_system_from_star(
 @constraint_system_from_star.register
 def _constraint_system_from_dict(
     constraints: dict,
-    return_type: str = "patsy",
     **kwargs,
 ) -> Tuple:
+    if "return_type" in kwargs:
+        return_type = kwargs.pop("return_type")
+    else:
+        return_type = "patsy"
+    if "dmat" in kwargs:
+        kwargs.pop("dmat")  # not sure why dmat was an argument here but some things expect it to be part of the API.
     cmat, dmat, term_names = constraint_system_from_dict(constraints, **kwargs)
     return constraint_system_from_star(cmat, dmat=dmat, return_type=return_type, term_names=term_names, **kwargs)
 

@@ -69,11 +69,10 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
             "loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "likelihood": dtype(1),
-            "ll": dtype(10000), # poisson models can have large log likelhoods initially
+            "ll": dtype(10000),  # poisson models can have large log likelhoods initially
             # Not used and should be removed: https://github.com/theislab/batchglm/issues/148
             "theta_scale": np.log(dmax) / sf,
             "eta_scale": np.log(dmax) / sf,
-
         }
         return bounds_min, bounds_max
 
@@ -85,7 +84,7 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
 
     @property
     def rand_fn(self) -> Optional[Callable]:
-        return lambda shape: np.abs(np.random.uniform(2, 10, shape))
+        return lambda shape: np.abs(np.random.uniform(0.5, 2, shape))
 
     @property
     def rand_fn_loc(self) -> Optional[Callable]:
@@ -99,4 +98,5 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
         """
         Sample random data based on poisson distribution and parameters.
         """
+        # see https://github.com/astronomyk/SimCADO/issues/59 for why we cast lam
         return np.random.poisson(lam=self.lam)

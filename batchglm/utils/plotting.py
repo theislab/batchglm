@@ -24,7 +24,7 @@ def _input_checks(
 
     def _cast(data: Union[np.ndarray, dask.array.core.Array]) -> Tuple[np.ndarray, np.ndarray]:
         if isinstance(data, dask.array.core.Array):
-            to_return = data.coompute()
+            to_return = data.compute()
         elif isinstance(data, np.ndarray):
             to_return = data
         else:

@@ -5,5 +5,5 @@ from batchglm.models.glm_norm.model import Model
 from batchglm.models.glm_norm.utils import closedform_norm_glm_logsd, init_par
 
 # import necessary base_glm layers
-from batchglm.train.numpy.base_glm import BaseModelContainer, EstimatorGlm
+from batchglm.train.numpy.base_glm import EstimatorGlm, NumpyModelContainer
 from batchglm.utils.linalg import groupwise_solve_lm
