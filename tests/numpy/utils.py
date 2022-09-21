@@ -6,19 +6,18 @@ from batchglm.models.base_glm import _ModelGLM
 from batchglm.models.glm_beta import Model as BetaModel
 from batchglm.models.glm_nb import Model as NBModel
 from batchglm.models.glm_norm import Model as NormModel
-
-# from batchglm.train.numpy.glm_norm import Estimator as NormEstimator
 from batchglm.train.numpy.base_glm import EstimatorGlm
 
 # from batchglm.train.numpy.glm_beta import Estimator as BetaEstimator
 from batchglm.train.numpy.glm_nb import Estimator as NBEstimator
+from batchglm.train.numpy.glm_norm import Estimator as NormEstimator
 
 
 def get_estimator(noise_model: str, **kwargs) -> EstimatorGlm:
     if noise_model == "nb":
         return NBEstimator(**kwargs)
     elif noise_model == "norm":
-        raise NotImplementedError("Norm Estimator is not yet implemented.")
+        return NormEstimator(**kwargs)
         # estimator = NormEstimator(**kwargs)
     elif noise_model == "beta":
         raise NotImplementedError("Beta Estimator is not yet implemented.")
