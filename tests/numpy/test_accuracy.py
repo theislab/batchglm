@@ -64,7 +64,7 @@ class TestAccuracy(unittest.TestCase):
 
 
 class TestAccuracyNB(TestAccuracy):
-    def test_accuracy_rand_theta(self) -> bool:
+    def test_accuracy_rand_theta(self):
         """
         This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
         """
@@ -84,7 +84,7 @@ class TestAccuracyNB(TestAccuracy):
         )
         assert self._test_accuracy(sparse_estimator)
 
-    def test_accuracy_const_theta(self) -> bool:
+    def test_accuracy_const_theta(self):
         """
         This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
         """
@@ -103,11 +103,11 @@ class TestAccuracyNB(TestAccuracy):
         sparse_estimator = get_estimator(
             noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard"
         )
-        return self._test_accuracy(sparse_estimator)
+        assert self._test_accuracy(sparse_estimator)
 
 
 class TestAccuracyPoisson(TestAccuracy):
-    def test_accuracy_rand_theta(self) -> bool:
+    def test_accuracy_rand_theta(self):
         """
         This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
         """
@@ -127,7 +127,7 @@ class TestAccuracyPoisson(TestAccuracy):
         )
         assert self._test_accuracy(sparse_estimator)
 
-    def test_accuracy_const_theta(self) -> bool:
+    def test_accuracy_const_theta(self):
         """
         This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
         """
@@ -146,11 +146,11 @@ class TestAccuracyPoisson(TestAccuracy):
         sparse_estimator = get_estimator(
             noise_model="poisson", model=sparse_model, init_location="standard", init_scale="standard"
         )
-        return self._test_accuracy(sparse_estimator)
+        assert self._test_accuracy(sparse_estimator)
 
 
 class TestAccuracyNorm(TestAccuracy):
-    def test_accuracy_rand_theta(self) -> bool:
+    def test_accuracy_rand_theta(self):
         """
         This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
         """
@@ -165,9 +165,8 @@ class TestAccuracyNorm(TestAccuracy):
 
         sparse_estimator = get_estimator(noise_model="norm", model=sparse_model)
         assert self._test_accuracy(sparse_estimator)
-        return True
 
-    def test_accuracy_const_theta(self) -> bool:
+    def test_accuracy_const_theta(self):
         """
         This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
         """
@@ -182,7 +181,7 @@ class TestAccuracyNorm(TestAccuracy):
         assert self._test_accuracy(dense_estimator)
 
         sparse_estimator = get_estimator(noise_model="norm", model=sparse_model)
-        return self._test_accuracy(sparse_estimator)
+        assert self._test_accuracy(sparse_estimator)
 
 
 if __name__ == "__main__":

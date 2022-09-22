@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Callable, List, Union
 
 import dask
 import numpy as np
@@ -35,7 +35,7 @@ class ModelContainer(NumpyModelContainer):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """
@@ -75,7 +75,7 @@ class ModelContainer(NumpyModelContainer):
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
         return scale * (const1 + const2 + const3)
 
-    def jac_weight_scale_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_weight_scale_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Scale model jacobian at location j
         :param j: Location
@@ -191,7 +191,7 @@ class ModelContainer(NumpyModelContainer):
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
 
-    def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def ll_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Log likelhiood for observation j
         :param j: observation

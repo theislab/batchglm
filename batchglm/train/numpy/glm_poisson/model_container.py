@@ -1,4 +1,4 @@
-from typing import Union
+from typing import List, Union
 
 import dask
 import numpy as np
@@ -24,14 +24,14 @@ class ModelContainer(NumpyModelContainer):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def fim_weight_location_location_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights at j
         :return: observations x features
         """
         return self.location_j(j=j)
 
-    def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """
@@ -58,7 +58,7 @@ class ModelContainer(NumpyModelContainer):
         ll = x_times_log_loc - loc - log_x_factorial
         return np.asarray(self.np_clip_param(ll, "ll"))
 
-    def ll_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+    def ll_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Log likelhiood for observation j
         :param j: observation
@@ -85,25 +85,23 @@ class ModelContainer(NumpyModelContainer):
     def jac_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
-    @property
-    def jac_weight_j(self):
+    def jac_weight_j(self, j: Union[int, List[int]]):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
     # Methods marked as abstract that involve the scale parameter:
     @property
-    def fim_location_scale(self) -> np.ndarray:
+    def fim_location_scale(self):
         raise NoScaleError("fim_location_scale")
 
     @property
-    def hessian_weight_scale_scale(self) -> np.ndarray:
+    def hessian_weight_scale_scale(self):
         raise NoScaleError("hessian_weight_scale_scale")
 
     @property
-    def hessian_weight_location_scale(self) -> np.ndarray:
+    def hessian_weight_location_scale(self):
         raise NoScaleError("hessian_weight_location_scale")
 
-    @property
-    def jac_weight_scale_j(self) -> np.ndarray:
+    def jac_weight_scale_j(self, j: Union[int, List[int]]):
         raise NoScaleError("jac_weight_scale_j")
 
     @property
