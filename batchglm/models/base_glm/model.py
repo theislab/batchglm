@@ -1,19 +1,22 @@
 import abc
 import logging
+import random
+import string
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np
+import pandas as pd
 import scipy
 
 from ...utils.input import InputDataGLM
 from .external import pkg_constants
-from .utils import generate_sample_description, parse_constraints, parse_design
+from .utils import generate_sample_description
 
 logger = logging.getLogger(__name__)
 
 
-class _ModelGLM(metaclass=abc.ABCMeta):
+class ModelGLM(metaclass=abc.ABCMeta):
     """
     Generalized Linear Model base class.
 
@@ -43,13 +46,15 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     _cast_dtype: str = "float32"
     _chunk_size_cells: int
     _chunk_size_genes: int
+    _sample_description: pd.DataFrame
+    _features: List[str]
 
     def __init__(
         self,
         input_data: Optional[InputDataGLM] = None,
     ):
         """
-        Create a new _ModelGLM object.
+        Create a new ModelGLM object.
 
         :param input_data: Input data for the model
 
@@ -72,8 +77,13 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         self._cast_dtype = input_data.cast_dtype
         self._chunk_size_genes = input_data.chunk_size_genes
         self._chunk_size_cells = input_data.chunk_size_cells
+        self._features = input_data.features
         self._xh_loc = np.matmul(self.design_loc, self.constraints_loc)
         self._xh_scale = np.matmul(self.design_scale, self.constraints_scale)
+
+    @property
+    def features(self) -> List[str]:
+        return self._features
 
     @property
     def chunk_size_cells(self) -> int:
@@ -86,6 +96,10 @@ class _ModelGLM(metaclass=abc.ABCMeta):
     @property
     def cast_dtype(self) -> str:
         return self._cast_dtype
+
+    @property
+    def sample_description(self) -> pd.DataFrame:
+        return self._sample_description
 
     @property
     def design_loc(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -356,7 +370,7 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         if rand_fn_scale is None:
             rand_fn_scale = rand_fn
 
-        _design_loc, _design_scale, _ = generate_sample_description(**kwargs)
+        _design_loc, _design_scale, _sample_description = generate_sample_description(**kwargs)
 
         self._theta_location = np.concatenate(
             [
@@ -366,8 +380,9 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             axis=0,
         )
         self._theta_scale = np.concatenate([rand_fn_scale((_design_scale.shape[1], n_vars))], axis=0)
+        self._sample_description = _sample_description
 
-        return _design_loc, _design_scale
+        return _design_loc, _design_scale, _sample_description
 
     def generate_artificial_data(
         self,
@@ -379,6 +394,8 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         shuffle_assignments: bool = False,
         sparse: bool = False,
         as_dask: bool = True,
+        theta_location_setter: Optional[Callable] = None,
+        theta_scale_setter: Optional[Callable] = None,
         **kwargs,
     ):
         """
@@ -391,9 +408,11 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         :param shuffle_assignments: Depcreated. Does not do anything.
         :param sparse: If True, the simulated data matrix is sparse.
         :param as_dask: If True, use dask.
+        :param theta_location_setter: Override for parameter after generate_params, should return the parameter
+        :param theta_scale_setter: Override for parameter after generate_params, should return the parameter
         :param kwargs: Additional kwargs passed to generate_params.
         """
-        _design_loc, _design_scale = self.generate_params(
+        _design_loc, _design_scale, _ = self.generate_params(
             n_vars=n_vars,
             num_observations=n_obs,
             num_conditions=num_conditions,
@@ -402,6 +421,10 @@ class _ModelGLM(metaclass=abc.ABCMeta):
             shuffle_assignments=shuffle_assignments,
             **kwargs,
         )
+        if theta_location_setter is not None:
+            self._theta_location = theta_location_setter(self._theta_location)
+        if theta_scale_setter is not None:
+            self._theta_scale = theta_scale_setter(self._theta_scale)
 
         # we need to do this explicitly here in order to generate data
         self._constraints_loc = np.identity(n=_design_loc.shape[1])
@@ -413,8 +436,15 @@ class _ModelGLM(metaclass=abc.ABCMeta):
         data_matrix = self.generate_data().astype(self.cast_dtype)
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
-
-        input_data = InputDataGLM(data=data_matrix, design_loc=_design_loc, design_scale=_design_scale, as_dask=as_dask)
+        # generate random gene/feature names
+        feature_names = "".join("feature_" + str(i) for i in range(n_vars))
+        input_data = InputDataGLM(
+            data=data_matrix,
+            design_loc=_design_loc,
+            design_scale=_design_scale,
+            as_dask=as_dask,
+            feature_names=feature_names,
+        )
         self.extract_input_data(input_data)
 
     @abc.abstractmethod

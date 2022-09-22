@@ -9,7 +9,7 @@ from .external import ModelGLM
 
 class Model(ModelGLM, metaclass=abc.ABCMeta):
     """
-    Generalized Linear Model (GLM) with negative binomial noise.
+    Generalized Linear Model (GLM) with Poisson noise.
     """
 
     def link_loc(self, data) -> Union[np.ndarray, dask.array.core.Array]:
@@ -45,12 +45,8 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
     # Re-parameterizations:
 
     @property
-    def mu(self) -> Union[np.ndarray, dask.array.core.Array]:
+    def lam(self) -> Union[np.ndarray, dask.array.core.Array]:
         return self.location
-
-    @property
-    def phi(self) -> Union[np.ndarray, dask.array.core.Array]:
-        return self.scale
 
     # param constraints:
 
@@ -58,23 +54,25 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
 
         bounds_min = {
             "theta_location": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "loc": np.nextafter(0, np.inf, dtype=dtype),
             "scale": np.nextafter(0, np.inf, dtype=dtype),
             "likelihood": dtype(0),
             "ll": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+            # Not used and should be removed: https://github.com/theislab/batchglm/issues/148
+            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
         }
         bounds_max = {
             "theta_location": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "likelihood": dtype(1),
-            "ll": dtype(0),
+            "ll": dtype(10000),  # poisson models can have large log likelhoods initially
+            # Not used and should be removed: https://github.com/theislab/batchglm/issues/148
+            "theta_scale": np.log(dmax) / sf,
+            "eta_scale": np.log(dmax) / sf,
         }
         return bounds_min, bounds_max
 
@@ -98,6 +96,7 @@ class Model(ModelGLM, metaclass=abc.ABCMeta):
 
     def generate_data(self) -> np.ndarray:
         """
-        Sample random data based on negative binomial distribution and parameters.
+        Sample random data based on poisson distribution and parameters.
         """
-        return np.random.negative_binomial(n=self.phi, p=1 - self.mu / (self.phi + self.mu), size=None)
+        # see https://github.com/astronomyk/SimCADO/issues/59 for why we cast lam
+        return np.random.poisson(lam=self.lam)

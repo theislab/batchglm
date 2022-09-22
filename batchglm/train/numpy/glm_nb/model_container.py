@@ -4,10 +4,11 @@ import dask
 import numpy as np
 import scipy
 
-from .external import BaseModelContainer
+from ....utils.data import dask_compute
+from .external import NumpyModelContainer
 
 
-class ModelContainer(BaseModelContainer):
+class ModelContainer(NumpyModelContainer):
     @property
     def fim_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
@@ -18,7 +19,14 @@ class ModelContainer(BaseModelContainer):
         Fisher inverse matrix weights
         :return: observations x features
         """
-        return -self.location * self.scale / (self.scale + self.location)
+        return self.location * self.scale / (self.scale + self.location)
+
+    def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
+        """
+        Fisher inverse matrix weights at j
+        :return: observations x features
+        """
+        return self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
 
     @property
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
@@ -26,13 +34,6 @@ class ModelContainer(BaseModelContainer):
         :return: observations x features
         """
         return np.asarray(self.x - self.location) / self.location
-
-    def fim_weight_location_location_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
-        """
-        Fisher inverse matrix weights at j
-        :return: observations x features
-        """
-        return -self.location_j(j=j) * self.scale_j(j=j) / (self.scale_j(j=j) + self.location_j(j=j))
 
     def ybar_j(self, j) -> Union[np.ndarray, dask.array.core.Array]:
         """
