@@ -57,20 +57,20 @@ class Model(_ModelGLM, metaclass=abc.ABCMeta):
     def bounds(self, sf, dmax, dtype) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
         bounds_min = {
-            "theta_location": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "theta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "eta_loc": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
-            "eta_scale": np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "theta_location": -1e8,  # np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "theta_scale": -1e8,  # np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_loc": -1e8,  # np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
+            "eta_scale": -1e8,  # np.log(np.nextafter(0, np.inf, dtype=dtype)) / sf,
             "loc": np.nextafter(0, np.inf, dtype=dtype),
             "scale": np.nextafter(0, np.inf, dtype=dtype),
             "likelihood": dtype(0),
-            "ll": np.log(np.nextafter(0, np.inf, dtype=dtype)),
+            "ll": -1e8,  # np.log(np.nextafter(0, np.inf, dtype=dtype)),
         }
         bounds_max = {
-            "theta_location": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "theta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "eta_loc": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
-            "eta_scale": np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "theta_location": 1e10,  # np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "theta_scale": 1e10,  # np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_loc": 1e10,  # np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
+            "eta_scale": 1e10,  # np.nextafter(np.log(dmax), -np.inf, dtype=dtype) / sf,
             "loc": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "scale": np.nextafter(dmax, -np.inf, dtype=dtype) / sf,
             "likelihood": dtype(1),
