@@ -129,7 +129,7 @@ class NumpyModelContainer(BaseModelContainer):
         return self._theta_location_getter()
 
     @theta_location.setter
-    def theta_location(self, value: dask.array.core.Array):
+    def theta_location(self, value: Union[np.ndarray, dask.array.core.Array]):
         # Threshold new entry:
         value = self.np_clip_param(value, "theta_location")
         # Write either new dask array or into numpy array:
@@ -146,7 +146,7 @@ class NumpyModelContainer(BaseModelContainer):
         return self._theta_scale_getter()
 
     @theta_scale.setter
-    def theta_scale(self, value: dask.array.core.Array):
+    def theta_scale(self, value: Union[np.ndarray, dask.array.core.Array]):
         # Threshold new entry:
         value = self.np_clip_param(value, "theta_scale")
         # Write either new dask array or into numpy array:
