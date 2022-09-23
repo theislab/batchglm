@@ -1,27 +1,52 @@
+.. highlight:: shell
+
+============
 Installation
 ============
 
-We assume that you have a python environment set up.
 
-Firstly, you need to install tensorflow and tensorflow-probability.
-You can install these dependencies from source to optimze them to your hardware which can improve performance.
-Note that both packages also have GPU versions which allows you to run the run-time limiting steps of batchglm on GPUs.
-The simplest installation of these dependencies is via pip: call::
+Stable release
+--------------
 
-    pip install tf-nightly
-    pip install tfp-nightly
+To install batchglm, run this command in your terminal:
 
-The nightly versions of tensorflow and tensorflow-probability are up-to-date versions of these packages.
-Alternatively you can also install the major releases: call::
+.. code-block:: console
 
-    pip install tensorflow
-    pip install tensorflow-probability
+    $ pip install batchglm
+
+This is the preferred method to install batchglm, as it will always install the most recent stable release.
+
+If you don't have `pip`_ installed, this `Python installation guide`_ can guide
+you through the process.
+
+.. _pip: https://pip.pypa.io
+.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
 
 
-You can then install batchglm from source by using the repository on `GitHub
-<https://github.com/theislab/batchglm>`__: 
-``pip3 install git+https://github.com/theislab/batchglm.git``
+From sources
+------------
 
-You can now use batchglm in a python session by via the following import: call::
+The sources for batchglm can be downloaded from the `Github repo`_.
+Please note that you require `poetry`_ to be installed.
 
-    import batchglm.api as glm
+You can either clone the public repository:
+
+.. code-block:: console
+
+    $ git clone git://github.com/theislab/batchglm
+
+Or download the `tarball`_:
+
+.. code-block:: console
+
+    $ curl -OJL https://github.com/theislab/batchglm/tarball/master
+
+Once you have a copy of the source, you can install it with:
+
+
+    $ make install
+
+
+.. _Github repo: https://github.com/theislab/batchglm
+.. _tarball: https://github.com/theislab/batchglm/tarball/master
+.. _poetry: https://python-poetry.org/
