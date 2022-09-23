@@ -389,6 +389,7 @@ class NumpyModelContainer(BaseModelContainer):
     def ll_byfeature_j(self, j: Union[int, List[int]]) -> np.ndarray:
         return np.sum(self.ll_j(j=j), axis=0)
 
+    @property
     @abc.abstractmethod
     def ybar(self) -> Union[np.ndarray, dask.array.core.Array]:
         """
