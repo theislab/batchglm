@@ -1,12 +1,10 @@
 import abc
-from typing import Any, Callable, List, Union
+from typing import Union
 
 import dask.array
 import numpy as np
 
-from ....models.base_glm import ModelGLM
-from ....utils.data import dask_compute
-from ...base import BaseModelContainer
+from .external import BaseModelContainer, ModelGLM, dask_compute
 
 
 class NumpyModelContainer(BaseModelContainer):
@@ -169,12 +167,12 @@ class NumpyModelContainer(BaseModelContainer):
         """dot product of scale constraints with scale parameter giving new constrained parameters"""
         return np.dot(self.constraints_scale, self.theta_scale)
 
-    def theta_scale_j(self, j: Union[int, List[int]]) -> dask.array.core.Array:
+    def theta_scale_j(self, j: Union[int, np.ndarray]) -> dask.array.core.Array:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         return self.np_clip_param(self.params[self.npar_location :, j], "theta_scale")
 
-    def theta_scale_j_setter(self, value: Union[np.ndarray, dask.array.core.Array], j: Union[int, List[int]]):
+    def theta_scale_j_setter(self, value: Union[np.ndarray, dask.array.core.Array], j: Union[int, np.ndarray]):
         """Setter ofr a specific theta_scale value."""
         # Threshold new entry:
         value = self.np_clip_param(value, "theta_scale")
@@ -193,7 +191,7 @@ class NumpyModelContainer(BaseModelContainer):
         pass
 
     @abc.abstractmethod
-    def jac_weight_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_weight_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
@@ -212,14 +210,14 @@ class NumpyModelContainer(BaseModelContainer):
         inner = np.einsum("ob,of->fob", xh, w)
         return np.einsum("fob,of->fb", inner, ybar)
 
-    def jac_location_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_location_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Location jacobian indexed by j, the dependent variable of interest.
         :return: (features x inferred param)
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         w = self.fim_weight_location_location_j(j=j)  # (observations x features)
         ybar = self.ybar_j(j=j)  # (observations x features)
         xh = self.xh_loc  # (observations x inferred param)
@@ -236,20 +234,20 @@ class NumpyModelContainer(BaseModelContainer):
         return w.transpose() @ xh
 
     @dask_compute
-    def jac_scale_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
 
         :return: (features x inferred param)
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         w = self.jac_weight_scale_j(j=j)  # (observations x features)
         xh = self.xh_scale  # (observations x inferred param)
         return w.transpose() @ xh
 
     @abc.abstractmethod
-    def jac_weight_scale_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_weight_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     # hessians
@@ -312,7 +310,7 @@ class NumpyModelContainer(BaseModelContainer):
     # fim
 
     @abc.abstractmethod
-    def fim_weight_location_location_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def fim_weight_location_location_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property
@@ -377,7 +375,7 @@ class NumpyModelContainer(BaseModelContainer):
         pass
 
     @abc.abstractmethod
-    def ll_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ll_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         pass
 
     @property  # type: ignore
@@ -386,7 +384,7 @@ class NumpyModelContainer(BaseModelContainer):
         return np.sum(self.ll, axis=0)
 
     @dask_compute
-    def ll_byfeature_j(self, j: Union[int, List[int]]) -> np.ndarray:
+    def ll_byfeature_j(self, j: Union[int, np.ndarray]) -> np.ndarray:
         return np.sum(self.ll_j(j=j), axis=0)
 
     @property
@@ -398,7 +396,7 @@ class NumpyModelContainer(BaseModelContainer):
         pass
 
     @abc.abstractmethod
-    def ybar_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         This is Z in equation (8) indexed by j i.e the dependent variable of interest.
         """

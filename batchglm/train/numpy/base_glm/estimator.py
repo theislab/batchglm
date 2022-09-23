@@ -14,8 +14,7 @@ import scipy.optimize
 import scipy.sparse
 import sparse
 
-from ...base import BaseEstimatorGlm
-from .external import pkg_constants
+from .external import BaseEstimatorGlm, pkg_constants
 from .model_container import NumpyModelContainer
 from .training_strategies import TrainingStrategies
 

@@ -1,11 +1,10 @@
-from typing import Callable, List, Union
+from typing import Callable, Union
 
 import dask
 import numpy as np
 import scipy
 
-from ....utils.data import dask_compute
-from .external import NumpyModelContainer
+from .external import NumpyModelContainer, dask_compute
 
 
 class ModelContainer(NumpyModelContainer):
@@ -35,13 +34,13 @@ class ModelContainer(NumpyModelContainer):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def ybar_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
             return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
         else:
@@ -75,7 +74,7 @@ class ModelContainer(NumpyModelContainer):
         const3 = np.log(scale) + np.ones_like(scale) - np.log(r_plus_mu)
         return scale * (const1 + const2 + const3)
 
-    def jac_weight_scale_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_weight_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Scale model jacobian at location j
         :param j: Location
@@ -83,7 +82,7 @@ class ModelContainer(NumpyModelContainer):
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
         if isinstance(self.x, scipy.sparse.csr_matrix):
@@ -191,14 +190,14 @@ class ModelContainer(NumpyModelContainer):
             ll = np.asarray(ll)
         return self.np_clip_param(ll, "ll")
 
-    def ll_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ll_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Log likelhiood for observation j
         :param j: observation
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         scale = self.scale_j(j=j)
         loc = self.location_j(j=j)
         log_r_plus_mu = np.log(scale + loc)

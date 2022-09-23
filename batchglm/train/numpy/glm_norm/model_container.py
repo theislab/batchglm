@@ -1,5 +1,5 @@
 import math
-from typing import Callable, List, Union
+from typing import Callable, Union
 
 import dask
 import numpy as np
@@ -33,13 +33,13 @@ class ModelContainer(NumpyModelContainer):
         """
         return np.asarray(self.x - self.location)
 
-    def ybar_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
             return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
         else:
@@ -49,14 +49,14 @@ class ModelContainer(NumpyModelContainer):
     def fim_weight_location_location(self) -> Union[np.ndarray, dask.array.core.Array]:
         return 1 / np.power(self.scale, 2)
 
-    def fim_weight_location_location_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def fim_weight_location_location_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         return 1 / (self.scale_j(j=j) * self.scale_j(j=j))
 
     @property
     def jac_weight_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
         return -np.ones_like(self.x) - np.power((self.x - self.location) / self.scale, 2)
 
-    def jac_weight_scale_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def jac_weight_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         return -np.ones_like(self.x[:, j]) - np.power((self.x[:, j] - self.location_j(j=j)) / self.scale_j(j=j), 2)
 
     @property
@@ -101,10 +101,10 @@ class ModelContainer(NumpyModelContainer):
         x = self.model.x
         return np.asarray(ll(scale, loc, x))
 
-    def ll_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ll_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
 
         loc = self.location_j(j=j)
         scale = self.scale_j(j=j)

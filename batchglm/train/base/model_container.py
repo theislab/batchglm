@@ -28,10 +28,12 @@ class BaseModelContainer(metaclass=abc.ABCMeta):
     def fisher_inv(self):
         pass
 
+    @property
     @abc.abstractmethod
     def theta_location(self):
         pass
 
+    @property
     @abc.abstractmethod
     def model(self) -> ModelGLM:
         pass

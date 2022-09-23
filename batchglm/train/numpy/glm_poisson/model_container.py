@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import Union
 
 import dask
 import numpy as np
@@ -24,20 +24,20 @@ class ModelContainer(NumpyModelContainer):
         """
         return np.asarray(self.x - self.location) / self.location
 
-    def fim_weight_location_location_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def fim_weight_location_location_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Fisher inverse matrix weights at j
         :return: observations x features
         """
         return self.location_j(j=j)
 
-    def ybar_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ybar_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         :return: observations x features
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         if isinstance(self.x, np.ndarray) or isinstance(self.x, dask.array.core.Array):
             return (self.x[:, j] - self.location_j(j=j)) / self.location_j(j=j)
         else:
@@ -58,14 +58,14 @@ class ModelContainer(NumpyModelContainer):
         ll = x_times_log_loc - loc - log_x_factorial
         return np.asarray(self.np_clip_param(ll, "ll"))
 
-    def ll_j(self, j: Union[int, List[int]]) -> Union[np.ndarray, dask.array.core.Array]:
+    def ll_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
         Log likelhiood for observation j
         :param j: observation
         """
         # Make sure that dimensionality of sliced array is kept:
         if isinstance(j, int) or isinstance(j, np.int32) or isinstance(j, np.int64):
-            j = [j]
+            j = np.full(1, j)
         loc_j = self.location_j(j=j)
         log_loc = np.log(loc_j)
         x_times_log_loc = self.x[:, j] * log_loc
@@ -85,7 +85,7 @@ class ModelContainer(NumpyModelContainer):
     def jac_weight(self):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
-    def jac_weight_j(self, j: Union[int, List[int]]):
+    def jac_weight_j(self, j: Union[int, np.ndarray]):
         raise NotImplementedError("This method is currently unimplemented as it isn't used by any built-in procedures.")
 
     # Methods marked as abstract that involve the scale parameter:
@@ -101,7 +101,7 @@ class ModelContainer(NumpyModelContainer):
     def hessian_weight_location_scale(self):
         raise NoScaleError("hessian_weight_location_scale")
 
-    def jac_weight_scale_j(self, j: Union[int, List[int]]):
+    def jac_weight_scale_j(self, j: Union[int, np.ndarray]):
         raise NoScaleError("jac_weight_scale_j")
 
     @property
