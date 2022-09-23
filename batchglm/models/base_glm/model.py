@@ -41,8 +41,8 @@ class ModelGLM(metaclass=abc.ABCMeta):
     _size_factors: Optional[np.ndarray] = None
     _theta_location: Union[np.ndarray, dask.array.core.Array]
     _theta_scale: Union[np.ndarray, dask.array.core.Array]
-    _theta_location_getter: Callable = lambda x: x._theta_location
-    _theta_scale_getter: Callable = lambda x: x._theta_scale
+    _theta_location_getter: Union[Callable, Any] = lambda x: x._theta_location
+    _theta_scale_getter: Union[Callable, Any] = lambda x: x._theta_scale
     _cast_dtype: str = "float32"
     _chunk_size_cells: int
     _chunk_size_genes: int
