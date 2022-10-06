@@ -54,7 +54,7 @@ class ModelContainer(NumpyModelContainer):
         loc = self.location
         log_loc = np.log(loc)
         x_times_log_loc = self.x * log_loc
-        log_x_factorial = np.log(scipy.special.gammaln(self.x + np.ones_like(self.x)))
+        log_x_factorial = np.log(scipy.special.gammaln(self.x + 1.0))
         ll = x_times_log_loc - loc - log_x_factorial
         return np.asarray(self.np_clip_param(ll, "ll"))
 
@@ -69,7 +69,7 @@ class ModelContainer(NumpyModelContainer):
         loc_j = self.location_j(j=j)
         log_loc = np.log(loc_j)
         x_times_log_loc = self.x[:, j] * log_loc
-        log_x_factorial = np.log(scipy.special.gammaln(self.x[:, j] + np.ones_like(self.x[:, j])))
+        log_x_factorial = np.log(scipy.special.gammaln(self.x[:, j] + 1.0))
         ll = x_times_log_loc - loc_j - log_x_factorial
         return np.asarray(self.np_clip_param(ll, "ll"))
 
