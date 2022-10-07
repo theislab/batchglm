@@ -22,7 +22,7 @@ jobs:
             - name: Install doc dependencies
               run: |
                   pip install -r docs/requirements.txt
-
+                  pip install .
             - name: Build docs
               run: |
                   cd docs
