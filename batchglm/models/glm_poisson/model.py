@@ -1,4 +1,3 @@
-import abc
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import dask.array
@@ -7,7 +6,7 @@ import numpy as np
 from .external import ModelGLM
 
 
-class Model(ModelGLM, metaclass=abc.ABCMeta):
+class Model(ModelGLM):
     """
     Generalized Linear Model (GLM) with Poisson noise.
     """

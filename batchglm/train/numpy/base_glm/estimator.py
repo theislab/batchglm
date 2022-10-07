@@ -479,13 +479,13 @@ class EstimatorGlm(BaseEstimatorGlm):
                     lb_bracket = np.max([lb["theta_scale"], theta_scale[0, j] - 20])
                     ub_bracket = np.min([ub["theta_scale"], theta_scale[0, j] + 20])
 
-                    def cost_theta_scale(x, data_j, eta_loc_j, xh_scale_j):
-                        x = np.clip(np.array([[x]]), lb["theta_scale"], ub["theta_scale"])
+                    def cost_theta_scale(x, data_j, eta_loc_j, xh_scale_j, lb, ub, ll):
+                        x = np.clip(np.array([[x]]), lb, ub)
                         return -np.sum(ll(data_j, eta_loc_j, x, xh_scale_j))
 
                     delta_theta[0, j] = scipy.optimize.brent(
                         func=cost_theta_scale,
-                        args=(data, eta_loc, xh_scale),
+                        args=(data, eta_loc, xh_scale, lb["theta_scale"], ub["theta_scale"], ll),
                         maxiter=max_iter,
                         tol=ftol,
                         brack=(lb_bracket, ub_bracket),
