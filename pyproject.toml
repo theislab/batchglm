@@ -37,7 +37,7 @@ seaborn = "^0.11.2"
 bandit = "1.7.2"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2.3"
+pytest = "^7.1.3"
 coverage = {extras = ["toml"], version = "^5.3"}
 safety = "^1.9.0"
 typeguard = "^2.12.0"
@@ -63,7 +63,7 @@ types-requests = "^2.25.2"
 types-attrs = "^19.1.0"
 sphinx-rtd-dark-mode = "^1.2.3"
 Jinja2 = "^3.0.1"
-mypy = "^0.910"
+mypy = "^0.971"
 matplotlib = "^3.5.1"
 nox = "^2022.1.7"
 cookietemple = "^1.3.11"
