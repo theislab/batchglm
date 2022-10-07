@@ -2,10 +2,10 @@ import time
 
 import numpy as np
 
-from .external import BaseModelContainer
+from .external import NumpyModelContainer
 
 
-def nb_deviance(model: BaseModelContainer, idx=...):
+def nb_deviance(model: NumpyModelContainer, idx=...):
 
     """
     Python version of the method implemented in a C++ function in edgeR.

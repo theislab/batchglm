@@ -1,9 +1,17 @@
+from typing import Optional, Tuple
+
 import numpy as np
 
 from .fitFDist import fit_f_dist, fit_f_dist_robustly
 
 
-def squeeze_var(var: np.ndarray, df: np.ndarray, covariate: np.ndarray, robust: bool, winsor_tail_p: np.ndarray):
+def squeeze_var(
+    var: np.ndarray,
+    df: np.ndarray,
+    robust: bool,
+    winsor_tail_p: Tuple[float, float],
+    covariate: Optional[np.ndarray] = None,
+):
     """
     This method is a python version of limma's squeezeVar function.
     """

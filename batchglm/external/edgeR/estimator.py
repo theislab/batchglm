@@ -6,7 +6,7 @@ import numpy as np
 from scipy.linalg import cho_solve, cholesky
 
 from .c_utils import nb_deviance
-from .external import BaseModelContainer, EstimatorGlm, InputDataGLM, ModelContainer, NBModel, init_par
+from .external import EstimatorGlm, InputDataGLM, ModelContainer, NBModel, NumpyModelContainer, init_par
 from .glm_one_group import fit_single_group, get_single_group_start
 from .qr_decomposition import get_levenberg_start
 
@@ -20,9 +20,9 @@ class Estimator:
 
     _train_loc: bool = False
     _train_scale: bool = False
-    _model_container: BaseModelContainer
+    _model_container: NumpyModelContainer
 
-    def __init__(self, model_container: BaseModelContainer, dtype: str):
+    def __init__(self, model_container: NumpyModelContainer, dtype: str):
         """
         Performs initialisation and creates a new estimator.
         :param model_container:
@@ -87,7 +87,7 @@ class Estimator:
             dscale = model.design_scale
             if isinstance(model.design_loc, dask.array.core.Array):
                 dscale = dscale.compute()
-            group_model = model.model.__class__(
+            _group_model = model.model.__class__(
                 InputDataGLM(
                     data=model.x[obs_group],
                     design_loc=dloc[np.ix_(obs_group, np.array([i]))],
@@ -101,8 +101,8 @@ class Estimator:
                 )
             )
             group_model = ModelContainer(
-                model=group_model,
-                init_theta_location=get_single_group_start(group_model.x, group_model.size_factors),
+                model=_group_model,
+                init_theta_location=get_single_group_start(_group_model.x, _group_model.size_factors),
                 init_theta_scale=model.theta_scale,
                 chunk_size_genes=model.chunk_size_genes,
                 dtype=model.theta_location.dtype,
@@ -375,7 +375,7 @@ class NBEstimator(Estimator):
     def __init__(
         self,
         model: NBModel,
-        dispersion: float,
+        dispersion: Union[float, np.ndarray],
         dtype: str = "float64",
     ):
         """
@@ -386,7 +386,14 @@ class NBEstimator(Estimator):
         :param dtype: Numerical precision.
         """
         init_theta_location = np.zeros((model.xh_loc.shape[1], model.num_features), dtype=model.cast_dtype)
-        init_theta_scale = np.full((1, model.num_features), np.log(1 / dispersion))
+        if isinstance(dispersion, float):
+            init_theta_scale = np.full((1, model.num_features), np.log(1 / dispersion))
+        elif isinstance(dispersion, np.ndarray):
+            if dispersion.shape != (1, model.num_features):
+                raise ValueError(
+                    f"Shape mismatch (dispersion): Given: {dispersion.shape} Expected: (1, {model.num_features}))"
+                )
+            init_theta_scale = dispersion
         self._train_loc = True
         self._train_scale = False  # This is fixed as edgeR doesn't fit the scale parameter
         _model_container = ModelContainer(

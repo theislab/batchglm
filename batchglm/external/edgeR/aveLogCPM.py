@@ -47,16 +47,16 @@ def calculate_avg_log_cpm(
         InputDataGLM(
             data=x,
             design_loc=np.ones((x.shape[0], 1)),
-            design_loc_names=np.array(["Intercept"]),
+            design_loc_names=["Intercept"],
             size_factors=adjusted_size_factors,
             design_scale=np.ones((x.shape[0], 1)),
-            design_scale_names=np.array(["Intercept"]),
+            design_scale_names=["Intercept"],
             as_dask=isinstance(x, dask.array.core.Array),
             chunk_size_cells=chunk_size_cells,
             chunk_size_genes=chunk_size_genes,
         )
     )
-    avg_cpm_model = ModelContainer(
+    avg_cpm_model_container = ModelContainer(
         model=avg_cpm_model,
         init_theta_location=get_single_group_start(avg_cpm_model.x, avg_cpm_model.size_factors),
         init_theta_scale=np.log(1 / dispersion),
@@ -64,8 +64,8 @@ def calculate_avg_log_cpm(
         dtype=x.dtype,
     )
 
-    fit_single_group(avg_cpm_model, maxit=maxit, tolerance=tolerance)
-    output = (avg_cpm_model.theta_location + np.log(1e6)) / np.log(2)
+    fit_single_group(avg_cpm_model_container, maxit=maxit, tolerance=tolerance)
+    output = (avg_cpm_model_container.theta_location + np.log(1e6)) / np.log(2)
 
     return output
 

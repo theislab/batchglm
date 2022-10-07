@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import dask.array
 import numpy as np
@@ -17,7 +17,7 @@ from .wleb import wleb
 def estimate_disp(
     x: Union[NBModel, np.ndarray],
     design: Optional[np.ndarray] = None,
-    design_loc_names: Optional[np.ndarray] = None,
+    design_loc_names: Optional[List[str]] = None,
     size_factors: Optional[np.ndarray] = None,
     group=None,  #
     prior_df=None,  # TODO
@@ -26,9 +26,9 @@ def estimate_disp(
     span=None,  # TODO
     min_rowsum: int = 5,  # TODO
     grid_length: int = 21,  # TODO
-    grid_range: tuple = (-10, 10),  # TODO
+    grid_range: Tuple[float, float] = (-10.0, 10.0),  # TODO
     robust: bool = False,  # TODO
-    winsor_tail_p: tuple = (0.05, 0.1),  # TODO
+    winsor_tail_p: Tuple[float, float] = (0.05, 0.1),  # TODO
     tol: float = 1e-6,  # TODO
     weights=None,  # TODO
     adjust: bool = True,
@@ -66,6 +66,9 @@ def estimate_disp(
     :param weights: optional numeric matrix giving observation weights
     """
 
+    # define return values:
+    trended_dispersion: Optional[np.ndarray] = None
+
     if isinstance(x, np.ndarray):
         if design is None:
             raise AssertionError("Provide design when x is not a model already.")
@@ -77,7 +80,7 @@ def estimate_disp(
             design_loc_names=design_loc_names,
             size_factors=size_factors,
             design_scale=np.ones((x.shape[0], 1)),
-            design_scale_names=np.array(["Intercept"]),
+            design_scale_names=["Intercept"],
             **input_data_kwargs,
         )
         model = NBModel(input_data)
@@ -125,10 +128,10 @@ def estimate_disp(
             if len(coefs_new) == design_new.shape[0]:
                 continue
             design_new = design_new[:, coefs_new]
-            new_dloc_names = model.design_loc_names[coefs_new]
+            new_dloc_names = [model.design_loc_names[i] for i in coefs_new]
 
         subgroup_x = model.x
-        if isinstance(model.x, dask.array.core.Array):
+        if isinstance(subgroup_x, dask.array.core.Array):
             subgroup_x = subgroup_x.compute()
         sf = model.size_factors
         if sf is not None:
@@ -141,7 +144,7 @@ def estimate_disp(
             design_loc_names=new_dloc_names,
             size_factors=sf,
             design_scale=model.design_scale[not_zero_obs_in_group],
-            design_scale_names=np.array(["Intercept"]),
+            design_scale_names=["Intercept"],
             as_dask=isinstance(model.x, dask.array.core.Array),
             chunk_size_cells=1000000,
             chunk_size_genes=1000000,
@@ -183,7 +186,6 @@ def estimate_disp(
         avg_log_cpm = None
         m0 = np.broadcast_to(l0.mean(axis=0), shape=(model.x.shape[1], len(spline_pts)))
         disp_trend = common_dispersion
-        trended_dispersion = None
 
     # Are tagwise dispersions required?
     if not tagwise:
@@ -192,9 +194,14 @@ def estimate_disp(
         avg_log_cpm = avg_log_cpm.compute()
     # Calculate prior.df
     print("Calculating featurewise dispersion...")
-    if prior_df is None:  #
+    if prior_df is None:
         prior_df, _, _ = calculate_prior_df(
-            model, avg_log_cpm[0, selected_features], robust=robust, winsor_tail_p=winsor_tail_p, dispersion=disp_trend
+            model=model,
+            robust=robust,
+            dispersion=disp_trend,
+            winsor_tail_p=winsor_tail_p,
+            avg_log_cpm=avg_log_cpm[0, selected_features],
+            tolerance=tol,
         )
     n_loc_params = model.design_loc.shape[1]
     prior_n = prior_df / (model.num_observations - n_loc_params)

@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import patsy
@@ -184,5 +184,7 @@ def trigamma_inverse(x: np.ndarray):
     return y
 
 
-def fit_f_dist_robustly(var: np.ndarray, df1: np.ndarray, covariate: np.ndarray, winsor_tail_p: np.ndarray):
+def fit_f_dist_robustly(
+    var: np.ndarray, df1: np.ndarray, winsor_tail_p: Tuple[float, float], covariate: Optional[np.ndarray] = None
+):
     pass

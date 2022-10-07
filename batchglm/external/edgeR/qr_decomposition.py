@@ -2,7 +2,7 @@ import dask.array
 import numpy as np
 from scipy.linalg.lapack import dgeqrf, dormqr, dtrtrs
 
-from .external import _ModelGLM
+from .external import ModelGLM
 
 
 class QRDecomposition:
@@ -61,7 +61,7 @@ class QRDecomposition:
             raise RuntimeError("failed to solve the triangular system")
 
 
-def get_levenberg_start(model: _ModelGLM, disp: np.ndarray, use_null: bool):
+def get_levenberg_start(model: ModelGLM, disp: np.ndarray, use_null: bool):
     """
     Parameter initialisation of location parameters using QR decomposition.
     This method is a python version of the C++ code in edgeR.

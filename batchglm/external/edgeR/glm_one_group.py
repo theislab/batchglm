@@ -4,7 +4,7 @@ from typing import Optional, Union
 import dask.array
 import numpy as np
 
-from .external import BaseModelContainer
+from .external import NumpyModelContainer
 
 low_value = 1e-10
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def get_single_group_start(
 
 
 def fit_single_group(
-    model: BaseModelContainer,
+    model: NumpyModelContainer,
     maxit: int = 50,
     tolerance: float = 1e-10,
 ):

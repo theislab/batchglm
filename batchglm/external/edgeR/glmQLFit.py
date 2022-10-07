@@ -1,17 +1,18 @@
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
 from .aveLogCPM import calculate_avg_log_cpm
-from .external import InputDataGLM, NBEstimator, NBModel
+from .estimator import NBEstimator
+from .external import InputDataGLM, NBModel
 from .prior_df import calculate_prior_df
 
 
 def glm_ql_fit(
     x: Union[NBModel, np.ndarray],
+    dispersion: Union[np.ndarray, float],
     design: Optional[np.ndarray] = None,
-    design_loc_names: Optional[np.ndarray] = None,
-    dispersion: Optional[np.ndarray] = None,
+    design_loc_names: Optional[List[str]] = None,
     offset: Optional[np.ndarray] = None,
     lib_size: Optional[np.ndarray] = None,
     size_factors: Optional[np.ndarray] = None,
@@ -42,15 +43,17 @@ def glm_ql_fit(
             design_loc_names=design_loc_names,
             size_factors=size_factors,
             design_scale=np.ones((x.shape[0], 1)),
-            design_scale_names=np.array(["Intercept"]),
+            design_scale_names=["Intercept"],
             **input_data_kwargs,
         )
         model = NBModel(input_data)
-    else:
+    elif isinstance(x, NBModel):
         model = x
+    else:
+        raise TypeError(f"Type for argument x not understood: {type(x)}. Valid types are NBModel, np.ndarray")
 
-    estimator = NBEstimator(model, dispersion=dispersion)
-    estimator.train(maxit=250, tolerance=tol)
+    # estimator = NBEstimator(model, dispersion=dispersion)
+    # estimator.train(maxit=250, tolerance=tol)
     # glmfit = glmFit(y, design=design, dispersion=dispersion, offset=offset, lib.size=lib.size, weights=weights,...)
 
     # Setting up the abundances.
@@ -65,7 +68,7 @@ def glm_ql_fit(
         ave_log_cpm = None
 
     return calculate_prior_df(
-        model=x,
+        model=model,
         avg_log_cpm=ave_log_cpm,
         robust=robust,
         winsor_tail_p=winsor_tail_p,
