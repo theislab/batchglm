@@ -55,10 +55,10 @@ class TestConstraintSystemFromStar(unittest.TestCase):
     true_terms = ["condition", "batch"]
     true_coefs = ["condition[0]", "condition[1]", "batch[0]", "batch[1]", "batch[2]", "batch[3]"]
 
-    true_terms_list = None
+    true_terms_list = ["condition[0]", "condition[1]", "batch[T.1]", "batch[T.2]", "batch[T.3]"]
     true_coefs_list = ["condition[0]", "condition[1]", "batch[T.1]", "batch[T.2]", "batch[T.3]"]
 
-    true_terms_array = None
+    true_terms_array = ["condition[0]", "condition[1]", "batch[T.1]"]
     true_coefs_array = ["condition[0]", "condition[1]", "batch[T.1]"]
 
     # dict tests

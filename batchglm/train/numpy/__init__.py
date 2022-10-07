@@ -1,1 +1,1 @@
-from . import glm_nb as nb
+from . import glm_nb, glm_poisson

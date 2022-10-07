@@ -7,7 +7,7 @@ import numpy as np
 from utils import get_estimator, get_generated_model
 
 from batchglm import pkg_constants
-from batchglm.models.base_glm import _ModelGLM
+from batchglm.models.base_glm import ModelGLM
 from batchglm.train.numpy.base_glm import EstimatorGlm
 
 logger = logging.getLogger("batchglm")
@@ -91,16 +91,6 @@ class TestAccuracyNB(TestAccuracy):
         )
         assert self._test_accuracy(sparse_estimator)
 
-        dense_estimator = get_estimator(
-            noise_model="nb", model=dense_model, init_location="standard", init_scale="standard", quick_scale=True
-        )
-        assert self._test_accuracy(dense_estimator)
-
-        sparse_estimator = get_estimator(
-            noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard", quick_scale=True
-        )
-        assert self._test_accuracy(sparse_estimator)
-
     def test_accuracy_const_theta(self):
         """
         This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
@@ -122,14 +112,82 @@ class TestAccuracyNB(TestAccuracy):
         )
         assert self._test_accuracy(sparse_estimator)
 
+
+class TestAccuracyPoisson(TestAccuracy):
+    def test_accuracy_rand_theta(self):
+        """
+        This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
+        """
+        dense_model = get_generated_model(
+            noise_model="poisson", num_conditions=2, num_batches=4, sparse=False, mode="randTheta"
+        )
+        sparse_model = get_generated_model(
+            noise_model="poisson", num_conditions=2, num_batches=4, sparse=True, mode="randTheta"
+        )
         dense_estimator = get_estimator(
-            noise_model="nb", model=dense_model, init_location="standard", init_scale="standard", quick_scale=True
+            noise_model="poisson", model=dense_model, init_location="standard", init_scale="standard"
         )
         assert self._test_accuracy(dense_estimator)
 
         sparse_estimator = get_estimator(
-            noise_model="nb", model=sparse_model, init_location="standard", init_scale="standard", quick_scale=True
+            noise_model="poisson", model=sparse_model, init_location="standard", init_scale="standard"
         )
+        assert self._test_accuracy(sparse_estimator)
+
+    def test_accuracy_const_theta(self):
+        """
+        This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
+        """
+        dense_model = get_generated_model(
+            noise_model="poisson", num_conditions=2, num_batches=0, sparse=False, mode="constTheta"
+        )
+        sparse_model = get_generated_model(
+            noise_model="poisson", num_conditions=2, num_batches=0, sparse=True, mode="constTheta"
+        )
+
+        dense_estimator = get_estimator(
+            noise_model="poisson", model=dense_model, init_location="standard", init_scale="standard"
+        )
+        assert self._test_accuracy(dense_estimator)
+
+        sparse_estimator = get_estimator(
+            noise_model="poisson", model=sparse_model, init_location="standard", init_scale="standard"
+        )
+        assert self._test_accuracy(sparse_estimator)
+
+
+class TestAccuracyNorm(TestAccuracy):
+    def test_accuracy_rand_theta(self):
+        """
+        This tests randTheta simulated data with 2 conditions and 4 batches sparse and dense.
+        """
+        dense_model = get_generated_model(
+            noise_model="norm", num_conditions=2, num_batches=4, sparse=False, mode="randTheta"
+        )
+        sparse_model = get_generated_model(
+            noise_model="norm", num_conditions=2, num_batches=4, sparse=True, mode="randTheta"
+        )
+        dense_estimator = get_estimator(noise_model="norm", model=dense_model)
+        assert self._test_accuracy(dense_estimator)
+
+        sparse_estimator = get_estimator(noise_model="norm", model=sparse_model)
+        assert self._test_accuracy(sparse_estimator)
+
+    def test_accuracy_const_theta(self):
+        """
+        This tests constTheta simulated data with 2 conditions and 0 batches sparse and dense.
+        """
+        dense_model = get_generated_model(
+            noise_model="norm", num_conditions=2, num_batches=0, sparse=False, mode="constTheta"
+        )
+        sparse_model = get_generated_model(
+            noise_model="norm", num_conditions=2, num_batches=0, sparse=True, mode="constTheta"
+        )
+
+        dense_estimator = get_estimator(noise_model="norm", model=dense_model)
+        assert self._test_accuracy(dense_estimator)
+
+        sparse_estimator = get_estimator(noise_model="norm", model=sparse_model)
         assert self._test_accuracy(sparse_estimator)
 
 
