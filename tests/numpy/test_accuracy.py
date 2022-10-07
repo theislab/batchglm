@@ -1,6 +1,8 @@
 import logging
 import unittest
+from typing import Union
 
+import dask.array
 import numpy as np
 from utils import get_estimator, get_generated_model
 
@@ -29,7 +31,12 @@ class TestAccuracy(unittest.TestCase):
         std_thres_location = 1
         std_thres_scale = 1
 
-        def deviation_theta(true: np.ndarray, pred: np.ndarray, mean_thres: float, std_thres: float) -> bool:
+        def deviation_theta(
+            true: Union[np.ndarray, dask.array.core.Array],
+            pred: Union[np.ndarray, dask.array.core.Array],
+            mean_thres: float,
+            std_thres: float,
+        ) -> bool:
             relative_deviation = (pred - true) / true
             mean = np.mean(relative_deviation)
             std = np.std(relative_deviation)
