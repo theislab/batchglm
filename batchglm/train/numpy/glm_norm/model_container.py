@@ -54,10 +54,10 @@ class ModelContainer(NumpyModelContainer):
 
     @property
     def jac_weight_scale(self) -> Union[np.ndarray, dask.array.core.Array]:
-        return -np.ones_like(self.x) - np.power((self.x - self.location) / self.scale, 2)
+        return -1.0 - np.power((self.x - self.location) / self.scale, 2)
 
     def jac_weight_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
-        return -np.ones_like(self.x[:, j]) - np.power((self.x[:, j] - self.location_j(j=j)) / self.scale_j(j=j), 2)
+        return -1.0 - np.power((self.x[:, j] - self.location_j(j=j)) / self.scale_j(j=j), 2)
 
     @property
     def fim_location_scale(self) -> np.ndarray:

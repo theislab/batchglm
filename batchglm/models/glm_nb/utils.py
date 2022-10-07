@@ -43,7 +43,7 @@ def closedform_nb_glm_logmu(
 def closedform_nb_glm_logphi(
     x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
     design_scale: Union[np.ndarray, dask.array.core.Array],
-    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    constraints: Union[np.ndarray, dask.array.core.Array],
     size_factors: Optional[np.ndarray] = None,
     groupwise_means: Optional[np.ndarray] = None,
     link_fn: Callable = np.log,

@@ -74,7 +74,7 @@ def generate_sample_description(
 def closedform_glm_mean(
     x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
     dmat: Union[np.ndarray, dask.array.core.Array],
-    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    constraints: Union[np.ndarray, dask.array.core.Array],
     size_factors: Optional[np.ndarray] = None,
     link_fn: Optional[Callable] = None,
     inv_link_fn: Optional[Callable] = None,
@@ -118,7 +118,7 @@ def closedform_glm_mean(
 def closedform_glm_scale(
     x: Union[np.ndarray, scipy.sparse.csr_matrix, dask.array.core.Array],
     design_scale: Union[np.ndarray, dask.array.core.Array],
-    constraints: Optional[Union[np.ndarray, dask.array.core.Array]] = None,
+    constraints: Union[np.ndarray, dask.array.core.Array],
     size_factors: Optional[np.ndarray] = None,
     groupwise_means: Optional[np.ndarray] = None,
     link_fn: Optional[Callable] = None,

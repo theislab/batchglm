@@ -231,12 +231,11 @@ class NumpyModelContainer(BaseModelContainer):
         """
         w = self.jac_weight_scale  # (observations x features)
         xh = self.xh_scale  # (observations x inferred param)
-        return w.transpose() @ xh
+        return np.einsum("of,oi->fi", w, xh)
 
     @dask_compute
     def jac_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
         """
-
         :return: (features x inferred param)
         """
         # Make sure that dimensionality of sliced array is kept:
@@ -244,7 +243,7 @@ class NumpyModelContainer(BaseModelContainer):
             j = np.full(1, j)
         w = self.jac_weight_scale_j(j=j)  # (observations x features)
         xh = self.xh_scale  # (observations x inferred param)
-        return w.transpose() @ xh
+        return np.einsum("of,oi->fi", w, xh)
 
     @abc.abstractmethod
     def jac_weight_scale_j(self, j: Union[int, np.ndarray]) -> Union[np.ndarray, dask.array.core.Array]:
