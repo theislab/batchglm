@@ -5,11 +5,12 @@ project_slug: batchglm
 project_slug_no_hyphen: batchglm
 template_version: '2.0.2 # <<COOKIETEMPLE_NO_BUMP>>'
 template_handle: cli-python
-github_username: picciama
+github_username: theislab
 creator_github_username: picciama
 is_github_repo: true
-is_repo_private: true
-is_github_orga: false
+is_repo_private: false
+is_github_orga: true
+github_orga: theislab
 full_name: Mario Picciani
 email: mario.picciani@tum.de
 project_name: batchglm
