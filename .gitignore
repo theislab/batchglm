@@ -1,3 +1,17 @@
+cache
+data
+config.ini
+.metadata
+.Rhistory
+playground/*
+resources/*
+**/__pycache__
+**/.DS_Store
+#**/*.ipynb
+tutorials
+
+!**/.gitignore
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

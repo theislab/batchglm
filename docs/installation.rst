@@ -43,7 +43,6 @@ Or download the `tarball`_:
 
 Once you have a copy of the source, you can install it with:
 
-.. code-block:: console
 
     $ make install
 

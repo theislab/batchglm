@@ -52,10 +52,11 @@ repos:
       hooks:
           - id: prettier
     - repo: https://github.com/pycqa/isort
-      rev: 5.8.0
+      rev: 5.10.1
       hooks:
           - id: isort
             name: isort (python)
+            args: ["--profile", "black"]
           - id: isort
             name: isort (cython)
             types: [cython]
