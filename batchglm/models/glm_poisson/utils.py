@@ -71,10 +71,8 @@ def init_par(model, init_location: str) -> Tuple[np.ndarray, np.ndarray, bool, b
         if len(unique_params) == 2 and unique_params[0] == 0.0 and unique_params[1] == 1.0:
             return "closed_form"
         logger.warning(
-            (
-                "Cannot use 'closed_form' init for loc model: "
-                "design_loc is not one-hot encoded. Falling back to standard initialization."
-            )
+            "Cannot use 'closed_form' init for loc model: "
+            "design_loc is not one-hot encoded. Falling back to standard initialization."
         )
         return "standard"
 

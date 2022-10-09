@@ -69,10 +69,8 @@ def init_par(model, init_location: str, init_scale: str) -> Tuple[np.ndarray, np
     if auto_or_closed_form or init_location_str == "all_zero":
         if auto_or_closed_form:
             logger.warning(
-                (
-                    "There is no need for closed form location model initialization"
-                    "because it is already closed form - falling back to zeros"
-                )
+                "There is no need for closed form location model initialization"
+                "because it is already closed form - falling back to zeros"
             )
         init_theta_location = np.zeros([model.num_loc_params, model.num_features])
     elif init_location_str == "standard":
