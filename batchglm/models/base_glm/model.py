@@ -437,7 +437,7 @@ class ModelGLM(metaclass=abc.ABCMeta):
         if sparse:
             data_matrix = scipy.sparse.csr_matrix(data_matrix)
         # generate random gene/feature names
-        feature_names = "".join("feature_" + str(i) for i in range(n_vars))
+        feature_names = ["feature_" + str(i) for i in range(n_vars)]
         input_data = InputDataGLM(
             data=data_matrix,
             design_loc=_design_loc,
