@@ -6,7 +6,7 @@ author = "David S. Fischer, Florian R. Hölzlwimmer, Sabrina Richter"
 author_email = "david.fischer@helmholtz-muenchen.de"
 description = "Fast and scalable fitting of over-determined generalized-linear models (GLMs)"
 
-with open("README.md", "r") as fh:
+with open("README.md") as fh:
     long_description = fh.read()
 
 setup(
